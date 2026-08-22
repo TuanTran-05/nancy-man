@@ -43,7 +43,8 @@ describe('Ops database migration runner', () => {
       '0007_ingest_nonces',
       '0008_ingest_rate_limits',
       '0009_alert_delivery_outbox',
-      '0010_ops_login_challenges'
+      '0010_ops_login_challenges',
+      '0011_ops_mfa_enrollment_tokens'
     ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {
@@ -69,7 +70,8 @@ describe('Ops database migration runner', () => {
               { migrationId: '0007_ingest_nonces' },
               { migrationId: '0008_ingest_rate_limits' },
               { migrationId: '0009_alert_delivery_outbox' },
-              { migrationId: '0010_ops_login_challenges' }
+              { migrationId: '0010_ops_login_challenges' },
+              { migrationId: '0011_ops_mfa_enrollment_tokens' }
             ] as T[]
           };
         }
