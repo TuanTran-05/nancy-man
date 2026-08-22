@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Ops credentials, sessions, cookies, database, and secrets are never shared with EduTrack.
-- Cookie name is `edutrack_ops_session`; it is host-only, `Secure`, `HttpOnly`, `SameSite=Strict`, and `Path=/`.
+- Cookie name is `__Host-ops-session`; it is host-only, `Secure`, `HttpOnly`, `SameSite=Strict`, has `Path=/`, and never has a `Domain` attribute.
 - Session idle timeout is 30 minutes and absolute lifetime is 12 hours.
 - SQL elevation idle timeout is 15 minutes and absolute lifetime is 30 minutes.
 - Passkey/WebAuthn is primary MFA; TOTP and single-use recovery codes are fallback factors.
