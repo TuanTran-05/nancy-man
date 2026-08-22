@@ -28,5 +28,8 @@
     "typescript-eslint": "8.59.2",
     "vite": "6.2.0",
     "vitest": "4.1.10"
+  },
+  "allowScripts": {
+    "argon2@0.45.1": true
   }
 }
