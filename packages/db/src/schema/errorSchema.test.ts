@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { alertDeliveries, alertRules } from './alerts.js';
 import { errorEvents, errorIssues, incidents, ingestDeadLetters } from './errors.js';
-import { ingestClients, ingestEnvelopes, ingestIdempotency } from './ingestion.js';
+import { ingestClients, ingestEnvelopes, ingestIdempotency, ingestProcessing } from './ingestion.js';
 import { releases, sourceMapObjects } from './releases.js';
 
 describe('Error Operations Drizzle schema', () => {
@@ -12,6 +12,7 @@ describe('Error Operations Drizzle schema', () => {
       getTableName(ingestClients),
       getTableName(ingestIdempotency),
       getTableName(ingestEnvelopes),
+      getTableName(ingestProcessing),
       getTableName(errorEvents),
       getTableName(errorIssues),
       getTableName(incidents),
@@ -24,6 +25,7 @@ describe('Error Operations Drizzle schema', () => {
       'ingest_clients',
       'ingest_idempotency',
       'ingest_envelopes',
+      'ingest_processing',
       'error_events',
       'error_issues',
       'incidents',
@@ -44,7 +46,8 @@ describe('Error Operations Drizzle schema', () => {
         'idempotencyKey',
         'eventId',
         'payload',
-        'payloadHash'
+        'payloadHash',
+        'redacted'
       ])
     );
     expect(Object.keys(errorEvents)).toEqual(

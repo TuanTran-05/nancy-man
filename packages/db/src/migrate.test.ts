@@ -33,7 +33,11 @@ describe('Ops database migration runner', () => {
       }
     });
 
-    expect(result.appliedMigrations).toEqual(['0001_ops_foundation', '0002_error_operations']);
+    expect(result.appliedMigrations).toEqual([
+      '0001_ops_foundation',
+      '0002_error_operations',
+      '0003_ingest_processing_state'
+    ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {
       expect(migrationSql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
@@ -50,7 +54,8 @@ describe('Ops database migration runner', () => {
           return {
             rows: [
               { migrationId: '0001_ops_foundation' },
-              { migrationId: '0002_error_operations' }
+              { migrationId: '0002_error_operations' },
+              { migrationId: '0003_ingest_processing_state' }
             ] as T[]
           };
         }
