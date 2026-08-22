@@ -1,16 +1,31 @@
 import express, { type Router } from 'express';
+import { z } from 'zod';
 
 import { assertPermission, type OpsRole } from '../../../../../packages/security/src/sessions.js';
 
 export function createIssueRouter(input: {
-  authorize: (cookieHeader?: string) => Promise<{ role: OpsRole } | null>;
+  authorize: (input: {
+    cookieHeader?: string;
+    csrfToken?: string;
+    mutation: boolean;
+  }) => Promise<{ role: OpsRole; userId: string } | null>;
   inbox: { list: (input: { limit: number }) => Promise<unknown[]> };
+  workflow?: {
+    transition: (input: {
+      issueId: string;
+      actorUserId: string;
+      status: 'acknowledged' | 'investigating' | 'resolved' | 'ignored';
+    }) => Promise<boolean>;
+  };
 }): Router {
   const router = express.Router();
   router.get('/', async (request, response, next) => {
     try {
       const cookieHeader = request.get('cookie');
-      const principal = await input.authorize(cookieHeader || undefined);
+      const principal = await input.authorize({
+        ...(cookieHeader ? { cookieHeader } : {}),
+        mutation: false
+      });
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'issues:read');
@@ -24,5 +39,42 @@ export function createIssueRouter(input: {
       next(error);
     }
   });
+  router.patch(
+    '/:issueId/status',
+    express.json({ limit: '2kb' }),
+    async (request, response, next) => {
+      try {
+        const parsed = z
+          .object({ status: z.enum(['acknowledged', 'investigating', 'resolved', 'ignored']) })
+          .safeParse(request.body);
+        if (!parsed.success || !input.workflow)
+          return response.status(400).json({ code: 'INVALID_ISSUE_TRANSITION' });
+        const cookieHeader = request.get('cookie');
+        const csrfToken = request.get('X-Ops-CSRF');
+        const principal = await input.authorize({
+          ...(cookieHeader ? { cookieHeader } : {}),
+          ...(csrfToken ? { csrfToken } : {}),
+          mutation: true
+        });
+        if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+        try {
+          assertPermission(principal.role, 'issues:write');
+        } catch {
+          return response.status(403).json({ code: 'PERMISSION_DENIED' });
+        }
+        if (
+          !(await input.workflow.transition({
+            issueId: request.params.issueId,
+            actorUserId: principal.userId,
+            status: parsed.data.status
+          }))
+        )
+          return response.status(404).json({ code: 'ISSUE_NOT_FOUND' });
+        return response.status(204).end();
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
   return router;
 }

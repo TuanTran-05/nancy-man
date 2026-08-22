@@ -2,6 +2,7 @@ import { createOpsApi } from '../index.js';
 import { OpsAuthService } from '../modules/auth/authService.js';
 import { PostgresOpsAuthRepository } from '../modules/auth/postgresAuthRepository.js';
 import { PostgresIssueInbox } from '../modules/issues/postgresIssueInbox.js';
+import { PostgresIssueWorkflow } from '../modules/issues/postgresIssueWorkflow.js';
 import { authorizeOpsSession } from '../modules/auth/sessionAuthorization.js';
 import { OpsSessionRepository } from '../../../../packages/db/src/repositories/opsSessions.js';
 import { createBrowserIngestService } from '../modules/ingest/browserIngest.js';
@@ -85,14 +86,14 @@ export function createOpsApiRuntime(input: {
         }
       },
       issues: {
-        authorize: (cookieHeader) =>
+        authorize: (request) =>
           authorizeOpsSession({
-            ...(cookieHeader ? { cookieHeader } : {}),
-            mutation: false,
+            ...request,
             sessionPepper: input.authSessionPepper,
             repository: sessionRepository
           }),
-        inbox: new PostgresIssueInbox(input.database)
+        inbox: new PostgresIssueInbox(input.database),
+        workflow: new PostgresIssueWorkflow(input.database)
       },
       trustedProxy: 'loopback'
     })

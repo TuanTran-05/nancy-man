@@ -7,7 +7,7 @@ describe('issue routes', () => {
     app.use(
       '/issues',
       createIssueRouter({
-        authorize: async () => ({ role: 'ops_viewer' }),
+        authorize: async () => ({ role: 'ops_viewer', userId: 'viewer-id' }),
         inbox: { list: async () => [{ id: 'issue' }] }
       })
     );
