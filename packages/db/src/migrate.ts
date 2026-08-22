@@ -48,6 +48,10 @@ const migrations: readonly Migration[] = [
   {
     id: '0007_ingest_nonces',
     sql: readFileSync(new URL('../migrations/0007_ingest_nonces.sql', import.meta.url), 'utf8')
+  },
+  {
+    id: '0008_ingest_rate_limits',
+    sql: readFileSync(new URL('../migrations/0008_ingest_rate_limits.sql', import.meta.url), 'utf8')
   }
 ];
 

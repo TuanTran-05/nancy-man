@@ -1,0 +1,30 @@
+[Unit]
+Description=EduTrack Operations API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=edutrack-ops
+Group=edutrack-ops
+WorkingDirectory=/srv/edutrack-ops/current
+EnvironmentFile=/etc/edutrack-ops/api.env
+Environment=OPS_SECRET_DIRECTORY=%d
+LoadCredential=ops-database-url:/etc/edutrack-ops/credentials/ops-database-url
+LoadCredential=ops-session-pepper:/etc/edutrack-ops/credentials/ops-session-pepper
+LoadCredential=ops-rate-limit-pepper:/etc/edutrack-ops/credentials/ops-rate-limit-pepper
+LoadCredential=browser-context-edutrack-v1:/etc/edutrack-ops/credentials/browser-context-edutrack-v1
+ExecStart=/usr/bin/node apps/api/dist/apps/api/src/runtime/main.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/edutrack-ops/object-store
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

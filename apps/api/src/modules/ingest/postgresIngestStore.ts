@@ -2,6 +2,10 @@ type QueryDatabase = {
   query: <T>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: T[] }>;
 };
 
+type TransactionalDatabase = QueryDatabase & {
+  transaction: <T>(operation: (database: QueryDatabase) => Promise<T>) => Promise<T>;
+};
+
 type PersistedRawIngestRecord = {
   id: string;
   receivedAt: Date;
@@ -25,7 +29,7 @@ export class IngestIdempotencyConflictError extends Error {
 }
 
 export class PostgresIngestStore {
-  constructor(private readonly database: QueryDatabase) {}
+  constructor(private readonly database: TransactionalDatabase) {}
 
   async findBrowserClient(projectKey: string): Promise<{
     id: string;
@@ -83,9 +87,8 @@ export class PostgresIngestStore {
   }
 
   async insertRaw(record: PersistedRawIngestRecord): Promise<{ duplicate: boolean }> {
-    await this.database.query('BEGIN');
-    try {
-      const accepted = await this.database.query<ExistingIdempotency>(
+    return this.database.transaction(async (database) => {
+      const accepted = await database.query<ExistingIdempotency>(
         `
           INSERT INTO ingest_idempotency (
             ingest_client_id,
@@ -100,7 +103,7 @@ export class PostgresIngestStore {
       );
 
       if (!accepted.rows[0]) {
-        const existing = await this.database.query<ExistingIdempotency>(
+        const existing = await database.query<ExistingIdempotency>(
           `
             SELECT event_id AS "eventId", payload_hash AS "payloadHash"
             FROM ingest_idempotency
@@ -117,11 +120,10 @@ export class PostgresIngestStore {
         ) {
           throw new IngestIdempotencyConflictError();
         }
-        await this.database.query('COMMIT');
         return { duplicate: true };
       }
 
-      await this.database.query(
+      await database.query(
         `
           INSERT INTO ingest_envelopes (
             id,
@@ -151,7 +153,7 @@ export class PostgresIngestStore {
           record.redacted
         ]
       );
-      await this.database.query(
+      await database.query(
         `
           INSERT INTO ingest_processing (
             envelope_id,
@@ -161,15 +163,7 @@ export class PostgresIngestStore {
         `,
         [record.id, record.receivedAt, record.receivedAt]
       );
-      await this.database.query('COMMIT');
       return { duplicate: false };
-    } catch (error) {
-      try {
-        await this.database.query('ROLLBACK');
-      } catch {
-        // Preserve the original database error; the caller will surface it as collector health failure.
-      }
-      throw error;
-    }
+    });
   }
 }
