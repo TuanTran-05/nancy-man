@@ -13,6 +13,18 @@ export class PostgresTotpEnrollmentRepository {
     );
     return rows.length === 1;
   }
+  async findPendingFactor(input: {
+    userId: string;
+    tokenHash: string;
+    factorId: string;
+  }): Promise<string | null> {
+    const { rows } = await this.database.query<{ encryptedSecret: string }>(
+      `SELECT encode(factor.encrypted_secret,'base64') AS "encryptedSecret" FROM ops_mfa_factors AS factor JOIN ops_mfa_enrollment_tokens AS token ON token.user_id=factor.user_id WHERE factor.id=$3 AND factor.user_id=$1 AND token.token_hash=$2 AND token.used_at IS NULL AND token.expires_at>now()`,
+      [input.userId, input.tokenHash, input.factorId]
+    );
+    const encoded = rows[0]?.encryptedSecret;
+    return encoded ? Buffer.from(encoded, 'base64').toString('utf8') : null;
+  }
   async activate(input: { userId: string; tokenHash: string; factorId: string }): Promise<boolean> {
     const { rows } = await this.database.query<{ id: string }>(
       `WITH consumed AS (UPDATE ops_mfa_enrollment_tokens SET used_at=now() WHERE user_id=$1 AND token_hash=$2 AND used_at IS NULL AND expires_at>now() RETURNING user_id), active AS (UPDATE ops_users SET status='active' WHERE id IN (SELECT user_id FROM consumed) AND status='pending_mfa' RETURNING id), factor AS (UPDATE ops_mfa_factors SET last_used_at=now() WHERE id=$3 AND user_id IN (SELECT id FROM active) RETURNING id) SELECT id FROM factor`,

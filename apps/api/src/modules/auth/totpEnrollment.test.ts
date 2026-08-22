@@ -14,6 +14,10 @@ describe('TotpEnrollmentService', () => {
           pending = input;
           return true;
         },
+        findPendingFactor: async (input) =>
+          input.tokenHash === pending?.tokenHash && input.factorId === pending?.factorId
+            ? pending.encryptedSecret
+            : null,
         activate: async (input) =>
           input.tokenHash === pending?.tokenHash && input.factorId === pending?.factorId
       }
@@ -28,7 +32,6 @@ describe('TotpEnrollmentService', () => {
         userId: 'user-id',
         token: 'enrollment-token',
         factorId: start.factorId,
-        encryptedSecret: pending.encryptedSecret,
         otp
       })
     ).resolves.toBe(true);
@@ -37,7 +40,6 @@ describe('TotpEnrollmentService', () => {
         userId: 'user-id',
         token: 'wrong',
         factorId: start.factorId,
-        encryptedSecret: pending.encryptedSecret,
         otp
       })
     ).resolves.toBe(false);

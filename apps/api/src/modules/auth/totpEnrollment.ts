@@ -16,6 +16,11 @@ export class TotpEnrollmentService {
           factorId: string;
           encryptedSecret: string;
         }) => Promise<boolean>;
+        findPendingFactor: (input: {
+          userId: string;
+          tokenHash: string;
+          factorId: string;
+        }) => Promise<string | null>;
         activate: (input: {
           userId: string;
           tokenHash: string;
@@ -50,12 +55,18 @@ export class TotpEnrollmentService {
     userId: string;
     token: string;
     factorId: string;
-    encryptedSecret: string;
     otp: string;
   }): Promise<boolean> {
+    const tokenHash = createHash('sha256').update(input.token, 'utf8').digest('hex');
+    const encryptedSecret = await this.input.repository.findPendingFactor({
+      userId: input.userId,
+      tokenHash,
+      factorId: input.factorId
+    });
     if (
+      !encryptedSecret ||
       !verifyTotp({
-        encryptedSecret: input.encryptedSecret,
+        encryptedSecret,
         encryptionKey: this.input.encryptionKey,
         token: input.otp,
         ...(this.input.now ? { timestamp: this.input.now().getTime() } : {})
@@ -64,7 +75,7 @@ export class TotpEnrollmentService {
       return false;
     return this.input.repository.activate({
       userId: input.userId,
-      tokenHash: createHash('sha256').update(input.token, 'utf8').digest('hex'),
+      tokenHash,
       factorId: input.factorId
     });
   }
