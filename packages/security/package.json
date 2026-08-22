@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "argon2": "0.45.1"
+    "@simplewebauthn/server": "13.3.2",
+    "argon2": "0.45.1",
+    "otpauth": "9.5.1"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json --pretty false"
