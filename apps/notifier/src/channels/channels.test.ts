@@ -45,7 +45,9 @@ describe('alert channels', () => {
       }
     });
 
-    await expect(email.send({ recipientReference: 'oncall@thienuy.edu.vn', alert })).resolves.toEqual({
+    await expect(
+      email.send({ recipientReference: 'oncall@thienuy.edu.vn', alert })
+    ).resolves.toEqual({
       providerMessageId: 'email-message-1'
     });
     expect(sent).toMatchObject([

@@ -32,6 +32,8 @@ describe('Error Operations migration', () => {
     expect(migration).toContain('PARTITION BY RANGE (received_at)');
     expect(migration).toContain('PARTITION BY RANGE (occurred_at)');
     expect(migration).toContain('CREATE OR REPLACE FUNCTION ensure_error_operations_partitions');
-    expect(migration).toContain('REVOKE UPDATE, DELETE ON ingest_envelopes, error_events FROM PUBLIC');
+    expect(migration).toContain(
+      'REVOKE UPDATE, DELETE ON ingest_envelopes, error_events FROM PUBLIC'
+    );
   });
 });

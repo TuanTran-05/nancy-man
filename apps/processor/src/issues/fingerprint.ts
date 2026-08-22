@@ -3,7 +3,10 @@ import { createHash } from 'node:crypto';
 import type { NormalizedEvent } from '../normalize/normalizeEvent.js';
 
 function normalizedFrame(frame: string): string {
-  return frame.replace(/:\d+:\d+/g, ':<line>:<column>').replace(/\s+/g, ' ').trim();
+  return frame
+    .replace(/:\d+:\d+/g, ':<line>:<column>')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function fingerprintEvent(event: NormalizedEvent): string {

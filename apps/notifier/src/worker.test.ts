@@ -64,7 +64,9 @@ describe('NotificationWorker', () => {
     });
 
     await expect(worker.deliver(delivery)).resolves.toEqual({ delivered: false });
-    expect(failures).toEqual([{ deliveryId: 'delivery-1', failureCode: 'CHANNEL_DELIVERY_FAILED' }]);
+    expect(failures).toEqual([
+      { deliveryId: 'delivery-1', failureCode: 'CHANNEL_DELIVERY_FAILED' }
+    ]);
     expect(providerIssues).toEqual([{ channel: 'zalo', internal: true }]);
   });
 });

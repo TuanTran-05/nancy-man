@@ -33,7 +33,12 @@ describe('normalizeEvent', () => {
     const normalized = normalizeEvent({
       receivedAt: new Date('2026-08-22T08:00:01.000Z'),
       envelope,
-      identity: { userRef: 'USR_123', role: 'teacher', displayLabel: 'Teacher', sessionHash: 'a'.repeat(64) }
+      identity: {
+        userRef: 'USR_123',
+        role: 'teacher',
+        displayLabel: 'Teacher',
+        sessionHash: 'a'.repeat(64)
+      }
     });
 
     expect(normalized).toMatchObject({

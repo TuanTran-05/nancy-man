@@ -24,9 +24,13 @@ export type BrowserSpoolStore = {
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.addEventListener('success', () => resolve(request.result), { once: true });
-    request.addEventListener('error', () => reject(request.error ?? new Error('IndexedDB request failed')), {
-      once: true
-    });
+    request.addEventListener(
+      'error',
+      () => reject(request.error ?? new Error('IndexedDB request failed')),
+      {
+        once: true
+      }
+    );
   });
 }
 
@@ -38,16 +42,22 @@ function transactionResult(transaction: IDBTransaction): Promise<void> {
       () => reject(transaction.error ?? new Error('IndexedDB transaction aborted')),
       { once: true }
     );
-    transaction.addEventListener('error', () => reject(transaction.error ?? new Error('IndexedDB error')), {
-      once: true
-    });
+    transaction.addEventListener(
+      'error',
+      () => reject(transaction.error ?? new Error('IndexedDB error')),
+      {
+        once: true
+      }
+    );
   });
 }
 
-export function createIndexedDbBrowserSpoolStore(input: {
-  databaseName?: string;
-  objectStoreName?: string;
-} = {}): BrowserSpoolStore {
+export function createIndexedDbBrowserSpoolStore(
+  input: {
+    databaseName?: string;
+    objectStoreName?: string;
+  } = {}
+): BrowserSpoolStore {
   if (typeof indexedDB === 'undefined') {
     throw new Error('IndexedDB storage is unavailable');
   }
@@ -69,9 +79,13 @@ export function createIndexedDbBrowserSpoolStore(input: {
         { once: true }
       );
       request.addEventListener('success', () => resolve(request.result), { once: true });
-      request.addEventListener('error', () => reject(request.error ?? new Error('IndexedDB open failed')), {
-        once: true
-      });
+      request.addEventListener(
+        'error',
+        () => reject(request.error ?? new Error('IndexedDB open failed')),
+        {
+          once: true
+        }
+      );
     });
     return databasePromise;
   };
@@ -164,7 +178,10 @@ export class BrowserSpool {
     const retained: BrowserSpoolRecord[] = [];
 
     for (const queued of existing) {
-      if (!Number.isFinite(Date.parse(queued.enqueuedAt)) || Date.parse(queued.enqueuedAt) < cutoff) {
+      if (
+        !Number.isFinite(Date.parse(queued.enqueuedAt)) ||
+        Date.parse(queued.enqueuedAt) < cutoff
+      ) {
         await this.input.store.remove(queued.idempotencyKey);
         evicted += 1;
         continue;
@@ -189,9 +206,7 @@ export class BrowserSpool {
   }
 
   async flush(
-    deliver: (
-      envelope: TelemetryEnvelopeV1
-    ) => Promise<{ acknowledgedIdempotencyKey: string }>
+    deliver: (envelope: TelemetryEnvelopeV1) => Promise<{ acknowledgedIdempotencyKey: string }>
   ): Promise<{ delivered: number; deferred: number }> {
     const currentTime = this.now();
     const cutoff = currentTime.getTime() - this.maxAgeMilliseconds;

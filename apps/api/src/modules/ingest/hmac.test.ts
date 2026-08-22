@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  InMemoryNonceStore,
-  signServerIngestRequest,
-  verifyServerIngestRequest
-} from './hmac.js';
+import { InMemoryNonceStore, signServerIngestRequest, verifyServerIngestRequest } from './hmac.js';
 
 const request = {
   method: 'POST',

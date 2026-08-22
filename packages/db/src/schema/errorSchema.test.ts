@@ -9,7 +9,12 @@ import {
   incidents,
   ingestDeadLetters
 } from './errors.js';
-import { ingestClients, ingestEnvelopes, ingestIdempotency, ingestProcessing } from './ingestion.js';
+import {
+  ingestClients,
+  ingestEnvelopes,
+  ingestIdempotency,
+  ingestProcessing
+} from './ingestion.js';
 import { releases, sourceMapObjects } from './releases.js';
 
 describe('Error Operations Drizzle schema', () => {

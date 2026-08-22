@@ -95,7 +95,14 @@ export function createBrowserIngestService(input: {
   browserContextKeyring: Record<string, string>;
   rateLimiter: IngestRateLimiter;
   now?: () => Date;
-}): { ingest: (input: { origin?: string; projectKey?: string; clientIp: string; rawBody: string }) => Promise<BrowserIngestResult> } {
+}): {
+  ingest: (input: {
+    origin?: string;
+    projectKey?: string;
+    clientIp: string;
+    rawBody: string;
+  }) => Promise<BrowserIngestResult>;
+} {
   const now = input.now ?? (() => new Date());
 
   return {
@@ -127,7 +134,9 @@ export function createBrowserIngestService(input: {
       const verifiedIdentity = token
         ? verifyTelemetryContextToken(token, input.browserContextKeyring, now())
         : null;
-      const sanitized = sanitizeTelemetry(untrustedEnvelope, { sessionPepper: input.sessionPepper });
+      const sanitized = sanitizeTelemetry(untrustedEnvelope, {
+        sessionPepper: input.sessionPepper
+      });
       const fingerprint = hash(
         `${sanitized.envelope.source}:${sanitized.envelope.context.service}:${sanitized.envelope.error.code}`
       );
@@ -161,7 +170,9 @@ export function createBrowserIngestService(input: {
         ...(sanitized.envelope.context.requestId
           ? { requestId: sanitized.envelope.context.requestId }
           : {}),
-        ...(sanitized.envelope.context.traceId ? { traceId: sanitized.envelope.context.traceId } : {}),
+        ...(sanitized.envelope.context.traceId
+          ? { traceId: sanitized.envelope.context.traceId }
+          : {}),
         payload: { envelope: sanitized.envelope, ...(identity ? { identity } : {}) },
         payloadHash: hash(JSON.stringify(sanitized.envelope)),
         redacted: sanitized.redacted

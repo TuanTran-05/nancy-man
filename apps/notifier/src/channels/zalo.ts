@@ -6,7 +6,10 @@ export function createZaloChannel(input: {
   fetch?: typeof globalThis.fetch;
   timeoutMilliseconds?: number;
 }): {
-  send: (input: { recipientReference: string; alert: SafeAlert }) => Promise<{ providerMessageId?: string }>;
+  send: (input: {
+    recipientReference: string;
+    alert: SafeAlert;
+  }) => Promise<{ providerMessageId?: string }>;
 } {
   const fetcher = input.fetch ?? globalThis.fetch;
   const timeoutMilliseconds = input.timeoutMilliseconds ?? 10_000;
@@ -23,7 +26,10 @@ export function createZaloChannel(input: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ recipient_id: recipientReference, message: formatSafeAlert(alert).text }),
+          body: JSON.stringify({
+            recipient_id: recipientReference,
+            message: formatSafeAlert(alert).text
+          }),
           signal: controller.signal
         });
         if (!response.ok) {

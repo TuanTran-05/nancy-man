@@ -24,7 +24,11 @@ describe('PostgresProcessorQueue', () => {
                     source: 'api',
                     level: 'error',
                     error: { name: 'Error', code: 'SERVER_EXCEPTION', safeMessage: 'failed' },
-                    context: { release: 'release', service: 'edutrack-api', environment: 'production' }
+                    context: {
+                      release: 'release',
+                      service: 'edutrack-api',
+                      environment: 'production'
+                    }
                   }
                 }
               }
@@ -35,7 +39,9 @@ describe('PostgresProcessorQueue', () => {
       }
     });
 
-    await expect(queue.claimNext('processor-1', new Date('2026-08-22T08:00:01.000Z'))).resolves.toMatchObject({
+    await expect(
+      queue.claimNext('processor-1', new Date('2026-08-22T08:00:01.000Z'))
+    ).resolves.toMatchObject({
       envelopeId: 'env-1',
       ingestClientId: 'e4eec74b-9dfd-4ba7-9b6a-3689ccbb9d49',
       envelope: { eventId: 'EVT_01K3ZABCDEF0123456789ABCDE' }
@@ -55,6 +61,6 @@ describe('PostgresProcessorQueue', () => {
 
     await queue.markRetry('env-1', new Date('2026-08-22T08:00:00.000Z'));
     expect(queries[0]).toContain("SET state = 'retrying'");
-    expect(queries[0]).toContain("attempt_count = attempt_count + 1");
+    expect(queries[0]).toContain('attempt_count = attempt_count + 1');
   });
 });

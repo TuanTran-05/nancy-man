@@ -1,4 +1,13 @@
-import { boolean, index, integer, jsonb, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  primaryKey,
+  text,
+  timestamp,
+  uuid
+} from 'drizzle-orm/pg-core';
 
 import { pgTable } from 'drizzle-orm/pg-core';
 
@@ -9,7 +18,9 @@ export const ingestClients = pgTable(
   {
     id: uuid('id').primaryKey(),
     clientName: text('client_name').notNull(),
-    clientKind: text('client_kind').$type<'browser' | 'server' | 'worker' | 'synthetic'>().notNull(),
+    clientKind: text('client_kind')
+      .$type<'browser' | 'server' | 'worker' | 'synthetic'>()
+      .notNull(),
     serviceName: text('service_name').notNull(),
     status: text('status').$type<'active' | 'disabled' | 'rotated'>().notNull(),
     publicKeyId: text('public_key_id'),

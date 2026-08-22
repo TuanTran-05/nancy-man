@@ -22,7 +22,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function unpackPayload(payload: unknown): { envelope: TelemetryEnvelopeV1; identity?: SignedIdentity } | null {
+function unpackPayload(
+  payload: unknown
+): { envelope: TelemetryEnvelopeV1; identity?: SignedIdentity } | null {
   if (!isRecord(payload) || !isRecord(payload.envelope)) return null;
   const envelope = payload.envelope;
   if (
@@ -44,7 +46,11 @@ function unpackPayload(payload: unknown): { envelope: TelemetryEnvelopeV1; ident
     : undefined;
   return {
     envelope: envelope as unknown as TelemetryEnvelopeV1,
-    ...(identity && identity.userRef && identity.role && identity.displayLabel && identity.sessionHash
+    ...(identity &&
+    identity.userRef &&
+    identity.role &&
+    identity.displayLabel &&
+    identity.sessionHash
       ? { identity }
       : {})
   };
@@ -56,16 +62,13 @@ export class PostgresProcessorQueue {
   async claimNext(
     workerId: string,
     now: Date
-  ): Promise<
-    | {
-        envelopeId: string;
-        receivedAt: Date;
-        ingestClientId: string;
-        envelope: TelemetryEnvelopeV1;
-        identity?: SignedIdentity;
-      }
-    | null
-  > {
+  ): Promise<{
+    envelopeId: string;
+    receivedAt: Date;
+    ingestClientId: string;
+    envelope: TelemetryEnvelopeV1;
+    identity?: SignedIdentity;
+  } | null> {
     const { rows } = await this.database.query<ClaimedRow>(
       `
         WITH next_envelope AS (

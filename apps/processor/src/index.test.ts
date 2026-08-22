@@ -33,7 +33,12 @@ describe('runProcessorOnce', () => {
         },
         findIssue: async () => null,
         createIssue: async () => ({
-          issue: { id: 'ISS_01K3ZABCDEF0123456789ABCDE', status: 'new' as const, occurrenceCount: 0, affectedUserCount: 0 },
+          issue: {
+            id: 'ISS_01K3ZABCDEF0123456789ABCDE',
+            status: 'new' as const,
+            occurrenceCount: 0,
+            affectedUserCount: 0
+          },
           created: true
         }),
         insertOccurrence: async () => ({ inserted: true, newAffectedUser: false }),

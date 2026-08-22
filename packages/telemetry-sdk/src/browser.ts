@@ -8,9 +8,7 @@ const maximumBrowserEnvelopeBytes = 64 * 1024;
 type TelemetrySpool = {
   enqueue: (envelope: TelemetryEnvelopeV1) => Promise<{ queued: boolean; evicted: number }>;
   flush: (
-    deliver: (
-      envelope: TelemetryEnvelopeV1
-    ) => Promise<{ acknowledgedIdempotencyKey: string }>
+    deliver: (envelope: TelemetryEnvelopeV1) => Promise<{ acknowledgedIdempotencyKey: string }>
   ) => Promise<unknown>;
 };
 
@@ -67,7 +65,9 @@ export function createBrowserTelemetry(input: {
         }
       };
 
-      if (new TextEncoder().encode(JSON.stringify(envelope)).byteLength > maximumBrowserEnvelopeBytes) {
+      if (
+        new TextEncoder().encode(JSON.stringify(envelope)).byteLength > maximumBrowserEnvelopeBytes
+      ) {
         throw new Error('Browser telemetry envelope exceeds 64 KiB');
       }
 
@@ -75,7 +75,10 @@ export function createBrowserTelemetry(input: {
         sessionPepper: 'browser-telemetry-session-id-not-provided'
       }).envelope;
 
-      if (new TextEncoder().encode(JSON.stringify(sanitizedEnvelope)).byteLength > maximumBrowserEnvelopeBytes) {
+      if (
+        new TextEncoder().encode(JSON.stringify(sanitizedEnvelope)).byteLength >
+        maximumBrowserEnvelopeBytes
+      ) {
         throw new Error('Browser telemetry envelope exceeds 64 KiB');
       }
 

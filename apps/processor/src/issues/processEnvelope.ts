@@ -126,7 +126,8 @@ export async function processEnvelope(
       fingerprint,
       duplicate: false,
       ...(stateChange ? { stateChange } : {}),
-      shouldNotify: nextStatus !== 'ignored' && (stateChange === 'created' || stateChange === 'regressed')
+      shouldNotify:
+        nextStatus !== 'ignored' && (stateChange === 'created' || stateChange === 'regressed')
     };
   });
 }

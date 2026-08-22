@@ -77,7 +77,12 @@ describe('browser ingestion service', () => {
       })
     });
 
-    expect(result).toEqual({ status: 202, accepted: true, duplicate: false, eventId: validBrowserEnvelope.eventId });
+    expect(result).toEqual({
+      status: 202,
+      accepted: true,
+      duplicate: false,
+      eventId: validBrowserEnvelope.eventId
+    });
     expect(store.inserted).toHaveLength(1);
     expect(JSON.stringify(store.inserted[0])).not.toContain(token);
     expect(store.inserted[0]).toMatchObject({

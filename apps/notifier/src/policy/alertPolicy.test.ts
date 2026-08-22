@@ -23,7 +23,9 @@ describe('alert policy', () => {
     ).toEqual([expect.objectContaining({ kind: 'reminder', dedupKey: `${issue.id}:reminder:1` })]);
     expect(
       planIssueAlerts({ issue, now: new Date('2026-08-22T08:15:00.000Z'), event: 'tick' })
-    ).toEqual([expect.objectContaining({ kind: 'escalation', dedupKey: `${issue.id}:escalation:1` })]);
+    ).toEqual([
+      expect.objectContaining({ kind: 'escalation', dedupKey: `${issue.id}:escalation:1` })
+    ]);
   });
 
   it('aggregates a new High issue for five minutes and gives resolved/regressed distinct idempotency keys', () => {
@@ -44,10 +46,16 @@ describe('alert policy', () => {
       })
     ]);
     expect(planIssueAlerts({ issue, now, event: 'resolved' })).toEqual([
-      expect.objectContaining({ kind: 'resolved', dedupKey: `${issue.id}:resolved:2026-08-22T08:00` })
+      expect.objectContaining({
+        kind: 'resolved',
+        dedupKey: `${issue.id}:resolved:2026-08-22T08:00`
+      })
     ]);
     expect(planIssueAlerts({ issue, now, event: 'regressed' })).toEqual([
-      expect.objectContaining({ kind: 'regressed', dedupKey: `${issue.id}:regressed:2026-08-22T08:00` })
+      expect.objectContaining({
+        kind: 'regressed',
+        dedupKey: `${issue.id}:regressed:2026-08-22T08:00`
+      })
     ]);
   });
 });

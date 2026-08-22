@@ -18,7 +18,11 @@ function envelope(eventId: `EVT_${string}`, userRef = 'USR_1'): TelemetryEnvelop
     capturedAt: '2026-08-22T08:00:00.000Z',
     source: 'browser',
     level: 'error',
-    error: { name: 'TypeError', code: 'STUDENT_LOAD_FAILED', safeMessage: 'Failed to load students' },
+    error: {
+      name: 'TypeError',
+      code: 'STUDENT_LOAD_FAILED',
+      safeMessage: 'Failed to load students'
+    },
     context: {
       release: '0123456789abcdef0123456789abcdef01234567',
       service: 'edutrack-web',
@@ -76,16 +80,22 @@ function repository(): IssueProcessorRepository & {
 describe('processEnvelope', () => {
   it('creates one NEW issue then groups repeat occurrences into it', async () => {
     const store = repository();
-    const first = await processEnvelope({
-      envelopeId: 'env-1',
-      receivedAt: new Date('2026-08-22T08:00:01.000Z'),
-      envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDE')
-    }, store);
-    const repeat = await processEnvelope({
-      envelopeId: 'env-2',
-      receivedAt: new Date('2026-08-22T08:01:01.000Z'),
-      envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDF', 'USR_2')
-    }, store);
+    const first = await processEnvelope(
+      {
+        envelopeId: 'env-1',
+        receivedAt: new Date('2026-08-22T08:00:01.000Z'),
+        envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDE')
+      },
+      store
+    );
+    const repeat = await processEnvelope(
+      {
+        envelopeId: 'env-2',
+        receivedAt: new Date('2026-08-22T08:01:01.000Z'),
+        envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDF', 'USR_2')
+      },
+      store
+    );
 
     expect(repeat.issueId).toBe(first.issueId);
     expect([...store.issues.values()][0]).toMatchObject({
@@ -98,36 +108,52 @@ describe('processEnvelope', () => {
 
   it('regresses a resolved issue once, but an ignored issue never emits an alert candidate', async () => {
     const store = repository();
-    const first = await processEnvelope({
-      envelopeId: 'env-1',
-      receivedAt: new Date('2026-08-22T08:00:01.000Z'),
-      envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDE')
-    }, store);
+    const first = await processEnvelope(
+      {
+        envelopeId: 'env-1',
+        receivedAt: new Date('2026-08-22T08:00:01.000Z'),
+        envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDE')
+      },
+      store
+    );
     const issue = [...store.issues.values()][0];
     if (!issue) throw new Error('Expected issue');
     issue.status = 'resolved';
 
     await expect(
-      processEnvelope({
-        envelopeId: 'env-2',
-        receivedAt: new Date('2026-08-22T08:01:01.000Z'),
-        envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDF')
-      }, store)
-    ).resolves.toMatchObject({ issueId: first.issueId, stateChange: 'regressed', shouldNotify: true });
-    await processEnvelope({
-      envelopeId: 'env-3',
-      receivedAt: new Date('2026-08-22T08:02:01.000Z'),
-      envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDG')
-    }, store);
+      processEnvelope(
+        {
+          envelopeId: 'env-2',
+          receivedAt: new Date('2026-08-22T08:01:01.000Z'),
+          envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDF')
+        },
+        store
+      )
+    ).resolves.toMatchObject({
+      issueId: first.issueId,
+      stateChange: 'regressed',
+      shouldNotify: true
+    });
+    await processEnvelope(
+      {
+        envelopeId: 'env-3',
+        receivedAt: new Date('2026-08-22T08:02:01.000Z'),
+        envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDG')
+      },
+      store
+    );
     expect(store.activities.filter((activity) => activity === 'regressed')).toHaveLength(1);
 
     issue.status = 'ignored';
     await expect(
-      processEnvelope({
-        envelopeId: 'env-4',
-        receivedAt: new Date('2026-08-22T08:03:01.000Z'),
-        envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDH')
-      }, store)
+      processEnvelope(
+        {
+          envelopeId: 'env-4',
+          receivedAt: new Date('2026-08-22T08:03:01.000Z'),
+          envelope: envelope('EVT_01K3ZABCDEF0123456789ABCDH')
+        },
+        store
+      )
     ).resolves.toMatchObject({ shouldNotify: false });
   });
 
@@ -152,7 +178,10 @@ describe('processEnvelope', () => {
       {
         symbolicate: async (input) => {
           calls.push(input);
-          return { status: 'symbolicated' as const, stackFrames: ['loadStudents (src/Students.tsx:42:9)'] };
+          return {
+            status: 'symbolicated' as const,
+            stackFrames: ['loadStudents (src/Students.tsx:42:9)']
+          };
         }
       }
     );

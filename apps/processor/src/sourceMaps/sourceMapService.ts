@@ -55,10 +55,7 @@ export class SourceMapService {
     }
   ) {}
 
-  async symbolicate(input: {
-    release: string;
-    stack?: string;
-  }): Promise<{
+  async symbolicate(input: { release: string; stack?: string }): Promise<{
     status: 'symbolicated' | 'unavailable' | 'checksum_mismatch';
     stackFrames: string[];
   }> {

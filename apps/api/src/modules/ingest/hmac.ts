@@ -33,7 +33,14 @@ type CanonicalRequest = {
 
 function canonicalRequest(input: CanonicalRequest): string {
   const bodyHash = createHash('sha256').update(input.rawBody, 'utf8').digest('hex');
-  return ['v1', input.method.toUpperCase(), input.path, input.timestamp, input.nonce, bodyHash].join('\n');
+  return [
+    'v1',
+    input.method.toUpperCase(),
+    input.path,
+    input.timestamp,
+    input.nonce,
+    bodyHash
+  ].join('\n');
 }
 
 function computeSignature(secret: string, request: CanonicalRequest): Buffer {
@@ -51,7 +58,9 @@ export async function verifyServerIngestRequest(
     nonceStore: NonceStore;
     now?: Date;
   }
-): Promise<{ ok: true } | { ok: false; code: 'EXPIRED_TIMESTAMP' | 'INVALID_SIGNATURE' | 'REPLAYED_NONCE' }> {
+): Promise<
+  { ok: true } | { ok: false; code: 'EXPIRED_TIMESTAMP' | 'INVALID_SIGNATURE' | 'REPLAYED_NONCE' }
+> {
   const now = input.now ?? new Date();
   const timestamp = Date.parse(input.timestamp);
   if (!Number.isFinite(timestamp) || Math.abs(now.getTime() - timestamp) > 60_000) {
@@ -73,10 +82,6 @@ export async function verifyServerIngestRequest(
     return { ok: false, code: 'INVALID_SIGNATURE' };
   }
 
-  const accepted = await input.nonceStore.consume(
-    input.nonce,
-    new Date(timestamp + 60_000),
-    now
-  );
+  const accepted = await input.nonceStore.consume(input.nonce, new Date(timestamp + 60_000), now);
   return accepted ? { ok: true } : { ok: false, code: 'REPLAYED_NONCE' };
 }

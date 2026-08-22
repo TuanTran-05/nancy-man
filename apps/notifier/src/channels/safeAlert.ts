@@ -13,7 +13,10 @@ export type SafeAlert = {
 function safeText(value: string, maximumLength: number): string {
   return value
     .slice(0, maximumLength)
-    .replace(/(?:bearer|password|authorization|token|cookie|otp)\s*[:= ]\s*[^\s,;]+/gi, '[REDACTED]');
+    .replace(
+      /(?:bearer|password|authorization|token|cookie|otp)\s*[:= ]\s*[^\s,;]+/gi,
+      '[REDACTED]'
+    );
 }
 
 export function formatSafeAlert(alert: SafeAlert): { subject: string; text: string } {

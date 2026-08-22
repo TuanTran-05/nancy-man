@@ -61,7 +61,8 @@ export class ServerSpool {
     this.eventPath = join(this.spoolDirectory, 'events.ndjson');
     this.lockPath = join(this.spoolDirectory, '.events.lock');
     this.now = input.now ?? (() => new Date());
-    this.random = input.random ?? (() => createHash('sha256').update(String(Math.random())).digest('hex'));
+    this.random =
+      input.random ?? (() => createHash('sha256').update(String(Math.random())).digest('hex'));
     this.maxBytes = input.maxBytes ?? maximumBytes;
     this.maxAgeMilliseconds = input.maxAgeMilliseconds ?? maximumAgeMilliseconds;
   }
@@ -95,7 +96,10 @@ export class ServerSpool {
       let retainedBytes = 0;
       let evicted = 0;
       for (const record of current) {
-        if (!Number.isFinite(Date.parse(record.enqueuedAt)) || Date.parse(record.enqueuedAt) < cutoff) {
+        if (
+          !Number.isFinite(Date.parse(record.enqueuedAt)) ||
+          Date.parse(record.enqueuedAt) < cutoff
+        ) {
           evicted += 1;
           continue;
         }
@@ -119,9 +123,7 @@ export class ServerSpool {
   }
 
   async flush(
-    deliver: (
-      envelope: TelemetryEnvelopeV1
-    ) => Promise<{ acknowledgedIdempotencyKey: string }>
+    deliver: (envelope: TelemetryEnvelopeV1) => Promise<{ acknowledgedIdempotencyKey: string }>
   ): Promise<{ delivered: number; deferred: number }> {
     return this.withLock(async () => {
       const currentTime = this.now();
@@ -155,7 +157,9 @@ export class ServerSpool {
           retained.push({
             ...record,
             attemptCount,
-            nextAttemptAt: new Date(currentTime.getTime() + Math.round(baseDelay * jitter)).toISOString()
+            nextAttemptAt: new Date(
+              currentTime.getTime() + Math.round(baseDelay * jitter)
+            ).toISOString()
           });
           deferred += 1;
         }

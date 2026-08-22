@@ -11,7 +11,9 @@ type ServerBatchResult =
       status: number;
       accepted: number;
       rejected: number;
-      results: Array<{ accepted: true; eventId: string; duplicate: boolean } | { accepted: false; code: string }>;
+      results: Array<
+        { accepted: true; eventId: string; duplicate: boolean } | { accepted: false; code: string }
+      >;
     }
   | { status: number; accepted: false; code: string };
 
@@ -46,7 +48,14 @@ function send(response: Response, result: BrowserResult | ServerResult | ServerB
 }
 
 export function createIngestRouter(input: {
-  browser: { ingest: (request: { origin?: string; projectKey?: string; clientIp: string; rawBody: string }) => Promise<BrowserResult> };
+  browser: {
+    ingest: (request: {
+      origin?: string;
+      projectKey?: string;
+      clientIp: string;
+      rawBody: string;
+    }) => Promise<BrowserResult>;
+  };
   server: {
     ingest: (request: RequestBody) => Promise<ServerResult>;
     ingestBatch: (request: RequestBody) => Promise<ServerBatchResult>;
@@ -118,13 +127,15 @@ export function createIngestRouter(input: {
     }
   });
 
-  router.use((error: { type?: string }, _request: Request, response: Response, next: NextFunction) => {
-    if (error.type === 'entity.too.large') {
-      response.status(413).json({ accepted: false, code: 'PAYLOAD_TOO_LARGE' });
-      return;
+  router.use(
+    (error: { type?: string }, _request: Request, response: Response, next: NextFunction) => {
+      if (error.type === 'entity.too.large') {
+        response.status(413).json({ accepted: false, code: 'PAYLOAD_TOO_LARGE' });
+        return;
+      }
+      next(error);
     }
-    next(error);
-  });
+  );
 
   return router;
 }

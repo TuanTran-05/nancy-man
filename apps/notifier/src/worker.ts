@@ -1,7 +1,10 @@
 import type { SafeAlert } from './channels/safeAlert.js';
 
 type Channel = {
-  send: (input: { recipientReference: string; alert: SafeAlert }) => Promise<{ providerMessageId?: string }>;
+  send: (input: {
+    recipientReference: string;
+    alert: SafeAlert;
+  }) => Promise<{ providerMessageId?: string }>;
 };
 
 export class NotificationWorker {
@@ -10,8 +13,14 @@ export class NotificationWorker {
       channels: Record<'zalo' | 'email', Channel>;
       repository: {
         markDelivered: (input: { deliveryId: string; providerMessageId?: string }) => Promise<void>;
-        markFailed: (input: { deliveryId: string; failureCode: 'CHANNEL_DELIVERY_FAILED' }) => Promise<void>;
-        reportProviderFailure: (input: { channel: 'zalo' | 'email'; internal: true }) => Promise<void>;
+        markFailed: (input: {
+          deliveryId: string;
+          failureCode: 'CHANNEL_DELIVERY_FAILED';
+        }) => Promise<void>;
+        reportProviderFailure: (input: {
+          channel: 'zalo' | 'email';
+          internal: true;
+        }) => Promise<void>;
       };
     }
   ) {}

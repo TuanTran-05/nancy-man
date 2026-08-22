@@ -12,7 +12,9 @@ const temporaryRoots: string[] = [];
 afterEach(async () => {
   await Promise.all(
     temporaryRoots.splice(0).map(async (directory) => {
-      await import('node:fs/promises').then(({ rm }) => rm(directory, { recursive: true, force: true }));
+      await import('node:fs/promises').then(({ rm }) =>
+        rm(directory, { recursive: true, force: true })
+      );
     })
   );
 });

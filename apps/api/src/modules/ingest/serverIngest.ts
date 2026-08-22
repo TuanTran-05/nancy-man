@@ -70,7 +70,9 @@ type ServerBatchResult =
       status: 202 | 207;
       accepted: number;
       rejected: number;
-      results: Array<{ accepted: true; eventId: string; duplicate: boolean } | { accepted: false; code: string }>;
+      results: Array<
+        { accepted: true; eventId: string; duplicate: boolean } | { accepted: false; code: string }
+      >;
     }
   | { status: 400 | 401 | 413; accepted: false; code: string };
 
@@ -131,7 +133,9 @@ export function createServerIngestService(input: {
   const authenticate = async (
     request: ServerIngestRequest,
     path: string
-  ): Promise<{ client: ServerIngestClient } | { result: Extract<ServerIngestResult, { accepted: false }> }> => {
+  ): Promise<
+    { client: ServerIngestClient } | { result: Extract<ServerIngestResult, { accepted: false }> }
+  > => {
     if (!request.keyId || !request.signature || !request.timestamp || !request.nonce) {
       return { result: { status: 401, accepted: false, code: 'MISSING_AUTHENTICATION' } };
     }
@@ -163,7 +167,9 @@ export function createServerIngestService(input: {
   const storeEnvelope = async (
     client: ServerIngestClient,
     untrustedEnvelope: unknown
-  ): Promise<{ accepted: true; eventId: string; duplicate: boolean } | { accepted: false; code: string }> => {
+  ): Promise<
+    { accepted: true; eventId: string; duplicate: boolean } | { accepted: false; code: string }
+  > => {
     if (!isRecord(untrustedEnvelope) || !isValidEnvelope(untrustedEnvelope)) {
       return { accepted: false, code: 'INVALID_ENVELOPE' };
     }
@@ -180,7 +186,9 @@ export function createServerIngestService(input: {
       ...(sanitized.envelope.context.requestId
         ? { requestId: sanitized.envelope.context.requestId }
         : {}),
-      ...(sanitized.envelope.context.traceId ? { traceId: sanitized.envelope.context.traceId } : {}),
+      ...(sanitized.envelope.context.traceId
+        ? { traceId: sanitized.envelope.context.traceId }
+        : {}),
       payload: { envelope: sanitized.envelope },
       payloadHash: hash(JSON.stringify(sanitized.envelope)),
       redacted: sanitized.redacted

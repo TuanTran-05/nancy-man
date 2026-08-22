@@ -1,4 +1,7 @@
-import type { TelemetryEnvelopeV1, TelemetrySource } from '../../../../packages/contracts/src/telemetry.js';
+import type {
+  TelemetryEnvelopeV1,
+  TelemetrySource
+} from '../../../../packages/contracts/src/telemetry.js';
 
 export type NormalizedEvent = {
   eventId: `EVT_${string}`;
@@ -59,7 +62,11 @@ function severity(envelope: TelemetryEnvelopeV1): NormalizedEvent['severity'] {
   if (/(DB_UNAVAILABLE|AUTH_UNAVAILABLE|DATA_LOSS|WAL_|BACKUP_)/.test(envelope.error.code)) {
     return 'critical';
   }
-  if (envelope.source === 'database' || envelope.source === 'process' || envelope.source === 'deployment') {
+  if (
+    envelope.source === 'database' ||
+    envelope.source === 'process' ||
+    envelope.source === 'deployment'
+  ) {
     return 'high';
   }
   return envelope.level === 'warning' ? 'low' : 'medium';

@@ -47,7 +47,9 @@ export function planIssueAlerts(input: {
   }
   if (input.event === 'created') {
     if (issue.severity === 'critical') {
-      return [{ kind: 'new', deliverAt: now, dedupKey: `${issue.id}:new`, recipientTier: 'on_call' }];
+      return [
+        { kind: 'new', deliverAt: now, dedupKey: `${issue.id}:new`, recipientTier: 'on_call' }
+      ];
     }
     if (issue.severity === 'high') {
       const deliverAt = new Date(now.getTime() + 5 * 60 * 1_000);

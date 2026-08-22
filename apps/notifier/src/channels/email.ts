@@ -1,9 +1,16 @@
 import { formatSafeAlert, type SafeAlert } from './safeAlert.js';
 
 export function createEmailChannel(input: {
-  sendMail: (message: { to: string; subject: string; text: string }) => Promise<{ messageId?: string }>;
+  sendMail: (message: {
+    to: string;
+    subject: string;
+    text: string;
+  }) => Promise<{ messageId?: string }>;
 }): {
-  send: (input: { recipientReference: string; alert: SafeAlert }) => Promise<{ providerMessageId?: string }>;
+  send: (input: {
+    recipientReference: string;
+    alert: SafeAlert;
+  }) => Promise<{ providerMessageId?: string }>;
 } {
   return {
     send: async ({ recipientReference, alert }) => {

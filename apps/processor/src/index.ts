@@ -18,7 +18,9 @@ export async function runProcessorOnce(input: {
     markRetry: (envelopeId: string, now: Date) => Promise<void>;
   };
   repository: IssueProcessorRepository;
-  sourceMaps?: { symbolicate: (input: { release: string; stack?: string }) => Promise<{ stackFrames: string[] }> };
+  sourceMaps?: {
+    symbolicate: (input: { release: string; stack?: string }) => Promise<{ stackFrames: string[] }>;
+  };
   now?: () => Date;
 }): Promise<{ processed: boolean; retried?: boolean }> {
   const now = input.now ?? (() => new Date());

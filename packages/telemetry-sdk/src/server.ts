@@ -6,9 +6,7 @@ import { createEventId } from './ids.js';
 type TelemetrySpool = {
   enqueue: (envelope: TelemetryEnvelopeV1) => Promise<{ queued: boolean; evicted: number }>;
   flush: (
-    deliver: (
-      envelope: TelemetryEnvelopeV1
-    ) => Promise<{ acknowledgedIdempotencyKey: string }>
+    deliver: (envelope: TelemetryEnvelopeV1) => Promise<{ acknowledgedIdempotencyKey: string }>
   ) => Promise<unknown>;
 };
 

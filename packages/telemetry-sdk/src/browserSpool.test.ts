@@ -20,7 +20,9 @@ function envelope(eventId: `EVT_${string}`, capturedAt: string): TelemetryEnvelo
   };
 }
 
-function memoryStore(): BrowserSpoolStore & { records: Map<string, Parameters<BrowserSpoolStore['put']>[0]> } {
+function memoryStore(): BrowserSpoolStore & {
+  records: Map<string, Parameters<BrowserSpoolStore['put']>[0]>;
+} {
   const records = new Map<string, Parameters<BrowserSpoolStore['put']>[0]>();
   return {
     records,
@@ -93,6 +95,8 @@ describe('BrowserSpool', () => {
 
     await spool.enqueue(unsafe);
 
-    expect(JSON.stringify([...store.records.values()])).not.toMatch(/Bearer |password=never-spool/i);
+    expect(JSON.stringify([...store.records.values()])).not.toMatch(
+      /Bearer |password=never-spool/i
+    );
   });
 });

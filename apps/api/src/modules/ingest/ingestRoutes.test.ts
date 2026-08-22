@@ -62,7 +62,11 @@ describe('ingest routes', () => {
         },
         server: {
           ingest: async () => ({ status: 401 as const, accepted: false as const, code: 'UNUSED' }),
-          ingestBatch: async () => ({ status: 401 as const, accepted: false as const, code: 'UNUSED' })
+          ingestBatch: async () => ({
+            status: 401 as const,
+            accepted: false as const,
+            code: 'UNUSED'
+          })
         },
         browserCorsOrigins: ['https://thienuy.edu.vn']
       }
