@@ -9,6 +9,7 @@
     { "path": "packages/contracts" },
     { "path": "packages/db" },
     { "path": "packages/security" },
+    { "path": "packages/telemetry-sdk" },
     { "path": "packages/test-utils" }
   ]
 }
