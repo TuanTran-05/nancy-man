@@ -19,7 +19,11 @@ export async function runProcessorOnce(input: {
   };
   repository: IssueProcessorRepository;
   sourceMaps?: {
-    symbolicate: (input: { release: string; stack?: string }) => Promise<{ stackFrames: string[] }>;
+    symbolicate: (input: {
+      serviceName: string;
+      release: string;
+      stack?: string;
+    }) => Promise<{ stackFrames: string[] }>;
   };
   now?: () => Date;
 }): Promise<{ processed: boolean; retried?: boolean }> {

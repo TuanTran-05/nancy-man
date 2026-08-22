@@ -15,7 +15,7 @@ import {
   ingestIdempotency,
   ingestProcessing
 } from './ingestion.js';
-import { releases, sourceMapObjects } from './releases.js';
+import { releasePublishers, releases, sourceMapObjects } from './releases.js';
 
 describe('Error Operations Drizzle schema', () => {
   it('exposes the append-only ingestion and normalized issue tables', () => {
@@ -32,7 +32,8 @@ describe('Error Operations Drizzle schema', () => {
       getTableName(alertRules),
       getTableName(alertDeliveries),
       getTableName(releases),
-      getTableName(sourceMapObjects)
+      getTableName(sourceMapObjects),
+      getTableName(releasePublishers)
     ]).toEqual([
       'ingest_clients',
       'ingest_idempotency',
@@ -46,7 +47,8 @@ describe('Error Operations Drizzle schema', () => {
       'alert_rules',
       'alert_deliveries',
       'releases',
-      'source_map_objects'
+      'source_map_objects',
+      'release_publishers'
     ]);
   });
 

@@ -188,6 +188,7 @@ describe('processEnvelope', () => {
 
     expect(calls).toEqual([
       {
+        serviceName: 'edutrack-web',
         release: '0123456789abcdef0123456789abcdef01234567',
         stack: 'TypeError: failed\n    at a (https://thienuy.edu.vn/assets/app.min.js:1:10)'
       }

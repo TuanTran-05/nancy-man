@@ -72,4 +72,31 @@ describe('registerRelease', () => {
       )
     ).rejects.toThrow(/checksum/i);
   });
+
+  it('accepts the full staff release artifact while preserving bounded source-map storage', async () => {
+    const sourceMaps = Array.from({ length: 107 }, (_, index) => ({
+      generatedFile: `asset-${index}.js`,
+      content: map,
+      sha256
+    }));
+
+    await expect(
+      registerRelease(
+        {
+          serviceName: 'edutrack-web',
+          releaseSha: '0123456789abcdef0123456789abcdef01234567',
+          buildId: 'build-20260822',
+          deployedAt: '2026-08-22T08:00:00.000Z',
+          sourceMaps
+        },
+        {
+          objectStore: { putIfAbsent: async () => 'created' as const },
+          repository: {
+            upsertRelease: async () => ({ id: 'release-1' }),
+            recordSourceMap: async () => undefined
+          }
+        }
+      )
+    ).resolves.toEqual({ releaseId: 'release-1' });
+  });
 });

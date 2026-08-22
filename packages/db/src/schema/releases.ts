@@ -25,9 +25,25 @@ export const sourceMapObjects = pgTable(
     releaseId: uuid('release_id').notNull(),
     objectKey: text('object_key').notNull(),
     sha256: text('sha256').notNull(),
+    generatedFile: text('generated_file').notNull(),
     storageProvider: text('storage_provider').$type<'ops_object_store'>().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     metadata: jsonb('metadata').$type<JsonObject>().notNull()
   },
   (table) => [index('source_map_objects_release_idx').on(table.releaseId)]
+);
+
+export const releasePublishers = pgTable(
+  'release_publishers',
+  {
+    keyId: text('key_id').primaryKey(),
+    serviceName: text('service_name').notNull(),
+    secretReference: text('secret_reference').notNull(),
+    status: text('status').$type<'active' | 'disabled' | 'rotated'>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
+    rotatedAt: timestamp('rotated_at', { withTimezone: true }),
+    metadata: jsonb('metadata').$type<JsonObject>().notNull()
+  },
+  (table) => [index('release_publishers_service_status_idx').on(table.serviceName, table.status)]
 );

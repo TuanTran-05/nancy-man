@@ -48,14 +48,14 @@ function filename(value: string): string {
 export class SourceMapService {
   constructor(
     private readonly storage: {
-      find: (input: { release: string; generatedFile: string }) => Promise<{
+      find: (input: { serviceName: string; release: string; generatedFile: string }) => Promise<{
         content: string;
         sha256: string;
       } | null>;
     }
   ) {}
 
-  async symbolicate(input: { release: string; stack?: string }): Promise<{
+  async symbolicate(input: { serviceName: string; release: string; stack?: string }): Promise<{
     status: 'symbolicated' | 'unavailable' | 'checksum_mismatch';
     stackFrames: string[];
   }> {
@@ -67,6 +67,7 @@ export class SourceMapService {
 
     for (const frame of frames) {
       const sourceMap = await this.storage.find({
+        serviceName: input.serviceName,
         release: input.release,
         generatedFile: filename(frame.generatedFile)
       });

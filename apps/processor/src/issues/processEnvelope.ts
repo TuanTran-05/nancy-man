@@ -55,7 +55,11 @@ export async function processEnvelope(
   },
   repository: IssueProcessorRepository,
   sourceMaps?: {
-    symbolicate: (input: { release: string; stack?: string }) => Promise<{ stackFrames: string[] }>;
+    symbolicate: (input: {
+      serviceName: string;
+      release: string;
+      stack?: string;
+    }) => Promise<{ stackFrames: string[] }>;
   }
 ): Promise<{
   issueId: string;
@@ -73,6 +77,7 @@ export async function processEnvelope(
   if (sourceMaps && event.stackTrace) {
     try {
       const symbolicated = await sourceMaps.symbolicate({
+        serviceName: event.service,
         release: event.release,
         stack: event.stackTrace
       });

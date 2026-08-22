@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 
-const maximumSourceMaps = 100;
+const maximumSourceMaps = 200;
 const maximumSourceMapBytes = 10 * 1024 * 1024;
+const maximumSourceMapBytesPerRelease = 25 * 1024 * 1024;
 
 export async function registerRelease(
   input: {
@@ -46,12 +47,17 @@ export async function registerRelease(
     throw new Error('Release manifest is invalid');
   }
 
+  let totalSourceMapBytes = 0;
   for (const sourceMap of input.sourceMaps) {
     if (
       !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,512}$/.test(sourceMap.generatedFile) ||
       Buffer.byteLength(sourceMap.content, 'utf8') > maximumSourceMapBytes
     ) {
       throw new Error('Source map manifest entry is invalid');
+    }
+    totalSourceMapBytes += Buffer.byteLength(sourceMap.content, 'utf8');
+    if (totalSourceMapBytes > maximumSourceMapBytesPerRelease) {
+      throw new Error('Release source maps exceed the maximum total size');
     }
     const checksum = createHash('sha256').update(sourceMap.content, 'utf8').digest('hex');
     if (checksum !== sourceMap.sha256) {

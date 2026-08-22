@@ -20,8 +20,8 @@ describe('SourceMapService', () => {
   it('symbolicates matching release frames after checksum verification', async () => {
     const map = createMap();
     const service = new SourceMapService({
-      find: async ({ release, generatedFile }) =>
-        release === 'release-1' && generatedFile === 'app.min.js'
+      find: async ({ serviceName, release, generatedFile }) =>
+        serviceName === 'edutrack-web' && release === 'release-1' && generatedFile === 'app.min.js'
           ? {
               content: map,
               sha256: createHash('sha256').update(map, 'utf8').digest('hex')
@@ -31,6 +31,7 @@ describe('SourceMapService', () => {
 
     await expect(
       service.symbolicate({
+        serviceName: 'edutrack-web',
         release: 'release-1',
         stack: 'TypeError: failed\n    at a (https://thienuy.edu.vn/assets/app.min.js:1:10)'
       })
@@ -48,6 +49,7 @@ describe('SourceMapService', () => {
 
     await expect(
       service.symbolicate({
+        serviceName: 'edutrack-web',
         release: 'release-1',
         stack: 'TypeError: failed\n    at a (https://thienuy.edu.vn/assets/app.min.js:1:10)'
       })

@@ -40,6 +40,10 @@ const migrations: readonly Migration[] = [
       new URL('../migrations/0005_error_issue_affected_users.sql', import.meta.url),
       'utf8'
     )
+  },
+  {
+    id: '0006_release_publishers',
+    sql: readFileSync(new URL('../migrations/0006_release_publishers.sql', import.meta.url), 'utf8')
   }
 ];
 
