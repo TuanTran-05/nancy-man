@@ -53,4 +53,48 @@ describe('PostgresSqlExecutionStore', () => {
       expect.arrayContaining([execution.id, 'previewed', 83, 2, false])
     );
   });
+
+  it('lists bounded execution metadata without selecting encrypted SQL or result artifacts', async () => {
+    const calls: Array<{ sql: string; parameters?: readonly unknown[] }> = [];
+    const store = new PostgresSqlExecutionStore({
+      query: async <T>(sql: string, parameters?: readonly unknown[]) => {
+        calls.push({ sql, ...(parameters === undefined ? {} : { parameters }) });
+        return {
+          rows: [
+            {
+              id: 'execution-id',
+              executionKey: 'SQL-20260822-000123',
+              actorUserId: 'actor-id',
+              actorDisplayName: 'Maintainer',
+              executionKind: 'read',
+              status: 'previewed',
+              reason: 'Investigate timeout',
+              fingerprint: 'a'.repeat(64),
+              requestedAt: '2026-08-22T08:00:00.000Z',
+              completedAt: '2026-08-22T08:00:01.000Z',
+              durationMs: 100,
+              affectedRows: '5',
+              resultTruncated: false,
+              issueId: null,
+              incidentId: null,
+              errorCode: null
+            }
+          ] as T[]
+        };
+      }
+    });
+
+    await expect(store.list({ limit: 20 })).resolves.toEqual([
+      expect.objectContaining({
+        executionKey: 'SQL-20260822-000123',
+        actorDisplayName: 'Maintainer',
+        affectedRows: 5
+      })
+    ]);
+    expect(calls[0]?.sql).toContain('FROM sql_executions AS execution');
+    expect(calls[0]?.sql).toContain('LEFT JOIN ops_users AS actor');
+    expect(calls[0]?.sql).not.toContain('original_sql_ciphertext');
+    expect(calls[0]?.sql).not.toContain('result_artifact');
+    expect(calls[0]?.parameters).toEqual([20]);
+  });
 });

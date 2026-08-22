@@ -173,4 +173,39 @@ describe('createSqlRouter', () => {
       );
     }
   });
+
+  it('lets an ops viewer read bounded SQL execution history without opening the SQL workspace', async () => {
+    const app = express();
+    app.use(
+      '/sql',
+      createSqlRouter({
+        authorize: async () => ({ userId: 'viewer', sessionId: 'session', role: 'ops_viewer' }),
+        worker: {
+          command: async () => {
+            throw new Error('must not classify');
+          }
+        },
+        history: {
+          list: async (input) => [{ executionKey: 'SQL-20260822-000123', limit: input.limit }]
+        }
+      })
+    );
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Expected test server');
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/sql/executions?limit=20`, {
+        headers: { Cookie: '__Host-ops-session=opaque' }
+      });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        executions: [{ executionKey: 'SQL-20260822-000123', limit: 20 }]
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
 });

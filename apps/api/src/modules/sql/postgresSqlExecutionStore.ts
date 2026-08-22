@@ -2,6 +2,36 @@ type ParameterizedDatabase = {
   query: <T>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: T[] }>;
 };
 
+type SqlExecutionRow = {
+  id: string;
+  executionKey: string;
+  actorUserId: string;
+  actorDisplayName: string;
+  executionKind: 'read' | 'dml' | 'ddl' | 'special' | 'recovery';
+  status:
+    | 'previewed'
+    | 'running'
+    | 'succeeded'
+    | 'failed'
+    | 'cancelled'
+    | 'drifted'
+    | 'rolled_back';
+  reason: string;
+  fingerprint: string;
+  requestedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  affectedRows: string | number | null;
+  resultTruncated: boolean;
+  issueId: string | null;
+  incidentId: string | null;
+  errorCode: string | null;
+};
+
+export type SqlExecutionSummary = Omit<SqlExecutionRow, 'affectedRows'> & {
+  affectedRows: number | null;
+};
+
 export class PostgresSqlExecutionStore {
   constructor(private readonly database: ParameterizedDatabase) {}
 
@@ -72,5 +102,28 @@ export class PostgresSqlExecutionStore {
       ]
     );
     return rows.length === 1;
+  }
+
+  async list(input: { limit: number }): Promise<SqlExecutionSummary[]> {
+    const limit = Math.max(1, Math.min(input.limit, 100));
+    const { rows } = await this.database.query<SqlExecutionRow>(
+      `SELECT execution.id, execution.execution_key AS "executionKey",
+        execution.actor_user_id AS "actorUserId", actor.display_name AS "actorDisplayName",
+        execution.execution_kind AS "executionKind", execution.status, execution.reason,
+        execution.normalized_fingerprint AS fingerprint, execution.requested_at AS "requestedAt",
+        execution.completed_at AS "completedAt", execution.duration_ms AS "durationMs",
+        execution.affected_rows AS "affectedRows", execution.result_truncated AS "resultTruncated",
+        execution.issue_id AS "issueId", execution.incident_id AS "incidentId",
+        execution.metadata ->> 'errorCode' AS "errorCode"
+       FROM sql_executions AS execution
+       LEFT JOIN ops_users AS actor ON actor.id = execution.actor_user_id
+       ORDER BY execution.requested_at DESC, execution.id DESC
+       LIMIT $1`,
+      [limit]
+    );
+    return rows.map((row) => ({
+      ...row,
+      affectedRows: row.affectedRows === null ? null : Number(row.affectedRows)
+    }));
   }
 }

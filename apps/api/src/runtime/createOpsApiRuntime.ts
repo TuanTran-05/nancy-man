@@ -79,11 +79,14 @@ export function createOpsApiRuntime(input: {
         secret: input.sqlWorker.hmacSecret
       })
     : undefined;
+  const sqlExecutionStore = input.sqlWorker
+    ? new PostgresSqlExecutionStore(input.database)
+    : undefined;
   const sqlPreview =
-    input.sqlWorker && sqlWorker
+    input.sqlWorker && sqlWorker && sqlExecutionStore
       ? new SqlReadPreviewService({
           elevation: sqlElevationRepository,
-          executionStore: new PostgresSqlExecutionStore(input.database),
+          executionStore: sqlExecutionStore,
           audit: new PostgresOpsAuditLedger({ database: input.database }),
           worker: sqlWorker,
           encryptionKey: input.sqlWorker.auditEncryptionKey
@@ -158,7 +161,8 @@ export function createOpsApiRuntime(input: {
                   repository: sessionRepository
                 }),
               worker: sqlWorker,
-              ...(sqlPreview ? { preview: sqlPreview } : {})
+              ...(sqlPreview ? { preview: sqlPreview } : {}),
+              ...(sqlExecutionStore ? { history: sqlExecutionStore } : {})
             }
           }
         : {}),

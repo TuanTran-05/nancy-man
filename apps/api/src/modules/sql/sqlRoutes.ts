@@ -55,8 +55,32 @@ export function createSqlRouter(input: {
       | { status: 'failed'; code: string }
     >;
   };
+  history?: {
+    list: (input: { limit: number }) => Promise<unknown[]>;
+  };
 }): Router {
   const router = express.Router();
+  router.get('/executions', async (request, response, next) => {
+    try {
+      const cookieHeader = request.get('cookie');
+      const principal = await input.authorize({
+        ...(cookieHeader ? { cookieHeader } : {}),
+        mutation: false
+      });
+      if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+      try {
+        assertPermission(principal.role, 'audit:read');
+      } catch {
+        return response.status(403).json({ code: 'PERMISSION_DENIED' });
+      }
+      if (!input.history) return response.status(404).json({ code: 'SQL_HISTORY_UNAVAILABLE' });
+      const rawLimit = Number(request.query.limit ?? '50');
+      const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50;
+      return response.status(200).json({ executions: await input.history.list({ limit }) });
+    } catch (error) {
+      next(error);
+    }
+  });
   router.post('/classify', express.json({ limit: '72kb' }), async (request, response, next) => {
     try {
       const parsed = classifyBody.safeParse(request.body);
