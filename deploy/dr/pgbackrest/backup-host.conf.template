@@ -1,0 +1,11 @@
+[global]
+repo1-path=/var/lib/pgbackrest
+repo1-retention-full=5
+repo1-retention-diff=35
+repo1-cipher-type=aes-256-cbc
+start-fast=y
+process-max=2
+log-level-console=warn
+
+[edutrack]
+pg1-path=/var/lib/postgresql/16/main
