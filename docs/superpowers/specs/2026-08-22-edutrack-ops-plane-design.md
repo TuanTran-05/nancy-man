@@ -197,7 +197,7 @@ Every SQL audit record includes actor, role, session, IP, user agent, MFA age, o
 
 ### IDs and correlation
 
-- IDs are sortable ULIDs with prefixes: `EVT_`, `ISS_`, `INC_`, `REQ_`, `SQL_`, `PRV_`, and `RCV_`.
+- IDs are sortable ULIDs with prefixes `EVT_`, `ISS_`, `INC_`, `REQ_`, `PRV_`, and `RCV_`. SQL executions use an internal UUID plus an operator-facing key in the form `SQL-YYYYMMDD-<uuid>`; the key, never a database credential, is used in confirmation phrases and audit views.
 - Nginx forwards `X-Request-Id`; Express validates it or generates a new ID.
 - The API stores request context in `AsyncLocalStorage` and propagates request ID, W3C trace ID, release, actor, route, and execution/job ID.
 - The same IDs appear in the API error envelope, structured logs, error occurrence, database query context, job run, and provider call.

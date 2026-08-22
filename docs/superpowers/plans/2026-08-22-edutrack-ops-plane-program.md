@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-22-edutrack-ops-plane-design.md`
 
+**Planning status (2026-08-22):** This program and the six linked subplans are the approved execution order. Some fail-closed scaffolding may already exist in source control, but no production mutation gate is complete until a disposable PostgreSQL 16 integration run proves the journal/role boundaries and signed DR drills prove the RPO/RTO objectives. The default production value remains `OPS_SQL_MUTATION_ENABLED=false`.
+
 ## Global Constraints
 
 - `man.thienuy.edu.vn` uses separate accounts, sessions, database, secrets, and deployment from EduTrack.

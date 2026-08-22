@@ -28,10 +28,9 @@
 ### Task 1: Add the protected production `_ops` schema and journal roles
 
 **Files:**
-- Create: `edutrack/db/migrations/0022_ops_execution_journal.sql`
-- Create: `edutrack/db/migrations/0022_ops_execution_journal.test.ts`
-- Modify: `edutrack/db/drizzle/schema.ts`
-- Modify: `edutrack/db/drizzle/relations.ts`
+- Create: `edutrack/db/migrations/0020_ops_execution_journal.sql`
+- Create: `edutrack/db/migrations/0020_ops_execution_journal.test.ts`
+- Modify: `edutrack/vite.config.ts` to include migration tests in the supported test project
 - Create: `edutrack-ops/deploy/postgres/002_ops_mutation_roles.sql`
 - Create: `edutrack-ops/deploy/postgres/verify-journal-security.ts`
 - Create: `edutrack-ops/deploy/postgres/verify-journal-security.test.ts`
@@ -61,7 +60,7 @@ Use `to_jsonb(OLD/NEW)`, ordered primary-key JSON, and SHA-256 digest through `p
 - [ ] **Step 4: Provision mutation/DDL roles**
 
 - `ops_dml`: INSERT/UPDATE/DELETE on registered business tables, sequence usage, no schema ownership, no `_ops` write.
-- `ops_ddl`: member of the application schema-owner role, but not journal owner; no superuser/role/replication/system privilege.
+- `ops_ddl`: separate NOLOGIN capability held by the DDL login role, but not the application schema-owner or journal-owner role until the dedicated DDL phase has installed and verified its event-trigger safeguards; no superuser/role/replication/system privilege.
 - `ops_breakglass_login`: sealed superuser credential not present in normal worker environment; loaded only by a one-shot credential broker after receipt approval.
 
 - [ ] **Step 5: Prove journal security**
@@ -73,9 +72,9 @@ Attempt `DISABLE TRIGGER`, `_ops` DML/DDL, `SET session_replication_role`, owner
 In `edutrack`:
 
 ```bash
-npx vitest run db/migrations/0022_ops_execution_journal.test.ts
+npx vitest run db/migrations/0020_ops_execution_journal.test.ts
 node db/preflight/00-validate-schema.mjs db/migrations
-git add db/migrations/0022_ops_execution_journal.sql db/migrations/0022_ops_execution_journal.test.ts db/drizzle
+git add db/migrations/0020_ops_execution_journal.sql db/migrations/0020_ops_execution_journal.test.ts vite.config.ts
 git commit -m "feat(db): add protected ops row journal"
 ```
 
@@ -112,18 +111,19 @@ export type ExecutionGate = {
   requiresRestorePoint: boolean;
   confirmationPhrase: string;
   warnings: string[];
+  ownerOnly: boolean;
 };
 ```
 
 - [ ] **Step 2: Write RED policy matrix**
 
-Require High for UPDATE/DELETE without WHERE, >100 rows, >10% of a table, cascades >100, ALTER/DROP, and journal-policy warning. Require Critical for >1,000 rows, >25% of a table, TRUNCATE, DROP TABLE/SCHEMA, role/database/replication/system, trigger/journal bypass, and unparsed break-glass.
+Require High for UPDATE/DELETE without WHERE, unknown table impact, >100 rows, >10% of a table, cascades >100, and supported transactional DDL. Require Critical and owner-only break-glass for DML on a table without complete journaling, >1,000 rows, >25% of a table, TRUNCATE, DROP TABLE/SCHEMA, role/database/replication/system, trigger/journal bypass, and unparsed SQL.
 
 - [ ] **Step 3: Implement confirmation phrases**
 
-- normal DML: `EXECUTE SQL_<id>`;
-- High/Critical DML/DDL: `EXECUTE PRODUCTION SQL_<id>`;
-- cluster/unparsed/journal bypass: `BREAK GLASS SQL_<id>`.
+- low/medium: `EXECUTE SQL-YYYYMMDD-<uuid>`;
+- High: `EXECUTE PRODUCTION SQL-YYYYMMDD-<uuid>`;
+- Critical/break-glass: `BREAK GLASS SQL-YYYYMMDD-<uuid>`.
 
 Compare normalized Unicode input exactly, expire after five minutes, bind to preview checksum/session/user, and reject copied confirmation for another execution.
 
@@ -145,8 +145,8 @@ git commit -m "feat(sql): classify mutation risk and confirmations"
 
 **Files:**
 - Create: `edutrack-ops/packages/contracts/src/sqlPreview.ts`
-- Create: `edutrack-ops/apps/sql-worker/src/execution/dmlPreview.ts`
-- Create: `edutrack-ops/apps/sql-worker/src/execution/dmlPreview.test.ts`
+- Create: `edutrack-ops/apps/sql-worker/src/execution/mutationPreview.ts`
+- Create: `edutrack-ops/apps/sql-worker/src/execution/mutationPreview.test.ts`
 - Create: `edutrack-ops/apps/sql-worker/src/execution/journalReader.ts`
 - Create: `edutrack-ops/apps/sql-worker/src/execution/journalReader.test.ts`
 - Create: `edutrack-ops/apps/sql-worker/src/execution/impactChecksum.ts`
@@ -175,7 +175,8 @@ export type JournalChange = {
 
 export type DmlImpactPreview = {
   previewId: `PRV_${string}`;
-  executionId: `SQL_${string}`;
+  executionId: string;
+  executionKey: `SQL-${string}`;
   statements: SqlStatementInfo[];
   changes: JournalChange[];
   countsByTable: Record<string, number>;
@@ -202,7 +203,7 @@ Store actor/session, encrypted SQL, fingerprint, impact checksum, encrypted befo
 - [ ] **Step 5: Run and commit**
 
 ```bash
-npx vitest run apps/sql-worker/src/execution/dmlPreview.test.ts apps/sql-worker/src/execution/journalReader.test.ts apps/sql-worker/src/execution/impactChecksum.test.ts packages/db/src
+npx vitest run apps/sql-worker/src/execution/mutationPreview.test.ts apps/sql-worker/src/execution/journalReader.test.ts apps/sql-worker/src/execution/impactChecksum.test.ts packages/db/src
 git add packages/contracts/src/sqlPreview.ts apps/sql-worker/src/execution packages/db
 git commit -m "feat(sql): preview dml impact with row journal checksums"
 ```
@@ -230,7 +231,8 @@ Use this result contract:
 
 ```ts
 export type MutationExecutionResult = {
-  executionId: `SQL_${string}`;
+  executionId: string;
+  executionKey: `SQL-${string}`;
   status: 'committed' | 'rolled_back' | 'drifted' | 'failed';
   impactChecksum: string;
   affectedRows: number;
