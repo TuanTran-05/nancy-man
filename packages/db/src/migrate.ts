@@ -73,6 +73,10 @@ const migrations: readonly Migration[] = [
       new URL('../migrations/0011_ops_mfa_enrollment_tokens.sql', import.meta.url),
       'utf8'
     )
+  },
+  {
+    id: '0012_sql_execution_audit',
+    sql: readFileSync(new URL('../migrations/0012_sql_execution_audit.sql', import.meta.url), 'utf8')
   }
 ];
 
