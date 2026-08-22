@@ -53,7 +53,10 @@ export async function assertProductionReadIdentity(input: {
 
 export function createReadPreviewer(input: {
   pool: ReadPool;
-}): (input: { sql: string; maxRows?: number }) => Promise<{ rows: unknown[]; truncated: boolean }> {
+}): (input: {
+  sql: string;
+  maxRows?: number;
+}) => Promise<{ rows: unknown[]; encodedBytes: number; truncated: boolean }> {
   return async ({ sql, maxRows }) => {
     const connection = await input.pool.connect();
     try {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Buffer } from 'node:buffer';
 
 import {
   assertProductionReadIdentity,
@@ -66,6 +67,7 @@ describe('production read pool', () => {
 
     await expect(preview({ sql: 'SELECT id FROM students', maxRows: 1 })).resolves.toEqual({
       rows: [{ id: 1 }],
+      encodedBytes: Buffer.byteLength(JSON.stringify([{ id: 1 }]), 'utf8'),
       truncated: true
     });
     expect(calls).toContain('BEGIN READ ONLY');

@@ -1,14 +1,17 @@
 import { classifyReadOnlySql } from './readClassification.js';
+import { encodeBoundedRows } from './resultEncoding.js';
 
 type Database = { query: <T>(sql: string) => Promise<{ rows: T[] }> };
 export async function executeReadOnly(input: {
   sql: string;
   database: Database;
   maxRows?: number;
-}): Promise<{ rows: unknown[]; truncated: boolean }> {
+  maxBytes?: number;
+}): Promise<{ rows: unknown[]; encodedBytes: number; truncated: boolean }> {
   const classification = classifyReadOnlySql(input.sql);
   if (!classification.allowed) throw new Error(classification.code);
   const maxRows = Math.min(Math.max(input.maxRows ?? 500, 1), 500);
+  const maxBytes = Math.min(Math.max(input.maxBytes ?? 10 * 1024 * 1024, 2), 10 * 1024 * 1024);
   const statement = input.sql.replace(/;\s*$/, '').trim();
   await input.database.query('BEGIN READ ONLY');
   try {
@@ -20,7 +23,11 @@ export async function executeReadOnly(input: {
     );
     await input.database.query('CLOSE ops_read_cursor');
     await input.database.query('ROLLBACK');
-    return { rows: rows.slice(0, maxRows), truncated: rows.length > maxRows };
+    const encoded = encodeBoundedRows({ rows: rows.slice(0, maxRows), maxBytes });
+    return {
+      ...encoded,
+      truncated: encoded.truncated || rows.length > maxRows
+    };
   } catch (error) {
     await input.database.query('ROLLBACK');
     throw error;
