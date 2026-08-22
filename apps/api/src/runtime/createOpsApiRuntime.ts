@@ -12,14 +12,10 @@ import {
 import { createReleasePublisherService } from '../modules/releases/releasePublisher.js';
 import { registerRelease } from '../modules/releases/releaseService.js';
 
+import { type TransactionalQueryDatabase } from './poolDatabase.js';
 import { type OpsRuntimeConfig } from './runtimeConfig.js';
 
-export type OpsRuntimeDatabase = {
-  query: <T>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: T[] }>;
-  transaction: <T>(
-    operation: (database: { query: OpsRuntimeDatabase['query'] }) => Promise<T>
-  ) => Promise<T>;
-};
+export type OpsRuntimeDatabase = TransactionalQueryDatabase;
 
 export function createOpsApiRuntime(input: {
   config: OpsRuntimeConfig;

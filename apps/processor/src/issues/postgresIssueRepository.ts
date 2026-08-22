@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
 import type { NormalizedEvent } from '../normalize/normalizeEvent.js';
-import type { IssueProcessorRepository } from './processEnvelope.js';
+import type { IssueProcessorOperations, IssueProcessorRepository } from './processEnvelope.js';
 
 type QueryDatabase = {
   query: <T>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: T[] }>;
+};
+
+type TransactionalDatabase = QueryDatabase & {
+  transaction: <T>(operation: (database: QueryDatabase) => Promise<T>) => Promise<T>;
 };
 
 type IssueRow = {
@@ -28,20 +32,8 @@ function mapIssue(row: IssueRow): {
   };
 }
 
-export class PostgresIssueRepository implements IssueProcessorRepository {
+class PostgresIssueOperations implements IssueProcessorOperations {
   constructor(private readonly database: QueryDatabase) {}
-
-  async withTransaction<T>(operation: () => Promise<T>): Promise<T> {
-    await this.database.query('BEGIN');
-    try {
-      const result = await operation();
-      await this.database.query('COMMIT');
-      return result;
-    } catch (error) {
-      await this.database.query('ROLLBACK').catch(() => undefined);
-      throw error;
-    }
-  }
 
   async findIssue(fingerprint: string) {
     const { rows } = await this.database.query<IssueRow>(
@@ -228,6 +220,23 @@ export class PostgresIssueRepository implements IssueProcessorRepository {
         WHERE envelope_id = $1 AND state = 'claimed'
       `,
       [envelopeId]
+    );
+  }
+}
+
+export class PostgresIssueRepository
+  extends PostgresIssueOperations
+  implements IssueProcessorRepository
+{
+  constructor(private readonly transactionDatabase: TransactionalDatabase) {
+    super(transactionDatabase);
+  }
+
+  async withTransaction<T>(
+    operation: (repository: IssueProcessorOperations) => Promise<T>
+  ): Promise<T> {
+    return this.transactionDatabase.transaction((database) =>
+      operation(new PostgresIssueOperations(database))
     );
   }
 }

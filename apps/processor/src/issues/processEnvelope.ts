@@ -12,8 +12,7 @@ type IssueSnapshot = {
   affectedUserCount: number;
 };
 
-export type IssueProcessorRepository = {
-  withTransaction: <T>(operation: () => Promise<T>) => Promise<T>;
+export type IssueProcessorOperations = {
   findIssue: (fingerprint: string) => Promise<IssueSnapshot | null>;
   createIssue: (input: {
     fingerprint: string;
@@ -36,6 +35,12 @@ export type IssueProcessorRepository = {
     occurredAt: Date;
   }) => Promise<void>;
   markProcessed: (envelopeId: string) => Promise<void>;
+};
+
+export type IssueProcessorRepository = IssueProcessorOperations & {
+  withTransaction: <T>(
+    operation: (repository: IssueProcessorOperations) => Promise<T>
+  ) => Promise<T>;
 };
 
 type SignedIdentity = {
@@ -88,18 +93,18 @@ export async function processEnvelope(
   }
   const fingerprint = fingerprintEvent(event);
 
-  return repository.withTransaction(async () => {
-    let issue = await repository.findIssue(fingerprint);
+  return repository.withTransaction(async (transaction) => {
+    let issue = await transaction.findIssue(fingerprint);
     let stateChange: 'created' | 'regressed' | undefined;
     if (!issue) {
-      const created = await repository.createIssue({ fingerprint, event });
+      const created = await transaction.createIssue({ fingerprint, event });
       issue = created.issue;
       if (created.created) stateChange = 'created';
     }
 
-    const occurrence = await repository.insertOccurrence({ issueId: issue.id, event });
+    const occurrence = await transaction.insertOccurrence({ issueId: issue.id, event });
     if (!occurrence.inserted) {
-      await repository.markProcessed(input.envelopeId);
+      await transaction.markProcessed(input.envelopeId);
       return {
         issueId: issue.id,
         fingerprint,
@@ -111,20 +116,20 @@ export async function processEnvelope(
     const nextStatus: IssueStatus = issue.status === 'resolved' ? 'regressed' : issue.status;
     if (nextStatus === 'regressed' && issue.status !== 'regressed') {
       stateChange = 'regressed';
-      await repository.appendActivity({
+      await transaction.appendActivity({
         issueId: issue.id,
         activityType: 'regressed',
         occurredAt: event.occurredAt
       });
     }
-    await repository.updateIssue({
+    await transaction.updateIssue({
       issueId: issue.id,
       status: nextStatus,
       occurrenceCount: issue.occurrenceCount + 1,
       affectedUserCount: issue.affectedUserCount + (occurrence.newAffectedUser ? 1 : 0),
       lastSeenAt: event.occurredAt
     });
-    await repository.markProcessed(input.envelopeId);
+    await transaction.markProcessed(input.envelopeId);
 
     return {
       issueId: issue.id,

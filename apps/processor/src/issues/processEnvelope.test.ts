@@ -41,11 +41,15 @@ function repository(): IssueProcessorRepository & {
   const issues = new Map<string, FakeIssue>();
   const events = new Set<string>();
   const activities: string[] = [];
-  return {
+  const store: IssueProcessorRepository & {
+    issues: Map<string, FakeIssue>;
+    activities: string[];
+    events: Set<string>;
+  } = {
     issues,
     events,
     activities,
-    withTransaction: async (operation) => operation(),
+    withTransaction: async (operation) => operation(store),
     findIssue: async (fingerprint) => issues.get(fingerprint) ?? null,
     createIssue: async (input) => {
       const issue: FakeIssue = {
@@ -75,6 +79,7 @@ function repository(): IssueProcessorRepository & {
     },
     markProcessed: async () => undefined
   };
+  return store;
 }
 
 describe('processEnvelope', () => {
