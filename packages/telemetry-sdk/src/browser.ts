@@ -1,4 +1,5 @@
 import type { TelemetryEnvelopeV1 } from '../../contracts/src/telemetry.js';
+import { sanitizeTelemetry } from '../../security/src/telemetry/sanitizer.js';
 
 import { createEventId } from './ids.js';
 
@@ -56,14 +57,20 @@ export function createBrowserTelemetry(input: {
         }
       };
 
-      if (
-        new TextEncoder().encode(JSON.stringify(envelope)).byteLength > maximumBrowserEnvelopeBytes
-      ) {
+      if (new TextEncoder().encode(JSON.stringify(envelope)).byteLength > maximumBrowserEnvelopeBytes) {
+        throw new Error('Browser telemetry envelope exceeds 64 KiB');
+      }
+
+      const sanitizedEnvelope = sanitizeTelemetry(envelope, {
+        sessionPepper: 'browser-telemetry-session-id-not-provided'
+      }).envelope;
+
+      if (new TextEncoder().encode(JSON.stringify(sanitizedEnvelope)).byteLength > maximumBrowserEnvelopeBytes) {
         throw new Error('Browser telemetry envelope exceeds 64 KiB');
       }
 
       try {
-        await input.transport(envelope);
+        await input.transport(sanitizedEnvelope);
       } catch {
         // Delivery is intentionally fail-open; the spool implementation retries later.
       }

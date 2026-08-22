@@ -1,10 +1,12 @@
 import type { TelemetryEnvelopeV1 } from '../../contracts/src/telemetry.js';
+import { sanitizeTelemetry } from '../../security/src/telemetry/sanitizer.js';
 
 import { createEventId } from './ids.js';
 
 export function createServerTelemetry(input: {
   release: string;
   service: string;
+  sessionPepper?: string;
   transport: (envelope: TelemetryEnvelopeV1) => Promise<void>;
   now?: () => Date;
 }): {
@@ -42,7 +44,11 @@ export function createServerTelemetry(input: {
       };
 
       try {
-        await input.transport(envelope);
+        await input.transport(
+          sanitizeTelemetry(envelope, {
+            sessionPepper: input.sessionPepper ?? 'server-telemetry-session-id-not-provided'
+          }).envelope
+        );
       } catch {
         // Server spool delivery is fail-open for the originating request.
       }

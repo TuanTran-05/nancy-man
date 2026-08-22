@@ -37,4 +37,24 @@ describe('browser telemetry factory', () => {
       telemetry.captureException(new Error('failure'), { tags: { detail: 'x'.repeat(70 * 1024) } })
     ).rejects.toThrow(/64 KiB/i);
   });
+
+  it('sanitizes a browser exception before handing it to transport', async () => {
+    const delivered: unknown[] = [];
+    const telemetry = createBrowserTelemetry({
+      release: '0123456789abcdef0123456789abcdef01234567',
+      service: 'edutrack-web',
+      transport: async (envelope) => {
+        delivered.push(envelope);
+      }
+    });
+
+    await telemetry.captureException(new Error('Bearer abc.def.ghi password=should-not-leave'), {
+      route: '/students?phone=0912345678',
+      tags: { studentId: 'student-01', secret: 'do-not-send' }
+    });
+
+    const serialized = JSON.stringify(delivered[0]);
+    expect(serialized).not.toMatch(/Bearer |password=|0912345678|do-not-send/i);
+    expect(serialized).toContain('[REDACTED]');
+  });
 });
