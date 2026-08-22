@@ -18,7 +18,8 @@ function normalized(sql: string): string | null {
 export function classifyReadOnlySql(sql: string): Result {
   const statement = normalized(sql);
   if (!statement) return { allowed: false, code: 'SQL_READ_ONLY_REQUIRED' };
-  if (statement.startsWith('SELECT ')) return { allowed: true, kind: 'select' };
+  if (statement.startsWith('SELECT ') && !/\b(INTO|FOR UPDATE|FOR SHARE)\b/.test(statement))
+    return { allowed: true, kind: 'select' };
   if (statement.startsWith('SHOW ')) return { allowed: true, kind: 'show' };
   if (/^EXPLAIN(?: \([^)]*\))? SELECT /.test(statement)) return { allowed: true, kind: 'explain' };
   return { allowed: false, code: 'SQL_READ_ONLY_REQUIRED' };
