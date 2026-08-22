@@ -13,6 +13,8 @@ Environment=OPS_SECRET_DIRECTORY=%d
 LoadCredential=ops-database-url:/etc/edutrack-ops/credentials/ops-database-url
 LoadCredential=ops-session-pepper:/etc/edutrack-ops/credentials/ops-session-pepper
 LoadCredential=ops-rate-limit-pepper:/etc/edutrack-ops/credentials/ops-rate-limit-pepper
+LoadCredential=ops-auth-session-pepper:/etc/edutrack-ops/credentials/ops-auth-session-pepper
+LoadCredential=ops-mfa-encryption-key:/etc/edutrack-ops/credentials/ops-mfa-encryption-key
 LoadCredential=browser-context-edutrack-v1:/etc/edutrack-ops/credentials/browser-context-edutrack-v1
 ExecStart=/usr/bin/node apps/api/dist/apps/api/src/runtime/main.js
 Restart=on-failure

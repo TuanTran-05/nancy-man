@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.json --pretty false"
   },
   "dependencies": {
+    "pg": "8.23.0",
     "pgsql-ast-parser": "^12.0.2"
   }
 }

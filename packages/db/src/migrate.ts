@@ -76,7 +76,10 @@ const migrations: readonly Migration[] = [
   },
   {
     id: '0012_sql_execution_audit',
-    sql: readFileSync(new URL('../migrations/0012_sql_execution_audit.sql', import.meta.url), 'utf8')
+    sql: readFileSync(
+      new URL('../migrations/0012_sql_execution_audit.sql', import.meta.url),
+      'utf8'
+    )
   }
 ];
 

@@ -12,7 +12,8 @@ web console is deployed in a later phase.
   `/var/lib/edutrack-ops/object-store` owned by that user with mode `0700`.
 - Stage a built repository at `/srv/edutrack-ops/current`; run
   `npm run build --workspace=@edutrack-ops/api` before activating it.
-- Keep all SQL feature flags false. This collector never enables a SQL worker.
+- Keep all SQL feature flags false. The private SQL worker may be installed, but it
+  must not receive a production database credential or enable reads yet.
 - Do not place a database URL, HMAC key, session pepper, or browser-context key
   in Git or `/etc/edutrack-ops/api.env`.
 
@@ -20,12 +21,12 @@ web console is deployed in a later phase.
 
 1. Copy `deploy/ops/env/api.env.example` to `/etc/edutrack-ops/api.env`, set
    the real browser origin list, and keep it mode `0640`, owned by root.
-2. Create the four credential source files named in
+2. Create the six credential source files named in
    `deploy/ops/systemd/edutrack-ops-api.service` under
    `/etc/edutrack-ops/credentials/`; each must be a regular file, mode `0400`,
    containing one nonempty value. systemd copies them into `%d` for the service;
    the API rejects symbolic links or group/world-readable credential files.
-3. Install the API, processor, notifier, and migration systemd units, run `systemctl daemon-reload`, then use the
+3. Install the API, processor, notifier, migration, and SQL-worker systemd units, run `systemctl daemon-reload`, then use the
    explicit one-shot migration command once: `systemctl start` is **not** a
    migration. Run `systemctl start edutrack-ops-migrate.service` and inspect
    its journal before starting `edutrack-ops-api.service`.
@@ -49,3 +50,7 @@ web console is deployed in a later phase.
   healthy. Stop the collector; user requests remain healthy and spool locally.
 - Do not send actual Zalo/email alerts or mutate production data during this
   collector-only deployment.
+- `systemctl status edutrack-ops-sql-worker` is healthy; its socket is visible
+  only at `/run/edutrack-ops/sql-worker.sock`, and its service credential
+  directory contains no production database URL while
+  `OPS_SQL_READ_ENABLED=false`.

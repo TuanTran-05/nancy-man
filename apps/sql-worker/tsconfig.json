@@ -1,4 +1,16 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*.ts", "../../packages/contracts/src/**/*.ts"]
+  "compilerOptions": {
+    "noEmit": false,
+    "composite": false,
+    "declaration": false,
+    "rootDir": "../..",
+    "outDir": "dist"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../packages/contracts/src/**/*.ts",
+    "../../packages/security/src/**/*.ts"
+  ],
+  "exclude": ["src/**/*.test.ts", "../../packages/**/*.test.ts"]
 }

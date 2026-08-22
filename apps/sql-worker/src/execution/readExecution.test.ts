@@ -19,8 +19,9 @@ describe('executeReadOnly', () => {
         'BEGIN READ ONLY',
         "SET LOCAL statement_timeout = '30s'",
         'FETCH FORWARD 3 FROM ops_read_cursor',
-        'COMMIT'
+        'ROLLBACK'
       ])
     );
+    expect(calls).not.toContain('COMMIT');
   });
 });

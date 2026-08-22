@@ -1,0 +1,29 @@
+[Unit]
+Description=EduTrack Operations private SQL worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=edutrack-ops
+Group=edutrack-ops
+WorkingDirectory=/srv/edutrack-ops/current
+EnvironmentFile=/etc/edutrack-ops/sql-worker.env
+Environment=OPS_SECRET_DIRECTORY=%d
+LoadCredential=ops-sql-worker-hmac:/etc/edutrack-ops/credentials/ops-sql-worker-hmac
+RuntimeDirectory=edutrack-ops
+RuntimeDirectoryMode=0750
+ExecStart=/usr/bin/node apps/sql-worker/dist/apps/sql-worker/src/index.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/edutrack-ops
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

@@ -19,7 +19,7 @@ export async function executeReadOnly(input: {
       `FETCH FORWARD ${maxRows + 1} FROM ops_read_cursor`
     );
     await input.database.query('CLOSE ops_read_cursor');
-    await input.database.query('COMMIT');
+    await input.database.query('ROLLBACK');
     return { rows: rows.slice(0, maxRows), truncated: rows.length > maxRows };
   } catch (error) {
     await input.database.query('ROLLBACK');
