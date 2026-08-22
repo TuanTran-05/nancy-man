@@ -58,6 +58,7 @@ export default defineConfig(() => {
         'api/**/*.test.ts',
         'server/**/*.test.ts',
         'deploy/**/*.test.ts',
+        'db/**/*.test.ts',
         'scripts/**/*.test.ts',
         'scripts/**/*.test.mjs',
         // Shared test utilities have their own suite and must stay included.
