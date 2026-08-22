@@ -63,4 +63,13 @@ export class OpsSessionRepository {
 
     return session;
   }
+
+  async revokeById(sessionId: string, reason: string): Promise<void> {
+    await this.database.query(
+      `UPDATE ops_sessions
+       SET revoked_at = now(), revoked_reason = $2
+       WHERE id = $1 AND revoked_at IS NULL`,
+      [sessionId, reason]
+    );
+  }
 }

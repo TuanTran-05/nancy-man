@@ -49,6 +49,14 @@ export function createAuthRouter(input: {
     }) => Promise<CompleteTotpResult>;
   };
   hashClientIp: (ip: string) => string;
+  session?: {
+    authorize: (input: {
+      cookieHeader?: string;
+      csrfToken?: string;
+      mutation: boolean;
+    }) => Promise<{ sessionId: string; userId: string; role: string } | null>;
+    revoke: (sessionId: string) => Promise<void>;
+  };
 }): Router {
   const router = express.Router();
   router.use(express.json({ limit: '8kb' }));
@@ -93,6 +101,41 @@ export function createAuthRouter(input: {
         idleExpiresAt: result.idleExpiresAt,
         absoluteExpiresAt: result.absoluteExpiresAt
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.get('/session', async (request, response, next) => {
+    try {
+      const cookieHeader = request.get('cookie');
+      const principal = await input.session?.authorize({
+        ...(cookieHeader ? { cookieHeader } : {}),
+        mutation: false
+      });
+      if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+      return response.status(200).json({ userId: principal.userId, role: principal.role });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post('/logout', async (request, response, next) => {
+    try {
+      const cookieHeader = request.get('cookie');
+      const csrfToken = request.get('X-Ops-CSRF');
+      const principal = await input.session?.authorize({
+        ...(cookieHeader ? { cookieHeader } : {}),
+        ...(csrfToken ? { csrfToken } : {}),
+        mutation: true
+      });
+      if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+      await input.session?.revoke(principal.sessionId);
+      response.clearCookie('__Host-ops-session', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict',
+        path: '/'
+      });
+      return response.status(204).end();
     } catch (error) {
       next(error);
     }

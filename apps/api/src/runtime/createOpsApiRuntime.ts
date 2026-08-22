@@ -1,6 +1,8 @@
 import { createOpsApi } from '../index.js';
 import { OpsAuthService } from '../modules/auth/authService.js';
 import { PostgresOpsAuthRepository } from '../modules/auth/postgresAuthRepository.js';
+import { authorizeOpsSession } from '../modules/auth/sessionAuthorization.js';
+import { OpsSessionRepository } from '../../../../packages/db/src/repositories/opsSessions.js';
 import { createBrowserIngestService } from '../modules/ingest/browserIngest.js';
 import { PostgresBrowserRateLimiter } from '../modules/ingest/postgresBrowserRateLimiter.js';
 import { PostgresIngestStore } from '../modules/ingest/postgresIngestStore.js';
@@ -30,6 +32,7 @@ export function createOpsApiRuntime(input: {
   resolveSecret: (reference: string) => Promise<string | null>;
 }): { app: ReturnType<typeof createOpsApi> } {
   const ingestStore = new PostgresIngestStore(input.database);
+  const sessionRepository = new OpsSessionRepository(input.database, input.authSessionPepper);
   const nonceStore = new PostgresNonceStore(input.database);
   const browser = createBrowserIngestService({
     store: ingestStore,
@@ -69,7 +72,16 @@ export function createOpsApiRuntime(input: {
           mfaEncryptionKey: input.mfaEncryptionKey
         }),
         hashClientIp: (ip) =>
-          createHash('sha256').update(`${ip}${input.rateLimitPepper}`).digest('hex')
+          createHash('sha256').update(`${ip}${input.rateLimitPepper}`).digest('hex'),
+        session: {
+          authorize: (request) =>
+            authorizeOpsSession({
+              ...request,
+              sessionPepper: input.authSessionPepper,
+              repository: sessionRepository
+            }),
+          revoke: (sessionId) => sessionRepository.revokeById(sessionId, 'LOGOUT')
+        }
       },
       trustedProxy: 'loopback'
     })
