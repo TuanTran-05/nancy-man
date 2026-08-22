@@ -54,4 +54,27 @@ describe('PostgresIncidentStore', () => {
     expect(calls[0]?.sql).toContain("WHEN $2 = 'mitigated'");
     expect(calls[0]?.sql).toContain("WHEN $2 = 'resolved'");
   });
+
+  it('links a later issue only to an existing incident that is not resolved', async () => {
+    const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
+    const store = new PostgresIncidentStore({
+      query: async <T>(sql, parameters: readonly unknown[] = []) => {
+        calls.push({ sql, parameters });
+        return { rows: [{ id: 'incident-id' }] as T[] };
+      }
+    });
+
+    await expect(
+      store.linkIssue({
+        incidentId: 'incident-id',
+        issueId: 'issue-id',
+        actorUserId: 'maintainer-id'
+      })
+    ).resolves.toBe(true);
+
+    expect(calls[0]?.sql).toContain("status <> 'resolved'");
+    expect(calls[0]?.sql).toContain('JOIN error_issues');
+    expect(calls[0]?.sql).toContain('INSERT INTO incident_issues');
+    expect(calls[0]?.parameters).toEqual(['incident-id', 'issue-id', 'maintainer-id']);
+  });
 });

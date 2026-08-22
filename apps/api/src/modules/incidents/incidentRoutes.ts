@@ -20,6 +20,11 @@ export function createIncidentRouter(input: {
       summary?: string;
       issueIds: string[];
     }) => Promise<{ id: string; incidentKey: string; linkedIssueCount: number } | null>;
+    linkIssue?: (input: {
+      incidentId: string;
+      issueId: string;
+      actorUserId: string;
+    }) => Promise<boolean>;
   };
 }): Router {
   const router = express.Router();
@@ -87,6 +92,44 @@ export function createIncidentRouter(input: {
       next(error);
     }
   });
+
+  router.post(
+    '/:incidentId/issues',
+    express.json({ limit: '2kb' }),
+    async (request, response, next) => {
+      try {
+        const parsed = z.object({ issueId: z.string().uuid() }).safeParse(request.body);
+        const incidentId = z.string().uuid().safeParse(request.params.incidentId);
+        if (!parsed.success || !incidentId.success)
+          return response.status(400).json({ code: 'INVALID_INCIDENT_ISSUE_LINK' });
+        const cookieHeader = request.get('cookie');
+        const csrfToken = request.get('X-Ops-CSRF');
+        const principal = await input.authorize({
+          ...(cookieHeader ? { cookieHeader } : {}),
+          ...(csrfToken ? { csrfToken } : {}),
+          mutation: true
+        });
+        if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+        try {
+          assertPermission(principal.role, 'issues:write');
+        } catch {
+          return response.status(403).json({ code: 'PERMISSION_DENIED' });
+        }
+        if (!input.incidents.linkIssue)
+          return response.status(404).json({ code: 'INCIDENT_LINK_UNAVAILABLE' });
+        const linked = await input.incidents.linkIssue({
+          incidentId: incidentId.data,
+          issueId: parsed.data.issueId,
+          actorUserId: principal.userId
+        });
+        return linked
+          ? response.status(204).end()
+          : response.status(404).json({ code: 'INCIDENT_OR_ISSUE_NOT_FOUND' });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 
   return router;
 }

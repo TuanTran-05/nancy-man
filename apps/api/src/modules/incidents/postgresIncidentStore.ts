@@ -115,4 +115,26 @@ export class PostgresIncidentStore {
     );
     return rows.length === 1;
   }
+
+  async linkIssue(input: {
+    incidentId: string;
+    issueId: string;
+    actorUserId: string;
+  }): Promise<boolean> {
+    const { rows } = await this.database.query<{ id: string }>(
+      `WITH valid_link AS (
+         SELECT incidents.id, error_issues.id AS issue_id
+         FROM incidents
+         JOIN error_issues ON error_issues.id = $2
+         WHERE incidents.id = $1 AND incidents.status <> 'resolved'
+       ), linked AS (
+         INSERT INTO incident_issues (incident_id, issue_id, linked_by_user_id)
+         SELECT id, issue_id, $3 FROM valid_link
+         ON CONFLICT (incident_id, issue_id) DO NOTHING
+         RETURNING incident_id
+       ) SELECT id FROM valid_link`,
+      [input.incidentId, input.issueId, input.actorUserId]
+    );
+    return rows.length === 1;
+  }
 }

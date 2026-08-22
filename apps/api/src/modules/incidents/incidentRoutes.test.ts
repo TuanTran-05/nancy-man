@@ -61,4 +61,58 @@ describe('incident routes', () => {
       );
     }
   });
+
+  it('links an issue with the current maintainer as actor', async () => {
+    const links: unknown[] = [];
+    const app = express();
+    app.use(
+      '/incidents',
+      createIncidentRouter({
+        authorize: async () => ({ role: 'ops_maintainer', userId: 'maintainer-id' }),
+        incidents: {
+          list: async () => [],
+          create: async () => ({
+            id: 'incident-id',
+            incidentKey: 'INC_AB12CD34',
+            linkedIssueCount: 0
+          }),
+          linkIssue: async (input) => {
+            links.push(input);
+            return true;
+          }
+        }
+      })
+    );
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('address');
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${address.port}/incidents/f16f9426-010c-4e06-a459-9fd18c4a442d/issues`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Cookie: '__Host-ops-session=opaque',
+            'X-Ops-CSRF': 'csrf-token'
+          },
+          body: JSON.stringify({ issueId: 'f16f9426-010c-4e06-a459-9fd18c4a442e' })
+        }
+      );
+      expect(response.status).toBe(204);
+      expect(links).toEqual([
+        {
+          incidentId: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
+          issueId: 'f16f9426-010c-4e06-a459-9fd18c4a442e',
+          actorUserId: 'maintainer-id'
+        }
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
 });
