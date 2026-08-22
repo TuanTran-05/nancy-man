@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 
 import type { ParameterizedDatabase } from './opsUsers.js';
 
+type OpsRole = 'ops_viewer' | 'ops_maintainer' | 'ops_owner';
+
 export type OpsSessionRecord = {
   id: string;
   userId: string;
@@ -9,6 +11,8 @@ export type OpsSessionRecord = {
   lastActivityAt: string;
   idleExpiresAt: string;
   absoluteExpiresAt: string;
+  csrfSecretHash: string;
+  role: OpsRole;
 };
 
 export class OpsSessionRepository {
@@ -25,17 +29,20 @@ export class OpsSessionRepository {
     const { rows } = await this.database.query<OpsSessionRecord>(
       `
         SELECT
-          id,
-          user_id AS "userId",
-          session_hash AS "sessionHash",
-          last_activity_at AS "lastActivityAt",
-          idle_expires_at AS "idleExpiresAt",
-          absolute_expires_at AS "absoluteExpiresAt"
-        FROM ops_sessions
-        WHERE session_hash = $1
-          AND revoked_at IS NULL
-          AND idle_expires_at > $2
-          AND absolute_expires_at > $2
+          session.id,
+          session.user_id AS "userId",
+          session.session_hash AS "sessionHash",
+          session.csrf_secret_hash AS "csrfSecretHash",
+          user_record.role,
+          session.last_activity_at AS "lastActivityAt",
+          session.idle_expires_at AS "idleExpiresAt",
+          session.absolute_expires_at AS "absoluteExpiresAt"
+        FROM ops_sessions AS session
+        JOIN ops_users AS user_record ON user_record.id = session.user_id AND user_record.status = 'active'
+        WHERE session.session_hash = $1
+          AND session.revoked_at IS NULL
+          AND session.idle_expires_at > $2
+          AND session.absolute_expires_at > $2
         LIMIT 1
       `,
       [sessionHash, nowIso]

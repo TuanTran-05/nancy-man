@@ -19,6 +19,8 @@ describe('OpsSessionRepository', () => {
                   id: '2f25fd2f-ae51-482f-9e2c-604d3c1eecb0',
                   userId: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
                   sessionHash,
+                  csrfSecretHash: 'b'.repeat(64),
+                  role: 'ops_owner',
                   lastActivityAt: '2026-08-22T03:00:00.000Z',
                   idleExpiresAt: '2026-08-22T03:30:00.000Z',
                   absoluteExpiresAt: '2026-08-22T15:00:00.000Z'
