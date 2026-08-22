@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   assertPermission,
   createCsrfToken,
+  deriveCsrfSecret,
+  hashCsrfSecret,
   hashSessionToken,
   isSqlElevationActive,
   issueSession,
@@ -36,6 +38,21 @@ describe('Ops sessions and authorization', () => {
     expect(verifyCsrfToken({ sessionId: 'session-02', csrfSecret: 'csrf-secret', csrfToken })).toBe(
       false
     );
+  });
+
+  it('derives a restart-safe CSRF secret from the opaque session token and server pepper', () => {
+    const secret = deriveCsrfSecret({
+      sessionToken: 'opaque-session-token',
+      csrfPepper: 'csrf-pepper'
+    });
+
+    expect(secret).toEqual(
+      deriveCsrfSecret({ sessionToken: 'opaque-session-token', csrfPepper: 'csrf-pepper' })
+    );
+    expect(secret).not.toEqual(
+      deriveCsrfSecret({ sessionToken: 'other-session-token', csrfPepper: 'csrf-pepper' })
+    );
+    expect(hashCsrfSecret(secret)).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('enforces RBAC and a separate 15-minute SQL elevation', () => {

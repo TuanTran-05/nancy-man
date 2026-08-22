@@ -71,6 +71,20 @@ export function hashSessionToken(token: string, pepper: string): string {
   return createHash('sha256').update(`${token}${pepper}`, 'utf8').digest('hex');
 }
 
+export function deriveCsrfSecret(input: { sessionToken: string; csrfPepper: string }): string {
+  if (!input.sessionToken || !input.csrfPepper) {
+    throw new Error('Session token and CSRF pepper are required');
+  }
+  return createHmac('sha256', input.csrfPepper)
+    .update(`ops-csrf-v1:${input.sessionToken}`, 'utf8')
+    .digest('base64url');
+}
+
+export function hashCsrfSecret(csrfSecret: string): string {
+  if (!csrfSecret) throw new Error('CSRF secret is required');
+  return createHash('sha256').update(csrfSecret, 'utf8').digest('hex');
+}
+
 export function createCsrfToken(input: { sessionId: string; csrfSecret: string }): string {
   return createHmac('sha256', input.csrfSecret).update(input.sessionId, 'utf8').digest('base64url');
 }
