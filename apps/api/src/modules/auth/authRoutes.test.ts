@@ -107,4 +107,79 @@ describe('createAuthRouter', () => {
       );
     }
   });
+
+  it('requires a CSRF-protected maintainer session and fresh TOTP proof to elevate SQL access', async () => {
+    const grants: unknown[] = [];
+    const app = express();
+    app.use(
+      '/auth',
+      createAuthRouter({
+        service: {
+          beginLogin: async () => ({ status: 'denied' as const }),
+          completeTotpLogin: async () => ({ status: 'denied' as const })
+        },
+        sqlElevation: {
+          grant: async (input) => {
+            grants.push(input);
+            return {
+              status: 'granted' as const,
+              idleExpiresAt: '2026-08-22T10:15:00.000Z',
+              absoluteExpiresAt: '2026-08-22T10:30:00.000Z'
+            };
+          }
+        },
+        hashClientIp: () => 'a'.repeat(64),
+        session: {
+          authorize: async ({ csrfToken, mutation }) =>
+            mutation && csrfToken !== 'csrf-token'
+              ? null
+              : {
+                  sessionId: 'f16f9426-010c-4e06-a459-9fd18c4a442e',
+                  userId: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
+                  role: 'ops_maintainer'
+                },
+          revoke: async () => undefined
+        }
+      })
+    );
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Expected test server');
+    const body = {
+      factorId: 'f16f9426-010c-4e06-a459-9fd18c4a442f',
+      token: '123456',
+      reason: 'Investigate database error'
+    };
+    try {
+      const denied = await fetch(`http://127.0.0.1:${address.port}/auth/sql-elevation/totp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      expect(denied.status).toBe(401);
+
+      const granted = await fetch(`http://127.0.0.1:${address.port}/auth/sql-elevation/totp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Ops-CSRF': 'csrf-token' },
+        body: JSON.stringify(body)
+      });
+      expect(granted.status).toBe(200);
+      await expect(granted.json()).resolves.toEqual({
+        idleExpiresAt: '2026-08-22T10:15:00.000Z',
+        absoluteExpiresAt: '2026-08-22T10:30:00.000Z'
+      });
+      expect(grants).toEqual([
+        {
+          userId: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
+          sessionId: 'f16f9426-010c-4e06-a459-9fd18c4a442e',
+          ...body
+        }
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
 });

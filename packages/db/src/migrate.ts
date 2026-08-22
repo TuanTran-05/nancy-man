@@ -80,6 +80,13 @@ const migrations: readonly Migration[] = [
       new URL('../migrations/0012_sql_execution_audit.sql', import.meta.url),
       'utf8'
     )
+  },
+  {
+    id: '0013_sql_session_elevations',
+    sql: readFileSync(
+      new URL('../migrations/0013_sql_session_elevations.sql', import.meta.url),
+      'utf8'
+    )
   }
 ];
 

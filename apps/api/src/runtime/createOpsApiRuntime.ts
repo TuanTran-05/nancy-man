@@ -1,7 +1,9 @@
 import { createOpsApi } from '../index.js';
 import { OpsAuthService } from '../modules/auth/authService.js';
 import { PostgresOpsAuthRepository } from '../modules/auth/postgresAuthRepository.js';
+import { PostgresSqlElevationRepository } from '../modules/auth/postgresSqlElevationRepository.js';
 import { PostgresTotpEnrollmentRepository } from '../modules/auth/postgresTotpEnrollmentRepository.js';
+import { SqlElevationService } from '../modules/auth/sqlElevation.js';
 import { TotpEnrollmentService } from '../modules/auth/totpEnrollment.js';
 import { PostgresIssueInbox } from '../modules/issues/postgresIssueInbox.js';
 import { PostgresIssueWorkflow } from '../modules/issues/postgresIssueWorkflow.js';
@@ -37,6 +39,7 @@ export function createOpsApiRuntime(input: {
 }): { app: ReturnType<typeof createOpsApi> } {
   const ingestStore = new PostgresIngestStore(input.database);
   const sessionRepository = new OpsSessionRepository(input.database, input.authSessionPepper);
+  const sqlElevationRepository = new PostgresSqlElevationRepository(input.database);
   const nonceStore = new PostgresNonceStore(input.database);
   const browser = createBrowserIngestService({
     store: ingestStore,
@@ -86,6 +89,10 @@ export function createOpsApiRuntime(input: {
             }),
           revoke: (sessionId) => sessionRepository.revokeById(sessionId, 'LOGOUT')
         },
+        sqlElevation: new SqlElevationService({
+          repository: sqlElevationRepository,
+          encryptionKey: input.mfaEncryptionKey
+        }),
         bootstrap: new TotpEnrollmentService({
           encryptionKey: input.mfaEncryptionKey,
           repository: new PostgresTotpEnrollmentRepository(input.database)

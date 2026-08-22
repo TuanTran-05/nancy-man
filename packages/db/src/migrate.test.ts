@@ -10,6 +10,7 @@ const requiredTables = [
   'ops_sessions',
   'ops_login_events',
   'ops_elevation_events',
+  'ops_sql_elevations',
   'ops_audit_entries',
   'ops_audit_checkpoints',
   'service_heartbeats'
@@ -45,7 +46,8 @@ describe('Ops database migration runner', () => {
       '0009_alert_delivery_outbox',
       '0010_ops_login_challenges',
       '0011_ops_mfa_enrollment_tokens',
-      '0012_sql_execution_audit'
+      '0012_sql_execution_audit',
+      '0013_sql_session_elevations'
     ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {
@@ -73,7 +75,8 @@ describe('Ops database migration runner', () => {
               { migrationId: '0009_alert_delivery_outbox' },
               { migrationId: '0010_ops_login_challenges' },
               { migrationId: '0011_ops_mfa_enrollment_tokens' },
-              { migrationId: '0012_sql_execution_audit' }
+              { migrationId: '0012_sql_execution_audit' },
+              { migrationId: '0013_sql_session_elevations' }
             ] as T[]
           };
         }

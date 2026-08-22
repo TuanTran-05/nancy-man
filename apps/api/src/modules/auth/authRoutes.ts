@@ -1,6 +1,8 @@
 import express, { type Request, type Router } from 'express';
 import { z } from 'zod';
 
+import { assertPermission, type OpsRole } from '../../../../../packages/security/src/sessions.js';
+
 type BeginLoginResult =
   | { status: 'denied' }
   | { status: 'mfa_required'; mfaChallenge: string; factors: readonly unknown[] };
@@ -39,6 +41,11 @@ const enrollmentVerifyBody = enrollmentStartBody.extend({
   factorId: z.string().uuid(),
   otp: z.string().regex(/^\d{6}$/)
 });
+const sqlElevationBody = z.object({
+  factorId: z.string().uuid(),
+  token: z.string().regex(/^\d{6}$/),
+  reason: z.string().trim().min(3).max(250)
+});
 
 export function createAuthRouter(input: {
   service: {
@@ -56,13 +63,24 @@ export function createAuthRouter(input: {
       userAgent: string;
     }) => Promise<CompleteTotpResult>;
   };
+  sqlElevation?: {
+    grant: (input: {
+      userId: string;
+      sessionId: string;
+      factorId: string;
+      token: string;
+      reason: string;
+    }) => Promise<
+      { status: 'denied' } | { status: 'granted'; idleExpiresAt: string; absoluteExpiresAt: string }
+    >;
+  };
   hashClientIp: (ip: string) => string;
   session?: {
     authorize: (input: {
       cookieHeader?: string;
       csrfToken?: string;
       mutation: boolean;
-    }) => Promise<{ sessionId: string; userId: string; role: string } | null>;
+    }) => Promise<{ sessionId: string; userId: string; role: OpsRole } | null>;
     revoke: (sessionId: string) => Promise<void>;
   };
   bootstrap?: {
@@ -143,6 +161,38 @@ export function createAuthRouter(input: {
       return response.status(200).json({
         csrfToken: result.csrfToken,
         role: result.role,
+        idleExpiresAt: result.idleExpiresAt,
+        absoluteExpiresAt: result.absoluteExpiresAt
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post('/sql-elevation/totp', async (request, response, next) => {
+    try {
+      const parsed = sqlElevationBody.safeParse(request.body);
+      if (!parsed.success || !input.sqlElevation)
+        return response.status(400).json({ code: 'INVALID_ELEVATION_REQUEST' });
+      const cookieHeader = request.get('cookie');
+      const csrfToken = request.get('X-Ops-CSRF');
+      const principal = await input.session?.authorize({
+        ...(cookieHeader ? { cookieHeader } : {}),
+        ...(csrfToken ? { csrfToken } : {}),
+        mutation: true
+      });
+      if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+      try {
+        assertPermission(principal.role, 'sql:workspace');
+      } catch {
+        return response.status(403).json({ code: 'PERMISSION_DENIED' });
+      }
+      const result = await input.sqlElevation.grant({
+        userId: principal.userId,
+        sessionId: principal.sessionId,
+        ...parsed.data
+      });
+      if (result.status !== 'granted') return response.status(401).json({ code: 'MFA_DENIED' });
+      return response.status(200).json({
         idleExpiresAt: result.idleExpiresAt,
         absoluteExpiresAt: result.absoluteExpiresAt
       });
