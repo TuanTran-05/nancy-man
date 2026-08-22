@@ -34,4 +34,38 @@ describe('PostgresIssueInbox', () => {
     expect(calls[0]?.sql).not.toContain('stack_trace');
     expect(calls[0]?.parameters).toEqual([21]);
   });
+
+  it('loads a bounded sanitized event timeline for a single issue', async () => {
+    const calls: string[] = [];
+    const inbox = new PostgresIssueInbox({
+      query: async <T>(sql: string) => {
+        calls.push(sql);
+        if (sql.includes('WHERE id = $1'))
+          return {
+            rows: [
+              {
+                id: 'issue-id',
+                fingerprint: 'fp',
+                title: 'failed',
+                errorCode: 'FAIL',
+                source: 'api',
+                severity: 'high',
+                status: 'new',
+                firstSeenAt: '2026-08-22T03:00:00.000Z',
+                lastSeenAt: '2026-08-22T03:01:00.000Z',
+                occurrenceCount: '1',
+                affectedUserCount: '1'
+              }
+            ] as T[]
+          };
+        return { rows: [{ eventId: 'EVT_1', safeMessage: 'failed' }] as T[] };
+      }
+    });
+    await expect(inbox.detail('issue-id')).resolves.toMatchObject({
+      events: [{ eventId: 'EVT_1' }]
+    });
+    const eventQuery = calls.find((sql) => sql.includes('FROM error_events'));
+    expect(eventQuery).toContain('LIMIT 50');
+    expect(eventQuery).not.toContain(' context');
+  });
 });

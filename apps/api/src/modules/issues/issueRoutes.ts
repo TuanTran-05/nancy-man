@@ -9,7 +9,10 @@ export function createIssueRouter(input: {
     csrfToken?: string;
     mutation: boolean;
   }) => Promise<{ role: OpsRole; userId: string } | null>;
-  inbox: { list: (input: { limit: number }) => Promise<unknown[]> };
+  inbox: {
+    list: (input: { limit: number }) => Promise<unknown[]>;
+    detail?: (issueId: string) => Promise<unknown | null>;
+  };
   workflow?: {
     transition: (input: {
       issueId: string;
@@ -35,6 +38,27 @@ export function createIssueRouter(input: {
       const rawLimit = Number(request.query.limit ?? '50');
       const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50;
       return response.status(200).json({ issues: await input.inbox.list({ limit }) });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.get('/:issueId', async (request, response, next) => {
+    try {
+      const cookieHeader = request.get('cookie');
+      const principal = await input.authorize({
+        ...(cookieHeader ? { cookieHeader } : {}),
+        mutation: false
+      });
+      if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+      try {
+        assertPermission(principal.role, 'issues:read');
+      } catch {
+        return response.status(403).json({ code: 'PERMISSION_DENIED' });
+      }
+      const detail = await input.inbox.detail?.(request.params.issueId);
+      return detail
+        ? response.status(200).json(detail)
+        : response.status(404).json({ code: 'ISSUE_NOT_FOUND' });
     } catch (error) {
       next(error);
     }
