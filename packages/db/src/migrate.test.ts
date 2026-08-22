@@ -36,7 +36,8 @@ describe('Ops database migration runner', () => {
     expect(result.appliedMigrations).toEqual([
       '0001_ops_foundation',
       '0002_error_operations',
-      '0003_ingest_processing_state'
+      '0003_ingest_processing_state',
+      '0004_error_source_extensions'
     ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {
@@ -55,7 +56,8 @@ describe('Ops database migration runner', () => {
             rows: [
               { migrationId: '0001_ops_foundation' },
               { migrationId: '0002_error_operations' },
-              { migrationId: '0003_ingest_processing_state' }
+              { migrationId: '0003_ingest_processing_state' },
+              { migrationId: '0004_error_source_extensions' }
             ] as T[]
           };
         }

@@ -2,7 +2,16 @@ import { bigint, index, integer, jsonb, primaryKey, text, timestamp, uuid } from
 
 import { pgTable } from 'drizzle-orm/pg-core';
 
-type ErrorSource = 'browser' | 'api' | 'database' | 'job' | 'provider' | 'process' | 'synthetic';
+type ErrorSource =
+  | 'browser'
+  | 'api'
+  | 'database'
+  | 'document_store'
+  | 'job'
+  | 'provider'
+  | 'process'
+  | 'deployment'
+  | 'synthetic';
 type Severity = 'critical' | 'high' | 'medium' | 'low';
 type JsonObject = Record<string, unknown>;
 

@@ -84,4 +84,45 @@ describe('server ingestion service', () => {
     });
     expect(JSON.stringify(store.inserted[0])).not.toContain('password=do-not-store');
   });
+
+  it('keeps valid events from a signed batch when another entry is invalid', async () => {
+    const store = createStore();
+    const rawBody = JSON.stringify([
+      serverEnvelope,
+      { ...serverEnvelope, eventId: 'not-an-event-id', idempotencyKey: 'idem-other-0123456' }
+    ]);
+    const request = {
+      keyId: 'api-1',
+      signature: signServerIngestRequest({
+        secret: 'server-secret',
+        method: 'POST',
+        path: '/api/v1/ingest/server/batch',
+        timestamp: '2026-08-22T08:00:00.000Z',
+        nonce: 'batch-nonce-0123456789',
+        rawBody
+      }),
+      timestamp: '2026-08-22T08:00:00.000Z',
+      nonce: 'batch-nonce-0123456789',
+      clientIp: '10.0.0.10',
+      rawBody
+    };
+    const service = createServerIngestService({
+      store,
+      nonceStore: new InMemoryNonceStore(),
+      resolveSecret: async () => 'server-secret',
+      sessionPepper: 'telemetry-pepper',
+      now: () => new Date('2026-08-22T08:00:30.000Z')
+    });
+
+    await expect(service.ingestBatch(request)).resolves.toMatchObject({
+      status: 207,
+      accepted: 1,
+      rejected: 1,
+      results: [
+        { accepted: true, eventId: serverEnvelope.eventId },
+        { accepted: false, code: 'INVALID_ENVELOPE' }
+      ]
+    });
+    expect(store.inserted).toHaveLength(1);
+  });
 });

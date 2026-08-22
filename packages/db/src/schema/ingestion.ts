@@ -44,7 +44,17 @@ export const ingestEnvelopes = pgTable(
     idempotencyKey: text('idempotency_key').notNull(),
     eventId: text('event_id').notNull(),
     source: text('source')
-      .$type<'browser' | 'api' | 'database' | 'job' | 'provider' | 'process' | 'synthetic'>()
+      .$type<
+        | 'browser'
+        | 'api'
+        | 'database'
+        | 'document_store'
+        | 'job'
+        | 'provider'
+        | 'process'
+        | 'deployment'
+        | 'synthetic'
+      >()
       .notNull(),
     requestId: text('request_id'),
     traceId: text('trace_id'),

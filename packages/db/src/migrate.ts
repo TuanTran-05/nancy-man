@@ -26,6 +26,13 @@ const migrations: readonly Migration[] = [
       new URL('../migrations/0003_ingest_processing_state.sql', import.meta.url),
       'utf8'
     )
+  },
+  {
+    id: '0004_error_source_extensions',
+    sql: readFileSync(
+      new URL('../migrations/0004_error_source_extensions.sql', import.meta.url),
+      'utf8'
+    )
   }
 ];
 
