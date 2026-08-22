@@ -25,7 +25,7 @@ export function createSqlRouter(input: {
   worker: {
     command: (input: {
       actor: { userId: string; sessionId: string; role: 'ops_maintainer' | 'ops_owner' };
-      kind: 'sql.classify';
+      kind: 'sql.classify' | 'sql.classifyMutation';
       payload: { sql: string };
     }) => Promise<
       | { protocolVersion: 1; commandId: string; ok: true; result: unknown }
@@ -109,6 +109,38 @@ export function createSqlRouter(input: {
       next(error);
     }
   });
+  router.post(
+    '/classify-mutation',
+    express.json({ limit: '72kb' }),
+    async (request, response, next) => {
+      try {
+        const parsed = classifyBody.safeParse(request.body);
+        if (!parsed.success) return response.status(400).json({ code: 'INVALID_SQL_REQUEST' });
+        const cookieHeader = request.get('cookie');
+        const principal = await input.authorize({
+          ...(cookieHeader ? { cookieHeader } : {}),
+          mutation: false
+        });
+        if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+        try {
+          assertPermission(principal.role, 'sql:workspace');
+        } catch {
+          return response.status(403).json({ code: 'PERMISSION_DENIED' });
+        }
+        const { role } = principal;
+        if (role === 'ops_viewer') return response.status(403).json({ code: 'PERMISSION_DENIED' });
+        const worker = await input.worker.command({
+          actor: { userId: principal.userId, sessionId: principal.sessionId, role },
+          kind: 'sql.classifyMutation',
+          payload: parsed.data
+        });
+        if (!worker.ok) return response.status(503).json({ code: worker.error.code });
+        return response.status(200).json({ classification: worker.result });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
   router.post('/preview', express.json({ limit: '72kb' }), async (request, response, next) => {
     try {
       const parsed = previewBody.safeParse(request.body);

@@ -10,7 +10,7 @@ export type WorkerCommand = {
   issuedAt: string;
   nonce: string;
   actor: SqlWorkerActor;
-  kind: 'schema.read' | 'sql.classify' | 'sql.previewRead' | 'sql.cancel';
+  kind: 'schema.read' | 'sql.classify' | 'sql.classifyMutation' | 'sql.previewRead' | 'sql.cancel';
   payload: unknown;
   signature: string;
 };

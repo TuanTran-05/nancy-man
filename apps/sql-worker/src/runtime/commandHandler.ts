@@ -2,6 +2,7 @@ import type { WorkerCommand } from '../../../../packages/contracts/src/workerPro
 import type { DatabaseSchemaSnapshot } from '../../../../packages/contracts/src/databaseSchema.js';
 
 import { classifyReadOnlySql } from '../execution/readClassification.js';
+import { classifyMutationSql } from '../execution/mutationClassification.js';
 type ReadWorker =
   | { enabled: false }
   | {
@@ -48,6 +49,9 @@ export function createSqlWorkerCommandHandler(input: { read: ReadWorker }): {
     }
     if (command.kind === 'sql.classify') {
       return classifyReadOnlySql(readPayload(command.payload).sql);
+    }
+    if (command.kind === 'sql.classifyMutation') {
+      return classifyMutationSql(readPayload(command.payload).sql);
     }
     if (command.kind === 'sql.previewRead') {
       if (!input.read.enabled) throw new SqlWorkerCommandError('SQL_READ_DISABLED');

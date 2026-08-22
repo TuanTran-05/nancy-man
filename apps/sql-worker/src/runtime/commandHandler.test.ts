@@ -27,6 +27,19 @@ describe('createSqlWorkerCommandHandler', () => {
     ).resolves.toEqual({ allowed: true, kind: 'select' });
   });
 
+  it('classifies DML without opening a production write connection', async () => {
+    const handler = createSqlWorkerCommandHandler({ read: { enabled: false } });
+
+    await expect(
+      handler(
+        command({
+          kind: 'sql.classifyMutation',
+          payload: { sql: "UPDATE public.students SET name = 'An' WHERE id = '1'" }
+        })
+      )
+    ).resolves.toEqual({ allowed: true, kind: 'update', requiresTypedConfirmation: false });
+  });
+
   it('refuses a read preview while the read-only rollout flag is disabled', async () => {
     const handler = createSqlWorkerCommandHandler({ read: { enabled: false } });
 
