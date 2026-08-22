@@ -1,6 +1,8 @@
 import { createOpsApi } from '../index.js';
 import { OpsAuthService } from '../modules/auth/authService.js';
 import { PostgresOpsAuthRepository } from '../modules/auth/postgresAuthRepository.js';
+import { PostgresTotpEnrollmentRepository } from '../modules/auth/postgresTotpEnrollmentRepository.js';
+import { TotpEnrollmentService } from '../modules/auth/totpEnrollment.js';
 import { PostgresIssueInbox } from '../modules/issues/postgresIssueInbox.js';
 import { PostgresIssueWorkflow } from '../modules/issues/postgresIssueWorkflow.js';
 import { authorizeOpsSession } from '../modules/auth/sessionAuthorization.js';
@@ -83,7 +85,11 @@ export function createOpsApiRuntime(input: {
               repository: sessionRepository
             }),
           revoke: (sessionId) => sessionRepository.revokeById(sessionId, 'LOGOUT')
-        }
+        },
+        bootstrap: new TotpEnrollmentService({
+          encryptionKey: input.mfaEncryptionKey,
+          repository: new PostgresTotpEnrollmentRepository(input.database)
+        })
       },
       issues: {
         authorize: (request) =>

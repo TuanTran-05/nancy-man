@@ -31,6 +31,14 @@ const totpBody = z.object({
   factorId: z.string().uuid(),
   token: z.string().regex(/^\d{6}$/)
 });
+const enrollmentStartBody = z.object({
+  userId: z.string().uuid(),
+  token: z.string().min(32).max(256)
+});
+const enrollmentVerifyBody = enrollmentStartBody.extend({
+  factorId: z.string().uuid(),
+  otp: z.string().regex(/^\d{6}$/)
+});
 
 export function createAuthRouter(input: {
   service: {
@@ -57,6 +65,18 @@ export function createAuthRouter(input: {
     }) => Promise<{ sessionId: string; userId: string; role: string } | null>;
     revoke: (sessionId: string) => Promise<void>;
   };
+  bootstrap?: {
+    start: (input: {
+      userId: string;
+      token: string;
+    }) => Promise<{ factorId: string; secret: string; otpauthUri: string } | null>;
+    verify: (input: {
+      userId: string;
+      token: string;
+      factorId: string;
+      otp: string;
+    }) => Promise<boolean>;
+  };
 }): Router {
   const router = express.Router();
   router.use(express.json({ limit: '8kb' }));
@@ -74,6 +94,31 @@ export function createAuthRouter(input: {
         mfaChallenge: result.mfaChallenge,
         factors: result.factors
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post('/bootstrap/totp/start', async (request, response, next) => {
+    try {
+      const parsed = enrollmentStartBody.safeParse(request.body);
+      if (!parsed.success || !input.bootstrap)
+        return response.status(400).json({ code: 'INVALID_ENROLLMENT_REQUEST' });
+      const result = await input.bootstrap.start(parsed.data);
+      return result
+        ? response.status(200).json(result)
+        : response.status(401).json({ code: 'ENROLLMENT_DENIED' });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post('/bootstrap/totp/verify', async (request, response, next) => {
+    try {
+      const parsed = enrollmentVerifyBody.safeParse(request.body);
+      if (!parsed.success || !input.bootstrap)
+        return response.status(400).json({ code: 'INVALID_ENROLLMENT_REQUEST' });
+      return (await input.bootstrap.verify(parsed.data))
+        ? response.status(204).end()
+        : response.status(401).json({ code: 'ENROLLMENT_DENIED' });
     } catch (error) {
       next(error);
     }

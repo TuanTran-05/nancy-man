@@ -62,4 +62,49 @@ describe('createAuthRouter', () => {
       );
     }
   });
+
+  it('exposes only token-gated bootstrap TOTP start and verification', async () => {
+    const app = express();
+    app.use(
+      '/auth',
+      createAuthRouter({
+        service: {
+          beginLogin: async () => ({ status: 'denied' as const }),
+          completeTotpLogin: async () => ({ status: 'denied' as const })
+        },
+        hashClientIp: () => 'a'.repeat(64),
+        bootstrap: {
+          start: async () => ({
+            factorId: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
+            secret: 'SECRET',
+            otpauthUri: 'otpauth://totp/test'
+          }),
+          verify: async () => true
+        }
+      })
+    );
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('address');
+    try {
+      const body = { userId: 'f16f9426-010c-4e06-a459-9fd18c4a442d', token: 'a'.repeat(32) };
+      const start = await fetch(`http://127.0.0.1:${address.port}/auth/bootstrap/totp/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      expect(start.status).toBe(200);
+      const verify = await fetch(`http://127.0.0.1:${address.port}/auth/bootstrap/totp/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, factorId: body.userId, otp: '123456' })
+      });
+      expect(verify.status).toBe(204);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
 });
