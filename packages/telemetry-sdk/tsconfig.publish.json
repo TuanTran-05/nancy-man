@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "composite": false,
+    "declaration": true,
+    "declarationMap": false,
+    "lib": ["ES2024", "DOM"],
+    "rootDir": "..",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts", "../contracts/src/**/*.ts", "../security/src/telemetry/sanitizer.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

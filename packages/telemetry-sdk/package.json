@@ -6,10 +6,10 @@
     "dist"
   ],
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/telemetry-sdk/src/index.js"
   },
-  "types": "./dist/index.d.ts",
+  "types": "./dist/telemetry-sdk/src/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json --pretty false"
+    "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.publish.json --pretty false"
   }
 }
