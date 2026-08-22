@@ -1,0 +1,20 @@
+{
+  "digest": "6d36fec329ea271a88bb4dd45a097bf1b8275c30870129a971de6022635c4c66",
+  "target": {
+    "projectId": "gen-lang-client-0014842483",
+    "databaseId": "ai-studio-4bd76afc-98c1-4f42-8d50-f17f1cfeb31a"
+  },
+  "plan": {
+    "generatedAt": "2026-07-25T18:16:17.069Z",
+    "summary": {
+      "planned": 0,
+      "evaluation": 0,
+      "tuition": 0,
+      "skippedNotRequested": 321,
+      "skippedReady": 139,
+      "skippedRetrying": 0,
+      "skippedFailed": 0
+    },
+    "items": []
+  }
+}

@@ -1,0 +1,1147 @@
+diff --git a/docs/superpowers/specs/2026-06-04-teacher-attendance-i18n-design.md b/docs/superpowers/specs/2026-06-04-teacher-attendance-i18n-design.md
+new file mode 100644
+index 0000000..b7ab351
+--- /dev/null
++++ b/docs/superpowers/specs/2026-06-04-teacher-attendance-i18n-design.md
+@@ -0,0 +1,75 @@
++# Teacher Attendance I18n Design
++
++## Summary
++
++Update the office `/teacher-attendance` page so all static UI copy comes from the existing translation module. Vietnamese should render with full accents when the current language is `vi`, and English should render when the current language is `en`.
++
++## Goals
++
++- Remove hard-coded English UI copy from `src/pages/office/TeacherAttendance.tsx`.
++- Add a dedicated `teacherAttendancePage` namespace to both Vietnamese and English page locale files.
++- Keep the component reading copy through `useLanguage().t.teacherAttendancePage`.
++- Localize toast success and error messages through the same namespace.
++- Keep all attendance logic, API calls, filtering behavior, route access, and layout unchanged.
++- Update tests so the default language verifies Vietnamese with accents and a separate test verifies English copy.
++
++## Non-Goals
++
++- Do not redesign the page.
++- Do not change teacher attendance API behavior.
++- Do not change how sessions are grouped, counted, filtered, or marked.
++- Do not add inline `tr(vi, en)` translation pairs in the component.
++- Do not reuse loosely related translation keys if their wording does not exactly match this page.
++
++## Translation Design
++
++Add `teacherAttendancePage` to:
++
++- `src/lib/i18n/locales/vi/pages.ts`
++- `src/lib/i18n/locales/en/pages.ts`
++
++The namespace covers:
++
++- Page title and subtitle.
++- Week navigation aria labels.
++- Metric labels: total, pending, present, absent, cancelled.
++- Search input label and input hint.
++- Filter labels and options: all teachers, all classes, all statuses, pending, present, absent, cancelled.
++- Status badge labels.
++- Action button labels and active loading labels.
++- Empty/loading support text where the page currently displays static UI copy.
++- Toast messages for load failure, update failure, marked present, and marked absent.
++
++## Component Design
++
++`TeacherAttendance.tsx` will import `useLanguage`, read `const pageText = t.teacherAttendancePage`, and replace all static text with values from that object.
++
++Use small local helpers for mapping app statuses to localized labels:
++
++- `statusLabel(status, pageText.status)`
++
++The helper should accept translation objects as arguments, not hard-code Vietnamese or English strings.
++
++## Testing
++
++Update `src/pages/office/TeacherAttendance.test.tsx`:
++
++- Set `localStorage.language = 'vi'` in `beforeEach`.
++- Verify Vietnamese title, subtitle, status labels, filters, and action buttons.
++- Verify marking a session still calls `markTeacherAttendance` with the same payload.
++- Verify active loading text is localized for the clicked button only.
++- Verify cancelled sessions show localized cancelled status and disabled actions.
++- Add an English test by setting `localStorage.language = 'en'` before rendering and checking title, search input hint, filter option, and action/status labels.
++- Assert localized toast success for a successful mark action and localized toast error for a failed mark action.
++
++Run focused page tests after implementation, then typecheck and build.
++
++## Risks And Mitigations
++
++- Missing translation keys could render broken text because locale objects are loosely typed. Mitigation: add identical key shapes to both locale files and test both languages.
++- Localizing button names could break tests that query by English text. Mitigation: update tests to query the expected localized labels.
++- Toast localization is easy to miss because it is not visible in the main DOM. Mitigation: keep `react-hot-toast` mocked and assert localized messages for successful and failed mark actions.
++
++## User-Approved Scope
++
++The approved approach is to use the existing language toggle and translation module, not inline frontend translation pairs. The page should support Vietnamese and English while preserving the existing attendance workflow.
+diff --git a/src/lib/i18n/locales/en/pages.ts b/src/lib/i18n/locales/en/pages.ts
+index 53f2608..18a692d 100644
+--- a/src/lib/i18n/locales/en/pages.ts
++++ b/src/lib/i18n/locales/en/pages.ts
+@@ -99,6 +99,117 @@ export const pages = {
+       notifError: 'Error sending notification. Please try again.',
+     },
+   },
++  officeTeachersPage: {
++    title: 'Teacher List',
++    subtitle: 'View teacher phone numbers, active classes, and monthly teaching schedules.',
++    weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
++    month: {
++      previous: 'Previous month',
++      next: 'Next month',
++      current: 'This month',
++    },
++    search: {
++      label: 'Search teachers',
++      hint: 'Search name, email, phone...',
++      noResults: 'No matching teachers.',
++    },
++    teacherRow: {
++      noName: 'No name',
++      noPhone: 'No phone',
++      noEmail: 'No email',
++      plannedShifts: '{count} shifts',
++      classCount: '{count} classes',
++      taughtCount: '{count} taught',
++    },
++    metrics: {
++      classes: 'Active classes',
++      planned: 'Planned shifts',
++      taught: 'Taught',
++      absentOrCancelled: 'Absent/Cancelled',
++    },
++    table: {
++      title: 'Active classes',
++      class: 'Class',
++      schedule: 'Schedule',
++      time: 'Time',
++      room: 'Room',
++      status: 'Status',
++    },
++    classStatus: {
++      active: 'Active',
++      paused: 'Paused',
++      archived: 'Archived',
++      ended: 'Ended',
++    },
++    status: {
++      planned: 'Planned',
++      present: 'Taught',
++      absent: 'Absent',
++      cancelled: 'Cancelled',
++    },
++    makeup: 'Makeup',
++    calendar: {
++      overflow: '+{count} shifts',
++    },
++    dayDetails: {
++      title: 'Shifts on {date}',
++      empty: 'No teaching shifts on this day.',
++    },
++    empty: {
++      noTeachers: 'No teachers yet.',
++    },
++    error: {
++      title: 'Could not load teacher list',
++      reload: 'Reload',
++    },
++  },
++  teacherAttendancePage: {
++    title: 'Teacher Attendance',
++    subtitle: 'Office/admin weekly attendance confirmation for teacher payroll.',
++    week: {
++      previous: 'Previous week',
++      next: 'Next week',
++    },
++    metrics: {
++      total: 'Total',
++      pending: 'Pending',
++      present: 'Present',
++      absent: 'Absent',
++      cancelled: 'Cancelled',
++    },
++    search: {
++      label: 'Search attendance shifts',
++      hint: 'Search class, teacher, room...',
++    },
++    filters: {
++      allTeachers: 'All teachers',
++      allClasses: 'All classes',
++      allStatuses: 'All statuses',
++      pending: 'Pending',
++      present: 'Present',
++      absent: 'Absent',
++      cancelled: 'Cancelled',
++    },
++    status: {
++      pending: 'Pending',
++      present: 'Present',
++      absent: 'Absent',
++      cancelled: 'Cancelled',
++    },
++    actions: {
++      present: 'Present',
++      absent: 'Absent',
++      markingPresent: 'Marking present...',
++      markingAbsent: 'Marking absent...',
++    },
++    loading: 'Loading teacher attendance...',
++    toast: {
++      loadError: 'Cannot load teacher attendance',
++      updateError: 'Cannot update teacher attendance',
++      markedPresent: 'Marked present',
++      markedAbsent: 'Marked absent',
++    },
++  },
+   adminDashboard: {
+     title: 'Admin Dashboard',
+     desc: 'Manage overall system, classes, and teacher access.',
+diff --git a/src/lib/i18n/locales/vi/pages.ts b/src/lib/i18n/locales/vi/pages.ts
+index 3f2d9f9..cd30863 100644
+--- a/src/lib/i18n/locales/vi/pages.ts
++++ b/src/lib/i18n/locales/vi/pages.ts
+@@ -99,6 +99,117 @@ export const pages = {
+       notifError: 'Lỗi khi gửi thông báo. Vui lòng thử lại.',
+     },
+   },
++  officeTeachersPage: {
++    title: 'Danh sách giáo viên',
++    subtitle: 'Xem SĐT, lớp đang dạy và lịch dạy theo tháng của giáo viên.',
++    weekdays: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
++    month: {
++      previous: 'Tháng trước',
++      next: 'Tháng sau',
++      current: 'Tháng này',
++    },
++    search: {
++      label: 'Tìm giáo viên',
++      hint: 'Tìm tên, email, SĐT...',
++      noResults: 'Không có giáo viên phù hợp.',
++    },
++    teacherRow: {
++      noName: 'Chưa có tên',
++      noPhone: 'Chưa có SĐT',
++      noEmail: 'Chưa có email',
++      plannedShifts: '{count} ca',
++      classCount: '{count} lớp',
++      taughtCount: '{count} đã dạy',
++    },
++    metrics: {
++      classes: 'Lớp đang dạy',
++      planned: 'Ca dự kiến',
++      taught: 'Đã dạy',
++      absentOrCancelled: 'Vắng/Hủy',
++    },
++    table: {
++      title: 'Lớp đang dạy',
++      class: 'Lớp',
++      schedule: 'Lịch',
++      time: 'Giờ',
++      room: 'Phòng',
++      status: 'Trạng thái',
++    },
++    classStatus: {
++      active: 'Đang hoạt động',
++      paused: 'Tạm nghỉ',
++      archived: 'Đã lưu trữ',
++      ended: 'Đã kết thúc',
++    },
++    status: {
++      planned: 'Dự kiến',
++      present: 'Đã dạy',
++      absent: 'Vắng',
++      cancelled: 'Hủy',
++    },
++    makeup: 'Bù',
++    calendar: {
++      overflow: '+{count} ca',
++    },
++    dayDetails: {
++      title: 'Ca ngày {date}',
++      empty: 'Ngày này không có ca dạy.',
++    },
++    empty: {
++      noTeachers: 'Chưa có giáo viên.',
++    },
++    error: {
++      title: 'Không tải được danh sách giáo viên',
++      reload: 'Tải lại',
++    },
++  },
++  teacherAttendancePage: {
++    title: 'Điểm danh giáo viên',
++    subtitle: 'Văn phòng/quản trị xác nhận điểm danh hằng tuần cho bảng lương giáo viên.',
++    week: {
++      previous: 'Tuần trước',
++      next: 'Tuần sau',
++    },
++    metrics: {
++      total: 'Tổng',
++      pending: 'Chờ xác nhận',
++      present: 'Có mặt',
++      absent: 'Vắng',
++      cancelled: 'Đã hủy',
++    },
++    search: {
++      label: 'Tìm ca điểm danh',
++      hint: 'Tìm lớp, giáo viên, phòng...',
++    },
++    filters: {
++      allTeachers: 'Tất cả giáo viên',
++      allClasses: 'Tất cả lớp',
++      allStatuses: 'Tất cả trạng thái',
++      pending: 'Chờ xác nhận',
++      present: 'Có mặt',
++      absent: 'Vắng',
++      cancelled: 'Đã hủy',
++    },
++    status: {
++      pending: 'Chờ xác nhận',
++      present: 'Có mặt',
++      absent: 'Vắng',
++      cancelled: 'Đã hủy',
++    },
++    actions: {
++      present: 'Có mặt',
++      absent: 'Vắng',
++      markingPresent: 'Đang đánh dấu có mặt...',
++      markingAbsent: 'Đang đánh dấu vắng...',
++    },
++    loading: 'Đang tải điểm danh giáo viên...',
++    toast: {
++      loadError: 'Không tải được điểm danh giáo viên',
++      updateError: 'Không cập nhật được điểm danh giáo viên',
++      markedPresent: 'Đã đánh dấu có mặt',
++      markedAbsent: 'Đã đánh dấu vắng',
++    },
++  },
+   adminDashboard: {
+     title: 'Hệ thống Quản trị',
+     desc: 'Quản lý tổng quan, lớp học và quyền truy cập của giáo viên.',
+diff --git a/src/lib/office/teacherPhone.ts b/src/lib/office/teacherPhone.ts
+new file mode 100644
+index 0000000..90b4619
+--- /dev/null
++++ b/src/lib/office/teacherPhone.ts
+@@ -0,0 +1,13 @@
++export function formatTeacherPhone(phone?: string) {
++  const trimmed = (phone || '').trim();
++  if (/^84\d+$/.test(trimmed)) {
++    return `0${trimmed.slice(2)}`;
++  }
++  return trimmed;
++}
++
++export function teacherPhoneSearchText(phone?: string) {
++  const trimmed = (phone || '').trim();
++  const displayPhone = formatTeacherPhone(trimmed);
++  return displayPhone && displayPhone !== trimmed ? `${trimmed} ${displayPhone}` : trimmed;
++}
+diff --git a/src/lib/office/teacherSchedule.test.ts b/src/lib/office/teacherSchedule.test.ts
+index 5be9abb..4086dcb 100644
+--- a/src/lib/office/teacherSchedule.test.ts
++++ b/src/lib/office/teacherSchedule.test.ts
+@@ -132,6 +132,27 @@ describe('buildOfficeTeacherMonthView', () => {
+     expect(view.teachers.map((item) => item.teacher.uid)).toEqual(['teacher-1']);
+   });
+ 
++  it('filters teacher rows by the displayed local phone format', () => {
++    const view = buildOfficeTeacherMonthView({
++      month: '2026-06',
++      range: { from: '2026-06-01', to: '2026-06-30' },
++      teachers: [
++        {
++          uid: 'teacher-country-code-phone',
++          displayName: 'Country Code Teacher',
++          email: 'country-code@test.com',
++          phone: '84384072314',
++        },
++      ],
++      classes: [],
++      sessions: [],
++      substitutes: [],
++      search: '0384',
++    });
++
++    expect(view.teachers.map((item) => item.teacher.uid)).toEqual(['teacher-country-code-phone']);
++  });
++
+   it('includes scheduled dates from historical class terms', () => {
+     const termClass: OfficeTeacherClass = {
+       id: 'class-term',
+diff --git a/src/lib/office/teacherSchedule.ts b/src/lib/office/teacherSchedule.ts
+index c3c84cc..a0d8f9c 100644
+--- a/src/lib/office/teacherSchedule.ts
++++ b/src/lib/office/teacherSchedule.ts
+@@ -6,6 +6,7 @@ import type {
+   OfficeTeacherSession,
+   OfficeTeacherSubstitute,
+ } from '../api/officeTeachersApi';
++import { teacherPhoneSearchText } from './teacherPhone';
+ 
+ export type TeacherShiftStatus = 'planned' | 'present' | 'absent' | 'cancelled';
+ export type TeacherShiftKind = 'scheduled' | 'makeup';
+@@ -157,7 +158,7 @@ function shiftFromClass(
+ 
+ function matchesSearch(teacher: OfficeTeacherProfile, search: string) {
+   const haystack =
+-    `${teacher.displayName} ${teacher.email || ''} ${teacher.phone || ''}`.toLowerCase();
++    `${teacher.displayName} ${teacher.email || ''} ${teacherPhoneSearchText(teacher.phone)}`.toLowerCase();
+   return haystack.includes(search.trim().toLowerCase());
+ }
+ 
+diff --git a/src/pages/office/TeacherAttendance.test.tsx b/src/pages/office/TeacherAttendance.test.tsx
+index 8002ed5..3a4bf45 100644
+--- a/src/pages/office/TeacherAttendance.test.tsx
++++ b/src/pages/office/TeacherAttendance.test.tsx
+@@ -1,6 +1,7 @@
+ // @vitest-environment jsdom
+ import { render, screen, waitFor, within } from '@testing-library/react';
+ import userEvent from '@testing-library/user-event';
++import toast from 'react-hot-toast';
+ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+ import TeacherAttendance from './TeacherAttendance';
+ import {
+@@ -34,6 +35,7 @@ vi.mock('date-fns', () => ({
+ describe('TeacherAttendance page', () => {
+   beforeEach(() => {
+     vi.clearAllMocks();
++    localStorage.setItem('language', 'vi');
+     vi.mocked(readTeacherAttendanceWeek).mockResolvedValue({
+       teachers: [{ uid: 'teacher-1', displayName: 'Teacher One', email: 'teacher@test.com' }],
+       classes: [{ id: 'class-1', name: '6A Global Success' }],
+@@ -78,23 +80,42 @@ describe('TeacherAttendance page', () => {
+     });
+   });
+ 
+-  it('renders weekly teacher attendance rows and counters', async () => {
++  afterEach(() => {
++    localStorage.clear();
++  });
++
++  it('renders Vietnamese weekly teacher attendance rows counters and filters', async () => {
+     render(<TeacherAttendance />);
+-    expect(await screen.findByText('Teacher Attendance')).toBeInTheDocument();
+ 
+-    // Verify specific row exists
++    expect(await screen.findByText('Điểm danh giáo viên')).toBeInTheDocument();
++    expect(
++      screen.getByText('Văn phòng/quản trị xác nhận điểm danh hằng tuần cho bảng lương giáo viên.')
++    ).toBeInTheDocument();
++    expect(screen.getByText('Tổng')).toBeInTheDocument();
++    expect(screen.getAllByText('Chờ xác nhận').length).toBeGreaterThan(0);
++    expect(screen.getAllByText('Có mặt').length).toBeGreaterThan(0);
++    expect(screen.getAllByText('Vắng').length).toBeGreaterThan(0);
++    expect(screen.getAllByText('Đã hủy').length).toBeGreaterThan(0);
++    expect(screen.getByRole('searchbox', { name: /tìm ca điểm danh/i })).toHaveAttribute(
++      'placeholder',
++      'Tìm lớp, giáo viên, phòng...'
++    );
++    expect(screen.getByRole('option', { name: 'Tất cả giáo viên' })).toBeInTheDocument();
++    expect(screen.getByRole('option', { name: 'Tất cả lớp' })).toBeInTheDocument();
++    expect(screen.getByRole('option', { name: 'Tất cả trạng thái' })).toBeInTheDocument();
++
+     const row = await screen.findByTestId('teacher-attendance-row-class-1_2026-06-01');
+     expect(within(row).getByText('6A Global Success')).toBeInTheDocument();
+     expect(within(row).getByText(/Teacher One/)).toBeInTheDocument();
+-    expect(within(row).getByText('Pending')).toBeInTheDocument();
++    expect(within(row).getByText('Chờ xác nhận')).toBeInTheDocument();
+   });
+ 
+-  it('marks a session present', async () => {
++  it('marks a session present and shows localized success toast', async () => {
+     render(<TeacherAttendance />);
+-    expect(await screen.findByText('Teacher Attendance')).toBeInTheDocument();
++    expect(await screen.findByText('Điểm danh giáo viên')).toBeInTheDocument();
+ 
+     const row = await screen.findByTestId('teacher-attendance-row-class-1_2026-06-01');
+-    await userEvent.click(within(row).getByRole('button', { name: /present/i }));
++    await userEvent.click(within(row).getByRole('button', { name: /có mặt/i }));
+ 
+     await waitFor(() => {
+       expect(markTeacherAttendance).toHaveBeenCalledWith({
+@@ -102,32 +123,70 @@ describe('TeacherAttendance page', () => {
+         date: '2026-06-01',
+         status: 'present',
+       });
++      expect(toast.success).toHaveBeenCalledWith('Đã đánh dấu có mặt');
++    });
++  });
++
++  it('shows localized update error toast when marking fails', async () => {
++    vi.mocked(markTeacherAttendance).mockRejectedValueOnce(new Error('network failed'));
++
++    render(<TeacherAttendance />);
++    expect(await screen.findByText('Điểm danh giáo viên')).toBeInTheDocument();
++
++    const row = await screen.findByTestId('teacher-attendance-row-class-1_2026-06-01');
++    await userEvent.click(within(row).getByRole('button', { name: /vắng/i }));
++
++    await waitFor(() => {
++      expect(toast.error).toHaveBeenCalledWith('Không cập nhật được điểm danh giáo viên');
+     });
+   });
+ 
+-  it('shows loading on the active attendance action', async () => {
++  it('shows localized loading on the active attendance action', async () => {
+     vi.mocked(markTeacherAttendance).mockImplementation(() => new Promise(() => {}));
+ 
+     render(<TeacherAttendance />);
+-    expect(await screen.findByText('Teacher Attendance')).toBeInTheDocument();
++    expect(await screen.findByText('Điểm danh giáo viên')).toBeInTheDocument();
+ 
+     const row = await screen.findByTestId('teacher-attendance-row-class-1_2026-06-01');
+-    await userEvent.click(within(row).getByRole('button', { name: /absent/i }));
++    await userEvent.click(within(row).getByRole('button', { name: /vắng/i }));
+ 
+-    const absentButton = await within(row).findByRole('button', { name: /marking absent/i });
+-    const presentButton = within(row).getByRole('button', { name: /present/i });
++    const absentButton = await within(row).findByRole('button', { name: /đang đánh dấu vắng/i });
++    const presentButton = within(row).getByRole('button', { name: /có mặt/i });
+ 
+     expect(absentButton).toHaveAttribute('aria-busy', 'true');
+     expect(absentButton).toBeDisabled();
+     expect(presentButton).toHaveAttribute('aria-busy', 'false');
+   });
+ 
+-  it('disables actions for cancelled sessions', async () => {
++  it('disables actions for cancelled sessions with localized status', async () => {
+     render(<TeacherAttendance />);
+-    expect(await screen.findByText('Teacher Attendance')).toBeInTheDocument();
++    expect(await screen.findByText('Điểm danh giáo viên')).toBeInTheDocument();
+ 
+     const cancelledRow = await screen.findByTestId('teacher-attendance-row-class-1_2026-06-03');
+-    expect(within(cancelledRow).getByText('Cancelled')).toBeInTheDocument();
++    expect(within(cancelledRow).getByText('Đã hủy')).toBeInTheDocument();
+     expect(cancelledRow.querySelectorAll('button[disabled]').length).toBeGreaterThan(0);
+   });
++
++  it('renders English copy from the translation module', async () => {
++    localStorage.setItem('language', 'en');
++
++    render(<TeacherAttendance />);
++
++    expect(await screen.findByText('Teacher Attendance')).toBeInTheDocument();
++    expect(
++      screen.getByText('Office/admin weekly attendance confirmation for teacher payroll.')
++    ).toBeInTheDocument();
++    expect(screen.getByRole('searchbox', { name: /search attendance shifts/i })).toHaveAttribute(
++      'placeholder',
++      'Search class, teacher, room...'
++    );
++    expect(screen.getByRole('option', { name: 'All teachers' })).toBeInTheDocument();
++    expect(screen.getByRole('option', { name: 'All classes' })).toBeInTheDocument();
++    expect(screen.getByRole('option', { name: 'All statuses' })).toBeInTheDocument();
++
++    const row = await screen.findByTestId('teacher-attendance-row-class-1_2026-06-01');
++    expect(within(row).getByText('Pending')).toBeInTheDocument();
++    expect(within(row).getByRole('button', { name: /present/i })).toBeInTheDocument();
++    expect(within(row).getByRole('button', { name: /absent/i })).toBeInTheDocument();
++  });
+ });
+diff --git a/src/pages/office/TeacherAttendance.tsx b/src/pages/office/TeacherAttendance.tsx
+index a0dc428..7fb975b 100644
+--- a/src/pages/office/TeacherAttendance.tsx
++++ b/src/pages/office/TeacherAttendance.tsx
+@@ -16,6 +16,7 @@ import {
+   type TeacherAttendanceSessionRow,
+ } from '../../lib/api/teacherAttendanceApi';
+ import { cn } from '../../lib/core/utils';
++import { useLanguage } from '../../lib/i18n/useLanguage';
+ 
+ type StatusFilter = 'all' | 'pending' | 'present' | 'absent' | 'cancelled';
+ 
+@@ -25,10 +26,15 @@ function weekRange(date: Date) {
+   return { from: format(start, 'yyyy-MM-dd'), to: format(end, 'yyyy-MM-dd') };
+ }
+ 
+-function statusLabel(status: TeacherAttendanceSessionRow['teacherAttendanceStatus']) {
+-  if (status === 'present') return 'Present';
+-  if (status === 'absent') return 'Absent';
+-  return 'Pending';
++type TeacherAttendancePageText = ReturnType<typeof useLanguage>['t']['teacherAttendancePage'];
++
++function statusLabel(
++  status: TeacherAttendanceSessionRow['teacherAttendanceStatus'],
++  labels: TeacherAttendancePageText['status']
++) {
++  if (status === 'present') return labels.present;
++  if (status === 'absent') return labels.absent;
++  return labels.pending;
+ }
+ 
+ function rowMatchesStatus(row: TeacherAttendanceSessionRow, filter: StatusFilter) {
+@@ -38,6 +44,8 @@ function rowMatchesStatus(row: TeacherAttendanceSessionRow, filter: StatusFilter
+ }
+ 
+ export default function TeacherAttendance() {
++  const { t } = useLanguage();
++  const pageText = t.teacherAttendancePage;
+   const [anchorDate, setAnchorDate] = useState(new Date());
+   const [sessions, setSessions] = useState<TeacherAttendanceSessionRow[]>([]);
+   const [teachers, setTeachers] = useState<Array<{ uid: string; displayName: string }>>([]);
+@@ -63,7 +71,7 @@ export default function TeacherAttendance() {
+       setClasses(data.classes || []);
+     } catch (err) {
+       console.error('Failed to load teacher attendance week:', err);
+-      toast.error('Cannot load teacher attendance');
++      toast.error(pageText.toast.loadError);
+     } finally {
+       setLoading(false);
+     }
+@@ -112,10 +120,12 @@ export default function TeacherAttendance() {
+             : item
+         )
+       );
+-      toast.success(status === 'present' ? 'Marked present' : 'Marked absent');
++      toast.success(
++        status === 'present' ? pageText.toast.markedPresent : pageText.toast.markedAbsent
++      );
+     } catch (err) {
+       console.error('Failed to mark teacher attendance:', err);
+-      toast.error('Cannot update teacher attendance');
++      toast.error(pageText.toast.updateError);
+     } finally {
+       setPendingAction(null);
+     }
+@@ -134,13 +144,13 @@ export default function TeacherAttendance() {
+     <div className="mx-auto w-full max-w-[1600px] space-y-5 pb-8">
+       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+         <div>
+-          <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">Teacher Attendance</h1>
+-          <p className="mt-2 text-sm text-slate-500">
+-            Office/admin weekly attendance confirmation for teacher payroll.
+-          </p>
++          <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">{pageText.title}</h1>
++          <p className="mt-2 text-sm text-slate-500">{pageText.subtitle}</p>
+         </div>
+         <div className="flex items-center gap-2">
+           <button
++            type="button"
++            aria-label={pageText.week.previous}
+             className="rounded-lg border px-3 py-2 text-sm font-semibold"
+             onClick={() => setAnchorDate(addDays(anchorDate, -7))}
+           >
+@@ -150,6 +160,8 @@ export default function TeacherAttendance() {
+             {range.from} - {range.to}
+           </div>
+           <button
++            type="button"
++            aria-label={pageText.week.next}
+             className="rounded-lg border px-3 py-2 text-sm font-semibold"
+             onClick={() => setAnchorDate(addDays(anchorDate, 7))}
+           >
+@@ -160,11 +172,11 @@ export default function TeacherAttendance() {
+ 
+       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+         {[
+-          ['Total', counts.total],
+-          ['Pending', counts.pending],
+-          ['Present', counts.present],
+-          ['Absent', counts.absent],
+-          ['Cancelled', counts.cancelled],
++          [pageText.metrics.total, counts.total],
++          [pageText.metrics.pending, counts.pending],
++          [pageText.metrics.present, counts.present],
++          [pageText.metrics.absent, counts.absent],
++          [pageText.metrics.cancelled, counts.cancelled],
+         ].map(([label, value]) => (
+           <div key={label} className="rounded-lg border bg-white p-4">
+             <div className="text-xs font-bold uppercase text-slate-400">{label}</div>
+@@ -176,11 +188,14 @@ export default function TeacherAttendance() {
+       <div className="grid gap-3 rounded-lg border bg-white p-4 lg:grid-cols-[1fr_180px_180px_180px]">
+         <label className="flex items-center gap-2 rounded-lg border px-3 py-2">
+           <Search className="h-4 w-4 text-slate-400" />
++          <span className="sr-only">{pageText.search.label}</span>
+           <input
++            role="searchbox"
++            aria-label={pageText.search.label}
+             className="w-full outline-none"
+             value={search}
+             onChange={(e) => setSearch(e.target.value)}
+-            placeholder="Search class, teacher, room..."
++            placeholder={pageText.search.hint}
+           />
+         </label>
+         <select
+@@ -188,7 +203,7 @@ export default function TeacherAttendance() {
+           value={teacherFilter}
+           onChange={(e) => setTeacherFilter(e.target.value)}
+         >
+-          <option value="all">All teachers</option>
++          <option value="all">{pageText.filters.allTeachers}</option>
+           {teachers.map((teacher) => (
+             <option key={teacher.uid} value={teacher.uid}>
+               {teacher.displayName}
+@@ -200,7 +215,7 @@ export default function TeacherAttendance() {
+           value={classFilter}
+           onChange={(e) => setClassFilter(e.target.value)}
+         >
+-          <option value="all">All classes</option>
++          <option value="all">{pageText.filters.allClasses}</option>
+           {classes.map((cls) => (
+             <option key={cls.id} value={cls.id}>
+               {cls.name}
+@@ -212,17 +227,18 @@ export default function TeacherAttendance() {
+           value={statusFilter}
+           onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+         >
+-          <option value="all">All statuses</option>
+-          <option value="pending">Pending</option>
+-          <option value="present">Present</option>
+-          <option value="absent">Absent</option>
+-          <option value="cancelled">Cancelled</option>
++          <option value="all">{pageText.filters.allStatuses}</option>
++          <option value="pending">{pageText.filters.pending}</option>
++          <option value="present">{pageText.filters.present}</option>
++          <option value="absent">{pageText.filters.absent}</option>
++          <option value="cancelled">{pageText.filters.cancelled}</option>
+         </select>
+       </div>
+ 
+       {loading ? (
+         <div className="rounded-lg border bg-white p-8 text-center text-slate-500">
+           <Loader2 className="mx-auto h-6 w-6 animate-spin" />
++          <span className="sr-only">{pageText.loading}</span>
+         </div>
+       ) : (
+         <div className="space-y-4">
+@@ -266,8 +282,8 @@ export default function TeacherAttendance() {
+                         )}
+                       >
+                         {row.sessionStatus === 'cancelled'
+-                          ? 'Cancelled'
+-                          : statusLabel(row.teacherAttendanceStatus)}
++                          ? pageText.status.cancelled
++                          : statusLabel(row.teacherAttendanceStatus, pageText.status)}
+                       </div>
+                       <div className="flex gap-2">
+                         <button
+@@ -281,7 +297,9 @@ export default function TeacherAttendance() {
+                           ) : (
+                             <CheckCircle2 className="h-4 w-4" />
+                           )}
+-                          {isMarkingPresent ? 'Marking present...' : 'Present'}
++                          {isMarkingPresent
++                            ? pageText.actions.markingPresent
++                            : pageText.actions.present}
+                         </button>
+                         <button
+                           disabled={!row.canMark || isPending}
+@@ -294,7 +312,9 @@ export default function TeacherAttendance() {
+                           ) : (
+                             <XCircle className="h-4 w-4" />
+                           )}
+-                          {isMarkingAbsent ? 'Marking absent...' : 'Absent'}
++                          {isMarkingAbsent
++                            ? pageText.actions.markingAbsent
++                            : pageText.actions.absent}
+                         </button>
+                       </div>
+                     </div>
+diff --git a/src/pages/office/Teachers.test.tsx b/src/pages/office/Teachers.test.tsx
+index 6a2bcd4..b295176 100644
+--- a/src/pages/office/Teachers.test.tsx
++++ b/src/pages/office/Teachers.test.tsx
+@@ -97,11 +97,11 @@ describe('Office Teachers page', () => {
+     expect(screen.getByText('Đang hoạt động')).toBeInTheDocument();
+   });
+ 
+-  it('filters teachers by the raw phone returned from the API', async () => {
++  it('filters teachers by the displayed local phone number', async () => {
+     render(<Teachers />);
+ 
+     await screen.findByText('Danh sách giáo viên');
+-    await userEvent.type(screen.getByRole('searchbox', { name: /tìm giáo viên/i }), '8438');
++    await userEvent.type(screen.getByRole('searchbox', { name: /tìm giáo viên/i }), '0384');
+ 
+     expect(screen.getAllByText('Teacher One').length).toBeGreaterThan(0);
+   });
+diff --git a/src/pages/office/Teachers.tsx b/src/pages/office/Teachers.tsx
+index 44a5937..42e344f 100644
+--- a/src/pages/office/Teachers.tsx
++++ b/src/pages/office/Teachers.tsx
+@@ -14,6 +14,8 @@ import {
+ import { format } from 'date-fns';
+ import { readOfficeTeachersMonth } from '../../lib/api/officeTeachersApi';
+ import { cn } from '../../lib/core/utils';
++import { useLanguage } from '../../lib/i18n/useLanguage';
++import { formatTeacherPhone } from '../../lib/office/teacherPhone';
+ import {
+   buildOfficeTeacherMonthView,
+   type TeacherMonthDay,
+@@ -22,15 +24,6 @@ import {
+   type TeacherShiftStatus,
+ } from '../../lib/office/teacherSchedule';
+ 
+-const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+-
+-const statusLabel: Record<TeacherShiftStatus, string> = {
+-  planned: 'Du kien',
+-  present: 'Da day',
+-  absent: 'Vang',
+-  cancelled: 'Huy',
+-};
+-
+ const statusClass: Record<TeacherShiftStatus, string> = {
+   planned: 'border-slate-200 bg-slate-50 text-slate-600',
+   present: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+@@ -38,6 +31,20 @@ const statusClass: Record<TeacherShiftStatus, string> = {
+   cancelled: 'border-amber-200 bg-amber-50 text-amber-700',
+ };
+ 
++type OfficeTeachersPageText = ReturnType<typeof useLanguage>['t']['officeTeachersPage'];
++
++function formatTemplate(template: string, values: Record<string, string | number>) {
++  return Object.entries(values).reduce(
++    (result, [key, value]) => result.replace(`{${key}}`, String(value)),
++    template
++  );
++}
++
++function formatClassStatus(status: string | undefined, labels: Record<string, string>) {
++  if (!status) return '--';
++  return labels[status] || status;
++}
++
+ function monthString(date: Date) {
+   return format(date, 'yyyy-MM');
+ }
+@@ -55,15 +62,23 @@ function MetricCard({ label, value }: { label: string; value: number }) {
+   );
+ }
+ 
+-function MakeupBadge() {
++function MakeupBadge({ label }: { label: string }) {
+   return (
+     <span className="rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-black text-blue-700">
+-      Bu
++      {label}
+     </span>
+   );
+ }
+ 
+-function ShiftChip({ shift }: { shift: TeacherMonthShift }) {
++function ShiftChip({
++  shift,
++  statusLabel,
++  makeupLabel,
++}: {
++  shift: TeacherMonthShift;
++  statusLabel: Record<TeacherShiftStatus, string>;
++  makeupLabel: string;
++}) {
+   return (
+     <div
+       className={cn(
+@@ -76,7 +91,7 @@ function ShiftChip({ shift }: { shift: TeacherMonthShift }) {
+       <div className="truncate">{shift.className}</div>
+       {shift.kind === 'makeup' && (
+         <div className="mt-1">
+-          <MakeupBadge />
++          <MakeupBadge label={makeupLabel} />
+         </div>
+       )}
+     </div>
+@@ -87,10 +102,12 @@ function TeacherRow({
+   row,
+   active,
+   onSelect,
++  text,
+ }: {
+   row: TeacherMonthRow;
+   active: boolean;
+   onSelect: () => void;
++  text: OfficeTeachersPageText['teacherRow'];
+ }) {
+   return (
+     <button
+@@ -105,18 +122,18 @@ function TeacherRow({
+     >
+       <div className="flex items-start justify-between gap-3">
+         <div className="min-w-0">
+-          <p className="truncate text-sm font-bold">{row.teacher.displayName || 'No name'}</p>
++          <p className="truncate text-sm font-bold">{row.teacher.displayName || text.noName}</p>
+           <p className="mt-1 truncate text-xs text-slate-500">
+-            {row.teacher.phone || 'Chua co SDT'}
++            {formatTeacherPhone(row.teacher.phone) || text.noPhone}
+           </p>
+         </div>
+         <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-600 shadow-sm">
+-          {row.metrics.planned} ca
++          {formatTemplate(text.plannedShifts, { count: row.metrics.planned })}
+         </span>
+       </div>
+       <div className="mt-3 flex gap-2 text-xs text-slate-500">
+-        <span>{row.classCount} lop</span>
+-        <span>{row.metrics.taught} da day</span>
++        <span>{formatTemplate(text.classCount, { count: row.classCount })}</span>
++        <span>{formatTemplate(text.taughtCount, { count: row.metrics.taught })}</span>
+       </div>
+     </button>
+   );
+@@ -126,15 +143,23 @@ function MonthCalendar({
+   days,
+   selectedDate,
+   onSelectDate,
++  weekdays,
++  calendarText,
++  statusLabel,
++  makeupLabel,
+ }: {
+   days: TeacherMonthDay[];
+   selectedDate: string;
+   onSelectDate: (date: string) => void;
++  weekdays: string[];
++  calendarText: OfficeTeachersPageText['calendar'];
++  statusLabel: Record<TeacherShiftStatus, string>;
++  makeupLabel: string;
+ }) {
+   return (
+     <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+       <div className="grid min-w-[760px] grid-cols-7 border-b border-slate-200 bg-slate-50">
+-        {WEEKDAYS.map((day) => (
++        {weekdays.map((day) => (
+           <div key={day} className="px-3 py-2 text-center text-xs font-bold text-slate-500">
+             {day}
+           </div>
+@@ -161,10 +186,17 @@ function MonthCalendar({
+               </div>
+               <div className="space-y-1">
+                 {visibleShifts.map((shift) => (
+-                  <ShiftChip key={`${shift.id}-${shift.status}`} shift={shift} />
++                  <ShiftChip
++                    key={`${shift.id}-${shift.status}`}
++                    shift={shift}
++                    statusLabel={statusLabel}
++                    makeupLabel={makeupLabel}
++                  />
+                 ))}
+                 {overflow > 0 && (
+-                  <div className="text-xs font-bold text-slate-500">+{overflow} ca</div>
++                  <div className="text-xs font-bold text-slate-500">
++                    {formatTemplate(calendarText.overflow, { count: overflow })}
++                  </div>
+                 )}
+               </div>
+             </button>
+@@ -176,6 +208,10 @@ function MonthCalendar({
+ }
+ 
+ export default function Teachers() {
++  const { t } = useLanguage();
++  const pageText = t.officeTeachersPage;
++  const statusLabel: Record<TeacherShiftStatus, string> = pageText.status;
++
+   const [monthDate, setMonthDate] = useState(() => new Date());
+   const [search, setSearch] = useState('');
+   const [selectedTeacherId, setSelectedTeacherId] = useState('');
+@@ -236,16 +272,14 @@ export default function Teachers() {
+       <div className="mx-auto flex min-h-[60vh] w-full max-w-3xl items-center justify-center">
+         <div className="rounded-2xl border border-rose-200 bg-white p-6 text-center shadow-sm">
+           <AlertCircle className="mx-auto h-10 w-10 text-rose-500" />
+-          <h1 className="mt-3 text-xl font-black text-slate-950">
+-            Khong tai duoc danh sach giao vien
+-          </h1>
++          <h1 className="mt-3 text-xl font-black text-slate-950">{pageText.error.title}</h1>
+           <button
+             type="button"
+             onClick={load}
+             className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white"
+           >
+             <RefreshCw className="h-4 w-4" />
+-            Tai lai
++            {pageText.error.reload}
+           </button>
+         </div>
+       </div>
+@@ -256,15 +290,13 @@ export default function Teachers() {
+     <div className="mx-auto w-full max-w-[1600px] space-y-5 pb-8">
+       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+         <div>
+-          <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">Danh sach giao vien</h1>
+-          <p className="mt-2 text-sm text-slate-500">
+-            Xem SDT, lop dang day va lich day theo thang cua giao vien.
+-          </p>
++          <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">{pageText.title}</h1>
++          <p className="mt-2 text-sm text-slate-500">{pageText.subtitle}</p>
+         </div>
+         <div className="flex items-center gap-2">
+           <button
+             type="button"
+-            aria-label="Thang truoc"
++            aria-label={pageText.month.previous}
+             onClick={() => setMonthDate((value) => addMonths(value, -1))}
+             className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600"
+           >
+@@ -275,7 +307,7 @@ export default function Teachers() {
+           </div>
+           <button
+             type="button"
+-            aria-label="Thang sau"
++            aria-label={pageText.month.next}
+             onClick={() => setMonthDate((value) => addMonths(value, 1))}
+             className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600"
+           >
+@@ -286,7 +318,7 @@ export default function Teachers() {
+             onClick={() => setMonthDate(new Date())}
+             className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
+           >
+-            Thang nay
++            {pageText.month.current}
+           </button>
+         </div>
+       </div>
+@@ -294,15 +326,15 @@ export default function Teachers() {
+       <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
+         <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+           <label className="relative block">
+-            <span className="sr-only">Tim giao vien</span>
++            <span className="sr-only">{pageText.search.label}</span>
+             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+             <input
+               role="searchbox"
+-              aria-label="Tim giao vien"
++              aria-label={pageText.search.label}
+               value={search}
+               onChange={(event) => setSearch(event.target.value)}
+               className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-400"
+-              placeholder="Tim ten, email, SDT..."
++              placeholder={pageText.search.hint}
+             />
+           </label>
+           <div className="mt-4 space-y-2">
+@@ -313,11 +345,12 @@ export default function Teachers() {
+                   row={row}
+                   active={selectedTeacher?.teacher.uid === row.teacher.uid}
+                   onSelect={() => setSelectedTeacherId(row.teacher.uid)}
++                  text={pageText.teacherRow}
+                 />
+               ))
+             ) : (
+               <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
+-                Khong co giao vien phu hop.
++                {pageText.search.noResults}
+               </div>
+             )}
+           </div>
+@@ -335,11 +368,12 @@ export default function Teachers() {
+                     <div className="mt-3 flex flex-wrap gap-3 text-sm text-slate-500">
+                       <span className="inline-flex items-center gap-1">
+                         <Phone className="h-4 w-4" />
+-                        {selectedTeacher.teacher.phone || 'Chua co SDT'}
++                        {formatTeacherPhone(selectedTeacher.teacher.phone) ||
++                          pageText.teacherRow.noPhone}
+                       </span>
+                       <span className="inline-flex items-center gap-1">
+                         <Mail className="h-4 w-4" />
+-                        {selectedTeacher.teacher.email || 'Chua co email'}
++                        {selectedTeacher.teacher.email || pageText.teacherRow.noEmail}
+                       </span>
+                     </div>
+                   </div>
+@@ -351,23 +385,32 @@ export default function Teachers() {
+               </section>
+ 
+               <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+-                <MetricCard label="Lop dang day" value={selectedTeacher.classCount} />
+-                <MetricCard label="Ca du kien" value={selectedTeacher.metrics.planned} />
+-                <MetricCard label="Da day" value={selectedTeacher.metrics.taught} />
+-                <MetricCard label="Vang/Huy" value={selectedTeacher.metrics.absentOrCancelled} />
++                <MetricCard label={pageText.metrics.classes} value={selectedTeacher.classCount} />
++                <MetricCard
++                  label={pageText.metrics.planned}
++                  value={selectedTeacher.metrics.planned}
++                />
++                <MetricCard
++                  label={pageText.metrics.taught}
++                  value={selectedTeacher.metrics.taught}
++                />
++                <MetricCard
++                  label={pageText.metrics.absentOrCancelled}
++                  value={selectedTeacher.metrics.absentOrCancelled}
++                />
+               </section>
+ 
+               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+-                <h3 className="text-sm font-black text-slate-950">Lop dang day</h3>
++                <h3 className="text-sm font-black text-slate-950">{pageText.table.title}</h3>
+                 <div className="mt-3 overflow-x-auto">
+                   <table className="w-full min-w-[620px] text-left text-sm">
+                     <thead className="text-xs uppercase text-slate-500">
+                       <tr>
+-                        <th className="py-2">Lop</th>
+-                        <th className="py-2">Lich</th>
+-                        <th className="py-2">Gio</th>
+-                        <th className="py-2">Phong</th>
+-                        <th className="py-2">Trang thai</th>
++                        <th className="py-2">{pageText.table.class}</th>
++                        <th className="py-2">{pageText.table.schedule}</th>
++                        <th className="py-2">{pageText.table.time}</th>
++                        <th className="py-2">{pageText.table.room}</th>
++                        <th className="py-2">{pageText.table.status}</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-100">
+@@ -377,7 +420,9 @@ export default function Teachers() {
+                           <td className="py-3 text-slate-500">{cls.schedule || '--'}</td>
+                           <td className="py-3 text-slate-500">{cls.startTime || '--'}</td>
+                           <td className="py-3 text-slate-500">{cls.room || '--'}</td>
+-                          <td className="py-3 text-slate-500">{cls.status || '--'}</td>
++                          <td className="py-3 text-slate-500">
++                            {formatClassStatus(cls.status, pageText.classStatus)}
++                          </td>
+                         </tr>
+                       ))}
+                     </tbody>
+@@ -389,13 +434,19 @@ export default function Teachers() {
+                 days={selectedTeacher.days}
+                 selectedDate={selectedDate}
+                 onSelectDate={setSelectedDate}
++                weekdays={pageText.weekdays}
++                calendarText={pageText.calendar}
++                statusLabel={statusLabel}
++                makeupLabel={pageText.makeup}
+               />
+ 
+               <section
+                 data-testid="teacher-day-details"
+                 className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+               >
+-                <h3 className="text-sm font-black text-slate-950">Ca ngay {selectedDate}</h3>
++                <h3 className="text-sm font-black text-slate-950">
++                  {formatTemplate(pageText.dayDetails.title, { date: selectedDate })}
++                </h3>
+                 <div className="mt-3 space-y-2">
+                   {dayShifts.length ? (
+                     dayShifts.map((shift) => (
+@@ -414,11 +465,11 @@ export default function Teachers() {
+                         >
+                           {statusLabel[shift.status]}
+                         </span>
+-                        {shift.kind === 'makeup' && <MakeupBadge />}
++                        {shift.kind === 'makeup' && <MakeupBadge label={pageText.makeup} />}
+                       </div>
+                     ))
+                   ) : (
+-                    <p className="text-sm text-slate-500">Ngay nay khong co ca day.</p>
++                    <p className="text-sm text-slate-500">{pageText.dayDetails.empty}</p>
+                   )}
+                 </div>
+               </section>
+@@ -426,7 +477,9 @@ export default function Teachers() {
+           ) : (
+             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
+               <Users className="mx-auto h-10 w-10 text-slate-300" />
+-              <p className="mt-3 text-sm font-semibold text-slate-500">Chua co giao vien.</p>
++              <p className="mt-3 text-sm font-semibold text-slate-500">
++                {pageText.empty.noTeachers}
++              </p>
+             </div>
+           )}
+         </main>

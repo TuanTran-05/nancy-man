@@ -1,0 +1,6795 @@
+{
+  "generatedAt": "2026-08-05T14:48:57.082Z",
+  "vietnamDate": "2026-08-05",
+  "digest": "c9fa8370a0ed57b3c897c1782a8f70a285f8fd80d0f58874df713aed94a34b88",
+  "target": {
+    "projectId": "gen-lang-client-0014842483",
+    "databaseId": "ai-studio-4bd76afc-98c1-4f42-8d50-f17f1cfeb31a"
+  },
+  "summary": {
+    "scannedStudents": 676,
+    "create": 0,
+    "excluded": {
+      "ARCHIVED_STUDENT": 1,
+      "NON_CURRENT_STATUS": 116,
+      "EXISTING_ENROLLMENT": 559,
+      "MISSING_CLASS_ID": 0,
+      "MISSING_CLASS": 0,
+      "INVALID_CLASS_START": 0,
+      "FUTURE_CLASS": 0,
+      "INVALID_CLASS_END": 0,
+      "ENDED_CLASS": 0
+    },
+    "byStatus": {
+      "active": 0,
+      "on_leave": 0
+    }
+  },
+  "invariants": {
+    "duplicateCandidateStudentIds": [],
+    "duplicateCandidateDocumentIds": [],
+    "invalidCandidateDocumentIds": []
+  },
+  "rows": [
+    {
+      "studentId": "05PdqyJkxpQDPIWbcFXe",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "07X7JnY3K5LIifnmhXjc",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "0A1hfKDPJHbBaYNdbhc0",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "0aXOPzXWrOX3kBtl88hH",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "0H9M4t2b0Di6i6CK0G0u",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "0hmhaSS5Wh6iiSORCV9l",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "0ikEiIjIiI3hz516PPA9",
+      "classId": "dIEGKNxQyAS4uRtQmnPq",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "0lbqZZEjlIfcAVKANuVO",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "0mteiS0S7ioG1tVndRZv",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "0PbhxSXaW1hqVnvn6O7C",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "0YMC6pPlPYhro8Arq1Kc",
+      "classId": "aoaDsr3lgBvSj211VCkJ",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "129EXIJdmhl5LfrMdVKD",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "12FZ7po5MORjVqpQUfHR",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "1bAeUYjWTaL5nyyVLUyH",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "1el5pQbx6C7NoeC72Ngy",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "1hKy5gVyPUqclq7amkBq",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "1IAmz9Sl9vx64eDbp3ay",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "1IOxOnSYK0vcgZ27rMfh",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "1kE0tKx21XMEOR1r5G5d",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "1kG5Rdw0N5ypSuumybsX",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "1lZPhaqwqtJPGazsgBOI",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "1MiN4cxuFlMcnIzj2auQ",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "2acCUS6ycRWN8rXnvTv1",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "2DIGQggr9fGrlt937cNE",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "2DVNHVuXBTIU94wncgE3",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "2HcFtkGJhRkVwXEtaNu6",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "2j0urrJAqxJ4p5aRQ531",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "2upeFRFP2omi2uPJ4gKg",
+      "classId": "tY5PIISvWwaH4ZL7qGHX",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "2uPuOEXP2aoluouGxfms",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "2xKpPYscvOhgibZg6Ttv",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "32mavMdqalC12Zx7NaCM",
+      "classId": "tY5PIISvWwaH4ZL7qGHX",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "33PMF0IyFb9iO3sO5Taa",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "3cpU8EdbAdwyE98mBBnN",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "3mAsJ3pZRjeIjLAVrnUD",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "3md7dnJ3tH3H9HnoweFl",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "3PYoRbI0eHjTBoHqXVf4",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "3TBOw4zYpfFekWXNkKHL",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "3tSAPzEK49EjbsZaNjZ1",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "3YokjR5BFAqFNkW9mPsZ",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "3YRndBoON7XRkFRkgbRp",
+      "classId": "6GmA0pfCfbyeUmHYcT2D",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "3z1ctWbB8zoxUiK4Pxuh",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "40LuzdSymM5Tb4bjJBj0",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "42DjKQ0LRk4UQvmlC4rp",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4fG3hlMzvMXac00bPI8B",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4KBR1IX2JgBZtjD5Moja",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4N5A5h40eawu31Yudlr9",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4OatL1rIV5JFexfvuVDV",
+      "classId": "fLTQJCJuhG9JhJZBJxYb",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4pRIwCWz27kwJ7HZsfNV",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4Q7ytxRLwb1WvLbTYlVJ",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4SKkHUCH6a5RgUVnu5LO",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4VWCK6JsQfKc01fwmzYw",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4Zlq6kanDXcoZG8PlMJt",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4ZOnT3blyNc7Xp40frj6",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "4zrjwl0BmCiwpPEa8qE2",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "55OuJNC46KVVPhK7zNo5",
+      "classId": "fLTQJCJuhG9JhJZBJxYb",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "5g9pL8su6oTJPP8b9aPu",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "5LTWWEdCEbECG1WFb1Gh",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "5mSP1ErrDILWT5dJ1Wzr",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "5N6iIBkAbBs1G4GvI1BU",
+      "classId": "2GIu9f1T94IoMFu7F6Ye",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "5rffxIYNu35fguR12cU5",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "5rMA7XnWjzg86WWfn628",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "5XA1G6yd2epMIadEAzZc",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "5yEU1FnVHE7YQOZWm9So",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "62uJX1WROrqjSyjjby1I",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "6Clv6uLDmTtEtUSXOffB",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "6epSm5E1gOZMco2nqhte",
+      "classId": "Um5Y3hbveKaxYP2DdM05",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "6JjZgRq7m8lrC55gqLLo",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "6L1bkGMikDsNzWt07vSP",
+      "classId": "6GmA0pfCfbyeUmHYcT2D",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "6mR5Q0Eioe9Xb4XkheV5",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "6QBY4mOjJvXAuq0F14T9",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "6t7ZYYQW67omwe9uePSB",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "6udByP6VWLVjjEP3Vc5v",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "6v0v25C3GmZWt6EeHnpP",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "6YPUMQNPR55GstW7sXtU",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "70tZE5Q6fLHvOWeRq8CI",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "74drlA8gP91rNyfQQ77Y",
+      "classId": "aoaDsr3lgBvSj211VCkJ",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "75bstvOMKvxaUDx5RLgI",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "7aqIXfv2MgoyKAO8PQWK",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "7iBEDKZA69FEDZR3wX6N",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "7kImoy6B0B5frTLG4d2v",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "7KQIbDC9FhJrkg3E1OkO",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "7PNAFCY0OIfProO7VZx2",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "7rqiJZKI7fjUNw0MGH59",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "7Wwyfnpw0QO6Bpz7y0Bq",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "7x7vizcjl8ObOwP2PwPW",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "803l1jPS99rsUh2IwaRY",
+      "classId": "dIEGKNxQyAS4uRtQmnPq",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "8aS0jUEsj8yxyikUe2l1",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "8nMqbR9evx45BKPyhNyt",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "8s9jXxZkSdATt5Ezizor",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "8uXRfax2RNVq3v0HI6JT",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "8V24p7VrP4T83OFCsiY8",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "8zPcqAKCUmRCa4eYupwV",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "8ZuVRPEnOqrB7vy4t0J3",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "915AQlI2Rm7ixbqteK87",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "95xZaZl0O3iN2LHuWIwe",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "98AUfOHpY7fN4fxMP1HN",
+      "classId": "waoUqyi2aZ00NKgIcbIf",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "9D2F90nbAams2qSky8vm",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "9gxClCJ84hL9oeMDuMEQ",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "9qGXuzuIN2aNUIfh7FOb",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "9sUfWp5CuOPDIl4XFu6c",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "9WlloV2zlsZcaGS2kSTe",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "9WsOLaUELrrAmjhBMmyR",
+      "classId": "waoUqyi2aZ00NKgIcbIf",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "9xTFsyU1dZ17xrrT3R6v",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "9YcQq50qNUxxCXCUyNoE",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "A2EJWXSdfou0gupurFkL",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "a9UrWWRC91wAZiQld44S",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "aAfWpSjjdyZmrKVhSMti",
+      "classId": "IwMxdsVsT7l8U1pNXWzM",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "AAGAgn0PlMU4gdTp1KzY",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "aclIR20ybw8mKhu4wZpu",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "aDE1efiPJvFRZuEA3vAF",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "AiYX30mvzv01n3JLQPzV",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "AJgnw9xnYI9cf7JWoeXb",
+      "classId": "2GIu9f1T94IoMFu7F6Ye",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "AkzVu4e3uSMZQO6jWgNG",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "alNs971kR22ENZjoBc05",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "am3DeCyS4zFLlzHIH8H1",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "anBJsoKnQ54EIVoP7Apf",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "AP9RP6pCGJxUpasM9sJ8",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "aPmcQseIVBDVN6Fs9gjW",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "aqHkOvXCvZ9JbBE9aaBX",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "aqMYtC3GOJPxj650mScT",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "AqzNUbr0qhnho0lUypBt",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Ar2rtkqxYZCW1b3l9lGD",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "aRv9tm2coQa22PI8i5wr",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "AZuOa87UkncpcFSgVcam",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "b4p7vsLRDyMcvRer8ge5",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "B62GXI7wZyrDeuUqyTPI",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "b82dHKCHlEEXrooAxHV0",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "b9C4QhZ1h7qQEFp8ChId",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BBliUhAykP6gL0YDtYp4",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "bC3N8ZgEpwMUgBlgiEPw",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "bCvdR8tMIEBJPhD1bsjz",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BDLvoGlI3fJYk75sdekK",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BEyTgzSdq1JSAV9XDnNG",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BFJVpvI1PQhBbIRwREcH",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BFODDM9lUqscBzSjgFho",
+      "classId": "waoUqyi2aZ00NKgIcbIf",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BGInNRNarPjAggsedtH6",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "bGW4yEuhslIPrCC1U5hf",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Bifj6U7m6JJCMvKVjT18",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "bivezj8uY40U4aGPaEr3",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Bl9RS6n7aRZuuAYMLUil",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BnSqXgBxpjXSASskzHlY",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BPMIjAjgsHaPIDoiK39l",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BpZknrl6ffi2s9SqIyBM",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "bQaUWqBS2Ul9xpkjMsNq",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "bRcXYko9vn3w0RmVHgzD",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "bs60VrltrWgwb0hi3xDV",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Bu1h7WRa1r6X0cAJYNsg",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BvbwjF0LZ0gOeqSBmD13",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "bWvz0gPPbqN3gmBUOqE7",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BYRRySidmNnDwDJrrmB0",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BZ3316Grlgf2DQbGZwB3",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "BZeoMtZ4AD7HMiiNcQFF",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "c8EylH96fwo51pxwT1cZ",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "caUlXnPBKe3BAmSU6keB",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "CB4SwS4FbTlwHhsHCOvs",
+      "classId": "IwMxdsVsT7l8U1pNXWzM",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "CjvF9JqchHzGIURWiq8v",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "CNPowd5DnlkELs9Lz6TZ",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "CnTlndzOR9hpiSF4s4pG",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "COZQ0VKGs8VO6kFIB7o1",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "cpOZPgSFtkeKHBVr616X",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "csl0flGGpzyjZZG8tzSY",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "cSZ44p2chbKh4o0Jt7CS",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "CWjODl2UVbgwxUcin6wL",
+      "classId": "IwMxdsVsT7l8U1pNXWzM",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "cWNn97S6KnU0vgaWYSxT",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "CxiAesrBaOgIufy72KB7",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "CXOXGkGQs1N0g0tUo37h",
+      "classId": "waoUqyi2aZ00NKgIcbIf",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "cYPIp2zjanxwEyrEWbjF",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "cZE5cUe1jUhaAawWwbne",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "cZlJIHLRV06BbZ1LG00s",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "CzQf5gUHcTwUNT2zcATJ",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "cztQjUH2AR9qG1wBbGLE",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "D05GTBKcQEF4DYqUk4Kr",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "D2htkRq4WfaEQyDvNMIg",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "D4fXfXzQ8p5Fzf1AFXoM",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "d7OKwyJrUZ0ZLWq3n1i0",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "D8m8UzuK230zzRmI2HZZ",
+      "classId": "aoaDsr3lgBvSj211VCkJ",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "d8RX50AoTKXsIZJtQ6nx",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DAxT6geJkB1CmTqc72bp",
+      "classId": "fLTQJCJuhG9JhJZBJxYb",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "dBfv62uVWLo16DhQeLeK",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DC51A9NC9IY4sBhCpbqN",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "dDnt88Dvuo0PLtWHG5Yd",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DdUCUviAdqLAfnmT63g9",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "dGA5YgTg1gxHVH8twlmY",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DIlfdxS0tWWfDRDgKqeq",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DLDO2HkFyIJoGjs4EaHK",
+      "classId": "aoaDsr3lgBvSj211VCkJ",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DMGMM4hyYhHpefcq1ff8",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "doqEYzDKLJe5klsA1w3f",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "dPR0fEfKh5ku7bpRtU6C",
+      "classId": "tY5PIISvWwaH4ZL7qGHX",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DqclO1B5G8FcojIE7Gb0",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DUdYpXqembgyXVIkgQwj",
+      "classId": "6GmA0pfCfbyeUmHYcT2D",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DUERsHXfiOsXo8lbejMC",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DVK1Wd6eJkiGyK6IXrQ0",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DWLYUdAreT2zRClf70Mz",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "DwZXLt8CZN2ldrhhcoNh",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "E0cBO39b5ZKMvapGllMh",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "e2sqz8mVEl1Vuxr5aCig",
+      "classId": "dIEGKNxQyAS4uRtQmnPq",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "eb02H33ubMVltbh7n1ob",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ef0Ni9aUXV2tfK3ltHxT",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "EFjCl6Ppp46BOwIU3YLc",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "eFUWnmMnDCV8kdlqrned",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Ei2owUNBYON8GPm8nKIG",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "eiekRnZT7HwbZw5Bkrez",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "EJiAJ7xCXhxD0fLF6fUk",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "EO9HihKf3vgRvuq9xnqs",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "EPXI0IBmtAO7SYXmx9h7",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "EpXpwDboYfAMjK5vnqHi",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "EsPPo3AzQp6R2TrXSOAX",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ettuAGOSNsqmTBmWX5Bd",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "eW3CNRoNACaEMkk4L8vV",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "EX4uBkGe4dwdr5SyFv5W",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "exLVq89mQIKrZh3jfn0N",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "EyCDO8auhIM2HBj378fs",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "F0TNbfDaQw4HgZWMO65X",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "f3QHCmSSYjfDly2WG6a5",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "F45eFitvLlvF2P08lydZ",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "F4RTgJqfixCd9w1epbaO",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "f75MnFntGZR4vvW0BgYw",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "fFO5K64dM14aoshZhEKM",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "FG8HEFeyJ2gtpinmcZFJ",
+      "classId": "fLTQJCJuhG9JhJZBJxYb",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "FIbzQOHbsMSmCWQXEneL",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Fk1lAw0g46pVOVhAGyxq",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "fn73pJ3aKGEJ0zBKNKEU",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "fNN51e6kiZkVK3QhhMda",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "FoVeP1f3aTnhFxA9UGlw",
+      "classId": "6GmA0pfCfbyeUmHYcT2D",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "FPgXRbnRTm4dstU8ZP5v",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "FpZ2UECl6U2l5kOXwooT",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "fqUhaKcw4Q0C6OZFRblF",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "fRfpAeAwTrh5htFHROTX",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "FSemYs17QsZupjknWM02",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "fvmPCL8fZ2QvHgtMcQ0d",
+      "classId": "Um5Y3hbveKaxYP2DdM05",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "fwMbkedk1OpzhPfAVvfE",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "fyIP0Mb1zXGjtj9lybF8",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "FYtDkm8OmmuJ8iyTew7E",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "FZ6a4OIOcOyhrMxlrg8t",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "G5gpq1VJH1l1wM3RjdiB",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "G63W3G9d8QumJjoxVa5S",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "G8VRi7OEQH6q8W413QjU",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "g9XXp1zY7VYh0smEhGG6",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Ga7wapsZHHU5RaoJ78P3",
+      "classId": "IwMxdsVsT7l8U1pNXWzM",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "gaxpmZCPY4WOeO5kFjHU",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "GC87EpbXntGXsD0ioUUn",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "GcRSm6ajX0tQFlvAe7FG",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "GDmUhWM9h2E94diGHJLm",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "gFaTv84D40EJ4s4zp9kT",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "gHjfTjWaCdiN7PmrqVqZ",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "gLthWoMZjkeegEieklna",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "GOd6JN5Cz2KVdzRs1E3O",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "goPsMpztMwegkUKNR33i",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "gpVgzkPbjAGMOzC3kJiL",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "GpWrpEra550BJ6Dt5qAf",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Gq8QrskTEzZetxTuPjDu",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "GSNtpiOtfIc0vCeu9g5Y",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "gTStU8v9zscouDK74b54",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "GUad6vips5o2ps7tNaSQ",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "GYGLNSsRlv6YIXeN0DVH",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "GYhegdg23k6mUFU096RA",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "gzAY6GqhvKcNrBawITz5",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "h0PmtkXqT79vw3Z8l2fh",
+      "classId": "fLTQJCJuhG9JhJZBJxYb",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "h2JMNugQc11G9GwcbOyf",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "HabCQyCX1F7U5OCPZNaj",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "haqTgtHFjMX3iiCKjD3F",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "haxS57PbJqgtWJEGjhEr",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "hbZiJTotTsV6VER4wGhu",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "HCxq2Bbli5ckLO4w18oy",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "HECPvz1jhUTKLiIkRr3S",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "hETCi5TqeaOtEDyzeDYq",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "HfIJ5mPiDc3qVdmPVAc0",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "HfwmG7tjVQT02J9XJvFZ",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "ARCHIVED_STUDENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "hig1k9wVA3XoXE1meooq",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "hMxfShwOf6cUjy8XDl8e",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "hOFMG3iAYf6P1V5RR5Y9",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "HpR1r48o3IqtFL3pqwvz",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "hPYmup5pclO5XY2oS110",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "hRpk8YU3ItqwRrinZ16G",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "HRwyPE6wjmcCYsTdiRRs",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "hUqjtYdzv4sofQpCcNLc",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Hutk1yjYvsRtE2AWBuD5",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "HVwYaHfTNyxbOhsaBJhE",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "HWxH5phuS5WtgcVFp2Yk",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "hXMChe48QLowbq4L8BSB",
+      "classId": "2GIu9f1T94IoMFu7F6Ye",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "hZkHvoc3IKlweRKDCYR1",
+      "classId": "IwMxdsVsT7l8U1pNXWzM",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "I0nBte2wvLjrF0h4YVc6",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "iA8drm1rRhvXyP3oAqZv",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ibWVLxheEgPJ3y1Ge8kl",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Ica9BvPXJPZyIe5W2SNn",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "iesmpSZeDM0ll7AB2OAF",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "IgqtEk8AzZU6hrTnJIeO",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "IgsVyHRLR14fo1IwpXOz",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "IHtROpOUHwveGGGBkIoL",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "iI3hLAso9rwBeztYvvo3",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Ijgv8g5JR01AmeiLtSFi",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "IKFLd3YKDuiOVngk3OsY",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "inY6KRuAYrxe8ZHxxVR9",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "iOrFykBbS9vbu2HgFSrS",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ipPUIKKzHlHx9eKppd3n",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "iQUadH6kjCdMXs6Li1Uv",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "irtJzfi2722gmxavR2pe",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "iTiS6bDb3nukWQ9y5oOB",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "IU2Occih1v4VN3KKSazR",
+      "classId": "2GIu9f1T94IoMFu7F6Ye",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "iVQmgH4LtZxuAJ1Kg0wv",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "iYhqrDRp9bu8B44uvstZ",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "J74V0EBAInEI6xTW0dHc",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "J7rRYqpH0gTwjmPE5QSu",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "J8ilWkk7ZFV2FTsXYalI",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "J97FEeZeP3nKgXphwdXy",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "JAI61Fwi9NdyLOSvnXHx",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Jaz43b4lounXc8SqEeJf",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "jB0QelDTJHTvBjOvANVz",
+      "classId": "6GmA0pfCfbyeUmHYcT2D",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "jbDxFyKZv7lleHlhpWFD",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "JBfx6hFJiSKC8CHLI2DD",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "JCy9Ar9m6ZJhVuqCNbwd",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Jed0DsJ2Ao2kB5d5tqao",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "jEwesUBuZKiH20q8wrhm",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "jONEao190gWhxbNDIVOx",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "JpiWF4itRYSSyvmu06lZ",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "jTIq7zOrOQTBVSdAOPQz",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "JTW2Pk8S2wyCKRrT25dB",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "jUvjSq8GlIJdCXXBzsdu",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Jv0qDs8CnoE2DW6SZGsI",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "JVBuK8MQBf8wVUHmlxAA",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "JvfEyFKf5t3pjiJoyoJI",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "jwgpkhSKUVWFE3NrP3ln",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "jxoWdCMWIvxSLGtGChs3",
+      "classId": "tY5PIISvWwaH4ZL7qGHX",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "jYYw4jzNBqCcxubvbafv",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Jz1O04Wv8kQT44mUSQ7I",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "JzHjff8pKBgnR8UWFo3k",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "K0MlRv6pLIDxx3zzEFQy",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "k9g2OvxojraPGx7jAa5k",
+      "classId": "IwMxdsVsT7l8U1pNXWzM",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "kbZVoqAJOHVHd9JeqcSu",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "kcwPPxD57CjbE5kJQcz5",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "kcy8aBrawXw9aGgH3AKX",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "KdIQVpw6wS3D9yKBZAck",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "kecf1t9RX8dcBcA2JubM",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "kFEYcy0cqDFbZ3SYNMxK",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "KfZ9gNTEg2mTVNkgCm3B",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "KgfM4P4j5JALX0W7QLU5",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "KNGcLgkVNfhfkEum6doU",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Kns3cgRfM7L4MTTE02M7",
+      "classId": "tY5PIISvWwaH4ZL7qGHX",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "KO57GHjgX0RBfPFaEQ2g",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "KP9bcCSu7lU4OUUYWnCb",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "KvoKKR4iXmMMn02DySSK",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "KW4RqVeqdab5P2bLWNSl",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "KWlH3T0p5LFKhniqRMY6",
+      "classId": "dIEGKNxQyAS4uRtQmnPq",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "kXD9fDLMwVFrFskKYSqv",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Kz5z1m4u1VQgLaeyO9yM",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "l0d2ZwqMTFIz7SRN7qkD",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "L4jCD0tCLeOSs1FuRYlD",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "L5Sm2wxqhVrJYlNRmlBG",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "l63OVrpsO8HNTTfRSMvo",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "l68lEBJkaaidjMaQdrLX",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LcL9UWC8yf1dwGXEtIA9",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "lD25Nb3aN3wklo5ZXOPu",
+      "classId": "tY5PIISvWwaH4ZL7qGHX",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LHgLCB0qjyHGV65U3l0C",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "lhY9h4JBG0tHAEJtyXmv",
+      "classId": "2GIu9f1T94IoMFu7F6Ye",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LiCvcFd9KFJksb1rQeRR",
+      "classId": "aoaDsr3lgBvSj211VCkJ",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LiDx3ubOEzM6CZL5GKu8",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LiNcnnRnBdCI56AKr0Rq",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "lKk4JMtqkXNvADim1Ujj",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LlD6XEGwgMy5Qf6OLaTR",
+      "classId": "waoUqyi2aZ00NKgIcbIf",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LlGtCCTSZVbQSj2MsToY",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LMAzIHa87Fg6kCUGFzZ9",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "lnXkhxjs2e7NlkkP81K2",
+      "classId": "IwMxdsVsT7l8U1pNXWzM",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LPeKymyxzVbOcM9o3YVC",
+      "classId": "aoaDsr3lgBvSj211VCkJ",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "lsCJW7RTk4SwwvUNBPB9",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LtcykwoS1jKUzi9h7tU9",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ltFXzUlQmYeOXT6RyVvE",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "lukcIMXhplCgWeTRdunF",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LVeXtZ1IwBVa7hg2rEhe",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "lWkRkeAoar9rNX8XMqLZ",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LwpFm7sWsRRLoDTX9yaJ",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LWwMx6nqRCavX0sIxl37",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "lXyXRvBt00bihyfBmrmi",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "LYgrHxsizVXWyVge0E8R",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "lzNIH1Sfv51vzpTkk34i",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "M62WLu9iu8grIOrLrm1l",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "M88RlGAJj4DrAJ0ozUdh",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Mbw0TEn1rS33BBVN6u1h",
+      "classId": "2GIu9f1T94IoMFu7F6Ye",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "MevbZ4VjVvO2N0g0I4Mq",
+      "classId": "fLTQJCJuhG9JhJZBJxYb",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Mfgo7xxVKfuNtinazLzQ",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "MfHDYUyETCN1woWXyGCU",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "MfNaKW9PuxRR5J2R05oU",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "mgMJjDc3wNEuoNiDwrFd",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "mGZ5XObe3TthurGYLxQ6",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "MHkxrpjx0sDLprTT3eYf",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "mIfp5tGJlVXClrvhZXIw",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "mili1pXyJxnOoSIQtjAP",
+      "classId": "IwMxdsVsT7l8U1pNXWzM",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "mK9mEB2UGqWFzwG47FIe",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "MmGQo8rh5S9tmXg9PIQt",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Mnb33UzLIY4Hzrko9TTP",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "MNKRTRqDuOXNQgy0fs4P",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "moyqwBDGMpKaBGlAnLjG",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "MsxFv3krA0V4bAo2VFlB",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "MwDVKb0PGJq2hCXZqi2d",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "mxHOcYjK3nre9AEDWZby",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "N4SOSU86TjHf1m8syzRQ",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "n9EQvOrdDgwy72WXbdTe",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nACs61aNuvw8FrFJqrHi",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nBs6xhIU09yDKGDRSdkA",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nEHVn9TFbkngJgOEN0Uq",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nfYIQhF0toKRleeusfH9",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "NGK4jY0DjrxZow7kXeAj",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nh6wxn0H3csVJGpHNxYO",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "NhdLhjhDjZaKXWhm8tjp",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nijdfTnBAL2c2Yd5WuHF",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "NMO1qMjMCKBOdzfalEdh",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nN5ZpXQRMEUas2aZhUj8",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nntCnP7uFAO2ZPTSdljy",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Np3TJL22Tdcy9BqQAqCQ",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "NPDPa2ntFrEfzHDvFoiG",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nqgtWCMf6ZA3xWOtj4r5",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "NqvO0zkENZO0ZtcNe6fz",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "NRroPcjQX19Al0yxm08s",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nSjcIEhockqBELBbpE1E",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nSRqEOmArgqlPIuTUoDO",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nSSgKgi6WdQgaQlZskNR",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "nYgno76NyNigJOvXY5Z1",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "O754o2G7YLVzbfpDGRKM",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "O7jdcBw4jKrItRJvhjVy",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "O7NlS4CE7NwhRyXEImje",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "OArP8xSPFlQOqft53hh9",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "OFCMoKeDVAi1UUTqWCtp",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "oJfGVuO4NRxo1oRPMbUx",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "OLbeBLJj7Aov3boN0Gtj",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "oLtt9DqLL7aV6Iae3iEp",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Omro1OXFmrUbJrbaynBe",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ondDDYL6XIscpXjUmwPh",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "os76HGwDJ0WLrgNqEdIR",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "os8mVYeSboLk5T7lcGqj",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "oTFy1DA45KcguY3FkHId",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ou8j3bkYB26Cj9exrXcT",
+      "classId": "dIEGKNxQyAS4uRtQmnPq",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ox7wnkwVTVIGI2jR5cYr",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "oZeZ4XkuwrP9XHkreAsx",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "oZFEMhlxtUAJTBqxa8Tx",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "PC3Ei8N9zWY9Ojn1AAHT",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "PcADSwor1zEG2S5ihiES",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "pCOyFj4r50dIVdhw98RC",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "PgAg0s2hpAqyDq1U1W4T",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "PHTTyJW6uWz0qSf8sCMS",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "pIvTmr35JBIdLWFNgVA5",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "pIyBjcyaACY1ZgjWK1G9",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "pL0efYsHnOheh5qqNJfw",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "pMHRffw8i7TF2CJjT5Lz",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "PmJmGrIQpPjXrPP832gF",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "pmZcZjyC7bNxWz3gDgml",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "po8otLNv8XEqrxPP9gFN",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Pq095UpYPrySwpB4GICL",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "pq7O73wiDKAE9EfwHbxe",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "pQuYu304QYWr4f8rGwoK",
+      "classId": "aoaDsr3lgBvSj211VCkJ",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "PrFbhXKkGgg1TLxX9LWp",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "prRuVeq8j5cFE9Ejc3Fn",
+      "classId": "Um5Y3hbveKaxYP2DdM05",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "PuPropmQHbK9SEPrlSGX",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "PUwqXP60DiMi9sFLjAat",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "PVs6WaoW7Afk6yrMjBDy",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "pX37Dbe9OWvibruE7a0R",
+      "classId": "2GIu9f1T94IoMFu7F6Ye",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "pYfW2pHFkuMGsBmy7Qtt",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "PYq3thgwDEr2Zzf7B8wI",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "q0RkfNkcwKPVl3GpU9AV",
+      "classId": "tY5PIISvWwaH4ZL7qGHX",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Q55GKtUmk3SLYumumFEn",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "q7sIAHiP1Tz3U7AXk51q",
+      "classId": "2GIu9f1T94IoMFu7F6Ye",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "q8fQfjstW3Ov8DaH5W3R",
+      "classId": "6GmA0pfCfbyeUmHYcT2D",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "q8hHV2IHdTDHK0Q4rwxV",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "qB1aDjUIjAl9rk3pXp9X",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "QCgKEskDKYLzXnw8iCvY",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "qeuy1Zc4fA262l8Ijc4S",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "QeVpk4hXmkR2Ix0TzU8n",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "qggSRHiJ5uRO179lj2b6",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Qh5S0BR1a8ZqFe1SWiO3",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "QiagjwAKz0GA6WydyLKJ",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "QKcLsNAgfgVm6dv6p3DL",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ql3d6VL9lbJtQ2zYfWSV",
+      "classId": "dIEGKNxQyAS4uRtQmnPq",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "qnQZLQBq0BijRGGNiJFL",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "qnRI8FY69ZPVDSuzVsI2",
+      "classId": "waoUqyi2aZ00NKgIcbIf",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "qTE04zetAFBW0EIhbKMf",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "qUADAF0o697iB3EJaXRz",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "QV1m6Ph1ifv5GnOku6ZF",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "QX68uVxXZUwit1mi2hi0",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "R4XTva2owmOkeFvtwt40",
+      "classId": "waoUqyi2aZ00NKgIcbIf",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "R6a4xc36fcXxDAdUeAJr",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "R8ORXWZ4gy1XX4hW2m5B",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "R9rxHG4gzCO1pnmqv1td",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "rAP7u5IuhZqtVrvfWdhA",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "RcrnPEW0ZlcfgGoWzIH4",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "RCVXDLDWkQ9cjenCr6Oh",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "rDA2ua7gGnKdI4iFgEsw",
+      "classId": "sFc2NhcpwbmdudLCPpIp",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "rdAyR7AYfmhYRXnyTFg7",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "rDyhbp5Mxy63b0K4cVbP",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "RFQ3dkgMx2B6x1BEuA8A",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "rGmOJLNVMkUtLDmOWgfS",
+      "classId": "waoUqyi2aZ00NKgIcbIf",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "rlnzZ18oRBrPR1L8txpH",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "rM16TsQfUdAMCKFiKDVC",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ROex3EQ8IQPEScVbmZ7b",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "RpDSukaBMirqCbvPCeJ6",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "RV3VPBNaa21bmkSow9He",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Rwv1Zuzph5WwqbVfdlj7",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Rx1b1OP1jxQXCyPZcVgv",
+      "classId": "aoaDsr3lgBvSj211VCkJ",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "rxjNF9dPmYg0VDBar9BY",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "rYl4IjKBDdoqzrE2SqBl",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ryLJMe3o80RdDliHeEiq",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "s5CJt4sC4vrlTjKxdzIb",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "S5lDJnnK28yCBItrsrMS",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "SATT5KN0QS2kvWiegiQe",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Sb5tIuVeU8S5mYsRzAE5",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "SBBG8NyScGHvyjquwWQ8",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "SbfIdp1kPNqvhfpGqjEQ",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Sf5Ak8BjjqyKJx0IADXv",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "SFMDztYUkFntw3xwh5B7",
+      "classId": "IwMxdsVsT7l8U1pNXWzM",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "sIbdNxIyn1yqQiRRBhpJ",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "sIQ4iSt6EMCRi1ISqiuo",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "SJY44bhaMRi1RiEo3k1V",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "sKD4AFa6GVIZFWuZ87a2",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "sld6ddKsn4QlOlApkEII",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "slQKiNTkaaoQJRwBTrne",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "sNPW4TLC6pYt5eOpuMHV",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "SpxptnxbfrNsYumZl71O",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "sRDmmEkluM2oxoxPZKgL",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "SRMMY0ZqDryIhS82yOqT",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "SSF9E5pE1rXenUJyH5ZW",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "sSpn6Dm1LUjwzMDMcc6e",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Su8aWToP9piS4e9poVtf",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "sUNR9BtIjxuUjyfTPWmU",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "SyksvnvDc9ogyJggg4HU",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "szeGqNASBk9bkHvW5wdv",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "T1nyVkgVVq5U7vXy7Ppu",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "t43Rp6cHjV0VilfyZJF2",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "T6VAFZPAtamFzUWFMBYq",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "taYVi75YN6aqR0ZnCdPb",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "tc9w6zEE8h5SeB5KthV0",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "TDv2bVcJwsMnuR7p2mHG",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "TEXQYsNzAFU616f0dXUo",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "tg0yxhApt3q6FJiz8PEO",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "tg2NDRyZzPEe3GO2mifc",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ThxsmdNbUHBZxVaqMVVT",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "tkcdJJ4X5HTgqTXXe0r2",
+      "classId": "Um5Y3hbveKaxYP2DdM05",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "TKDzkpeL4vFpqh28maZi",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "tLvD8zS3eJqZiykZfkBb",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "tmKwk8wX4Qf13ZBefqh5",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "tMTXKfr6u3dBUN1gTaqX",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "TO7l41qnpYViJAK12ZUv",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "TPR9dz0Sy16Y5Q9fTan6",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "TptDUh7JOmIVUBOAHNGI",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "TVq5dIMoQmhO21hd8ezb",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "TYEcL8PlyxNuL7q89ieG",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Tz7RG92V6wqWdEIF9M6M",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "TzlO79t2BxRD0biqvyQX",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "u1LJuNNso9nm6gzlMjS5",
+      "classId": "eIcP0Zb20aitPkMA9uFs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "U26VReVvh5e5KMY3gsUl",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "U38slOmxUtx4KiyTopaS",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "u5jSMHXtEZlxuXfEUIaq",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "u5V7tJCbWDY7KD0IAiFr",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "U6utVw5gSWJQi0uupu19",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "U7H0cINIPWYfLT5BtpwE",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "uEsaPYetz9v3bn4fxgjD",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "UFpfNXj8L7BFOcBXb5l1",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "uGpRr2cbL01c1NrgIP62",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "UGtAM5kxkPSL0m80fjUK",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Uj8CnnIsq3wlqoA3UlNf",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ukE7OnkU4kZ4ZuEmC6yP",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "UluFVLJ74W9fU4dgZWIr",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "UMR4NNIlaXnxDFiB3g8A",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "UnFrslEivdKTi9UYWBu2",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "uu7ZX0ExZfZzsQ5MMzJc",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "uYAubWQP8R25hfxtDSN4",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "V88jSNY0yhi5TZDrQe8p",
+      "classId": "Um5Y3hbveKaxYP2DdM05",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "vaUdIzd9DLQsgQjt8YyZ",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "vAWm1kM2sfKGAx5S7DjX",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "VbC7a3bK8hisNzXl0yTk",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "VFsi20R37tXFJmCe7AWC",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "VINkGdPZyIb4nHDglKRg",
+      "classId": "dIEGKNxQyAS4uRtQmnPq",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ViRSm0fpD1bDdFDdzGdt",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "VkkyFKhpUR2HlfI1KRGQ",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "vlxO17ArgvOpQaJd2WPI",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Vm2PvzwX51lZA3GXD29W",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "vM8rN80nMhFvDdg0or07",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "VmpktDtTCTdqDDJnRleA",
+      "classId": "KrranixViHUAu0AGnohg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "vo37c6tXknVMuJHiMMNO",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "VOAjymHzGAwWCapyPwwO",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "voxxMZkaHJ2x42kW6KuI",
+      "classId": "fLTQJCJuhG9JhJZBJxYb",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "vPZB7fLiIqjQY7ymNIMK",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "VrfuH0UOwzbENXeUqokz",
+      "classId": "VWLk5yClGPg6muM1vBXa",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "vsc5MQ4WJFWLM557i7M5",
+      "classId": "YEGhVcj27boYOrEf2iSE",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "VSSTkx3D1e91dpUssPgz",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "vWFLLkRWCiUrERnT5QBd",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "W1IQVXAZfw68wMfZYZPt",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "w3rBn2tzNwAxrjt96X5a",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "W6yjDdfNFDH6wL97CSSs",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "w9ixaPbLVaIUwoDhS9mO",
+      "classId": "tGtoavV6esqgyuTMKVUf",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "W9N6MR9Tj4rHREjfGD2G",
+      "classId": "waoUqyi2aZ00NKgIcbIf",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "WaIT3BV6f9rzphKBWhTQ",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wE32C8f3hEki9la324FU",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "WEbFniDzwoO0j8c9AhUk",
+      "classId": "aoaDsr3lgBvSj211VCkJ",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wgjeUk0Tb4rHItGLMAyw",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wgNpRFU3hBtWNjER33GK",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wGZkCw7ihuAdACZ8bVJ3",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Wiiygeovk2boHTgoFwu8",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "WIoy9n7QvtIewPOvfkAC",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wJICOBnqS5F3PG4UfaY1",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wJQQCV8AB64H9xUasSWm",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "WldZQVaSFD4x8sXpS8e0",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "WoifYVJBBejawOE8swng",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wOr09fUNFkeEMb4j2iBi",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "WqY35cHmdroOiudXTWTE",
+      "classId": "Um5Y3hbveKaxYP2DdM05",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wR5zBIafBBbFslf6x1uE",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wSipYj8fjRtpbeGi3Ebp",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wsWWPyX834G9xkCXDwQN",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wtCiLXC3D4ubTl5Di4s5",
+      "classId": "RI6vRY14dJtwLSpdy1Bc",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wuvJ4ZVvWFQAvaER8WdM",
+      "classId": "aoaDsr3lgBvSj211VCkJ",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wUXUcHJo7yl1tp8HDMW3",
+      "classId": "lYMDImfr5T7qBTEXcmSW",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Ww0tUsyki6gQBkQHXwMO",
+      "classId": "6GmA0pfCfbyeUmHYcT2D",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wwKEPUBrpJacbamDU9SE",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wxaSwT1IM9YQIvldLcrP",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "wxgchYRIOBbcezkT97d2",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "WZc8KAn40kqRrYNOa9EO",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "x5rvRVLuAqa8g08KmOn4",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "x6tWPvRiXlQHc9cKiLBA",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "xAJgYXsCf3wvJC4kQJSv",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Xe8RIMdyGosDNvmMMtqY",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "xfjanNyj7JqVQEb7PoCY",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "XHqD2XRJaKfUTw8fAuLf",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "xk7lXOw5etKP2YUO37rp",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "XkJbLv5IU2Hw2DuMHT6P",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "XkrtjLcO40Fs76XDxbkz",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "xNswX1A82zKUMTkXzAo5",
+      "classId": "6GmA0pfCfbyeUmHYcT2D",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "xOqLvGs8BuIA20KcuG1X",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "xP37DASaAJvKQRVYLGXM",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "XQeynqt92tEanTTjwiSX",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "xqpw41L0QPlDv9rKpgBg",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "xrTOpX2om1uj2vTAaA6E",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "XtGDcCpnOYp2cjXNiMPo",
+      "classId": "2GIu9f1T94IoMFu7F6Ye",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "XtvFuuoVBghehEopK5Ha",
+      "classId": "waoUqyi2aZ00NKgIcbIf",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "xxfdxHJc5vPAcdMVUkm0",
+      "classId": "ERCRTO9edy422YC37xiy",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "XYlLW5nAeyqLHMEUhLpF",
+      "classId": "dIEGKNxQyAS4uRtQmnPq",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "XZUu6Fga4omBEft9zUfi",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "YAcr3EVCaHv3bgokJQkN",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "YBLfkJyAkxuJi8f9Iw5V",
+      "classId": "tY5PIISvWwaH4ZL7qGHX",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yCaNsnBMrhdzOVBpUm87",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Ydp30E4iKJzge80qtLu7",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yeQimIWC6DxugFzv0gJ3",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yGa773vKrpulZrbwWfyS",
+      "classId": "eHaGs0lAu2GqMWW2i19N",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yGD1poFTnilNw872BYNO",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "YgI44BqRw0kbGittdPgs",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ygNdnbPITHVNauklwh8N",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ykhpQLdfLe7vWKaG3DBB",
+      "classId": "tY5PIISvWwaH4ZL7qGHX",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "YKY6UKAGYN5VPOiGdCQs",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yMpweGhyP11Jv7mtJCY4",
+      "classId": "71GVOT1409eW8tTLpPuE",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "YOKnZyvyafMseAGecmC1",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yPYUzmFf5JCF0P09miOX",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yRBoHtu0h0FCdj1bzNio",
+      "classId": "DRjcUgJIng8OdUMVof8X",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yVaKhrq2U26mZ3sve1tK",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "YVfEWfDxz1QgHbkexGpH",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yvFl0XN5Op4DUQ8ngTib",
+      "classId": "MbEjkY4bZPvUt9ykRpPu",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yWLzE4xuxKnli1qxQ57W",
+      "classId": "8gRFsTVLErsXTi2DbRyD",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yWSi10rxySmOV0BplfWs",
+      "classId": "WqLGvTj9Kft3C69PU08V",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "yypkwxGVBWeOmv5mn65R",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Z0nNSJZZnKGTuBVkeBjG",
+      "classId": "bfKk4jq9TBB9vlnB4TjH",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Z3IqGw2CtUrqNC9Yj7U2",
+      "classId": "6GmA0pfCfbyeUmHYcT2D",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Z8feYjDEJawd1oqxjyA8",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "Z8gQ9Xq2uDUXlX8bXf0K",
+      "classId": "AnxnD92cSGEYTMqhNFw5",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zATSEAruZI6rh49Ze4eJ",
+      "classId": "pAKl7xpSLd1atr3eRofo",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zBpJGxVPMdAeSsJd4x7r",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ZecPqAdCpS0bxeec2Vny",
+      "classId": "htDI41OT3fXxmNWfnknT",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ZF5fr0Amc5eDwSPDUbp4",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zfn3VLOjfLQa2ua0EqaQ",
+      "classId": "FigsTfwBAQzGlLBxfU2u",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zgjLR2pwuPlrpgqlkB8i",
+      "classId": "xfrcmqXG5Eq8k0HsK7ip",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ziz1vFQVUQ0AhipNUw1e",
+      "classId": "DPZ0ENoAC52canMi03Dr",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zJ5r6x4WJDqV6wlUKvu1",
+      "classId": "mxZlZe2CtUrOvjYhuwvi",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zjrPU1sFXX1mpsRGrTIN",
+      "classId": "NQ1K3m1shKBZJSVegPme",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ZkWtlQjxelBnci4Qd4iP",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ZLhF7m610bmYXMWwySIR",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ZmbJHqWGqnd7agop6I0k",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ZmJwDtyH7zYYgyJ4RIvb",
+      "classId": "lmCjwxAFU0oXzXSBdjW8",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "ZSqNXziz2GdDo81LJ9ia",
+      "classId": "PVSYXAXaSz9rqGa5MFFw",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zsv1Xx5VWNK3T3GusUwp",
+      "classId": "LMpRvmwnanq28ftRLvP3",
+      "decision": "exclude",
+      "reason": "NON_CURRENT_STATUS",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zSV7J9EIRu7i1Ahgrhgj",
+      "classId": "187uCU8mzdnrWpziZrDe",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zUd281841BxV8gIrt81W",
+      "classId": "XXTe0dcLydenBbhXkIHF",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zUEQpHABcmByRZ9C3UNp",
+      "classId": "7Fxj71SvCY5SSGACTZ8C",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    },
+    {
+      "studentId": "zXifjEACCAAFJxaHhEVx",
+      "classId": "vNK2ADOv5VCXhP3Q2sOg",
+      "decision": "exclude",
+      "reason": "EXISTING_ENROLLMENT",
+      "status": "",
+      "termStart": "",
+      "termEnd": "",
+      "documentId": ""
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    env:
+      HAS_E2E_TARGET: ${{ secrets.E2E_BASE_URL != '' || (secrets.APP_URL != '' && secrets.FIREBASE_PROJECT_ID != '' && secrets.FIREBASE_CLIENT_EMAIL != '' && secrets.FIREBASE_PRIVATE_KEY != '' && secrets.FIREBASE_STORAGE_BUCKET != '' && secrets.FIRESTORE_DATABASE_ID != '' && secrets.OTP_PEPPER != '' && secrets.CRON_SECRET != '') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Production security audit
+        run: npm audit --audit-level=high --omit=dev
+
+      - name: Full dependency audit
+        run: npm audit --audit-level=high || true
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test
+
+      - name: Install Playwright Chromium
+        if: env.HAS_E2E_TARGET == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Critical E2E
+        if: env.HAS_E2E_TARGET == 'true'
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ secrets.E2E_BASE_URL || secrets.APP_URL }}
+          APP_URL: ${{ secrets.APP_URL }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          FIRESTORE_DATABASE_ID: ${{ secrets.FIRESTORE_DATABASE_ID }}
+          OTP_PEPPER: ${{ secrets.OTP_PEPPER }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: npm run test:e2e

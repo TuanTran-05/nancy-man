@@ -1,0 +1,658 @@
+import { LessonDeck } from '../../../types';
+
+const deck: LessonDeck = {
+  id: 'gs-g8-u10-communication-future',
+  curriculumFamily: 'global-success',
+  grade: 8,
+  unitNumber: 10,
+  title: 'Grammar Grade 8 - Unit 10: Communication in the Future',
+  description:
+    'Bài giảng Unit 10 Global Success 8 về giới từ chỉ nơi chốn/thời gian, đại từ sở hữu và từ vựng Communication in the Future.',
+  createdAt: '2026-05-15T00:00:00.000Z',
+  slides: [
+    {
+      id: 's1',
+      title: 'GRAMMAR GRADE 8',
+      subtitle: 'UNIT 10: COMMUNICATION IN THE FUTURE',
+      label: 'NỘI DUNG BÀI HỌC:',
+      layout: 'outline',
+      cards: [
+        {
+          title: 'PREPOSITIONS OF PLACE',
+          subtitle: '(Giới từ chỉ nơi chốn)',
+          accent: 'orange',
+        },
+        {
+          title: 'PREPOSITIONS OF TIME',
+          subtitle: '(Giới từ chỉ thời gian)',
+          accent: 'pink',
+        },
+        {
+          title: 'POSSESSIVE PRONOUNS',
+          subtitle: '(Đại từ sở hữu)',
+          accent: 'blue',
+        },
+        {
+          title: 'VOCABULARY & PRACTICE',
+          subtitle: '(Communication in the Future)',
+          accent: 'green',
+        },
+      ],
+    },
+    {
+      id: 's2',
+      title: 'Mục tiêu bài học',
+      layout: 'objectives',
+      accent: 'blue',
+      bullets: [
+        {
+          content: [
+            { text: 'Dùng đúng ' },
+            { text: 'in / on / at', accent: 'orange', bold: true },
+            { text: ' khi nói về nơi chốn' },
+          ],
+        },
+        {
+          content: [
+            { text: 'Phân biệt ' },
+            { text: 'in / on / at', accent: 'pink', bold: true },
+            { text: ' khi nói về thời gian' },
+          ],
+        },
+        {
+          content: [
+            { text: 'Nhận biết và sử dụng ' },
+            { text: 'possessive pronouns', accent: 'blue', bold: true },
+            { text: ' để tránh lặp danh từ' },
+          ],
+        },
+        {
+          content: [
+            { text: 'Dùng từ vựng chủ đề ' },
+            { text: 'Communication in the Future', accent: 'green', bold: true },
+            { text: ' trong câu dự đoán tương lai' },
+          ],
+        },
+      ],
+    },
+    {
+      id: 's3',
+      title: 'PREPOSITIONS OF PLACE',
+      subtitle: 'Giới từ chỉ nơi chốn',
+      label: 'Phần 1',
+      layout: 'section-cover',
+      accent: 'orange',
+    },
+    {
+      id: 's4',
+      title: 'Prepositions of Place: Ý chính',
+      subtitle: 'Dùng để chỉ vị trí hoặc nơi người/vật đang ở.',
+      layout: 'explain',
+      accent: 'orange',
+      sections: [
+        {
+          title: 'Công thức',
+          accent: 'orange',
+          content: [
+            { text: 'S + V + ' },
+            { text: 'preposition', accent: 'orange', bold: true },
+            { text: ' + place' },
+          ],
+          example: 'The phone is on the table.',
+        },
+        {
+          title: 'Câu hỏi nhận biết',
+          accent: 'blue',
+          content: 'Where is...? / Where are...?',
+          example: 'Where is the new communication device?',
+        },
+        {
+          title: 'Động từ thường gặp',
+          accent: 'green',
+          bullets: ['be', 'sit', 'stand', 'live', 'stay', 'work'],
+        },
+        {
+          title: 'Câu trả lời',
+          accent: 'purple',
+          content: 'Thường bắt đầu bằng in, on, at, near, next to, between...',
+        },
+      ],
+    },
+    {
+      id: 's5',
+      title: 'IN / ON / AT chỉ nơi chốn',
+      subtitle: 'Ba giới từ dễ nhầm nhất.',
+      layout: 'cards',
+      accent: 'orange',
+      cards: [
+        {
+          title: 'IN',
+          accent: 'green',
+          content: 'Bên trong không gian có ranh giới.',
+          bullets: ['in a room', 'in a box', 'in Hanoi', 'in Vietnam'],
+          example: 'The device is in the box.',
+        },
+        {
+          title: 'ON',
+          accent: 'blue',
+          content: 'Trên bề mặt hoặc có tiếp xúc.',
+          bullets: ['on the table', 'on the wall', 'on the first floor', 'on Baker Street'],
+          example: 'The tablet is on the desk.',
+        },
+        {
+          title: 'AT',
+          accent: 'pink',
+          content: 'Tại vị trí cụ thể hoặc điểm chính xác.',
+          bullets: ['at school', 'at home', 'at the airport', 'at the entrance'],
+          example: 'She is at the office.',
+        },
+        {
+          title: 'Quick contrast',
+          accent: 'purple',
+          bullets: ['in a car / taxi', 'on a bus / train / plane', 'at home / at school'],
+        },
+      ],
+    },
+    {
+      id: 's6',
+      title: 'Các giới từ nơi chốn khác',
+      subtitle: 'Dùng để mô tả vị trí chính xác hơn.',
+      layout: 'cards',
+      accent: 'purple',
+      cards: [
+        {
+          title: 'Near position',
+          accent: 'blue',
+          bullets: ['near / close to', 'next to / beside', 'across from / opposite'],
+          example: 'The signal tower is near my house.',
+        },
+        {
+          title: 'Vertical position',
+          accent: 'green',
+          bullets: ['above / over', 'below / under', 'at the top', 'at the bottom'],
+          example: 'The drone flew above the city.',
+        },
+        {
+          title: 'Inside / outside',
+          accent: 'orange',
+          bullets: ['inside', 'outside', 'in front of', 'behind'],
+          example: 'The chip is inside the device.',
+        },
+        {
+          title: 'Between / among',
+          accent: 'pink',
+          content: 'between dùng cho 2 vật; among dùng giữa nhiều vật.',
+          example: 'The device is between the books.',
+        },
+      ],
+    },
+    {
+      id: 's7',
+      title: 'Giới từ trong giao tiếp',
+      subtitle: 'Các cụm rất hay gặp trong Unit 10.',
+      layout: 'explain',
+      accent: 'blue',
+      sections: [
+        {
+          title: 'on',
+          accent: 'blue',
+          content: 'Dùng với phương tiện truyền thông.',
+          example: 'on the phone / on TV / on the radio / on the internet',
+        },
+        {
+          title: 'in',
+          accent: 'green',
+          content: 'Dùng với nội dung nằm trong thư, email, tin nhắn.',
+          example: 'She wrote her address in the email.',
+        },
+        {
+          title: 'at',
+          accent: 'orange',
+          content: 'Dùng với website hoặc địa chỉ cụ thể.',
+          example: 'Find more information at our website.',
+        },
+        {
+          title: 'Common mistake',
+          accent: 'red',
+          content: 'Nói chuyện qua điện thoại: on the phone, không dùng in the phone.',
+        },
+      ],
+    },
+    {
+      id: 's8',
+      title: 'Practice: Place',
+      subtitle: 'Chọn giới từ đúng: in, on, at, next to, under.',
+      layout: 'practice',
+      accent: 'orange',
+      bullets: [
+        { content: 'The new robot is _____ the laboratory.' },
+        { content: 'Put the microchip _____ the circuit board.' },
+        { content: 'The scientists are _____ the research center.' },
+        { content: 'The signal tower is _____ the school.' },
+      ],
+      examples: [
+        'in the laboratory',
+        'on the circuit board',
+        'at the research center',
+        'next to the school',
+      ],
+    },
+    {
+      id: 's9',
+      title: 'PREPOSITIONS OF TIME',
+      subtitle: 'Giới từ chỉ thời gian',
+      label: 'Phần 2',
+      layout: 'section-cover',
+      accent: 'pink',
+    },
+    {
+      id: 's10',
+      title: 'Prepositions of Time: Ý chính',
+      subtitle: 'Dùng để nói khi nào một hành động xảy ra.',
+      layout: 'explain',
+      accent: 'pink',
+      sections: [
+        {
+          title: 'Công thức',
+          accent: 'pink',
+          content: [
+            { text: 'S + V + ' },
+            { text: 'preposition', accent: 'pink', bold: true },
+            { text: ' + time expression' },
+          ],
+          example: 'The live stream starts at 8 PM.',
+        },
+        {
+          title: 'Câu hỏi nhận biết',
+          accent: 'blue',
+          bullets: ['When...?', 'What time...?', 'How long...?'],
+        },
+        {
+          title: 'Từ khóa',
+          accent: 'green',
+          content: 'Tháng, năm, thứ, ngày, giờ, mùa, buổi trong ngày...',
+        },
+        {
+          title: 'Quy tắc nhanh',
+          accent: 'orange',
+          content: 'in + rộng | on + ngày cụ thể | at + thời điểm chính xác',
+        },
+      ],
+    },
+    {
+      id: 's11',
+      title: 'IN / ON / AT chỉ thời gian',
+      subtitle: 'Nhớ theo mức độ rộng → cụ thể.',
+      layout: 'cards',
+      accent: 'pink',
+      cards: [
+        {
+          title: 'IN',
+          accent: 'green',
+          content: 'Khoảng thời gian rộng.',
+          bullets: ['in 2025', 'in March', 'in summer', 'in the morning', 'in the future'],
+          example: 'In the future, everyone will have a personal robot.',
+        },
+        {
+          title: 'ON',
+          accent: 'blue',
+          content: 'Ngày hoặc thứ cụ thể.',
+          bullets: ['on Monday', 'on 15 March', 'on my birthday', "on New Year's Day"],
+          example: 'On Monday, we will test the device.',
+        },
+        {
+          title: 'AT',
+          accent: 'pink',
+          content: 'Giờ hoặc thời điểm chính xác.',
+          bullets: ['at 7 o’clock', 'at noon', 'at midnight', 'at night', 'at the weekend'],
+          example: 'The video call starts at 9 AM.',
+        },
+        {
+          title: 'No preposition',
+          accent: 'red',
+          bullets: ['this', 'last', 'next', 'every', 'tomorrow', 'yesterday'],
+          example: 'I will call you next Monday.',
+        },
+      ],
+    },
+    {
+      id: 's12',
+      title: 'Các giới từ thời gian khác',
+      subtitle: 'Dùng cho thứ tự, khoảng thời gian và hạn chót.',
+      layout: 'cards',
+      accent: 'purple',
+      cards: [
+        {
+          title: 'before / after',
+          accent: 'orange',
+          content: 'Trước / sau một thời điểm.',
+          example: 'Check your messages before dinner.',
+        },
+        {
+          title: 'during / for',
+          accent: 'blue',
+          content: 'during + sự kiện; for + khoảng thời gian.',
+          example: "Don't use your phone during the lesson.",
+        },
+        {
+          title: 'since / until',
+          accent: 'green',
+          content: 'since + mốc bắt đầu; until + đến khi.',
+          example: 'She has used this app since 2022.',
+        },
+        {
+          title: 'by / within',
+          accent: 'pink',
+          content: 'by + hạn chót; within + trong vòng.',
+          example: 'I will reply within an hour.',
+        },
+      ],
+    },
+    {
+      id: 's13',
+      title: 'Ghi nhớ dễ nhầm',
+      subtitle: 'Một số cụm thời gian cần học thuộc.',
+      layout: 'explain',
+      accent: 'red',
+      sections: [
+        {
+          title: 'Không dùng giới từ',
+          accent: 'red',
+          content: 'Không dùng in/on/at trước this, last, next, every, tomorrow, yesterday.',
+          example: 'Wrong: on next Monday → Right: next Monday',
+        },
+        {
+          title: 'at night',
+          accent: 'blue',
+          content: 'Dùng at night, nhưng in the morning / afternoon / evening.',
+        },
+        {
+          title: 'in the future',
+          accent: 'green',
+          content: 'Nói chung về tương lai.',
+          example: 'In the future, robots will help us.',
+        },
+        {
+          title: 'in future',
+          accent: 'orange',
+          content: 'Nghĩa là từ nay về sau.',
+          example: 'In future, be more careful.',
+        },
+      ],
+    },
+    {
+      id: 's14',
+      title: 'Practice: Time',
+      subtitle: 'Điền in, on, at, by, since hoặc within.',
+      layout: 'practice',
+      accent: 'pink',
+      bullets: [
+        { content: 'Smartphones were invented _____ the 21st century.' },
+        { content: 'The tech conference is _____ 5 June.' },
+        { content: 'The video call starts _____ 9 AM sharp.' },
+        { content: 'The download will finish _____ a few minutes.' },
+      ],
+      examples: ['in the 21st century', 'on 5 June', 'at 9 AM', 'within a few minutes'],
+    },
+    {
+      id: 's15',
+      title: 'POSSESSIVE PRONOUNS',
+      subtitle: 'Đại từ sở hữu',
+      label: 'Phần 3',
+      layout: 'section-cover',
+      accent: 'blue',
+    },
+    {
+      id: 's16',
+      title: 'Possessive Pronouns: Ý chính',
+      subtitle: 'Thay thế cho tính từ sở hữu + danh từ.',
+      layout: 'explain',
+      accent: 'blue',
+      sections: [
+        {
+          title: 'Công thức 1',
+          accent: 'blue',
+          content: 'S + be + possessive pronoun.',
+          example: 'This phone is mine.',
+        },
+        {
+          title: 'Công thức 2',
+          accent: 'purple',
+          content: 'Whose + N + be + S? → It is + possessive pronoun.',
+          example: 'Whose device is this? → It is mine.',
+        },
+        {
+          title: 'Mục đích',
+          accent: 'green',
+          content: 'Tránh lặp lại danh từ đã rõ nghĩa trong câu.',
+          example: 'my phone → mine',
+        },
+        {
+          title: 'Vị trí',
+          accent: 'orange',
+          content: 'Đại từ sở hữu đứng một mình, không đi kèm danh từ phía sau.',
+        },
+      ],
+    },
+    {
+      id: 's17',
+      title: 'Bảng đại từ sở hữu',
+      subtitle: 'Tính từ sở hữu đứng trước danh từ; đại từ sở hữu đứng một mình.',
+      layout: 'cards',
+      accent: 'blue',
+      cards: [
+        {
+          title: 'I / you',
+          accent: 'blue',
+          bullets: ['my phone → mine', 'your charger → yours'],
+          example: 'This phone is mine.',
+        },
+        {
+          title: 'he / she',
+          accent: 'pink',
+          bullets: ['his laptop → his', 'her message → hers'],
+          example: 'The message was hers.',
+        },
+        {
+          title: 'we / they',
+          accent: 'green',
+          bullets: ['our Wi-Fi → ours', 'their devices → theirs'],
+          example: 'Those devices are theirs.',
+        },
+        {
+          title: 'it',
+          accent: 'red',
+          content: 'It không có đại từ sở hữu độc lập.',
+          example: 'The robot has its own language.',
+        },
+      ],
+    },
+    {
+      id: 's18',
+      title: 'Possessive Adjective vs Pronoun',
+      subtitle: 'Đừng đặt danh từ sau đại từ sở hữu.',
+      layout: 'explain',
+      accent: 'purple',
+      sections: [
+        {
+          title: 'Possessive adjective',
+          accent: 'blue',
+          content: 'Đứng trước danh từ.',
+          example: 'This is my phone.',
+        },
+        {
+          title: 'Possessive pronoun',
+          accent: 'green',
+          content: 'Đứng một mình, thay cho danh từ.',
+          example: 'This phone is mine.',
+        },
+        {
+          title: 'Whose questions',
+          accent: 'orange',
+          content: 'Dùng để trả lời câu hỏi Whose.',
+          example: 'Whose passwords are these? → They are ours.',
+        },
+        {
+          title: 'of + possessive pronoun',
+          accent: 'pink',
+          content: 'a/an/this/that + noun + of + possessive pronoun',
+          example: 'She is a classmate of mine.',
+        },
+      ],
+    },
+    {
+      id: 's19',
+      title: 'Lưu ý với Possessive Pronouns',
+      subtitle: 'Các điểm dễ sai trong bài tập.',
+      layout: 'cards',
+      accent: 'red',
+      cards: [
+        {
+          title: 'his',
+          accent: 'blue',
+          content: 'His vừa là tính từ sở hữu, vừa là đại từ sở hữu.',
+          example: 'That is his phone. / That phone is his.',
+        },
+        {
+          title: 'No "its"',
+          accent: 'red',
+          content: 'Không dùng its như đại từ sở hữu độc lập.',
+          example: 'Wrong: The screen is its.',
+        },
+        {
+          title: "it's vs its",
+          accent: 'orange',
+          content: "it's = it is; its = của nó.",
+          example: "It's a smart device. Its screen is large.",
+        },
+        {
+          title: 'No noun after pronoun',
+          accent: 'purple',
+          content: 'Không viết mine phone, yours charger.',
+          example: 'Right: my phone / mine',
+        },
+      ],
+    },
+    {
+      id: 's20',
+      title: 'Practice: Possessive Pronouns',
+      subtitle: 'Viết lại câu để tránh lặp danh từ.',
+      layout: 'practice',
+      accent: 'blue',
+      bullets: [
+        { content: 'This is my smartphone. → This smartphone is _____.' },
+        { content: 'That is her laptop. → That laptop is _____.' },
+        { content: 'Their robots can speak 10 languages. Can your robots?' },
+        { content: 'Our internet connection is fast, but their connection is faster.' },
+      ],
+      examples: ['mine', 'hers', 'Can yours?', 'theirs is faster'],
+    },
+    {
+      id: 's21',
+      title: 'COMMUNICATION IN THE FUTURE',
+      subtitle: 'Từ vựng chuyên đề',
+      label: 'Phần 4',
+      layout: 'section-cover',
+      accent: 'green',
+    },
+    {
+      id: 's22',
+      title: 'Vocabulary Focus',
+      subtitle: 'Các nhóm từ quan trọng trong Unit 10.',
+      layout: 'cards',
+      accent: 'green',
+      cards: [
+        {
+          title: 'Devices',
+          accent: 'blue',
+          bullets: ['robot', 'smart device', 'microchip', 'satellite', 'drone'],
+          example: 'Satellites provide internet to the whole world.',
+        },
+        {
+          title: 'Future tech',
+          accent: 'purple',
+          bullets: ['AI', 'hologram', 'VR', 'AR', 'wearable technology'],
+          example: 'We may communicate via holograms.',
+        },
+        {
+          title: 'Communication verbs',
+          accent: 'green',
+          bullets: ['predict', 'develop', 'connect', 'transmit', 'translate', 'interact'],
+          example: 'AI can translate languages instantly.',
+        },
+        {
+          title: 'Adjectives',
+          accent: 'orange',
+          bullets: ['advanced', 'wireless', 'instant', 'interactive', 'futuristic'],
+          example: 'Future devices will allow instant communication.',
+        },
+      ],
+    },
+    {
+      id: 's23',
+      title: 'Important Structures',
+      subtitle: 'Các cấu trúc hay dùng trong bài nói/viết.',
+      layout: 'explain',
+      accent: 'green',
+      sections: [
+        {
+          title: 'Future prediction',
+          accent: 'green',
+          content: 'S + will / may / might + V',
+          example: 'We might use holograms instead of video calls.',
+        },
+        {
+          title: 'Place description',
+          accent: 'blue',
+          content: 'There is/are + N + preposition + place',
+          example: 'There is a satellite in orbit above us.',
+        },
+        {
+          title: 'Whose questions',
+          accent: 'purple',
+          content: 'Whose + N + is/are + this/that/these/those?',
+          example: "Whose smartwatch is this? It's mine.",
+        },
+        {
+          title: 'Comparison',
+          accent: 'orange',
+          content: 'S + possessive pronoun + be + adj-er + than + possessive pronoun',
+          example: 'Their network is faster than ours.',
+        },
+      ],
+    },
+    {
+      id: 's24',
+      title: 'Tổng kết Unit 10',
+      subtitle: 'Communication in the Future.',
+      layout: 'practice',
+      accent: 'green',
+      bullets: [
+        {
+          content: [
+            { text: 'Place: ' },
+            { text: 'in / on / at + place', accent: 'orange', bold: true },
+          ],
+        },
+        {
+          content: [
+            { text: 'Time: ' },
+            { text: 'in / on / at + time expression', accent: 'pink', bold: true },
+          ],
+        },
+        {
+          content: [
+            { text: 'Possessive pronouns: ' },
+            { text: 'mine, yours, his, hers, ours, theirs', accent: 'blue', bold: true },
+          ],
+        },
+        {
+          content: 'Dùng will / may / might để dự đoán giao tiếp trong tương lai.',
+        },
+      ],
+      examples: ['Prepositions', 'Possessive pronouns', 'Future vocabulary', 'Practice'],
+    },
+  ],
+};
+
+export default deck;

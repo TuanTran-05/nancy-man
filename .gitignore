@@ -1,0 +1,53 @@
+node_modules
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+service-account-key.json
+migration-manifest-*.json
+loadtests/results/
+loadtests/data/tokens.json
+loadtests/data/test-credentials.json
+
+vbsec-reports/
+.codegraph/
+.understand-anything/
+.superpowers/
+test-results/
+docs/superpowers/plans/*.md
+!docs/superpowers/plans/2026-08-15-zalo-bot-staff-notifications.md
+!docs/superpowers/plans/2026-08-19-vps-migration-implementation.md
+.claude/worktrees/
+.claude/settings.local.json
+.cursor/
+.vbsec-tmp/
+Create_Delete_admin_account.txt
+
+# Firestore exports contain student and conversation data; keep them out of git.
+backups/
+
+# Private one-time Zalo snapshots contain student phone and education data.
+private/zalo-resend-snapshots/
+
+# Du lieu production do ra tu Firestore (db/preflight/02-dry-run-load.mjs --emit).
+# 16 MB va chua ten, ngay sinh, so dien thoai hoc sinh THAT — khong dua vao git.
+# Sinh lai bat cu luc nao bang lenh trong db/DEPLOY.md.
+db/data.sql
+db/audit-log-user-name-backfill.sql
+db/preflight/node_modules/
+
+# VPS build artifacts are reproducible and must not be committed.
+dist-server/
+
+# One-time VPS/Firebase transfer artifacts may contain production documents or
+# machine-specific deployment details. Keep them local; reusable automation
+# belongs under scripts/ or deploy/vps/.
+scratch/*.tgz
+scratch/edutrack-kb-manifest-*.json
+scratch/edutrack-kb-storage-*/
+scratch/download-firebase-knowledge-bank.mjs
+scratch/vps-deploy/

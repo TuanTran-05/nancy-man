@@ -1,0 +1,2342 @@
+ ▐▛███▜▌   Claude Code v2.1.223
+▝▜█████▛▘  Opus 5 · Claude Pro
+  ▘▘ ▝▝    ~\Downloads\edutrack-smart-tracking-app (6)
+
+
+❯ sau đây là toàn bộ đoạn hội thoại trước của tôi nhưng do hit limit nên bị     
+  ngưng, hãy đọc và tiếp tục công việc  ▐▛███▜▌   Claude Code v2.1.222          
+  ▝▜█████▛▘  Opus 5 · Claude Pro                                                
+    ▘▘ ▝▝    ~\Downloads\edutrack-smart-tracking-app (6)                        
+                                                                                
+                                                                                
+  ❯ Kế hoạch an toàn nhất là chuyển đổi theo từng lớp, chặn nguồn phát sinh     
+  trước                                                                         
+    rồi mới chuẩn hóa dữ liệu. Không nên merge database ngay bằng script hiện   
+                                                                                
+    tại.                                                                        
+                                                                                
+    Baseline đã xác nhận                                                        
+                                                                                
+    Production có 676 document students.                                        
+                                                                                
+    Migration enrollment ngày 01/08 đã tạo 334 enrollment.                      
+                                                                                
+    Audit ngày 05/08 xác nhận 559 học sinh hiện hành đã có enrollment; không    
+  còn                                                                           
+    candidate cần backfill.                                                     
+                                                                                
+    Có 58 profile cũ đã soft-merge.                                             
+                                                                                
+    HS260167 còn bị chặn do hai bộ credentials khác nhau.                       
+                                                                                
+    Có thêm 5 nhóm nghi trùng danh tính nhưng mang mã học sinh khác nhau.       
+                                                                                
+    Accounting summary hiện đủ 676/676 document, nhưng vẫn sai ranh giới thực   
+  thể                                                                           
+    vì mỗi document bị coi là một học sinh.                                     
+                                                                                
+    Như vậy nền enrollment đã tương đối tốt. Trọng tâm mới là canonical         
+  identity,                                                                     
+    promotion, khóa ngoại và các read model cũ.                                 
+                                                                                
+    Ba phương án đã cân nhắc                                                    
+                                                                                
+    Phương án    Đánh giá                                                       
+                                                                                
+    Chỉ dedupe khi hiển thị    Loại. Chỉ che lỗi; auth, học vụ, tài chính và    
+                                                                                
+    database vẫn bị chia                                                        
+                                                                                
+    Merge toàn bộ database một lần    Loại. Script hiện tại thiếu reference và  
+                                                                                
+    chưa xử lý an toàn credentials/tài chính                                    
+                                                                                
+    Chuyển đổi phân kỳ rồi cutover có kiểm soát    Khuyến nghị. Chặn duplicate  
+                                                                                
+    mới, chuyển read/write sang canonical model, diễn tập migration, sau đó mới 
+                                                                                
+    chuẩn hóa production                                                        
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+    Mô hình dữ liệu đích                                                        
+                                                                                
+    students/{profileId}                                                        
+                                                                                
+                                                                                
+  ──── (6070 lines hidden) ──────────────────────────────────────────────────── 
+  ifferent au                                                                   
+           tomation                                                             
+           merge script                                                         
+         9  * made:                                                             
+        10  *                                                                   
+       … +286 lines (ctrl+o to expand)                                          
+                                                                                
+    Ran 2 shell commands (ctrl+o to expand)                                     
+                                                                                
+  ● Sạch. Commit và chuyển sang profile field reconciler (Task 6).              
+    Committed 2a99aa7a (ctrl+o to expand)                                       
+                                                                                
+  ● Write(scripts\student-profile-normalization\profileReconciler.test.ts)      
+    ⎿  Wrote 140 lines to                                                       
+       scripts\student-profile-normalization\profileReconciler.test.ts          
+         1 import { describe, expect, it } from 'vitest';                       
+         2 import { reconcileStudentProfileFields } from './profileReconcil     
+         3                                                                      
+         4 function source(id: string, data: Record<string, unknown>) {         
+         5   return { id, data };                                               
+         7                                                                      
+         8 describe('reconcileStudentProfileFields', () => {                    
+         9   it('takes the earliest credible createdAt across all merged pr     
+        10     const { decisions, canonicalPatch, blockers } = reconcileStu     
+           dentProfileFields({                                                  
+       … +174 lines (ctrl+o to expand)                                          
+                                                                                
+    Ran 1 shell command (ctrl+o to expand)                                      
+                                                                                
+  ● RED xác nhận. GREEN.                                                        
+                                                                                
+  ● Write(scripts\student-profile-normalization\profileReconciler.ts)           
+    ⎿  Wrote 233 lines to                                                       
+       scripts\student-profile-normalization\profileReconciler.ts               
+         1 import { sha256 } from './canonicalJson.js';                         
+           n.js';                                                               
+         3 import type { StudentMergeBlocker } from './types.js';               
+         5 /**                                                                  
+         6  * Field-level reconciliation for the canonical profile document     
+         7  *                                                                   
+         8  * The one rule every case here serves: the apply executor can n     
+         9  * field choice the reviewed manifest does not contain. A confli     
+           cting field                                                          
+           it approved                                                          
+       … +263 lines (ctrl+o to expand)                                          
+                                                                                
+    Committed 28570717, ran 2 shell commands (ctrl+o to expand)                 
+                                                                                
+  ● RED trước cho financeReconciler (Task 7 kế hoạch).                          
+                                                                                
+  ● Write(scripts\student-profile-normalization\financeReconciler.test.ts)      
+    ⎿  Wrote 185 lines to                                                       
+       scripts\student-profile-normalization\financeReconciler.test.ts          
+         1 import { describe, expect, it } from 'vitest';                       
+         2 import { reconcileStudentFinance } from './financeReconciler.js'     
+           ;                                                                    
+         4 function baseInput(overrides: Partial<Parameters<typeof reconcil     
+           eStudentFinance>[0]> = {}) {                                         
+         5   return {                                                           
+         6     canonicalProfileId: 'canonical-1',                               
+         8       {                                                              
+         9         id: 'canonical-1',                                           
+        10         walletBalance: 0,                                            
+       … +222 lines (ctrl+o to expand)                                          
+    ⎿  You've hit your session limit · resets 3pm (Asia/Saigon)                 
+       /upgrade to increase your usage limit.                                   
+                                                                                
+  ✻ Brewed for 20m 21s                                                          
+
+● Tiếp tục từ chỗ dừng: financeReconciler đang ở RED (test đã viết,
+  implementation chưa có). Kiểm tra trạng thái thật trước.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Đúng như dự đoán. Đọc test đã viết để implement đúng hợp đồng.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● RED xác nhận. Kiểm tra hợp đồng có sẵn để tái sử dụng, không viết lại.
+
+  Read 2 files, ran 2 shell commands (ctrl+o to expand)
+
+● Đủ hợp đồng. GREEN.
+
+● Write(scripts\student-profile-normalization\financeReconciler.ts)
+  ⎿  Wrote 324 lines to
+     scripts\student-profile-normalization\financeReconciler.ts
+       1 import { buildCourseLedgerId } from '../../server/api/lib/accoun
+       2 import { assertSafeIntegerMoney, sha256 } from './canonicalJson.
+         js';
+       3 import type { StudentMergeBlocker } from './types.js';
+       5 /**
+       6  * Financial reconciliation for one identity group.
+       8  * Money is the part of this migration that cannot be re-derived
+          if it goes
+       9  * wrong, so three rules are enforced structurally rather than b
+      10  *
+     … +371 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 11/11 GREEN. Chạy toàn bộ suite + typecheck trước khi commit.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Commit 5a6c3055. Xem task kế tiếp trong plan Workstream C.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 1 (chặn script merge cũ) bị bỏ qua — đó là cổng an toàn thật, làm trước.
+  Xem entry point hiện tại.
+
+  Read 1 file, ran 3 shell commands (ctrl+o to expand)
+
+● RED — thay hai test apply-mode cũ bằng test từ chối, thêm test guard CLI.
+
+● Update(scripts\merge-duplicate-student-records.test.ts)
+  ⎿  Added 23 lines, removed 40 lines
+      362      expect(db.docs.get('evaluations/e1').studentId).toBe('stal
+           e');
+      363    });
+      364  
+      365 -  it('repoints references, transfers the wallet, and archives 
+          -the merged record', async () => {                             
+      366 -    const summary = await mergeDuplicateStudentRecords({ db, a
+          -pply: true });                                                
+      367 -                                                              
+      368 -    expect(summary).toMatchObject({ dryRun: false, mergedGroup
+          -s: 1, archivedStudents: 1 });                                 
+      369 -    expect(db.docs.get('evaluations/e1').studentId).toBe('curr
+          -ent');                                                        
+      370 -    expect(db.docs.get('attendance/closed-class_current_2026-0
+          -6-20')).toMatchObject({                                       
+      371 -      studentId: 'current',                                   
+      372 -      date: '2026-06-20',                                     
+      373 -    });                                                       
+      374 -    expect(db.docs.has('attendance/closed-class_stale_2026-06-
+          -20')).toBe(false);                                            
+      375 -    expect(db.docs.has('accounting_student_summaries/sum-1')).
+          -toBe(false);                                                  
+      376 -    expect(db.docs.get('students/current')).toMatchObject({   
+      377 -      walletBalance: 250_000,                                 
+      378 -      walletOpeningBalance: 250_000,                          
+      379 -      walletHistoryStartedAt: '2026-07-01T00:00:00.000Z',     
+      380 -    });                                                       
+      381 -    expect(db.docs.get('students/stale')).toMatchObject({     
+      382 -      mergedIntoStudentId: 'current',                         
+      383 -      studentLifecycle: 'archived',                           
+      384 -      isRevoked: true,                                        
+      385 -      walletBalance: 0,                                       
+      386 -    });                                                       
+      387 -    expect(db.docs.has('users/parent:stale')).toBe(false);    
+      388 -    expect(db.docs.get('users/parent:current')).toMatchObject(
+          -{                                                             
+      389 -      role: 'parent',                                         
+      390 -      studentId: 'current',                                   
+      391 -    });                                                       
+      392 -    // The archived record must stop counting as an enrolled b
+          -ody on the roster.                                            
+      393 -    expect(Object.keys(db.docs.get('classes/closed-class'))).t
+          -oEqual(                                                       
+      394 -      expect.arrayContaining(['studentCounts.promoted', 'stude
+          -ntCounts.dropped'])                                           
+      365 +  // This script's write mode is permanently disabled. It move
+          +d only fourteen                                               
+      366 +  // collections out of the sixty-six the server uses, wrote n
+          +o aliases, and                                                
+      367 +  // left the retired document marked with `mergedIntoStudentI
+          +d` — the state                                                
+      368 +  // the normalization engine now has to repair. Its dry run s
+          +tays available                                                
+      369 +  // for comparison; its writer does not.                     
+      370 +  it('refuses programmatic apply before reading anything', asy
+          +nc () => {                                                    
+      371 +    await expect(mergeDuplicateStudentRecords({ db, apply: tru
+          +e })).rejects.toThrow(                                        
+      372 +      'LEGACY_STUDENT_MERGE_DISABLED'                         
+      373      );
+      396 -  });                                                         
+      374  
+      398 -  it('leaves blocked groups untouched when applying', async ()
+          - => {                                                         
+      399 -    db.docs.set('students/current', {                         
+      400 -      ...db.docs.get('students/current'),                     
+      401 -      walletBalance: 100_000,                                 
+      402 -    });                                                       
+      403 -                                                              
+      404 -    const summary = await mergeDuplicateStudentRecords({ db, a
+          -pply: true });                                                
+      405 -                                                              
+      406 -    expect(summary).toMatchObject({ mergeableGroups: 0, blocke
+          -dGroups: 1, mergedGroups: 0 });                               
+      375      expect(db.docs.get('evaluations/e1').studentId).toBe('stal
+           e');
+      376      expect(db.docs.get('students/stale').mergedIntoStudentId).
+           toBeUndefined();
+      377    });
+      378  
+      379 +  it('refuses apply without touching the database at all', asy
+          +nc () => {                                                    
+      380 +    const exploding = new Proxy(                              
+      381 +      {},                                                     
+      382 +      {                                                       
+      383 +        get() {                                               
+      384 +          throw new Error('LEGACY_MERGE_TOUCHED_FIRESTORE');  
+      385 +        },                                                    
+      386 +      }                                                       
+      387 +    ) as never;                                               
+      388 +                                                              
+      389 +    await expect(mergeDuplicateStudentRecords({ db: exploding,
+          + apply: true })).rejects.toThrow(                             
+      390 +      'LEGACY_STUDENT_MERGE_DISABLED'                         
+      391 +    );                                                        
+      392 +  });                                                         
+      393 +                                                              
+      394    it('limits the scan to the requested codes', async () => {
+      395      const summary = await mergeDuplicateStudentRecords({ db, c
+           odes: ['HS999'] });
+      396  
+
+● Update(scripts\merge-duplicate-student-records.test.ts)
+  ⎿  Added 26 lines
+      396  
+      397      expect(summary).toMatchObject({ duplicateCodes: 0, mergeab
+           leGroups: 0 });
+      398    });
+      399 +                                                              
+      400 +  it('marks its dry-run output as deprecated so it is not mist
+          +aken for the new engine', async () => {                       
+      401 +    const summary = await mergeDuplicateStudentRecords({ db })
+          +;                                                             
+      402 +                                                              
+      403 +    expect(summary).toMatchObject({ dryRun: true, deprecated: 
+          +true });                                                      
+      404 +  });                                                         
+      405  });
+      406 +                                                              
+      407 +describe('legacy merge CLI write guard', () => {              
+      408 +  // The guard must run during argument parsing. main() initia
+          +lizes Firebase                                                
+      409 +  // before it inspects any flag, so a check placed later woul
+          +d already have                                                
+      410 +  // opened a production connection with write credentials.   
+      411 +  it.each(['--apply', '--write', '--commit', '--force', '--exe
+          +cute'])(                                                      
+      412 +    'rejects %s',                                             
+      413 +    (flag) => {                                               
+      414 +      expect(() => assertLegacyMergeWriteModeDisabled(['--code
+          +', 'HS1', flag])).toThrow(                                    
+      415 +        'LEGACY_STUDENT_MERGE_DISABLED'                       
+      416 +      );                                                      
+      417 +    }                                                         
+      418 +  );                                                          
+      419 +                                                              
+      420 +  it('allows read-only invocations through', () => {          
+      421 +    expect(() =>                                              
+      422 +      assertLegacyMergeWriteModeDisabled(['--code', 'HS1', '--
+          +write-manifest', 'out.json'])                                 
+      423 +    ).not.toThrow();                                          
+      424 +  });                                                         
+      425 +});                                                           
+
+● Update(scripts\merge-duplicate-student-records.test.ts)  ⎿  Added 1 line
+      1  import { beforeEach, describe, expect, it } from 'vitest';
+      2  import {
+      3 +  assertLegacyMergeWriteModeDisabled,                           
+      4    buildMergePlan,
+      5    chooseKeepRecord,
+      6    keyedTargetDocId,
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● RED xác nhận (9 fail = đúng 9 test mới). GREEN.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(scripts\merge-duplicate-student-records.ts)
+  ⎿  Added 7 lines
+      115  
+      116  export type MergeSummary = {
+      117    dryRun: boolean;
+      118 +  /**                                                         
+      119 +   * Always true. This script's plan shape predates the canoni
+          +cal model — it                                                
+      120 +   * knows fourteen collections, writes no aliases, and retire
+          +s a document with                                             
+      121 +   * `mergedIntoStudentId` rather than a tombstone. Callers co
+          +mparing its output                                            
+      122 +   * to the normalization engine's must not treat the two as e
+          +quivalent.                                                    
+      123 +   */                                                         
+      124 +  deprecated: true;                                           
+      125    scannedStudents: number;
+      126    duplicateCodes: number;
+      127    mergeableGroups: number;
+
+● Update(scripts\merge-duplicate-student-records.ts)
+  ⎿  Added 1 line
+      593  
+      594    const summary: MergeSummary = {
+      595      dryRun: !apply,
+      596 +    deprecated: true,                                         
+      597      scannedStudents: plan.scannedStudents,
+      598      duplicateCodes: plan.duplicateCodes,
+      599      mergeableGroups: plan.mergeableGroups,
+
+● Update(scripts\merge-duplicate-student-records.ts)
+  ⎿  Added 34 lines
+      533    return { moved, dropped };
+      534  }
+      535  
+      536 +/**                                                           
+      537 + * Flags that once selected write mode, including the aliases 
+          +the CLI never                                                 
+      538 + * documented. Listed exhaustively so a forgotten synonym cann
+          +ot reopen the                                                 
+      539 + * writer that this program exists to replace.                
+      540 + */                                                           
+      541 +const LEGACY_WRITE_MODE_FLAGS = ['--apply', '--write', '--comm
+          +it', '--force', '--execute'];                                 
+      542 +                                                              
+      543 +/**                                                           
+      544 + * Refuses legacy write mode during argument parsing.         
+      545 + *                                                            
+      546 + * Placement matters more than the check itself: `main()` init
+          +ializes Firebase                                              
+      547 + * with production write credentials before it inspects any fl
+          +ag, so a guard                                                
+      548 + * further down would already have opened the connection it is
+          + meant to prevent.                                            
+      549 + */                                                           
+      550 +export function assertLegacyMergeWriteModeDisabled(argv: reado
+          +nly string[]): void {                                         
+      551 +  const requested = LEGACY_WRITE_MODE_FLAGS.filter((flag) => a
+          +rgv.includes(flag));                                          
+      552 +  if (requested.length > 0) {                                 
+      553 +    throw new Error(                                          
+      554 +      `LEGACY_STUDENT_MERGE_DISABLED: ${requested.join(', ')} 
+          +is no longer supported. ` +                                   
+      555 +        'Use the reviewed normalization engine under scripts/s
+          +tudent-profile-normalization/.'                               
+      556 +    );                                                        
+      557 +  }                                                           
+      558 +}                                                             
+      559 +                                                              
+      560  export async function mergeDuplicateStudentRecords(input: {
+      561    db: Firestore;
+      562    apply?: boolean;
+     ...
+      565    writePlan?: (plan: MergePlan) => void;
+      566  }): Promise<MergeSummary> {
+      567    const { db, apply = false } = input;
+      568 +  // Before destructuring reaches any Firestore call. The writ
+          +er moved only                                                 
+      569 +  // fourteen collections, created no aliases, and left retire
+          +d documents in the                                            
+      570 +  // `mergedIntoStudentId` state the normalization engine now 
+          +has to repair;                                                
+      571 +  // running it again would deepen that damage.               
+      572 +  if (apply) {                                                
+      573 +    throw new Error(                                          
+      574 +      'LEGACY_STUDENT_MERGE_DISABLED: write mode is permanentl
+          +y disabled. ' +                                               
+      575 +        'Use the reviewed normalization engine under scripts/s
+          +tudent-profile-normalization/.'                               
+      576 +    );                                                        
+      577 +  }                                                           
+      578    const [studentsSnap, classesSnap] = await Promise.all([
+      579      db.collection('students').get(),
+      580      db.collection('classes').get(),
+
+● Giờ gắn guard vào CLI, trước khi khởi tạo Firebase.
+
+● Update(scripts\merge-duplicate-student-records.ts)
+  ⎿  Added 1 line
+      703  async function main() {
+      704    const projectRoot = path.resolve(import.meta.dirname, '..');
+      705    const args = process.argv.slice(2);
+      706 +  assertLegacyMergeWriteModeDisabled(args);                   
+      707    const valueOf = (name: string) => {
+      708      const index = args.indexOf(name);
+      709      return index >= 0 ? args[index + 1] : undefined;
+
+● Update(scripts\merge-duplicate-student-records.ts)
+  ⎿  Removed 1 line
+      718  
+      719    const summary = await mergeDuplicateStudentRecords({
+      720      db,
+      721 -    apply: args.includes('--apply'),                          
+      721      codes,
+      722      backupDir: path.join(projectRoot, 'backups'),
+      723      writePlan: (plan) => {
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 23/23 GREEN. Nhưng guard mới khiến toàn bộ writer thành code chết — để nguyên
+  là mời gọi ai đó xoá một dòng guard rồi chạy lại. Kiểm tra phạm vi.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Xoá luôn writer chết (dòng 642–668 và applyGroup), giữ nguyên phần
+  plan/dry-run.
+
+● Update(scripts\merge-duplicate-student-records.ts)
+  ⎿  Added 3 lines, removed 26 lines
+      639      blockers,
+      640      backupPath: null,
+      641    };
+      642 -  if (!apply) return summary;                                 
+      643 -                                                              
+      644 -  const mergeable = plan.groups.filter((group) => group.mergea
+          -ble);                                                         
+      645 -  if (input.backupDir) {                                      
+      646 -    const backup = {                                          
+      647 -      capturedAt: new Date().toISOString(),                   
+      648 -      students: involved,                                     
+      649 -      groups: mergeable,                                      
+      650 -    };                                                        
+      651 -    if (!existsSync(input.backupDir)) mkdirSync(input.backupDi
+          -r, { recursive: true });                                      
+      652 -    const backupPath = path.join(                             
+      653 -      input.backupDir,                                        
+      654 -      `merge-duplicate-students-${new Date().toISOString().rep
+          -lace(/[:.]/g, '-')}-before.json`                              
+      655 -    );                                                        
+      656 -    writeFileSync(backupPath, JSON.stringify(backup, null, 2))
+          -;                                                             
+      657 -    summary.backupPath = backupPath;                          
+      658 -  }                                                           
+      659 -                                                              
+      660 -  const now = new Date().toISOString();                       
+      661 -  for (const group of mergeable) {                            
+      662 -    const result = await applyGroup(db, group, now);          
+      663 -    summary.mergedGroups += 1;                                
+      664 -    summary.movedDocs += result.moved;                        
+      665 -    summary.droppedDocs += result.dropped;                    
+      666 -    summary.archivedStudents += group.mergeIds.length;        
+      667 -  }                                                           
+      642 +  // The writer that used to follow was deleted along with `ap
+          +plyGroup`. Leaving                                            
+      643 +  // it behind an unreachable guard would mean one deleted lin
+          +e could re-enable                                             
+      644 +  // a migration path this program is repairing.              
+      645    return summary;
+      646  }
+      647  
+
+  Read 1 file, ran 4 shell commands (ctrl+o to expand)
+
+● Sửa nốt thông điệp CLI đang mời chạy --apply, rồi dọn import chết.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(scripts\merge-duplicate-student-records.ts)
+  ⎿  Added 5 lines, removed 7 lines
+      624      },
+      625    });
+      626    console.log(JSON.stringify(summary, null, 2));
+      627 -  if (summary.dryRun) {                                       
+      628 -    console.log('\nDry run. Chạy lại với --apply để thực hiện 
+          -gộp.');                                                       
+      629 -  } else {                                                    
+      630 -    console.log(                                              
+      631 -      '\nChạy `npm run repair:accounting-student-summaries` để
+          - dựng lại số liệu kế toán.'                                   
+      632 -    );                                                        
+      633 -  }                                                           
+      627 +  console.log(                                                
+      628 +    '\nBáo cáo tham khảo (đã ngừng hỗ trợ ghi). Script này chỉ
+          + chuyển 14 collection, ' +                                    
+      629 +      'không tạo alias, và đánh dấu hồ sơ cũ bằng mergedIntoSt
+          +udentId.' +                                                   
+      630 +      '\nDùng engine chuẩn hoá tại scripts/student-profile-nor
+          +malization/ để gộp thật.'                                     
+      631 +  );                                                          
+      632  }
+      633  
+      634  if (process.env.VITEST !== 'true' && process.env.NODE_ENV !== 
+           'test') {
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Ba thứ giờ là code chết — dọn để API không nói dối.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Header docstring vẫn quảng cáo --apply — sửa nốt.
+
+● Update(scripts\merge-duplicate-student-records.ts)
+  ⎿  Added 13 lines, removed 5 lines
+      12   * archive plus `mergedIntoStudentId`, never a hard delete, so 
+          a bad merge stays
+      13   * reversible.
+      14   *
+      15 + * DEPRECATED — report only. Write mode is permanently disabled
+         +.                                                              
+      16 + *                                                             
+      17 + * This script ran the 58 merges that exist in production today
+         +, and it is the                                                
+      18 + * reason they need repairing: it moved only fourteen of the si
+         +xty-six                                                        
+      19 + * collections the server uses, wrote no `student_profile_alias
+         +es` record, and                                                
+      20 + * retired the losing document with `mergedIntoStudentId` inste
+         +ad of a canonical                                              
+      21 + * tombstone. Nothing in the application reads that field.     
+      22 + *                                                             
+      23 + * Its planner is kept so its output can be compared against th
+         +e replacement.                                                 
+      24 + * To merge anything, use the reviewed engine under            
+      25 + * `scripts/student-profile-normalization/`.                   
+      26 + *                                                             
+      27   * Usage:
+      16 - *   tsx scripts/merge-duplicate-student-records.ts            
+         -          # dry run                                            
+      28 + *   tsx scripts/merge-duplicate-student-records.ts            
+         +          # report                                             
+      29   *   tsx scripts/merge-duplicate-student-records.ts --write-man
+          ifest out.json
+      30   *   tsx scripts/merge-duplicate-student-records.ts --code HS26
+          0167      # one code
+      19 - *   tsx scripts/merge-duplicate-student-records.ts --apply    
+         -          # execute                                            
+      20 - *                                                             
+      21 - * Dry run is the default. `--apply` only touches groups the pl
+         -an marked                                                      
+      22 - * `mergeable`; groups with blockers need a human decision and 
+         -are never merged.                                              
+      31   */
+      32  import { cert, getApps, initializeApp } from 'firebase-admin/ap
+          p';
+      33  import { getFirestore, type Firestore } from 'firebase-admin/fi
+          restore';
+
+  Ran 2 shell commands (ctrl+o to expand)
+● Task 8: credential reconciler. Xem shape thật của credential doc trước.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 8 — RED cho authSources (trích metadata, tuyệt đối không lộ bí mật).
+
+● Write(scripts\student-profile-normalization\authSources.test.ts)
+  ⎿  Wrote 137 lines to
+     scripts\student-profile-normalization\authSources.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import { Timestamp } from 'firebase-admin/firestore';
+       3 import { summarizeLinkedUser, summarizeStudentCredential } from 
+         './authSources.js';
+       4 
+       6   loginPasswordSalt: 'salt-abcdef0123456789',
+       7   loginPasswordHash: 'hash-fedcba9876543210',
+       8   passwordVersion: 2,
+       9   parentPasswordSalt: 'parent-salt-0011',
+      10   parentPasswordHash: 'parent-hash-2233',
+     … +147 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(scripts\student-profile-normalization\authSources.ts)
+  ⎿  Wrote 139 lines to
+     scripts\student-profile-normalization\authSources.ts
+       1 import { normalizeInstantForCanonicalJson, sha256 } from './cano
+       2 
+       3 /**
+       5  *
+         rt, journal,
+       7  * log — is written to disk, reviewed by humans, and kept as evi
+       8  * planner is never given the credential material in the first p
+         lace: these
+         nt and the rest
+         d a
+     … +159 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 11/11 GREEN. RED cho credentialReconciler.
+
+● Write(scripts\student-profile-normalization\credentialReconciler.test.ts)
+  ⎿  Wrote 258 lines to
+     scripts\student-profile-normalization\credentialReconciler.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import { summarizeLinkedUser, summarizeStudentCredential } from 
+         './authSources.js';
+         lReconciler.js';
+       4 
+       5 const MATERIAL_A = {
+       6   loginPasswordSalt: 'salt-a',
+       8   passwordVersion: 1,
+       9   updatedAt: '2026-06-01T00:00:00.000Z',
+      10 };
+     … +293 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(scripts\student-profile-normalization\credentialReconciler.ts)
+  ⎿  Wrote 234 lines to
+     scripts\student-profile-normalization\credentialReconciler.ts
+       1 import { sha256 } from './canonicalJson.js';
+       2 import type { LinkedUserMetadata, StudentCredentialMetadata } fr
+         om './authSources.js';
+       4 
+       5 /**
+       6  * Credential and linked-user reconciliation.
+       7  *
+       9  *
+      10  * A credential is never chosen by guessing. Comparing timestamp
+         s or password
+     … +266 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Test đúng ý nhưng implementation thiếu: credential được chọn nằm ở id cũ vẫn
+  phải vừa chuyển sang canonical vừa giữ bản gốc. Bổ sung assert cho phần
+  chuyển.
+
+● Update(scripts\student-profile-normalization\credentialReconciler.test.ts)
+  ⎿  Added 43 lines, removed 2 lines
+      149        })
+      150      );
+      151  
+      152 -    // Never delete during the merge: a wrong selection must s
+          -tay recoverable                                               
+      153 -    // until retirement, 30 days later.                       
+      152 +    // The selected credential lives under a legacy id, so it 
+          +must be copied to                                             
+      153 +    // the canonical id AND the original kept. Never delete du
+          +ring the merge: a                                             
+      154 +    // wrong selection must stay recoverable until retirement,
+          + 30 days later.                                               
+      155      expect(operations).toContainEqual(
+      156        expect.objectContaining({
+      157          sourcePath: 'student_auth_credentials/legacy-1',
+      158 +        targetPath: 'student_auth_credentials/canonical-1',   
+      159 +        kind: 'recreate_document',                            
+      160 +      })                                                      
+      161 +    );                                                        
+      162 +    expect(operations).toContainEqual(                        
+      163 +      expect.objectContaining({                               
+      164 +        sourcePath: 'student_auth_credentials/legacy-1',      
+      165          kind: 'retain_inaccessible',
+      166        })
+      167      );
+      168    });
+      169 +                                                              
+      170 +  it('emits no credential move when the selected record alread
+          +y sits on the canonical id', () => {                          
+      171 +    const { operations } = reconcileStudentCredentialsAndUsers
+          +(                                                             
+      172 +      input({                                                 
+      173 +        credentials: [                                        
+      174 +          summarizeStudentCredential('canonical-1', MATERIAL_A
+          +),                                                            
+      175 +          summarizeStudentCredential('legacy-1', null),       
+      176 +        ],                                                    
+      177 +      })                                                      
+      178 +    );                                                        
+      179 +                                                              
+      180 +    expect(operations).toEqual([]);                           
+      181 +  });                                                         
+      182 +                                                              
+      183 +  it('retains a non-selected credential without moving it', ()
+          + => {                                                         
+      184 +    const { operations } = reconcileStudentCredentialsAndUsers
+          +(                                                             
+      185 +      input({                                                 
+      186 +        credentials: [                                        
+      187 +          summarizeStudentCredential('canonical-1', MATERIAL_A
+          +),                                                            
+      188 +          summarizeStudentCredential('legacy-1', MATERIAL_B), 
+      189 +        ],                                                    
+      190 +        evidencedCurrentLoginProfileId: 'canonical-1',        
+      191 +      })                                                      
+      192 +    );                                                        
+      193 +                                                              
+      194 +    expect(operations).toEqual([                              
+      195 +      expect.objectContaining({                               
+      196 +        sourcePath: 'student_auth_credentials/legacy-1',      
+      197 +        kind: 'retain_inaccessible',                          
+      198 +        targetPath: null,                                     
+      199 +      }),                                                     
+      200 +    ]);                                                       
+      201 +  });                                                         
+      202  });
+      203  
+      204  describe('linked user reconciliation', () => {
+
+● Update(scripts\student-profile-normalization\credentialReconciler.ts)
+  ⎿  Added 23 lines, removed 4 lines
+      159    const { decision, blocker } = decideCredential(input, presen
+           t);
+      160    if (blocker) blockers.push(blocker);
+      161  
+      162 -  // Every credential the decision did not select is retained 
+          -rather than                                                   
+      163 -  // removed, including when the group is held — the retention
+          - plan is what                                                 
+      164 -  // makes a wrong decision reversible.                       
+      162    const selectedProfileId = decision.action === 'use_profile' 
+           ? decision.sourceProfileId : null;
+      163 +                                                              
+      164 +  // The selected credential must end up under the canonical i
+          +d, so a record                                                
+      165 +  // living at a legacy id is copied across. The copy is `recr
+          +eate_document`                                                
+      166 +  // rather than a move: the source stays, retained below.    
+      167 +  if (selectedProfileId !== null && selectedProfileId !== cano
+          +nicalId) {                                                    
+      168 +    const sourcePath = `student_auth_credentials/${selectedPro
+          +fileId}`;                                                     
+      169 +    const targetPath = `student_auth_credentials/${canonicalId
+          +}`;                                                           
+      170 +    operations.push({                                         
+      171 +      operationId: operationIdFor('select_credentials', source
+          +Path, targetPath),                                            
+      172 +      stage: 'select_credentials',                            
+      173 +      kind: 'recreate_document',                              
+      174 +      sourcePath,                                             
+      175 +      targetPath,                                             
+      176 +      canonicalProfileId: canonicalId,                        
+      177 +      dependsOn: [],                                          
+      178 +    });                                                       
+      179 +  }                                                           
+      180 +                                                              
+      181 +  // Every credential document that is not the canonical one i
+          +s retained rather                                             
+      182 +  // than removed — including the selected source it was just 
+          +copied from, and                                              
+      183 +  // including when the group is held. The retention plan is w
+          +hat makes a wrong                                             
+      184 +  // decision reversible for the thirty-day window instead of 
+          +immediately final.                                            
+      185    for (const entry of present) {
+      167 -    if (entry.profileId === selectedProfileId) continue;      
+      186 +    if (entry.profileId === canonicalId) continue;            
+      187      const sourcePath = `student_auth_credentials/${entry.profi
+           leId}`;
+      188      operations.push({
+      189        operationId: operationIdFor('select_credentials', source
+           Path, null),
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Task 8 xong (cbe6ad60). Task 9: manifest, decision, approval digest.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Task 9 gồm 3 module. Bắt đầu bằng rollbackArtifact — RED.
+
+● Write(scripts\student-profile-normalization\rollbackArtifact.test.ts)
+  ⎿  Wrote 135 lines to
+     scripts\student-profile-normalization\rollbackArtifact.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import { randomBytes } from 'node:crypto';
+       3 import {
+       4   decryptRollbackBeforeImages,
+       5   encryptRollbackBeforeImages,
+       6   ROLLBACK_ARTIFACT_FILE_NAME,
+       7 } from './rollbackArtifact.js';
+       8 
+       9 const KEY = randomBytes(32).toString('base64');
+      10 const AAD = {
+     … +149 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(scripts\student-profile-normalization\rollbackArtifact.ts)
+  ⎿  Wrote 136 lines to
+     scripts\student-profile-normalization\rollbackArtifact.ts
+       1 import { createCipheriv, createDecipheriv, randomBytes } from 'n
+       2 import { canonicalJson, sha256 } from './canonicalJson.js';
+       3 
+       5  * Encrypted before-images for the rollback path.
+       6  *
+         to change,
+       8  * which makes it the single most sensitive file the migration p
+       9  * contains real student names, contacts, and financial state. I
+         t is therefore
+          — the key comes
+     … +151 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● RED cho managedExportEvidence.
+
+● Write(scripts\student-profile-normalization\managedExportEvidence.test.ts)
+  ⎿  Wrote 148 lines to
+     scripts\student-profile-normalization\managedExportEvidence.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import {
+       3   FINAL_AUDIT_EXPORT_MAX_AGE_MS,
+       4   verifyManagedExportEvidence,
+       5 } from './managedExportEvidence.js';
+       6 
+       7 const NOW = new Date('2026-08-07T02:00:00.000Z');
+       8 
+       9 function operation(overrides: Record<string, unknown> = {}) {
+      10   return {
+     … +168 lines (ctrl+o to expand)
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(scripts\student-profile-normalization\managedExportEvidence.ts)
+  ⎿  Wrote 134 lines to
+     scripts\student-profile-normalization\managedExportEvidence.ts
+       1 import { canonicalJson, normalizeInstantForCanonicalJson, sha256
+       2 
+       3 /**
+         it binds to.
+       5  *
+          by restore
+       7  * rather than by reverse-patch, this snapshot is what productio
+       8  * So the checks here are about whether it is genuinely usable f
+         or that, not
+      10  *
+     … +155 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Lỗi ở helper trong test: ...overrides ghi đè lại metadata đã merge. Sửa
+  helper.
+
+● Update(scripts\student-profile-normalization\managedExportEvidence.test.ts)
+  ⎿  Added 5 lines, removed 2 lines
+       7  const NOW = new Date('2026-08-07T02:00:00.000Z');
+       8  
+       9  function operation(overrides: Record<string, unknown> = {}) {
+      10 +  // Metadata is pulled out of the spread deliberately: leaving
+         + it in would let                                               
+      11 +  // the outer spread clobber the merged object with the raw pa
+         +rtial.                                                         
+      12 +  const { metadata, ...rest } = overrides;                     
+      13    return {
+      14      name: 'projects/edutrack-prod/databases/edutrack/operations
+          /op-1',
+      15      done: true,
+      16 +    ...rest,                                                   
+      17      metadata: {
+      18        operationState: 'SUCCESSFUL',
+      19        outputUriPrefix: 'gs://edutrack-backups/2026-08-07T01-00-
+          00',
+      20        startTime: '2026-08-07T01:00:00.000Z',
+      21        endTime: '2026-08-07T01:12:00.000Z',
+      22        snapshotTime: '2026-08-07T01:00:00.000Z',
+      19 -      ...(overrides.metadata as Record<string, unknown> | undef
+         -ined),                                                         
+      23 +      ...(metadata as Record<string, unknown> | undefined),    
+      24      },
+      21 -    ...overrides,                                              
+      25    };
+      26  }
+      27  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 13/13 GREEN. Module cuối của Task 9 — reporter (digest, manifest, approval).
+  RED.
+
+● Write(scripts\student-profile-normalization\reporter.test.ts)
+  ⎿  Wrote 397 lines to
+     scripts\student-profile-normalization\reporter.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import { mkdtempSync, readFileSync } from 'node:fs';
+       3 import { tmpdir } from 'node:os';
+       4 import path from 'node:path';
+       5 import {
+       6   createReviewedStudentProfileNormalizationPlan,
+       7   createStudentProfileMergeApprovalDigest,
+       8   createStudentProfileMergePlanDigest,
+       9   escapeCsvCell,
+      10   writeStudentProfileNormalizationReports,
+     … +449 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(scripts\student-profile-normalization\reporter.ts)
+  ⎿  Wrote 314 lines to scripts\student-profile-normalization\reporter.ts
+       1 import { mkdir, writeFile } from 'node:fs/promises';
+       2 import path from 'node:path';
+       3 import { canonicalJson, sha256 } from './canonicalJson.js';
+       5 
+       6 /**
+       7  * Manifests, digests, and the approval gate.
+       8  *
+         everything that
+      10  * could change what the run does to production: target, run, co
+         mmit, registry
+     … +363 lines (ctrl+o to expand)
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Task 9 xong (00f6d569). 186 test xanh. Đọc Task 10–12 để làm tiếp.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Task 10 — parser là tầng an toàn, làm trọn vẹn. RED.
+
+● Write(scripts\normalize-student-profiles.test.ts)
+  ⎿  Wrote 248 lines to scripts\normalize-student-profiles.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import { parseStudentProfileNormalizationArgs } from './normaliz
+         e-student-profiles.js';
+       3 
+       4 const SHA = 'a'.repeat(40);
+       6 
+       7 const PRELIMINARY = [
+       8   '--audit-preliminary',
+       9   '--run-id', 'run-1',
+      10   '--report-dir', 'scratch/run-1',
+     … +269 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(scripts\normalize-student-profiles.ts)
+  ⎿  Wrote 275 lines to scripts\normalize-student-profiles.ts
+       1 /**
+       3  *
+       4  * This file is the confirmation layer. Every destructive mode r
+       5  * operator to restate, on the command line, exactly which plan,
+       6  * project, database, commit, and export they believe they are a
+         cting on; the
+         ts and the live
+       8  * database and refuses on any disagreement. Typing a confirmati
+       9  * ceremony — it is the only thing standing between "I ran the r
+      10  * the wrong terminal" and an unreviewed production write.
+     … +305 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 31/31 GREEN. Một xung đột tên trong plan cần khoá lại bằng test:
+  --rollback-plan vừa là mode vừa là flag giá trị.
+
+● Update(scripts\normalize-student-profiles.test.ts)
+  ⎿  Added 27 lines
+      218      ).toMatchObject({ mode: 'rollback-apply', confirmRollbackD
+           igest: DIGEST });
+      219    });
+      220  
+      221 +  it('names the rollback plan input --rollback-plan-file, not 
+          +--rollback-plan', () => {                                     
+      222 +    // The written plan spelled both the mode selector and thi
+          +s value flag                                                  
+      223 +    // `--rollback-plan`, which cannot parse: the mode takes n
+          +o value. The                                                  
+      224 +    // value flag is renamed; the mode keeps the documented na
+          +me.                                                           
+      225 +    expect(                                                   
+      226 +      parseStudentProfileNormalizationArgs([                  
+      227 +        '--rollback-approve',                                 
+      228 +        '--rollback-plan-file', 'rollback-plan.json',         
+      229 +        '--approval-role', 'finance',                         
+      230 +        '--reviewer-id', 'r2',                                
+      231 +        '--confirm-rollback-digest', DIGEST,                  
+      232 +        '--output', 'reviewed-rollback.json',                 
+      233 +      ])                                                      
+      234 +    ).toMatchObject({ mode: 'rollback-approve', rollbackPlanPa
+          +th: 'rollback-plan.json' });                                  
+      235 +                                                              
+      236 +    expect(() =>                                              
+      237 +      parseStudentProfileNormalizationArgs([                  
+      238 +        '--rollback-approve',                                 
+      239 +        '--rollback-plan', 'rollback-plan.json',              
+      240 +        '--approval-role', 'finance',                         
+      241 +        '--reviewer-id', 'r2',                                
+      242 +        '--confirm-rollback-digest', DIGEST,                  
+      243 +        '--output', 'reviewed-rollback.json',                 
+      244 +      ])                                                      
+      245 +    ).toThrow('STUDENT_PROFILE_CLI_MODE_CONFLICT');           
+      246 +  });                                                         
+      247 +                                                              
+      248    it('rejects an approval role the gate does not recognize', (
+           ) => {
+      249      expect(() =>
+      250        parseStudentProfileNormalizationArgs([
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Đồng bộ plan với thay đổi tên cờ và ghi rõ phần chưa giao.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(docs\superpowers\plans\2026-08-06-student-profile-merge-engine-v2.md)
+  ⎿  Added 1 line, removed 1 line
+      855  apply: --apply --reviewed-plan FILE --confirm-plan-digest SHA 
+           --confirm-approval-digest SHA --confirm-project ID --confirm-d
+           atabase ID --confirm-commit SHA --confirm-export ID --actor-id
+            USER --report-dir DIR
+      856  verify: --verify plus reviewed-plan/plan-digest/approval-diges
+           t/target/run confirmations
+      857  rollback plan: --rollback-plan plus reviewed-plan/plan-digest/
+           approval-digest/target/run confirmations and --output FILE
+      858 -rollback approve: --rollback-approve --rollback-plan FILE --ap
+          -proval-role ROLE --reviewer-id USER --confirm-rollback-digest 
+          -SHA --output FILE                                             
+      858 +rollback approve: --rollback-approve --rollback-plan-file FILE
+          + --approval-role ROLE --reviewer-id USER --confirm-rollback-di
+          +gest SHA --output FILE                                        
+      859  rollback apply: --rollback-apply --reviewed-rollback FILE --co
+           nfirm-rollback-digest SHA --confirm-project ID --confirm-datab
+           ase ID --run-id RUN --actor-id USER
+      860  ```
+      861  
+
+● Update(docs\superpowers\plans\2026-08-06-student-profile-merge-engine-v2.md)
+  ⎿  Added 6 lines
+      861  
+      862  Reject unknown flags, conflicting modes, missing target/export
+           /commit/reviewer/actor/role/digest confirmations, non-final or
+            non-applyable plans, reused report directories, and `--help` 
+           Firebase initialization. The rollback encryption key is read f
+           rom environment by the artifact module and is forbidden as a C
+           LI flag.
+      863  
+      864 +Note the rename above: the original draft spelled both the rol
+          +lback-approve mode selector and its plan-file input `--rollbac
+          +k-plan`, which cannot parse, because the mode selector takes n
+          +o value. The mode keeps the documented name and the value flag
+          + becomes `--rollback-plan-file`.                              
+      865 +                                                              
+      866 +Also reject a repeated flag rather than taking the last occurr
+          +ence. Last-one-wins lets a stale value scrolled up in shell hi
+          +story sit silently ahead of the intended one, which is exactly
+          + the class of operator error every confirmation flag exists to
+          + catch.                                                       
+      867 +                                                              
+      868 +**Sequencing:** the parser ships on its own, ahead of `runStud
+          +entProfileNormalization` and the package scripts. Mode executi
+          +on depends on the apply, verify, and rollback executors from T
+          +asks 11 and 12, and npm scripts pointing at a CLI that cannot 
+          +execute a mode would be worse than none. Add the scripts in Ta
+          +sk 12's commit, once every mode has an executor behind it.    
+      869 +                                                              
+      870  - [ ] **Step 2: Write failing read-only tests**
+      871  
+      872  Both audit modes load the configured named Firestore database 
+           and current Git SHA but create no Firestore run/journal or bus
+           iness writes. Preliminary audit cannot emit operations. Final 
+           audit must load review decisions, export evidence, and encrypt
+           ed rollback artifact. Approval and rollback approval read/writ
+           e local artifacts only and never alter the plan/rollback opera
+           tions they attest. The CLI obtains `git rev-parse HEAD` itself
+            and compares it with the confirmed SHA.
+  Ran 1 shell command (ctrl+o to expand)
+
+● Đã xong Task 1, 2, 3, 4, 5, 6, 7, 8, 9, 10. Xem quy mô Task 11–13 còn lại.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Chạy toàn bộ suite liên quan để báo cáo có bằng chứng.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Dừng ở ranh giới sạch để báo cáo — mọi thứ đã commit, 257 test xanh.
+
+  Đã hoàn thành phiên này
+
+  Workstream C Task 1–10 (trước đó Phase 0 và Task 2–7 đã xong):
+
+  ┌──────────┬───────────────────────────────────────────────────────────────┐
+  │  Commit  │                           Nội dung                            │
+  ├──────────┼───────────────────────────────────────────────────────────────┤
+  │ 5a6c3055 │ Finance reconciler — bảo toàn tiền, phụ thuộc                 │
+  │          │ ledger→receipt/invoice                                        │
+  ├──────────┼───────────────────────────────────────────────────────────────┤
+  │ 50c51d8c │ Vô hiệu hoá writer script merge cũ                            │
+  ├──────────┼───────────────────────────────────────────────────────────────┤
+  │ cbe6ad60 │ Credential + linked user, chỉ metadata                        │
+  ├──────────┼───────────────────────────────────────────────────────────────┤
+  │ 00f6d569 │ Manifest, planDigest, cổng phê duyệt, export evidence,        │
+  │          │ rollback artifact                                             │
+  ├──────────┼───────────────────────────────────────────────────────────────┤
+  │ e2e065b9 │ CLI guard — tầng xác nhận                                     │
+  └──────────┴───────────────────────────────────────────────────────────────┘
+
+  Ba quyết định đáng nói
+
+  Xoá hẳn writer cũ, không chỉ chặn. Kế hoạch chỉ yêu cầu thêm guard. Nhưng để
+  lại một writer đầy đủ chức năng sau một dòng guard nghĩa là ai đó xoá một dòng
+  là mở lại được — đúng cái đường đã tạo ra 58 bản ghi nửa vời đang phải sửa.
+  Tôi xoá applyGroup cùng các import chết, giữ planner để đối chiếu.
+
+  Credential không bao giờ chọn bằng cách đoán. So timestamp hay password
+  version sẽ luôn ra được người thắng — và đó chính là kiểu sai cần tránh: bản
+  ghi mới hơn không chứng minh gia đình đang dùng mật khẩu nào. Vật liệu khác
+  nhau mà không có bằng chứng thì hold, đúng như ca HS260167.
+
+  --rollback-plan trong plan không parse được — vừa là mode selector vừa là flag
+  nhận giá trị. Đổi flag giá trị thành --rollback-plan-file, khoá bằng test, đã
+  sửa vào tài liệu plan.
+
+  Tôi cũng tự sửa hai lỗi của mình: isPlainObject bắt Timestamp trước khi
+  convert (làm hỏng fingerprint), và một helper test tự ghi đè metadata đã
+  merge.
+
+  Còn lại — Task 11, 12, 13
+
+  Đây là engine thực thi, phần lớn nhất còn lại:
+
+  - Task 11 writer.ts — preflight binding, run/journal Firestore, executor từng
+  transaction, thứ tự 11 stage
+  - Task 12 verifier.ts — invariant toàn cục, ranh giới rollback
+  - Task 13 — diễn tập trên snapshot production
+
+  Tôi dừng ở đây thay vì bắt đầu Task 11 vì nó cần emulator harness và là một
+  khối lớn — bắt đầu rồi hết context giữa chừng sẽ tệ hơn là dừng ở ranh giới
+  sạch này.
+
+  Chưa giao có chủ ý: npm scripts cho CLI. Chúng sẽ trỏ vào một CLI chưa chạy
+  được mode nào — thêm vào Task 12 khi mỗi mode đã có executor.
+
+  Nói "tiếp tục" để tôi vào Task 11.
+
+✻ Cogitated for 21m 19s
+
+❯ OK TIẾP TỤC                                                                   
+
+● Task 11 — writer. Bắt đầu bằng RED cho preflight (thuần logic, nơi mọi ràng
+  buộc sống).
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Mở rộng operation trong plan để mang đủ trường thực thi — preliminary chưa có
+  fingerprint, final bắt buộc phải có.
+
+● Update(scripts\student-profile-normalization\reporter.ts)
+  ⎿  Added 11 lines
+      25    stage: string;
+      26    sourcePath: string | null;
+      27    targetPath: string | null;
+      28 +  /**                                                          
+      29 +   * Execution fields. Optional on the type because a prelimina
+         +ry audit                                                       
+      30 +   * legitimately has none — it never re-reads Firestore and em
+         +its no                                                         
+      31 +   * executable operation. Preflight requires all of them befor
+         +e apply, so                                                    
+      32 +   * "optional here" never means "optional at write time".     
+      33 +   */                                                          
+      34 +  registryEntryId?: string;                                    
+      35 +  kind?: string;                                               
+      36 +  dependsOn?: string[];                                        
+      37 +  sourceFingerprint?: string | null;                           
+      38 +  expectedAfterFingerprint?: string;                           
+      39  };
+      40  
+      41  export type StudentProfileMergePlanGroup = {
+
+● Write(scripts\student-profile-normalization\writer.test.ts)
+  ⎿  Wrote 474 lines to
+     scripts\student-profile-normalization\writer.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import { randomBytes } from 'node:crypto';
+       3 import {
+       4   createReviewedStudentProfileNormalizationPlan,
+       5   createStudentProfileMergePlanDigest,
+       7 } from './reporter.js';
+       8 import { encryptRollbackBeforeImages } from './rollbackArtifact.
+         js';
+       9 import {
+      10   applyStudentProfileNormalization,
+     … +553 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(scripts\student-profile-normalization\writer.ts)
+  ⎿  Wrote 429 lines to scripts\student-profile-normalization\writer.ts
+       1 import { canonicalJson, sha256 } from './canonicalJson.js';
+       2 import { decryptRollbackBeforeImages, type EncryptedRollbackArti
+         fact, type RollbackArtifactAad } from './rollbackArtifact.js';
+       3 import {
+       4   createStudentProfileMergeApprovalDigest,
+       6   type StudentProfileMergePlanOperation,
+       7   type StudentProfileMergeReviewedFile,
+       8 } from './reporter.js';
+       9 
+      10 /**
+     … +492 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 30/32. Hai fail là do test của tôi sửa plan sau khi tính digest, nên guard
+  digest bắn trước — đúng thứ tự. Nhưng như vậy chưa chạm được guard
+  operation-id. Sửa test để plan bị giả mạo và ký lại, đó mới là mối đe doạ
+  thật.
+
+● Update(scripts\student-profile-normalization\writer.test.ts)
+  ⎿  Added 9 lines, removed 2 lines
+      113    });
+      114  }
+      115  
+      116 -function preflightInput(overrides: Record<string, unknown> = {
+          -}) {                                                          
+      117 -  const { plan, artifact } = sealedPlan();                    
+      116 +function preflightInput(                                      
+      117 +  overrides: Record<string, unknown> = {},                    
+      118 +  mutate: (plan: StudentProfileMergePlan) => void = () => {}  
+      119 +) {                                                           
+      120 +  // The mutation runs before the digest is computed and the p
+          +lan is signed, so                                             
+      121 +  // the resulting artifact is internally consistent. That is 
+          +the case worth                                                
+      122 +  // testing: a digest check alone cannot catch someone who ed
+          +its a plan and                                                
+      123 +  // re-signs it, which is exactly why operation ids are conte
+          +nt-derived.                                                   
+      124 +  const { plan, artifact } = sealedPlan(mutate);              
+      125    const reviewed = reviewedFor(plan);
+      126    return {
+      127      reviewed,
+
+● Update(scripts\student-profile-normalization\writer.test.ts)
+  ⎿  Added 28 lines, removed 5 lines
+      275      expect(artifact.entryCount).toBe(1);
+      276    });
+      277  
+      278 -  it('rejects an operation whose id does not match its content
+          -', () => {                                                    
+      279 -    const input = preflightInput();                           
+      280 -    input.reviewed.plan.groups[0].operations[0].operationId = 
+          -'hand-written';                                               
+      278 +  it('rejects an operation whose id does not match its content
+          +, even when re-signed', () => {                               
+      279 +    const input = preflightInput({}, (plan) => {              
+      280 +      plan.groups[0].operations[0].operationId = 'hand-written
+          +';                                                            
+      281 +    });                                                       
+      282  
+      283      expect(() => preflightStudentProfileNormalization(input)).
+           toThrow(
+      284        'STUDENT_PROFILE_PREFLIGHT_OPERATION_ID_MISMATCH'
+      285      );
+      286    });
+      287  
+      288 +  it('rejects an operation retargeted after its id was derived
+          +', () => {                                                    
+      289 +    // The forgery this actually defends against: a valid oper
+          +ation pointed at                                              
+      290 +    // a different document, then re-digested and re-approved.
+      291 +    const input = preflightInput({}, (plan) => {              
+      292 +      plan.groups[0].operations[0].targetPath = 'course_fee_le
+          +dgers/somewhere-else';                                        
+      293 +    });                                                       
+      294 +                                                              
+      295 +    expect(() => preflightStudentProfileNormalization(input)).
+          +toThrow(                                                      
+      296 +      'STUDENT_PROFILE_PREFLIGHT_OPERATION_ID_MISMATCH'       
+      297 +    );                                                        
+      298 +  });                                                         
+      299 +                                                              
+      300    it('rejects a final operation missing its execution fields',
+            () => {
+      288 -    const input = preflightInput();                           
+      289 -    delete input.reviewed.plan.groups[0].operations[0].expecte
+          -dAfterFingerprint;                                            
+      301 +    const input = preflightInput({}, (plan) => {              
+      302 +      delete plan.groups[0].operations[0].expectedAfterFingerp
+          +rint;                                                         
+      303 +    });                                                       
+      304  
+      305      expect(() => preflightStudentProfileNormalization(input)).
+           toThrow(
+      306        'STUDENT_PROFILE_PREFLIGHT_OPERATION_INCOMPLETE'
+      307      );
+      308    });
+      309 +                                                              
+      310 +  it('still rejects a plan edited after signing, before it rea
+          +ches the operation checks', () => {                           
+      311 +    const input = preflightInput();                           
+      312 +    input.reviewed.plan.groups[0].operations[0].targetPath = '
+          +course_fee_ledgers/somewhere-else';                           
+      313 +                                                              
+      314 +    expect(() => preflightStudentProfileNormalization(input)).
+          +toThrow(                                                      
+      315 +      'STUDENT_PROFILE_PREFLIGHT_PLAN_DIGEST_MISMATCH'        
+      316 +    );                                                        
+      317 +  });                                                         
+      318  });
+      319  
+      320  // --- Executor ---
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Update(scripts\student-profile-normalization\writer.test.ts)
+  ⎿  Added 1 line, removed 1 line
+      328    const store = {
+      329      docs,
+      330      transactions,
+      331 -    async runTransaction<T>(fn: (tx: unknown) => Promise<T>): 
+          -Promise<T> {                                                  
+      331 +    async runTransaction<T>(fn: (tx: NormalizationTransaction)
+          + => Promise<T>): Promise<T> {                                 
+      332        transactions.push('begin');
+      333        const staged = new Map<string, Doc | null>();
+      334        const tx = {
+
+● Update(scripts\student-profile-normalization\writer.test.ts)
+  ⎿  Added 1 line
+      11    deriveNormalizationOperationId,
+      12    MAINTENANCE_DOC_PATH,
+      13    preflightStudentProfileNormalization,
+      14 +  type NormalizationTransaction,                               
+      15  } from './writer.js';
+      16  
+      17  const KEY = randomBytes(32).toString('base64');
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 11 xong (da8bc5c4). Task 12 — verifier và ranh giới rollback.
+
+  Ran 1 shell command (ctrl+o to expand)
+● Task 12 — verifier trước. Kiểm tra chữ ký backfill planner để tái sử dụng như
+  plan yêu cầu.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Đúng như cần. RED cho verifier.
+
+● Write(scripts\student-profile-normalization\verifier.test.ts)
+  ⎿  Wrote 321 lines to
+     scripts\student-profile-normalization\verifier.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import { verifyStudentProfileNormalization } from './verifier.js
+       3 
+       4 function input(overrides: Record<string, unknown> = {}) {
+       5   const base = {
+       7     plannedOperationCount: 2,
+       8     journal: [
+       9       { runId: 'run-1', operationId: 'op-1', groupId: 'g-1', sta
+      10       { runId: 'run-1', operationId: 'op-2', groupId: 'g-1', sta
+         ge: 'tombstone_legacy', status: 'applied' },
+     … +362 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(scripts\student-profile-normalization\verifier.ts)
+  ⎿  Wrote 275 lines to scripts\student-profile-normalization\verifier.ts
+       1 import { planAdmissionSearchBackfill } from './admissionSearchBa
+       2 import type { NormalizationJournalRecord } from './writer.js';
+       3 import type { StudentMergeBlocker } from './types.js';
+       4 
+       6  * Global post-apply verification.
+       7  *
+         correct if all
+       9  * of them are simultaneously true, so a single failure invalida
+         tes the whole
+         -correct merge.
+     … +321 lines (ctrl+o to expand)
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Fixture của tôi đoán giá trị normalized. Kiểm tra normalizer thật thay vì
+  đoán.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Implementation đúng — fixture của tôi sai: contact chuẩn hoá thành
+  84900000000, nên 0900000000 bị bắt là stale đúng luật. Sửa fixture.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 21/21 GREEN. Giờ phần rollback trong writer.ts — RED.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Heredoc bị lỗi quote. Kiểm tra file không bị hỏng, rồi tách rollback thành
+  file test riêng — sạch hơn.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Nguyên vẹn. Viết rollback thành file test riêng, tự chứa.
+
+● Write(scripts\student-profile-normalization\writerRollback.test.ts)
+  ⎿  Wrote 323 lines to
+     scripts\student-profile-normalization\writerRollback.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import { randomBytes } from 'node:crypto';
+       3 import { encryptRollbackBeforeImages } from './rollbackArtifact.
+         js';
+       4 import {
+       6   createReviewedStudentProfileNormalizationRollback,
+       7   MAINTENANCE_DOC_PATH,
+       8   planStudentProfileNormalizationRollback,
+       9   type NormalizationTransaction,
+      10 } from './writer.js';
+     … +380 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● RED (18 fail). Bổ sung phần rollback vào writer.ts.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Bash heredoc lỗi lặp lại. Tách rollback thành module riêng (vốn là mối quan
+  tâm riêng), writer.ts re-export.
+
+● Write(scripts\student-profile-normalization\rollback.ts)
+  ⎿  Wrote 291 lines to scripts\student-profile-normalization\rollback.ts
+       1 import { canonicalJson, sha256 } from './canonicalJson.js';
+       2 import {
+       3   decryptRollbackBeforeImages,
+       4   type EncryptedRollbackArtifact,
+       5   type RollbackArtifactAad,
+       7 import { MAINTENANCE_DOC_PATH, type NormalizationStore } from '.
+         /writerCore.js';
+       8 
+       9 /**
+      10  * The rollback boundary.
+     … +327 lines (ctrl+o to expand)
+
+● Cần tách phần dùng chung để tránh vòng import.
+
+● Write(scripts\student-profile-normalization\writerCore.ts)
+  ⎿  Wrote 30 lines to scripts\student-profile-normalization\writerCore.ts
+       1 /**
+         rollback
+       3  * reverser, plus the one document path both of them re-read.
+       5  * It lives in its own module so `rollback.ts` and `writer.ts` c
+       6  * on it without depending on each other. The port is intentiona
+         lly small —
+         e engine does to
+       8  * production has to be expressible in terms a fake store can im
+       9  * faithfully. A wider port would mean the tests exercise someth
+      10  * what runs.
+     … +31 lines (ctrl+o to expand)
+
+● Update(scripts\student-profile-normalization\writer.ts)
+  ⎿  Added 7 lines, removed 1 line
+      28   * maintenance window exists to prevent.
+      29   */
+      30  
+      31 -export const MAINTENANCE_DOC_PATH = '_maintenance/student_ident
+         -ity';                                                          
+      31 +export {                                                       
+      32 +  MAINTENANCE_DOC_PATH,                                        
+      33 +  type NormalizationStore,                                     
+      34 +  type NormalizationTransaction,                               
+      35 +} from './writerCore.js';                                      
+      36 +export * from './rollback.js';                                 
+      37 +                                                               
+      38  const JOURNAL_COLLECTION = 'student_profile_merge_journal';
+      39  
+      40  export type NormalizationOperation = Required<
+
+  Ran 1 shell command (ctrl+o to expand)
+● Bốn lỗi type, sửa cả bốn.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Comment trong verifier bị lỗi escape. Sửa cùng hai lỗi type trong test.
+
+● Update(scripts\student-profile-normalization\verifier.ts)
+  ⎿  Added 6 lines, removed 5 lines
+       1  import { planAdmissionSearchBackfill } from './admissionSearchB
+          ackfill.js';
+       2 +import type { StudentMergeBlocker } from './types.js';         
+       3 +                                                               
+       4  /**
+       3 - * Verification reads only what it judges by, so it declares it
+         -s own narrow                                                   
+       4 - * view rather than importing the writer'"'"'s full journal rec
+         -ord. A verifier                                                
+       5 - * that demanded every field the writer happens to store would 
+         -couple the gate                                                
+       6 - * to the writer'"'"'s storage shape for no gain.              
+       5 + * Verification reads only what it judges by, so it declares it
+         +s own narrow view                                              
+       6 + * rather than importing the writer's full journal record. A ve
+         +rifier that                                                    
+       7 + * demanded every field the writer happens to store would coupl
+         +e this gate to                                                 
+       8 + * the writer's storage shape for no gain.                     
+       9   */
+      10  export type VerificationJournalEntry = {
+      11    operationId: string;
+      12    status: string;
+      13    errorCode?: string;
+      14  };
+      13 -import type { StudentMergeBlocker } from './types.js';         
+      15  
+      16  /**
+      17   * Global post-apply verification.
+
+● Update(scripts\student-profile-normalization\writerRollback.test.ts)
+  ⎿  Added 3 lines, removed 1 line
+      45  ];
+      46  
+      47  function artifactFor(
+      48 -  entries = [{ entryId: 'e-1', path: 'students/legacy-1', befor
+         -e: { name: 'Quách Hoàng Minh' } }]                             
+      48 +  entries: Array<{ entryId: string; path: string; before: Recor
+         +d<string, unknown> }> = [                                      
+      49 +    { entryId: 'e-1', path: 'students/legacy-1', before: { name
+         +: 'Quách Hoàng Minh' } },                                      
+      50 +  ]                                                            
+      51  ) {
+      52    return encryptRollbackBeforeImages({ entries, aad: AAD, keyBa
+          se64: KEY });
+      53  }
+
+● Update(scripts\student-profile-normalization\writerRollback.test.ts)
+  ⎿  Added 1 line, removed 1 line
+      275  
+      276    it('refuses an unapproved rollback plan', async () => {
+      277      const input = applyInput();
+      278 -    const unapproved = { ...input.reviewed, approved: false } 
+          -as typeof input.reviewed;                                     
+      278 +    const unapproved = { ...input.reviewed, approved: false } 
+          +as unknown as typeof input.reviewed;                          
+      279  
+      280      const result = await applyStudentProfileNormalizationRollb
+           ack({
+      281        ...input,
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 247 test xanh, typecheck sạch. Commit Task 12.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Task 13 — bảo vệ dữ liệu run và cổng diễn tập.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Catch-all deny đã có, nhưng rule tường minh mới chống được việc sau này ai đó
+  thêm rule rộng hơn. Xem test rules.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Thêm rule tường minh và index cho journal — RED trước.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● RED xác nhận. GREEN — thêm rule và index.
+
+● Update(firestore.rules)
+  ⎿  Added 17 lines
+      755        allow read, write: if false;
+      756      }
+      757  
+      758 +    // ─── Student Profile Merge Runs and Journal (server-only
+          +) ────────────                                                
+      759 +    // These hold the identity decisions, before/after fingerp
+          +rints, and                                                    
+      760 +    // operation trail of a production merge. The catch-all be
+          +low already                                                   
+      761 +    // denies them; these blocks keep them denied if a broader
+          + rule is ever                                                 
+      762 +    // added above it, and make the intent explicit to the nex
+          +t reader.                                                     
+      763 +    match /student_profile_merge_runs/{runId} {               
+      764 +      allow read, write: if false;                            
+      765 +    }                                                         
+      766 +                                                              
+      767 +    match /student_profile_merge_journal/{entryId} {          
+      768 +      allow read, write: if false;                            
+      769 +    }                                                         
+      770 +                                                              
+      771 +    match /student_profile_aliases/{legacyProfileId} {        
+      772 +      allow read, write: if false;                            
+      773 +    }                                                         
+      774 +                                                              
+      775      // ─── Default Deny Catch-all ────────────────────────────
+           ──────────────
+      776      match /{document=**} {
+      777        allow read, write: if false;
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Regex động bị hỏng escape. Viết lại theo đúng kiểu literal như các test có sẵn
+  — dễ đọc hơn.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(firestore.rules.test.mjs)
+  ⎿  Added 9 lines, removed 7 lines
+      166      // These carry the identity decisions and before/after fin
+           gerprints of a
+      167      // production merge. The catch-all already denies them, bu
+           t an explicit
+      168      // block keeps them denied if a broader rule is ever added
+            above it.
+      169 -    for (const collection of ['student_profile_merge_runs', 's
+          -tudent_profile_merge_journal']) {                             
+      170 -      const block =                                           
+      171 -        rules.match(new RegExp(`match /${collection}/\{[A-Za-z
+          -]+\} \{[\s\S]*?\}`))?.[0] || '';                              
+      169 +    const runs =                                              
+      170 +      rules.match(/match \/student_profile_merge_runs\/\{runId
+          +\} \{[\s\S]*?\}/)?.[0] || '';                                 
+      171 +    const journal =                                           
+      172 +      rules.match(/match \/student_profile_merge_journal\/\{en
+          +tryId\} \{[\s\S]*?\}/)?.[0] || '';                            
+      173 +    const aliases =                                           
+      174 +      rules.match(/match \/student_profile_aliases\/\{legacyPr
+          +ofileId\} \{[\s\S]*?\}/)?.[0] || '';                          
+      175  
+      173 -      expect(block, `${collection} needs an explicit deny bloc
+          -k`).toContain(                                                
+      174 -        'allow read, write: if false;'                        
+      175 -      );                                                      
+      176 -    }                                                         
+      176 +    expect(runs).toContain('allow read, write: if false;');   
+      177 +    expect(journal).toContain('allow read, write: if false;');
+      178 +    expect(aliases).toContain('allow read, write: if false;');
+      179    });
+      180  
+      181    it('keeps course closing records server-only and client-lock
+           ed', () => {
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Rules + index xanh. Giờ fixture diễn tập và chu trình đầy đủ.
+
+● Write(scripts\student-profile-normalization\rehearsalFixture.ts)
+  ⎿  Wrote 236 lines to
+     scripts\student-profile-normalization\rehearsalFixture.ts
+       1 import { Timestamp } from 'firebase-admin/firestore';
+       2 import { deriveNormalizationOperationId } from './writer.js';
+         oup } from './reporter.js';
+       4 import type { StudentMergeDocumentEffect } from './rollback.js';
+       5 
+       7  * Fixtures for the snapshot rehearsal.
+       8  *
+       9  * The shapes here are drawn from what the 2026-08-06 production
+      10  * actually found, not from what a merge engine is convenient to
+          test against:
+     … +263 lines (ctrl+o to expand)
+
+● Write(scripts\student-profile-normalization\snapshotRehearsal.test.ts)
+  ⎿  Wrote 489 lines to
+     scripts\student-profile-normalization\snapshotRehearsal.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import { randomBytes } from 'node:crypto';
+       3 import { mkdtempSync, readFileSync } from 'node:fs';
+       5 import path from 'node:path';
+       6 import { fingerprintDocumentProjection } from './canonicalJson.j
+         s';
+       7 import { planAdmissionSearchBackfill } from './admissionSearchBa
+       8 import {
+       9   createReviewedStudentProfileNormalizationPlan,
+      10   createStudentProfileMergePlanDigest,
+     … +538 lines (ctrl+o to expand)
+  Ran 1 shell command (ctrl+o to expand)
+
+● 14/14 ngay lần đầu — đáng ngờ với một test diễn tập. Một assert của tôi dùng
+  regex lỏng, có thể pass vì lý do khác. Siết lại.
+
+● Update(scripts\student-profile-normalization\snapshotRehearsal.test.ts)
+  ⎿  Added 25 lines, removed 14 lines
+      180  
+      181    it('never lets a hold reach preflight, so no business write 
+           can occur', () => {
+      182      const held = rehearsalPlan([heldCredentialGroup()]);
+      183 -    const digest = createStudentProfileMergePlanDigest(held); 
+      183 +    const artifact = encryptRollbackBeforeImages({            
+      184 +      entries: cleanRollbackEntries(),                        
+      185 +      aad: AAD,                                               
+      186 +      keyBase64: KEY,                                         
+      187 +    });                                                       
+      188 +    held.rollbackArtifact = {                                 
+      189 +      fileName: artifact.fileName,                            
+      190 +      digest: artifact.digest,                                
+      191 +      entryCount: artifact.entryCount,                        
+      192 +    };                                                        
+      193 +    const planDigest = createStudentProfileMergePlanDigest(hel
+          +d);                                                           
+      194 +    const approvals = approvalsFor(planDigest);               
+      195 +    // A real approval digest, so this test cannot pass for th
+          +e unrelated                                                   
+      196 +    // reason that the digest was wrong. The blocker check is 
+          +the only thing                                                
+      197 +    // left to refuse it.                                     
+      198 +    const approvalDigest = createStudentProfileMergeApprovalDi
+          +gest({ planDigest, approvals });                              
+      199  
+      185 -    // Even a hand-built "reviewed" file carrying the hold is 
+          -refused, one                                                  
+      186 -    // layer deeper than the approval gate that already refuse
+          -d it.                                                         
+      200 +    // A hand-built "reviewed" file that skipped the approval 
+          +gate is still                                                 
+      201 +    // refused one layer deeper, at preflight.                
+      202      expect(() =>
+      203        preflightStudentProfileNormalization({
+      204          reviewed: {
+      205            approved: true,
+      206            applyable: true,
+      192 -          planDigest: digest,                                 
+      193 -          approvalDigest: 'x'.repeat(64),                     
+      194 -          approvals: approvalsFor(digest),                    
+      207 +          planDigest,                                         
+      208 +          approvalDigest,                                     
+      209 +          approvals,                                          
+      210            target: REHEARSAL_TARGET,
+      211            plan: held,
+      212          },
+      198 -        rollbackArtifact: encryptRollbackBeforeImages({       
+      199 -          entries: cleanRollbackEntries(),                    
+      200 -          aad: AAD,                                           
+      201 -          keyBase64: KEY,                                     
+      202 -        }),                                                   
+      213 +        rollbackArtifact: artifact,                           
+      214          rollbackAad: AAD,
+      215          rollbackKeyBase64: KEY,
+      216          confirmations: {
+      206 -          planDigest: digest,                                 
+      207 -          approvalDigest: 'x'.repeat(64),                     
+      217 +          planDigest,                                         
+      218 +          approvalDigest,                                     
+      219            projectId: REHEARSAL_TARGET.projectId,
+      220            databaseId: REHEARSAL_TARGET.databaseId,
+      221            sourceCommit: REHEARSAL_COMMIT,
+     ...
+      225          },
+      226          observed: OBSERVED,
+      227        })
+      217 -    ).toThrow(/APPROVAL_DIGEST_MISMATCH|PLAN_HAS_BLOCKERS/);  
+      228 +    ).toThrow('STUDENT_PROFILE_PREFLIGHT_PLAN_HAS_BLOCKERS'); 
+      229    });
+      230  });
+      231  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Chạy toàn bộ cổng của Workstream C như plan yêu cầu.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● StudentMergeDocumentEffect đã tồn tại trong types.ts — tôi khai báo trùng ở
+  rollback. Hợp nhất về một nguồn.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Update(scripts\student-profile-normalization\reporter.test.ts)
+  ⎿  Added 9 lines, removed 1 line
+      36          operations: [
+      37            { operationId: 'op-a', stage: 'move_finance_keys', so
+          urcePath: 'course_fee_ledgers/l-1', targetPath: 'course_fee_led
+          gers/l-2' },
+      38          ],
+      39 -        documentEffects: [{ path: 'students/legacy-1', beforeFi
+         -ngerprint: 'b'.repeat(64), afterFingerprint: 'a'.repeat(64) }],
+      39 +        documentEffects: [                                     
+      40 +          {                                                    
+      41 +            path: 'students/legacy-1',                         
+      42 +            beforeFingerprint: 'b'.repeat(64),                 
+      43 +            afterFingerprint: 'a'.repeat(64),                  
+      44 +            restoreStrategy: 'restore_before_image',           
+      45 +            rollbackArtifactEntryId: 'e-1',                    
+      46 +          },                                                   
+      47 +        ],                                                     
+      48          decisions: { fieldSources: {}, credential: { action: 'n
+          one' } },
+      49          money: { before: { ledgerAmounts: 1_000_000 }, expected
+          After: { ledgerAmounts: 1_000_000 } },
+      50          blockers: [],
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Chạy nốt hai cổng còn lại: rules emulator và build.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Mọi cổng đều xanh: 349 unit + 112 rules emulator + typecheck + build. Commit
+  Task 13.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Workstream C hoàn tất cả 13 task. Ghi lại trạng thái vào memory.
+
+  Ran 1 shell command, wrote 1 memory (ctrl+o to expand)
+
+● Workstream C hoàn tất — cả 13 task. 8 commit phiên này, mọi cổng xanh.
+
+  Bằng chứng
+
+  349 unit test  ·  112 rules emulator test
+  typecheck sạch  ·  build 35s OK  ·  git diff --check sạch
+
+  ┌──────────┬───────────────────────────────────────┐
+  │  Commit  │                 Task                  │
+  ├──────────┼───────────────────────────────────────┤
+  │ 5a6c3055 │ 7 — Finance, bảo toàn tiền            │
+  ├──────────┼───────────────────────────────────────┤
+  │ 50c51d8c │ 1 — Xoá writer script cũ              │
+  ├──────────┼───────────────────────────────────────┤
+  │ cbe6ad60 │ 8 — Credential, chỉ metadata          │
+  ├──────────┼───────────────────────────────────────┤
+  │ 00f6d569 │ 9 — Manifest, digest, cổng phê duyệt  │
+  ├──────────┼───────────────────────────────────────┤
+  │ e2e065b9 │ 10 — CLI guard                        │
+  ├──────────┼───────────────────────────────────────┤
+  │ da8bc5c4 │ 11 — Preflight + apply có journal     │
+  ├──────────┼───────────────────────────────────────┤
+  │ d896e891 │ 12 — Verifier + ranh giới rollback    │
+  ├──────────┼───────────────────────────────────────┤
+  │ 0385bd42 │ 13 — Fixture diễn tập + rules + index │
+  └──────────┴───────────────────────────────────────┘
+
+  Ba nguyên tắc thiết kế xuyên suốt
+
+  Preflight tồn tại để bác bỏ người vận hành. Mọi xác nhận họ gõ được đối chiếu
+  với artifact, rồi artifact đối chiếu với tiến trình đang chạy — vì việc xác
+  nhận khớp với plan chỉ chứng minh họ đã đọc plan, không chứng minh tiến trình
+  này mở database nào hay commit nào đang deploy.
+
+  Operation ID dẫn xuất từ nội dung. Digest đơn thuần không bắt được người sửa
+  plan rồi ký lại; ID dẫn xuất thì bắt được. Có test riêng cho đúng ca đó.
+
+  Rollback là cửa thoát có hạn giờ, không phải undo. Sau khi mở ghi trở lại, thế
+  giới đã thấy trạng thái đã gộp — khôi phục sẽ âm thầm xoá các ghi mới. Module
+  nói thẳng "phải sửa xuôi" thay vì tỏ ra thành công. Và toàn-bộ-hoặc-không:
+  một document lệch là từ chối tất cả.
+
+  Hai lần tôi sửa chính mình
+
+  Fixture verifier của tôi ghi admissionSearchContact: '0900000000' — nhưng
+  normalizePhoneVN chuẩn hoá thành 84900000000, nên implementation bắt đúng là
+  stale. Test sai, code đúng.
+
+  Một assert trong rehearsal dùng regex lỏng
+  /APPROVAL_DIGEST_MISMATCH|PLAN_HAS_BLOCKERS/ — nó pass vì lý do không liên
+  quan. Đã siết lại để chỉ còn guard blocker có thể từ chối.
+
+  Chưa giao — có chủ ý
+
+  runStudentProfileNormalization và npm scripts. Parser guard đã xong và test
+  đầy đủ, nhưng phần nối (đọc file, mở Firestore, dispatch mode) chưa có. Thêm
+  npm script trỏ vào CLI chưa chạy được mode nào sẽ tệ hơn là không có.
+
+  Quan trọng nhất: engine chạy được đầy đủ nhưng chưa có gì chạm production, và
+  chưa được phép. studentImportHelper.ts vẫn đang tạo hồ sơ trùng mới. Cần
+  Workstream A (chặn nguồn) + B1/B2 (chuyển read paths) deploy và ổn định trước
+  — đó là điều kiện chính plan đặt ra.
+
+  Đã ghi trạng thái này vào memory để phiên sau không nhầm "engine xong" thành
+  "đã gộp".
+
+✻ Baked for 23m 3s
+
+❯ ok tiếp tục tiến hành                                                         
+
+● Tiếp Workstream A — phần chặn nguồn sinh trùng lặp. Xem task list và kiểm tra
+  hợp đồng chung đã có chưa.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Chưa có gì. Bắt đầu từ Task 2B — hợp đồng alias/tombstone mà mọi thứ khác
+  import.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● RED cho hợp đồng chung.
+
+● Write(shared\studentIdentity.test.ts)
+  ⎿  Wrote 194 lines to shared\studentIdentity.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import {
+       3   isCanonicalStudentProfile,
+       4   isLegacySoftMergedStudentProfile,
+       5   isStudentProfileAlias,
+       6   isStudentProfileTombstone,
+       7   readLegacySoftMergePointer,
+       8 } from './studentIdentity.js';
+       9 
+      10 const VALID_ALIAS = {
+     … +224 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(shared\studentIdentity.ts)
+  ⎿  Wrote 120 lines to shared\studentIdentity.ts
+       1 /**
+       3  *
+       4  * Every workstream imports these predicates rather than declari
+       5  * reason is concrete: production holds two different kinds of r
+         etired profile,
+         nows about only
+       7  * one of them silently treats the other as a live student — whi
+       8  * wallet, and roster all point at a document nobody should reac
+         h.
+      10  * The two kinds:
+     … +141 lines (ctrl+o to expand)
+
+  Ran 2 shell commands (ctrl+o to expand)
+● Task 2 — registry mã học sinh giao dịch. Đọc spec.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Task 2 phụ thuộc type từ Task 4 (maintenance guard). Làm Task 4 trước.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● RED cho maintenance guard.
+
+● Write(server\api\lib\maintenance\studentIdentityMaintenance.test.ts)
+  ⎿  Wrote 263 lines to
+     server\api\lib\maintenance\studentIdentityMaintenance.test.ts
+      1 import { afterEach, beforeEach, describe, expect, it, vi } from '
+        vitest';
+      2 import {
+      3   assertStudentIdentityMaintenanceStateAllowsMutation,
+      4   assertStudentIdentityMutationAllowed,
+      5   readStudentIdentityMaintenanceInTransaction,
+      6   resetStudentIdentityMaintenanceCacheForTests,
+      7   STUDENT_IDENTITY_MAINTENANCE_PATH,
+      8   type StudentIdentityMaintenanceState,
+      9 } from './studentIdentityMaintenance.js';
+     … +306 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(server\api\lib\maintenance\studentIdentityMaintenance.ts)
+  ⎿  Wrote 186 lines to
+     server\api\lib\maintenance\studentIdentityMaintenance.ts
+       1 import type { Firestore, Transaction } from 'firebase-admin/fire
+       2 
+       3 /**
+       5  *
+       6  * The asymmetry here is the whole design, and it is deliberate:
+       7  * `read_only` may reject early, but a cached `normal` may never
+          permit work.
+       9  * The reason is that the two errors are not equally bad. Reject
+         ing a write
+         itting a write
+     … +221 lines (ctrl+o to expand)
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 2 — registry mã học sinh. RED.
+
+● Write(server\api\lib\student\studentCodeRegistry.test.ts)
+  ⎿  Wrote 352 lines to server\api\lib\student\studentCodeRegistry.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import {
+       3   claimStudentCodeInTransaction,
+       4   normalizeStudentCode,
+       5   reassignStudentCodeForMergeInTransaction,
+       6   readStudentCodeClaimInTransaction,
+       7   retireStudentCodeInTransaction,
+       8   STUDENT_CODE_REGISTRY_COLLECTION,
+       9   type StudentCodeRegistryRecord,
+      10 } from './studentCodeRegistry.js';
+     … +404 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(server\api\lib\student\studentCodeRegistry.ts)
+  ⎿  Wrote 254 lines to server\api\lib\student\studentCodeRegistry.ts
+       1 import { FieldValue, type Firestore, type Transaction } from 'fi
+       2 import type { StudentIdentityMaintenanceState } from '../mainten
+         ance/studentIdentityMaintenance.js';
+       4 /**
+       6  *
+       7  * Uniqueness is enforced by a document whose ID *is* the normal
+       8  * by querying for duplicates and then writing. The difference m
+         atters: a query
+         current
+         uction already
+     … +305 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Regex chứa ký tự thô bị mangle. Dùng escape sequence.
+
+● Update(server\api\lib\student\studentCodeRegistry.ts)
+  ⎿  Error editing file
+
+  Read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● Ký tự escape liên tục bị mangle qua shell. Dùng kiểm tra code-point tường minh
+  — rõ hơn và miễn nhiễm với lỗi này.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(server\api\lib\student\studentCodeRegistry.ts)
+  ⎿  Error editing file
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Cần thêm type annotation và cập nhật nơi dùng.
+
+● Update(server\api\lib\student\studentCodeRegistry.ts)
+  ⎿  Added 3 lines, removed 2 lines
+      65   * unreviewable and lets any editor or pipeline silently corrup
+          t the rule.
+      66   * Numeric comparisons say exactly what they mean and survive a
+           copy-paste.
+      67   */
+      68 -function isControlCodePoint(codePoint) {                       
+      68 +function isControlCodePoint(codePoint: number): boolean {      
+      69 +  // C0 and C1 ranges.                                         
+      70    return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <
+          = 0x9f);
+      71  }
+      72  
+      72 -function isUnicodeWhitespace(codePoint) {                      
+      73 +function isUnicodeWhitespace(codePoint: number): boolean {     
+      74    if (codePoint === 0x20 || (codePoint >= 0x09 && codePoint <= 
+          0x0d)) return true;
+      75    if (codePoint === 0x00a0 || codePoint === 0x1680 || codePoint
+           === 0xfeff) return true;
+      76    if (codePoint >= 0x2000 && codePoint <= 0x200a) return true;
+
+● Update(server\api\lib\student\studentCodeRegistry.ts)
+  ⎿  Added 4 lines, removed 4 lines
+      89    }
+      90    // NFKC first, so full-width digits and their ASCII equivalen
+          ts converge on
+      91    // one document rather than silently becoming two owners of "
+          the same" code.
+      92 -  const normalized = value                                     
+      93 -    .normalize('NFKC')                                         
+      94 -    .replace(ALL_WHITESPACE, '')                               
+      92 +  const normalized = [...value.normalize('NFKC')]              
+      93 +    .filter((character) => !isUnicodeWhitespace(character.codeP
+         +ointAt(0) ?? 0))                                               
+      94 +    .join('')                                                  
+      95      // toUpperCase, never toLocaleUpperCase: a Turkish locale m
+          aps 'i' to a
+      96      // dotted capital and would split one code across two regis
+          try documents.
+      97      .toUpperCase();
+     ...
+       99    if (normalized.length === 0) {
+      100      throw new Error('STUDENT_CODE_INVALID: empty after normali
+           zation');
+      101    }
+      102 -  if (CONTROL_CHARACTERS.test(normalized)) {                  
+      102 +  if ([...normalized].some((character) => isControlCodePoint(c
+          +haracter.codePointAt(0) ?? 0))) {                             
+      103      throw new Error('STUDENT_CODE_INVALID: contains control ch
+           aracters');
+      104    }
+      105    if (normalized.includes('/')) {
+
+  Ran 1 shell command (ctrl+o to expand)
+● 33/33. Nhưng test ký tự điều khiển của tôi dựa vào ký tự vô hình trong file —
+  kiểm tra nó thật sự có nghĩa.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● File test chứa byte điều khiển thô — không review được. Thay bằng escape tường
+  minh.
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+● Tệp test giờ là text sạch, 33/33 xanh. Kiểm tra tổng thể và commit.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 3 — resolver + guard chống tạo trùng. Đây là phần chặn thật. Đọc
+  interface.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● RED cho resolver.
+
+● Write(server\api\lib\student\studentIdentityResolver.test.ts)
+  ⎿  Wrote 289 lines to
+     server\api\lib\student\studentIdentityResolver.test.ts
+       1 import { describe, expect, it } from 'vitest';
+       2 import {
+       3   resolveCanonicalStudentId,
+       4   STUDENT_PROFILE_ALIASES_COLLECTION,
+       5 } from './studentIdentityResolver.js';
+         egistry.js';
+       7 
+       8 const ALIAS = {
+       9   legacyProfileId: 'legacy-1',
+      10   canonicalProfileId: 'canonical-1',
+     … +320 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(server\api\lib\student\studentIdentityResolver.ts)
+  ⎿  Wrote 252 lines to server\api\lib\student\studentIdentityResolver.ts
+       1 import type { Firestore, Transaction } from 'firebase-admin/fire
+         store';
+       3   isCanonicalStudentProfile,
+       4   isStudentProfileAlias,
+       5   readLegacySoftMergePointer,
+       7 import { normalizeStudentCode, STUDENT_CODE_REGISTRY_COLLECTION 
+         } from './studentCodeRegistry.js';
+       8 
+      10  * The single boundary through which a student identifier become
+         s a canonical
+     … +299 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 19/19 GREEN. Giờ phần quan trọng nhất — guard chặn tạo trùng. RED.
+
+● Write(server\api\lib\student\studentCreationGuard.test.ts)
+  ⎿  Wrote 291 lines to server\api\lib\student\studentCreationGuard.test.ts
+       1 import { describe, expect, it } from 'vitest';
+         from './studentCreationGuard.js';
+       3 
+       4 const HUMAN = { name: 'Quách Hoàng Minh', dob: '2014-05-02', con
+       5 
+       6 /**
+         : documents
+       8  * missing the queried field are simply absent from the result, 
+         never returned
+      10  */
+     … +325 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● GREEN — guard cần hai truy vấn, vì truy vấn bằng field denormalized bỏ sót
+  đúng nhóm nó cần bắt.
+
+● Write(server\api\lib\student\studentCreationGuard.ts)
+  ⎿  Wrote 226 lines to server\api\lib\student\studentCreationGuard.ts
+       1 import type { Firestore } from 'firebase-admin/firestore';
+       2 import {
+       3   buildAdmissionSearchFields,
+       4   normalizeAdmissionContact,
+       5   normalizeAdmissionName,
+       6 } from '../admissions/matching.js';
+       7 import {
+       8   isCanonicalStudentProfile,
+       9   isStudentProfileAlias,
+      10   readLegacySoftMergePointer,
+     … +258 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Lỗi thật trong code của tôi: guard kiểm tra "canonical" trước alias, ngược với
+  resolver. Trong cửa sổ merge, alias tồn tại trước tombstone.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Hai vấn đề khác nhau: fixture "không trùng" của tôi chỉ đổi field
+  denormalized, giữ nguyên tên gốc — guard tính lại từ gốc nên báo trùng, đúng
+  luật. Sửa fixture; sửa thứ tự alias trong code.
+
+● Update(server\api\lib\student\studentCreationGuard.test.ts)
+  ⎿  Added 16 lines, removed 1 line
+      73  
+      74  describe('exact-human conflict detection', () => {
+      75    it('finds no conflict when nobody matches', async () => {
+      76 -    const db = makeDb([{ id: 'other', data: { ...COMPLETE, admi
+         -ssionSearchName: 'nguyen an' } }]);                            
+      76 +    // A genuinely different human. Changing only the denormali
+         +zed field would                                                
+      77 +    // not make this a different person — the guard recomputes 
+         +from the raw                                                   
+      78 +    // fields precisely so a stale denormalized value cannot hi
+         +de a match.                                                    
+      79 +    const db = makeDb([                                        
+      80 +      {                                                        
+      81 +        id: 'other',                                           
+      82 +        data: {                                                
+      83 +          name: 'Nguyễn An',                                   
+      84 +          dob: '2015-03-03',                                   
+      85 +          contact: '0911111111',                               
+      86 +          admissionSearchName: 'nguyen an',                    
+      87 +          admissionSearchDob: '2015-03-03',                    
+      88 +          admissionSearchContact: '84911111111',               
+      89 +        },                                                     
+      90 +      },                                                       
+      91 +    ]);                                                        
+      92  
+      93      await expect(findExactHumanConflict(db, HUMAN)).resolves.to
+          BeNull();
+      94    });
+
+● Update(server\api\lib\student\studentCreationGuard.ts)
+  ⎿  Added 6 lines, removed 2 lines
+      105   * tombstone and its surviving twin are not reported as two di
+           fferent humans.
+      106   */
+      107  async function toCanonicalId(db: Firestore, doc: StudentDoc): 
+           Promise<string | null> {
+      108 -  if (isCanonicalStudentProfile(doc.data)) return doc.id;     
+      109 -                                                              
+      108 +  // Alias first, matching resolveCanonicalStudentId. During a
+          + merge run the                                                
+      109 +  // alias is written before the tombstone, so a profile can l
+          +ook perfectly                                                 
+      110 +  // canonical while an alias already points away from it. Che
+          +cking shape                                                   
+      111 +  // first would report that profile and its twin as two diffe
+          +rent humans.                                                  
+      112    const alias = (await db.doc(`${STUDENT_PROFILE_ALIASES_COLLE
+           CTION}/${doc.id}`).get()) as unknown as {
+      113      exists: boolean;
+      114      data: () => unknown;
+     ...
+      117      return (alias.data() as { canonicalProfileId: string }).ca
+           nonicalProfileId;
+      118    }
+      119  
+      120 +  if (isCanonicalStudentProfile(doc.data)) return doc.id;     
+      121 +                                                              
+      122    const pointer = readLegacySoftMergePointer({ ...doc.data, id
+           : doc.id });
+      123    if (pointer) return pointer;
+      124  
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Workstream A đã có 4/11 task — toàn bộ nền tảng danh tính. Báo cáo tại điểm
+  dừng sạch.
+
+  Đã giao phiên này
+
+  Workstream C hoàn tất 13/13 (8 commit, báo cáo trước) — cộng thêm Workstream A
+  4 task nền:
+
+  ┌──────────┬──────┬────────────────────────────────────────────┐
+  │  Commit  │ Task │                  Nội dung                  │
+  ├──────────┼──────┼────────────────────────────────────────────┤
+  │ 570ffa98 │ 2B   │ Hợp đồng alias/tombstone/legacy soft-merge │
+  ├──────────┼──────┼────────────────────────────────────────────┤
+  │ d50eaf6b │ 4    │ Maintenance guard                          │
+  ├──────────┼──────┼────────────────────────────────────────────┤
+  │ 3e41a0f5 │ 2    │ Registry mã học sinh                       │
+  ├──────────┼──────┼────────────────────────────────────────────┤
+  │ 4d0a65d0 │ 3    │ Resolver + guard chặn tạo trùng            │
+  └──────────┴──────┴────────────────────────────────────────────┘
+
+  211 test xanh, typecheck sạch.
+
+  Quyết định đáng nói nhất
+
+  Guard chạy hai truy vấn, không phải một. Chỉ truy vấn theo admissionSearch* sẽ
+  nhanh, có index, và sai: truy vấn equality của Firestore bỏ qua document
+  thiếu field — mà đó chính xác là nhóm hồ sơ clone/import mà guard sinh ra để
+  bắt. Truy vấn thứ hai đi theo dob rồi chuẩn hoá lại trong bộ nhớ. Nửa sau mới
+  là nửa thực sự chặn tái diễn.
+
+  Chi phí chấp nhận được vì bị chặn bởi số học sinh cùng ngày sinh.
+
+  Registry dùng document ID chính là mã. Query-rồi-ghi là hai thao tác có khe
+  hở; hai lượt ghi danh đồng thời đều thấy mã trống và đều lấy. 59 mã đang bị sở
+  hữu đôi trong production chính là hình ảnh của khe hở đó.
+
+  Maintenance guard bất đối xứng có chủ ý. Cache read_only được từ chối sớm;
+  cache normal không bao giờ được cho qua. Từ chối nhầm tốn một lần thử lại; cho
+  qua nhầm nghĩa là hồ sơ đổi dưới chân một migration đã fingerprint nó.
+
+  Hai lỗi tôi tự bắt
+
+  Guard kiểm tra "canonical" trước alias — ngược với resolver. Trong cửa sổ
+  merge, alias được ghi trước tombstone, nên một hồ sơ có thể trông hoàn toàn
+  canonical trong khi alias đã trỏ đi nơi khác. Đã thống nhất thứ tự: alias
+  trước.
+
+  Một fixture "không trùng" của tôi chỉ đổi field denormalized mà giữ nguyên tên
+  gốc. Guard tính lại từ gốc nên báo trùng — đúng luật, test sai.
+
+  Ngoài ra file test registry từng chứa byte NUL thô (git coi là binary). Đã đổi
+  sang escape \u0000; và trong code dùng so sánh code-point thay cho regex ký
+  tự vô hình, vì loại ký tự đó không review được và bị mangle qua mọi đường ống.
+
+  Còn lại của Workstream A — 7 task
+
+  Đây là phần đụng vào code ứng dụng đang chạy, khác hẳn 4 task vừa rồi (toàn
+  module mới, chưa ai gọi):
+
+  - Task 1 — counter hai pha
+  - Task 5 — tạo học sinh atomic với registry
+  - Task 6 — progression giữ nguyên profileId
+  - Task 7 — thay studentImportHelper.ts, nơi trùng lặp thực sự sinh ra
+  - Task 8, 9 — đóng lớp, transfer/status/delete
+  - Task 10, 11 — rules/index + cổng deploy
+
+  Task 7 là điểm mà kế hoạch bắt đầu sửa hành vi production thật. Nói tiếp để
+  tôi vào.
+✻ Baked for 14m 21s
+
+❯ /export                                                                       
+  ⎿  Conversation copied to clipboard

@@ -1,0 +1,5 @@
+{
+  "name": "EduTrack Smart Tracking App",
+  "description": "Hệ thống quản lý lớp học, học sinh và điểm danh thông minh.",
+  "requestFramePermissions": ["camera"]
+}

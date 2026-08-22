@@ -1,0 +1,9 @@
+{
+  "name": "edutrack-db-preflight",
+  "private": true,
+  "type": "module",
+  "description": "Kiem tra schema va dien tap nap truoc khi dung toi VPS. Chay: npm install roi node 00-validate-schema.mjs ../migrations",
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.5"
+  }
+}

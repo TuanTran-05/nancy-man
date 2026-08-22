@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-08-06T05:43:46.267Z",
+  "sourceCommitSha": "efdbf8d68eebe2ead6ff64f0873ea66adf982626",
+  "financeBaseline": {
+    "ledgersScanned": 559,
+    "orphanLedgers": [],
+    "totalOrphanAmount": 0
+  }
+}

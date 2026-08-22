@@ -1,0 +1,16 @@
+export const FULL_EXPORT_COLLECTIONS = [
+  'users',
+  'students',
+  'classes',
+  'attendance',
+  'evaluations',
+  'assignments',
+  'dailyReports',
+  'tuition_records',
+  'tuition_configs',
+  'course_fee_ledgers',
+  'receipts',
+  'invoices',
+  'expenses',
+  'payment_requests',
+] as const;

@@ -1,0 +1,9 @@
+# VPS dat timezone Asia/Ho_Chi_Minh. Cai bang: crontab deploy/vps/crontab
+SHELL=/bin/bash
+PATH=/home/deploy/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+0 1 * * * bash /srv/edutrack/current/deploy/vps/run-cron.sh /api/audit/daily-maintenance >> /srv/edutrack/shared/logs/cron.log 2>&1
+30 21 * * * bash /srv/edutrack/current/deploy/vps/run-cron.sh /api/audit/zalo-bot-daily-digest >> /srv/edutrack/shared/logs/cron.log 2>&1
+35 21 * * * bash /srv/edutrack/current/deploy/vps/run-cron.sh /api/audit/outbox-process >> /srv/edutrack/shared/logs/cron.log 2>&1
+# Backup operations are versioned separately so an app rollback does not roll back backup safety.
+0 3 * * * bash /srv/edutrack/shared/ops/current/backup-postgres.sh >> /srv/edutrack/shared/logs/backup.log 2>&1

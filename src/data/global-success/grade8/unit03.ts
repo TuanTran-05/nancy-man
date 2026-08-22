@@ -1,0 +1,883 @@
+import { LessonDeck } from '../../../types';
+
+const deck: LessonDeck = {
+  id: 'gs-g8-u3-teens',
+  curriculumFamily: 'global-success',
+  grade: 8,
+  unitNumber: 3,
+  title: 'Grammar Grade 8 - Unit 3: Teens',
+  description:
+    'Bài giảng Unit 3 Global Success 8 về simple sentences, compound sentences, FANBOYS, conjunctive adverbs và từ vựng chủ đề Teens.',
+  createdAt: '2026-05-18T00:00:00.000Z',
+  slides: [
+    {
+      id: 's1',
+      title: 'GRAMMAR GRADE 8',
+      subtitle: 'UNIT 3: TEENS',
+      label: 'NỘI DUNG BÀI HỌC:',
+      layout: 'outline',
+      cards: [
+        {
+          title: 'SIMPLE SENTENCES',
+          subtitle: '(Câu đơn)',
+          accent: 'orange',
+        },
+        {
+          title: 'COMPOUND SENTENCES',
+          subtitle: '(Câu ghép)',
+          accent: 'pink',
+        },
+        {
+          title: 'FANBOYS & CONJUNCTIVE ADVERBS',
+          subtitle: '(Liên từ và trạng từ liên kết)',
+          accent: 'blue',
+        },
+      ],
+    },
+    {
+      id: 's2',
+      title: 'Mục tiêu bài học',
+      layout: 'objectives',
+      bullets: [
+        { content: 'Nhận biết câu đơn và các mẫu câu đơn thường gặp.' },
+        { content: 'Tạo câu ghép bằng hai mệnh đề độc lập và FANBOYS.' },
+        { content: 'Dùng conjunctive adverbs như however, therefore, moreover đúng dấu câu.' },
+        { content: 'Viết câu về cuộc sống tuổi teen: học tập, mạng xã hội, bạn bè và áp lực.' },
+      ],
+    },
+    {
+      id: 's3',
+      title: 'Phần 1',
+      subtitle: 'Simple Sentences',
+      layout: 'section-cover',
+      accent: 'orange',
+    },
+    {
+      id: 's4',
+      title: 'Simple sentence là gì?',
+      subtitle: 'Câu đơn diễn đạt một ý hoàn chỉnh.',
+      layout: 'explain',
+      accent: 'orange',
+      formula: 'Subject + main verb',
+      bullets: [
+        { content: 'Một câu đơn thường có một chủ ngữ chính và một động từ chính.' },
+        { content: 'Có thể thêm tân ngữ, bổ ngữ hoặc trạng ngữ.' },
+        { content: 'Trong Unit 3, câu đơn dùng để nói về cuộc sống tuổi teen.' },
+      ],
+      examples: [
+        'Teens use social media every day.',
+        'Many students feel stressed before exams.',
+        'My sister likes chatting with her friends.',
+      ],
+    },
+    {
+      id: 's5',
+      title: 'Mẫu 1: S + V',
+      subtitle: 'Câu chỉ có chủ ngữ và động từ chính.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Change',
+          accent: 'orange',
+          content: 'S + V',
+          example: 'Teenagers change quickly.',
+        },
+        {
+          title: 'Study',
+          accent: 'blue',
+          content: 'S + V',
+          example: 'Students study hard.',
+        },
+        {
+          title: 'Chat',
+          accent: 'green',
+          content: 'S + V + adverbial',
+          example: 'My friends chat online.',
+        },
+        {
+          title: 'Sleep',
+          accent: 'pink',
+          content: 'S + V + adverbial',
+          example: 'Some teens sleep late.',
+        },
+      ],
+    },
+    {
+      id: 's6',
+      title: 'Mẫu 2: S + V + O',
+      subtitle: 'Câu có tân ngữ sau động từ.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Social media',
+          accent: 'blue',
+          content: 'S + V + Object',
+          example: 'Teens use smartphones every day.',
+        },
+        {
+          title: 'Clubs',
+          accent: 'green',
+          content: 'S + V + Object',
+          example: 'Students join school clubs after class.',
+        },
+        {
+          title: 'Games',
+          accent: 'orange',
+          content: 'S + V + Object',
+          example: 'My brother plays online games at weekends.',
+        },
+        {
+          title: 'Photos',
+          accent: 'pink',
+          content: 'S + V + Object',
+          example: 'Many teens share photos on social media.',
+        },
+      ],
+    },
+    {
+      id: 's7',
+      title: 'Mẫu 3: S + V + C',
+      subtitle: 'Dùng với be hoặc linking verbs như feel, look, seem, become.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Be',
+          accent: 'orange',
+          content: 'S + be + adjective',
+          example: 'Many teens are creative.',
+        },
+        {
+          title: 'Feel',
+          accent: 'pink',
+          content: 'S + feel + adjective',
+          example: 'Students feel stressed before exams.',
+        },
+        {
+          title: 'Look',
+          accent: 'blue',
+          content: 'S + look + adjective',
+          example: 'My best friend looks confident.',
+        },
+        {
+          title: 'Become',
+          accent: 'green',
+          content: 'S + become + adjective',
+          example: 'Teenagers become more independent.',
+        },
+      ],
+    },
+    {
+      id: 's8',
+      title: 'Mẫu 4-5: Có trạng ngữ',
+      subtitle: 'Trạng ngữ bổ sung thời gian, nơi chốn, cách thức hoặc tần suất.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'S + V + Adv',
+          accent: 'orange',
+          content: 'Hành động + thời gian / nơi chốn.',
+          example: 'I study after school.',
+        },
+        {
+          title: 'S + V + O + Adv',
+          accent: 'blue',
+          content: 'Có tân ngữ và trạng ngữ.',
+          example: 'I do homework after school.',
+        },
+        {
+          title: 'Online',
+          accent: 'green',
+          content: 'Trạng ngữ cách thức / nơi chốn.',
+          example: 'She chats online.',
+        },
+        {
+          title: 'Social media',
+          accent: 'pink',
+          content: 'Object + adverbial.',
+          example: 'My friends share videos on social media.',
+        },
+      ],
+    },
+    {
+      id: 's9',
+      title: 'Câu đơn có thể dài',
+      subtitle: 'Vẫn là câu đơn nếu chỉ có một ý chính.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Long simple sentence',
+          accent: 'orange',
+          content: 'Có nhiều thông tin phụ nhưng một động từ chính.',
+          example: 'Many teenagers use social media every day.',
+        },
+        {
+          title: 'Homework',
+          accent: 'blue',
+          content: 'Một ý chính.',
+          example: 'My best friend often helps me with my homework.',
+        },
+        {
+          title: 'Because phrase',
+          accent: 'pink',
+          content: 'Có cụm because of nhưng vẫn một mệnh đề chính.',
+          example: 'Some teens feel stressed because of exams and homework.',
+        },
+      ],
+    },
+    {
+      id: 's10',
+      title: 'Chủ ngữ ghép hoặc tân ngữ ghép',
+      subtitle: 'Có and nhưng vẫn có thể là câu đơn.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Compound subject',
+          accent: 'orange',
+          content: 'Hai chủ ngữ nối bằng and.',
+          example: 'My brother and I play basketball after school.',
+        },
+        {
+          title: 'Compound object',
+          accent: 'blue',
+          content: 'Hai tân ngữ nối bằng and.',
+          example: 'Teens like music and films.',
+        },
+        {
+          title: 'Learning tools',
+          accent: 'green',
+          content: 'Một động từ chính.',
+          example: 'Students use phones and computers for learning.',
+        },
+      ],
+    },
+    {
+      id: 's11',
+      title: 'Lưu ý với câu đơn',
+      subtitle: 'Ba lỗi cơ bản cần tránh.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Cần động từ chính',
+          accent: 'pink',
+          content: 'Không thể thiếu be hoặc động từ thường.',
+          example: 'Many teens are happy.',
+        },
+        {
+          title: 'He / She / It',
+          accent: 'orange',
+          content: 'Hiện tại đơn thêm -s / -es.',
+          example: 'She uses her phone every day.',
+        },
+        {
+          title: 'Sau doesn’t',
+          accent: 'blue',
+          content: 'Động từ chính giữ nguyên.',
+          example: 'He doesn’t use social media.',
+        },
+      ],
+    },
+    {
+      id: 's12',
+      title: 'Ví dụ câu đơn',
+      subtitle: 'Nhận diện mẫu câu và thành phần chính.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'S + V + O + Adv',
+          accent: 'orange',
+          content: 'Teenagers + use + social media + every day.',
+          example: 'Teenagers use social media every day.',
+        },
+        {
+          title: 'Linking verb',
+          accent: 'pink',
+          content: 'Feel là động từ nối.',
+          example: 'Many students feel stressed before exams.',
+        },
+        {
+          title: 'Compound subject',
+          accent: 'blue',
+          content: 'Chủ ngữ ghép, một động từ chính.',
+          example: 'My friends and I join a music club after school.',
+        },
+      ],
+    },
+    {
+      id: 's13',
+      title: 'Phần 2',
+      subtitle: 'Compound Sentences',
+      layout: 'section-cover',
+      accent: 'pink',
+    },
+    {
+      id: 's14',
+      title: 'Compound sentence là gì?',
+      subtitle: 'Câu ghép có từ hai mệnh đề độc lập trở lên.',
+      layout: 'explain',
+      accent: 'pink',
+      formula: 'Independent clause 1 + connector + independent clause 2',
+      bullets: [
+        { content: 'Mỗi mệnh đề độc lập có đủ chủ ngữ và động từ.' },
+        { content: 'Mỗi mệnh đề có thể đứng một mình như một câu hoàn chỉnh.' },
+        { content: 'Câu ghép giúp nối các ý về học tập, bạn bè, áp lực và gia đình.' },
+      ],
+      examples: [
+        'I wanted to go out, but I had too much homework.',
+        'Teens use social media a lot, so they should use it carefully.',
+        'She felt tired; however, she finished her project.',
+      ],
+    },
+    {
+      id: 's15',
+      title: 'Independent clause',
+      subtitle: 'Mệnh đề độc lập là một ý hoàn chỉnh.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Clause 1',
+          accent: 'orange',
+          content: 'Có chủ ngữ + động từ.',
+          example: 'I was tired.',
+        },
+        {
+          title: 'Clause 2',
+          accent: 'blue',
+          content: 'Cũng có thể đứng một mình.',
+          example: 'I finished my homework.',
+        },
+        {
+          title: 'Compound sentence',
+          accent: 'pink',
+          content: 'Nối hai mệnh đề độc lập bằng connector.',
+          example: 'I was tired, but I finished my homework.',
+        },
+      ],
+    },
+    {
+      id: 's16',
+      title: 'FANBOYS',
+      subtitle: '7 liên từ kết hợp nối hai mệnh đề độc lập.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'F A N',
+          accent: 'orange',
+          bullets: ['for = vì', 'and = và', 'nor = cũng không'],
+        },
+        {
+          title: 'B O Y S',
+          accent: 'blue',
+          bullets: ['but = nhưng', 'or = hoặc', 'yet = nhưng mà', 'so = vì vậy'],
+        },
+        {
+          title: 'Dấu câu',
+          accent: 'pink',
+          content: 'Khi nối hai mệnh đề độc lập, thường có dấu phẩy trước FANBOYS.',
+          example: 'Clause 1, but clause 2.',
+        },
+      ],
+    },
+    {
+      id: 's17',
+      title: 'Công thức với FANBOYS',
+      subtitle: 'Dùng dấu phẩy trước liên từ khi nối hai mệnh đề độc lập.',
+      layout: 'explain',
+      accent: 'pink',
+      formula: 'Independent clause 1, + FANBOYS + independent clause 2.',
+      bullets: [
+        { content: 'Mệnh đề 1 và mệnh đề 2 đều có thể đứng riêng.' },
+        { content: 'FANBOYS thể hiện quan hệ giữa hai ý.' },
+        { content: 'Các liên từ hay dùng nhất trong bài: and, but, or, so.' },
+      ],
+      examples: [
+        'I wanted to relax, but I had to study.',
+        'Teens like chatting online, and they like sharing photos.',
+        'She was tired, so she went to bed early.',
+      ],
+    },
+    {
+      id: 's18',
+      title: 'AND / BUT / OR / SO',
+      subtitle: 'Bốn liên từ thường dùng nhất trong câu ghép.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'And',
+          accent: 'green',
+          content: 'Thêm thông tin.',
+          example: 'She studies hard, and she joins many activities.',
+        },
+        {
+          title: 'But',
+          accent: 'pink',
+          content: 'Nối hai ý trái ngược.',
+          example: 'I wanted to watch a film, but I had homework.',
+        },
+        {
+          title: 'Or',
+          accent: 'blue',
+          content: 'Đưa ra lựa chọn.',
+          example: 'You can join the art club, or you can join the music club.',
+        },
+        {
+          title: 'So',
+          accent: 'orange',
+          content: 'Chỉ kết quả.',
+          example: 'She was tired, so she went to bed early.',
+        },
+      ],
+    },
+    {
+      id: 's19',
+      title: 'FOR / YET / NOR',
+      subtitle: 'Ba liên từ ít dùng hơn nhưng quan trọng.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'For',
+          accent: 'orange',
+          content: 'Chỉ lý do, trang trọng hơn because.',
+          example: 'He felt nervous, for he had an important test.',
+        },
+        {
+          title: 'Yet',
+          accent: 'pink',
+          content: 'Đối lập, gần giống but.',
+          example: 'The test was difficult, yet she got a good mark.',
+        },
+        {
+          title: 'Nor',
+          accent: 'blue',
+          content: 'Nối hai ý phủ định, thường đảo trợ động từ.',
+          example: 'He doesn’t like online games, nor does he like social media.',
+        },
+      ],
+    },
+    {
+      id: 's20',
+      title: 'Phần 3',
+      subtitle: 'Conjunctive Adverbs',
+      layout: 'section-cover',
+      accent: 'blue',
+    },
+    {
+      id: 's21',
+      title: 'Conjunctive adverbs là gì?',
+      subtitle: 'Trạng từ liên kết nối hai ý theo cách trang trọng hơn.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Contrast',
+          accent: 'pink',
+          bullets: ['however', 'nevertheless'],
+        },
+        {
+          title: 'Result',
+          accent: 'orange',
+          bullets: ['therefore', 'consequently'],
+        },
+        {
+          title: 'Addition',
+          accent: 'green',
+          bullets: ['moreover', 'besides'],
+        },
+        {
+          title: 'Other',
+          accent: 'blue',
+          bullets: ['otherwise', 'meanwhile'],
+        },
+      ],
+    },
+    {
+      id: 's22',
+      title: 'Dấu câu với conjunctive adverbs',
+      subtitle: 'Có hai cách viết phổ biến.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Dấu chấm phẩy',
+          accent: 'blue',
+          content: 'Clause 1; conjunctive adverb, clause 2.',
+          example: 'I was tired; however, I finished my homework.',
+        },
+        {
+          title: 'Tách hai câu',
+          accent: 'green',
+          content: 'Sentence 1. Conjunctive adverb, sentence 2.',
+          example: 'I was tired. However, I finished my homework.',
+        },
+        {
+          title: 'Ghi nhớ',
+          accent: 'orange',
+          content: 'Sau conjunctive adverb đầu câu thường có dấu phẩy.',
+          example: 'Therefore, he felt sleepy in class.',
+        },
+      ],
+    },
+    {
+      id: 's23',
+      title: 'However',
+      subtitle: 'Dùng để nối hai ý trái ngược.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Social media',
+          accent: 'pink',
+          content: 'Useful nhưng cần dùng cẩn thận.',
+          example: 'Social media is useful; however, teens should not use it too much.',
+        },
+        {
+          title: 'Stress',
+          accent: 'blue',
+          content: 'Căng thẳng nhưng vẫn cố gắng.',
+          example: 'She was stressed; however, she tried to stay calm.',
+        },
+        {
+          title: 'Homework',
+          accent: 'orange',
+          content: 'Muốn đi chơi nhưng phải học.',
+          example: 'He wanted to go out; however, he had to finish his homework.',
+        },
+      ],
+    },
+    {
+      id: 's24',
+      title: 'Therefore',
+      subtitle: 'Dùng để chỉ kết quả.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Sleep',
+          accent: 'orange',
+          content: 'Nguyên nhân → kết quả.',
+          example: 'He stayed up late; therefore, he was tired the next morning.',
+        },
+        {
+          title: 'Study',
+          accent: 'green',
+          content: 'Học chăm chỉ → đậu bài kiểm tra.',
+          example: 'She studied hard; therefore, she passed the test.',
+        },
+        {
+          title: 'Phones',
+          accent: 'pink',
+          content: 'Cần ngủ đủ → không dùng điện thoại khuya.',
+          example: 'Teens need enough sleep; therefore, they shouldn’t use phones late at night.',
+        },
+      ],
+    },
+    {
+      id: 's25',
+      title: 'Moreover / Besides / Otherwise',
+      subtitle: 'Thêm thông tin hoặc nêu hậu quả nếu không làm.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Moreover',
+          accent: 'green',
+          content: 'Thêm thông tin.',
+          example: 'Joining clubs is fun; moreover, it helps teens make friends.',
+        },
+        {
+          title: 'Besides',
+          accent: 'blue',
+          content: 'Ngoài ra.',
+          example: 'Reading books is useful; besides, it helps students relax.',
+        },
+        {
+          title: 'Otherwise',
+          accent: 'orange',
+          content: 'Nếu không thì.',
+          example: 'You should finish your homework; otherwise, you may get a bad mark.',
+        },
+      ],
+    },
+    {
+      id: 's26',
+      title: 'FANBOYS vs Conjunctive Adverbs',
+      subtitle: 'Khác loại từ và khác dấu câu.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'FANBOYS',
+          accent: 'pink',
+          content: 'Liên từ kết hợp, thường có dấu phẩy trước.',
+          example: 'I was tired, but I studied.',
+        },
+        {
+          title: 'Conjunctive adverbs',
+          accent: 'blue',
+          content: 'Trạng từ liên kết, thường có dấu chấm phẩy trước và dấu phẩy sau.',
+          example: 'I was tired; however, I studied.',
+        },
+        {
+          title: 'Style',
+          accent: 'green',
+          content: 'FANBOYS đơn giản hơn; conjunctive adverbs trang trọng hơn.',
+          example: 'She was sleepy, so she slept early.',
+        },
+      ],
+    },
+    {
+      id: 's27',
+      title: 'Simple vs Compound',
+      subtitle: 'Một mệnh đề độc lập hay hai mệnh đề độc lập?',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Simple sentence',
+          accent: 'orange',
+          content: 'Một mệnh đề độc lập.',
+          example: 'Teens use social media.',
+        },
+        {
+          title: 'Compound sentence',
+          accent: 'pink',
+          content: 'Hai mệnh đề độc lập nối với nhau.',
+          example: 'Teens use social media, but they should use it carefully.',
+        },
+      ],
+    },
+    {
+      id: 's28',
+      title: 'Lưu ý quan trọng',
+      subtitle: 'Các lỗi dấu câu và nối câu cần tránh.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Comma splice',
+          accent: 'pink',
+          content: 'Không nối hai mệnh đề độc lập chỉ bằng dấu phẩy.',
+          example: 'I was tired, but I finished my homework.',
+        },
+        {
+          title: 'FANBOYS punctuation',
+          accent: 'orange',
+          content: 'Dùng dấu phẩy trước FANBOYS.',
+          example: 'She was sleepy, so she went to bed early.',
+        },
+        {
+          title: 'However / Therefore',
+          accent: 'blue',
+          content: 'Dùng dấu chấm phẩy trước, dấu phẩy sau.',
+          example: 'I was tired; however, I finished my homework.',
+        },
+        {
+          title: 'Because',
+          accent: 'green',
+          content: 'Because tạo mệnh đề phụ, không dùng như FANBOYS.',
+          example: 'I had homework, so I stayed at home.',
+        },
+      ],
+    },
+    {
+      id: 's29',
+      title: 'Ví dụ câu ghép',
+      subtitle: 'Phân tích quan hệ giữa hai mệnh đề.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'But',
+          accent: 'pink',
+          content: 'Hai ý trái ngược.',
+          example: 'I wanted to go out, but I had too much homework.',
+        },
+        {
+          title: 'So',
+          accent: 'orange',
+          content: 'Nguyên nhân và kết quả.',
+          example: 'She stayed up late, so she felt tired the next morning.',
+        },
+        {
+          title: 'However',
+          accent: 'blue',
+          content: 'Đối lập, trang trọng hơn.',
+          example: 'Social media is useful; however, teens should use it carefully.',
+        },
+        {
+          title: 'Therefore',
+          accent: 'green',
+          content: 'Chỉ kết quả.',
+          example: 'He didn’t finish his project; therefore, he got a low mark.',
+        },
+      ],
+    },
+    {
+      id: 's30',
+      title: 'Phần 4',
+      subtitle: 'Teens Vocabulary',
+      layout: 'section-cover',
+      accent: 'blue',
+    },
+    {
+      id: 's31',
+      title: 'Cuộc sống tuổi teen',
+      subtitle: 'Từ vựng về giai đoạn thanh thiếu niên.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Life',
+          accent: 'blue',
+          bullets: ['teen / teenager', 'adolescence', 'school life'],
+        },
+        {
+          title: 'Relationships',
+          accent: 'green',
+          bullets: ['friendship', 'confidence', 'independence'],
+        },
+        {
+          title: 'Feelings',
+          accent: 'pink',
+          bullets: ['pressure', 'stress', 'emotion'],
+        },
+        {
+          title: 'Growth',
+          accent: 'orange',
+          bullets: ['responsibility', 'become independent', 'control emotions'],
+        },
+      ],
+    },
+    {
+      id: 's32',
+      title: 'Hoạt động của tuổi teen',
+      subtitle: 'Những việc teens thường làm hằng ngày.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Online',
+          accent: 'blue',
+          bullets: ['chat online', 'use social media', 'share photos', 'watch short videos'],
+        },
+        {
+          title: 'School',
+          accent: 'orange',
+          bullets: ['do homework', 'prepare for exams', 'join a club'],
+        },
+        {
+          title: 'Free time',
+          accent: 'green',
+          bullets: ['hang out with friends', 'play sports', 'listen to music'],
+        },
+      ],
+    },
+    {
+      id: 's33',
+      title: 'Vấn đề thường gặp',
+      subtitle: 'Các khó khăn teens có thể gặp trong học tập và đời sống.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Study pressure',
+          accent: 'orange',
+          bullets: ['exam stress', 'pressure', 'lack of sleep'],
+        },
+        {
+          title: 'Online problems',
+          accent: 'pink',
+          bullets: ['screen time', 'cyberbullying', 'distraction'],
+        },
+        {
+          title: 'Relationships',
+          accent: 'blue',
+          bullets: ['peer pressure', 'argument', 'misunderstanding'],
+        },
+        {
+          title: 'Habits',
+          accent: 'green',
+          bullets: ['bad habits', 'staying up late', 'control screen time'],
+        },
+      ],
+    },
+    {
+      id: 's34',
+      title: 'Tính từ miêu tả teens',
+      subtitle: 'Dùng để nói về tính cách và cảm xúc.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Positive',
+          accent: 'green',
+          bullets: ['confident', 'creative', 'active', 'friendly'],
+        },
+        {
+          title: 'Challenges',
+          accent: 'pink',
+          bullets: ['shy', 'stressed', 'nervous', 'sensitive'],
+        },
+        {
+          title: 'Growth',
+          accent: 'blue',
+          bullets: ['independent', 'responsible'],
+        },
+        {
+          title: 'Examples',
+          accent: 'orange',
+          bullets: ['She is confident in class.', 'He feels stressed before exams.'],
+        },
+      ],
+    },
+    {
+      id: 's35',
+      title: 'Cấu trúc giao tiếp',
+      subtitle: 'Các mẫu câu thường dùng trong Unit 3.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Nói vấn đề teen',
+          accent: 'orange',
+          content: 'Many teens + V + ...',
+          example: 'Many teens feel stressed before exams.',
+        },
+        {
+          title: 'FANBOYS',
+          accent: 'pink',
+          content: 'Clause 1, + FANBOYS + clause 2.',
+          example: 'I wanted to relax, but I had homework.',
+        },
+        {
+          title: 'Conjunctive adverbs',
+          accent: 'blue',
+          content: 'Clause 1; however / therefore, clause 2.',
+          example: 'He stayed up late; therefore, he felt sleepy in class.',
+        },
+      ],
+    },
+    {
+      id: 's36',
+      title: 'Luyện tập nhanh',
+      subtitle: 'Chọn liên từ hoặc trạng từ liên kết phù hợp.',
+      layout: 'practice',
+      accent: 'orange',
+      bullets: [
+        { content: 'I wanted to go out, _____ I had too much homework.' },
+        { content: 'She was tired, _____ she went to bed early.' },
+        { content: 'Social media is useful; _____, teens should use it carefully.' },
+        { content: 'He stayed up late; _____, he felt sleepy in class.' },
+      ],
+      examples: ['but', 'so', 'however', 'therefore'],
+    },
+    {
+      id: 's37',
+      title: 'Unit 3 Recap',
+      subtitle: 'Teens',
+      layout: 'practice',
+      accent: 'purple',
+      bullets: [
+        { content: 'Simple sentence: một mệnh đề độc lập, diễn đạt một ý hoàn chỉnh.' },
+        {
+          content:
+            'Compound sentence: hai mệnh đề độc lập nối bằng FANBOYS hoặc conjunctive adverb.',
+        },
+        { content: 'FANBOYS thường dùng dấu phẩy trước liên từ: clause 1, but clause 2.' },
+        { content: 'Conjunctive adverbs thường dùng dấu chấm phẩy trước và dấu phẩy sau.' },
+      ],
+      examples: [
+        'Teens use social media.',
+        'I was tired, but I studied.',
+        'I was tired; however, I studied.',
+      ],
+    },
+  ],
+};
+
+export default deck;

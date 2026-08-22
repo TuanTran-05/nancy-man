@@ -1,0 +1,395 @@
+{
+  "generatedAt": "2026-08-06T05:43:46.267Z",
+  "sourceCommitSha": "efdbf8d68eebe2ead6ff64f0873ea66adf982626",
+  "census": {
+    "physicalProfiles": 679,
+    "canonicalProfiles": 621,
+    "tombstones": 0,
+    "aliasDocuments": 0,
+    "legacySoftMerges": [
+      {
+        "legacyProfileId": "1hKy5gVyPUqclq7amkBq",
+        "pointerTarget": "iOrFykBbS9vbu2HgFSrS",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "1lZPhaqwqtJPGazsgBOI",
+        "pointerTarget": "N4SOSU86TjHf1m8syzRQ",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "7iBEDKZA69FEDZR3wX6N",
+        "pointerTarget": "4Q7ytxRLwb1WvLbTYlVJ",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "7rqiJZKI7fjUNw0MGH59",
+        "pointerTarget": "2xKpPYscvOhgibZg6Ttv",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "98AUfOHpY7fN4fxMP1HN",
+        "pointerTarget": "pYfW2pHFkuMGsBmy7Qtt",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "9WsOLaUELrrAmjhBMmyR",
+        "pointerTarget": "jYYw4jzNBqCcxubvbafv",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "AP9RP6pCGJxUpasM9sJ8",
+        "pointerTarget": "alNs971kR22ENZjoBc05",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "aRv9tm2coQa22PI8i5wr",
+        "pointerTarget": "62uJX1WROrqjSyjjby1I",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "BFODDM9lUqscBzSjgFho",
+        "pointerTarget": "GYGLNSsRlv6YIXeN0DVH",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "CXOXGkGQs1N0g0tUo37h",
+        "pointerTarget": "PC3Ei8N9zWY9Ojn1AAHT",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "cYPIp2zjanxwEyrEWbjF",
+        "pointerTarget": "Ydp30E4iKJzge80qtLu7",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "dBfv62uVWLo16DhQeLeK",
+        "pointerTarget": "f75MnFntGZR4vvW0BgYw",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "DMGMM4hyYhHpefcq1ff8",
+        "pointerTarget": "gTStU8v9zscouDK74b54",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "DUERsHXfiOsXo8lbejMC",
+        "pointerTarget": "x6tWPvRiXlQHc9cKiLBA",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "eb02H33ubMVltbh7n1ob",
+        "pointerTarget": "CjvF9JqchHzGIURWiq8v",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "EJiAJ7xCXhxD0fLF6fUk",
+        "pointerTarget": "MHkxrpjx0sDLprTT3eYf",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "eW3CNRoNACaEMkk4L8vV",
+        "pointerTarget": "bGW4yEuhslIPrCC1U5hf",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "f3QHCmSSYjfDly2WG6a5",
+        "pointerTarget": "uu7ZX0ExZfZzsQ5MMzJc",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "G63W3G9d8QumJjoxVa5S",
+        "pointerTarget": "tMTXKfr6u3dBUN1gTaqX",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "GDmUhWM9h2E94diGHJLm",
+        "pointerTarget": "4VWCK6JsQfKc01fwmzYw",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "gHjfTjWaCdiN7PmrqVqZ",
+        "pointerTarget": "yWLzE4xuxKnli1qxQ57W",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "GOd6JN5Cz2KVdzRs1E3O",
+        "pointerTarget": "irtJzfi2722gmxavR2pe",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "IgqtEk8AzZU6hrTnJIeO",
+        "pointerTarget": "zJ5r6x4WJDqV6wlUKvu1",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "K0MlRv6pLIDxx3zzEFQy",
+        "pointerTarget": "WIoy9n7QvtIewPOvfkAC",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "l63OVrpsO8HNTTfRSMvo",
+        "pointerTarget": "rAP7u5IuhZqtVrvfWdhA",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "LlD6XEGwgMy5Qf6OLaTR",
+        "pointerTarget": "JzHjff8pKBgnR8UWFo3k",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "LYgrHxsizVXWyVge0E8R",
+        "pointerTarget": "BpZknrl6ffi2s9SqIyBM",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "MNKRTRqDuOXNQgy0fs4P",
+        "pointerTarget": "5rffxIYNu35fguR12cU5",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "os76HGwDJ0WLrgNqEdIR",
+        "pointerTarget": "TptDUh7JOmIVUBOAHNGI",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "pIyBjcyaACY1ZgjWK1G9",
+        "pointerTarget": "Hutk1yjYvsRtE2AWBuD5",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "po8otLNv8XEqrxPP9gFN",
+        "pointerTarget": "ygNdnbPITHVNauklwh8N",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "PVs6WaoW7Afk6yrMjBDy",
+        "pointerTarget": "DWLYUdAreT2zRClf70Mz",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "qnRI8FY69ZPVDSuzVsI2",
+        "pointerTarget": "HECPvz1jhUTKLiIkRr3S",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "qUADAF0o697iB3EJaXRz",
+        "pointerTarget": "pL0efYsHnOheh5qqNJfw",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "R4XTva2owmOkeFvtwt40",
+        "pointerTarget": "nntCnP7uFAO2ZPTSdljy",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "rGmOJLNVMkUtLDmOWgfS",
+        "pointerTarget": "MmGQo8rh5S9tmXg9PIQt",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "RV3VPBNaa21bmkSow9He",
+        "pointerTarget": "wgNpRFU3hBtWNjER33GK",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "Sf5Ak8BjjqyKJx0IADXv",
+        "pointerTarget": "u5jSMHXtEZlxuXfEUIaq",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "SRMMY0ZqDryIhS82yOqT",
+        "pointerTarget": "9WlloV2zlsZcaGS2kSTe",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "SSF9E5pE1rXenUJyH5ZW",
+        "pointerTarget": "nfYIQhF0toKRleeusfH9",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "tLvD8zS3eJqZiykZfkBb",
+        "pointerTarget": "Mnb33UzLIY4Hzrko9TTP",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "u5V7tJCbWDY7KD0IAiFr",
+        "pointerTarget": "J74V0EBAInEI6xTW0dHc",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "VkkyFKhpUR2HlfI1KRGQ",
+        "pointerTarget": "05PdqyJkxpQDPIWbcFXe",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "VSSTkx3D1e91dpUssPgz",
+        "pointerTarget": "nSRqEOmArgqlPIuTUoDO",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "W9N6MR9Tj4rHREjfGD2G",
+        "pointerTarget": "fNN51e6kiZkVK3QhhMda",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "WaIT3BV6f9rzphKBWhTQ",
+        "pointerTarget": "3YokjR5BFAqFNkW9mPsZ",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "wsWWPyX834G9xkCXDwQN",
+        "pointerTarget": "SyksvnvDc9ogyJggg4HU",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "wxaSwT1IM9YQIvldLcrP",
+        "pointerTarget": "TO7l41qnpYViJAK12ZUv",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "WZc8KAn40kqRrYNOa9EO",
+        "pointerTarget": "DqclO1B5G8FcojIE7Gb0",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "Xe8RIMdyGosDNvmMMtqY",
+        "pointerTarget": "Z0nNSJZZnKGTuBVkeBjG",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "xP37DASaAJvKQRVYLGXM",
+        "pointerTarget": "9sUfWp5CuOPDIl4XFu6c",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "XtvFuuoVBghehEopK5Ha",
+        "pointerTarget": "Pq095UpYPrySwpB4GICL",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "yCaNsnBMrhdzOVBpUm87",
+        "pointerTarget": "RFQ3dkgMx2B6x1BEuA8A",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "yGa773vKrpulZrbwWfyS",
+        "pointerTarget": "xOqLvGs8BuIA20KcuG1X",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "yypkwxGVBWeOmv5mn65R",
+        "pointerTarget": "x5rvRVLuAqa8g08KmOn4",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "zBpJGxVPMdAeSsJd4x7r",
+        "pointerTarget": "5mSP1ErrDILWT5dJ1Wzr",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "ZkWtlQjxelBnci4Qd4iP",
+        "pointerTarget": "hig1k9wVA3XoXE1meooq",
+        "pointerState": "resolves",
+        "hasAlias": false
+      },
+      {
+        "legacyProfileId": "zsv1Xx5VWNK3T3GusUwp",
+        "pointerTarget": "Ica9BvPXJPZyIe5W2SNn",
+        "pointerState": "resolves",
+        "hasAlias": false
+      }
+    ],
+    "missingAdmissionSearchFields": {
+      "total": 30,
+      "profileIds": [
+        "1hKy5gVyPUqclq7amkBq",
+        "1lZPhaqwqtJPGazsgBOI",
+        "7iBEDKZA69FEDZR3wX6N",
+        "7rqiJZKI7fjUNw0MGH59",
+        "aRv9tm2coQa22PI8i5wr",
+        "dBfv62uVWLo16DhQeLeK",
+        "DUERsHXfiOsXo8lbejMC",
+        "eb02H33ubMVltbh7n1ob",
+        "eW3CNRoNACaEMkk4L8vV",
+        "f3QHCmSSYjfDly2WG6a5",
+        "G63W3G9d8QumJjoxVa5S",
+        "GDmUhWM9h2E94diGHJLm",
+        "gHjfTjWaCdiN7PmrqVqZ",
+        "K0MlRv6pLIDxx3zzEFQy",
+        "LYgrHxsizVXWyVge0E8R",
+        "os76HGwDJ0WLrgNqEdIR",
+        "pIyBjcyaACY1ZgjWK1G9",
+        "po8otLNv8XEqrxPP9gFN",
+        "PVs6WaoW7Afk6yrMjBDy",
+        "RV3VPBNaa21bmkSow9He",
+        "Sf5Ak8BjjqyKJx0IADXv",
+        "wsWWPyX834G9xkCXDwQN",
+        "wxaSwT1IM9YQIvldLcrP",
+        "Xe8RIMdyGosDNvmMMtqY",
+        "xP37DASaAJvKQRVYLGXM",
+        "yCaNsnBMrhdzOVBpUm87",
+        "yypkwxGVBWeOmv5mn65R",
+        "zBpJGxVPMdAeSsJd4x7r",
+        "ZkWtlQjxelBnci4Qd4iP",
+        "zsv1Xx5VWNK3T3GusUwp"
+      ]
+    }
+  }
+}

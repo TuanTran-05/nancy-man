@@ -1,0 +1,242 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-19",
+  "sourceDatabase": "ai-studio-4bd76afc-98c1-4f42-8d50-f17f1cfeb31a",
+  "baselineDate": "2026-08-15",
+  "rule": [
+    "Ho so hoc sinh nao con DU chung cu (ten + ma + lop) thi dung lai; khong du thi bo.",
+    "Tien da thu (bien lai, giao dich vi) luon giu — do la chung tu that.",
+    "Du lieu SAI truoc moc 2026-08-15 thi xoa, khong co gang cuu.",
+    "Khong bia dat: moi truong duoi day deu tro nguoc ve mot ban ghi co that trong production."
+  ],
+  "reconstructStudents": [
+    {
+      "id": "n9EQvOrdDgwy72WXbdTe",
+      "code": "G6-01",
+      "name": "QUÁCH HOÀNG MINH",
+      "contact": "0384805145",
+      "classId": "Z8oeO9IN5H3lsV6IOAoH",
+      "studentLifecycle": "archived",
+      "isRevoked": true,
+      "money": "khong co dong nao",
+      "activityRange": "2026-03-13 .. 2026-07-08",
+      "evidence": [
+        "zalo_notifications: studentName='Quách Hoàng Minh', phone=0384805145, className=G6",
+        "audit_logs 2026-05-19T14:45:20 action=login: studentCode='G6-01', classId=Z8oeO9IN5H3lsV6IOAoH",
+        "audit_logs x27 ban ghi attendance/evaluations/notifications tro toi id nay"
+      ],
+      "note": "Ma 'G6-01' theo he cu, khong phai HSxxxxxx. Giu nguyen thay vi bia mot ma HS moi. Giu lai 32 diem danh + 2 danh gia + 3 bai nop."
+    },
+    {
+      "id": "42DjKQ0LRk4UQvmlC4rp",
+      "code": "HS260321",
+      "name": "MAI THỊ THIÊN KIM",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "studentLifecycle": "archived",
+      "isRevoked": true,
+      "money": "bien lai 1.100.000 da thu, ledger 1.100.000 da tra du",
+      "evidence": [
+        "audit_logs 2026-06-04T15:05:22 action=create collection=students: studentName='Mai Thị Thiên Kim', studentCode='HS260321'",
+        "audit_logs 2026-06-04T16:24:02 action=create collection=attendance: classId=b6GS6Dg5npzK3y2iRpbs"
+      ]
+    },
+    {
+      "id": "YVfEWfDxz1QgHbkexGpH",
+      "code": "HS260322",
+      "name": "CHẾ TRẦN AN NHIÊN",
+      "dob": "2019-05-09",
+      "classId": "b6GS6Dg5npzK3y2iRpbs",
+      "studentLifecycle": "archived",
+      "isRevoked": true,
+      "money": "bien lai 1.100.000 da thu, ledger 1.100.000 da tra du",
+      "evidence": [
+        "audit_logs 2026-06-04T15:05:24 action=create collection=students: studentName='Chế Trần An Nhiên', studentCode='HS260322'",
+        "audit_logs 2026-06-04T15:06:58 action=update: dob before=2019-09-05 after=2019-05-09 (lay ban SAU)"
+      ]
+    },
+    {
+      "id": "5g9pL8su6oTJPP8b9aPu",
+      "code": "HS260068",
+      "name": "NGUYỄN ĐOÀN TUẤN TÚ",
+      "dob": "2015-05-16",
+      "contact": "0392440975",
+      "classId": "ScflKHWUpRh4aVD7zCXr",
+      "studentLifecycle": "archived",
+      "isRevoked": true,
+      "money": "ledger 1.200.000 CHUA tra",
+      "evidence": [
+        "course_closing_records: studentName='NGUYỄN ĐOÀN TUẤN TÚ', studentCode='HS260068', class=G6-CS2, khoa 2026-03-29..2026-05-24",
+        "audit_logs 2026-05-25T08:07:55 action=update: name after='Nguyễn Đoàn Tuấn Tú', dob after='2015-05-16', contact after='0392440975'",
+        "audit_logs 2026-07-15T05:46:01 action=status_change: enrollmentStatus active->on_leave, statusNote='Chuyển qua lớp tiếng anh tăng cường'"
+      ],
+      "note": "Ma HS260068 lay tu course_closing_records (audit khong ghi studentCode cho ho so nay)."
+    },
+    {
+      "id": "TATENjEGwtbCbLNz4anV",
+      "code": "HS260808",
+      "name": "NGUYÊN NGỌC BÍCH",
+      "classId": "qKepfHLlCajcnoYjFgWZ",
+      "studentLifecycle": "archived",
+      "isRevoked": true,
+      "money": "ledger 1.200.000 CHUA tra",
+      "evidence": [
+        "audit_logs 2026-08-08T10:30:00 action=create collection=students by office: studentName='NGUYÊN NGỌC BÍCH', studentCode='HS260808', affectedClassIds=['qKepfHLlCajcnoYjFgWZ']"
+      ]
+    },
+    {
+      "id": "ro186kHKX03bxIHGv7z9",
+      "code": "HS260787",
+      "name": "CAO HOÀNG THÙY CHI",
+      "classId": "WTZAYh5srIEDgPEDjzwn",
+      "studentLifecycle": "archived",
+      "isRevoked": true,
+      "money": "ledger 1.400.000 CHUA tra",
+      "evidence": [
+        "audit_logs 2026-08-07T10:27:12 action=create collection=students by admin: studentName='CAO HOÀNG THÙY CHI', studentCode='HS260787', affectedClassIds=['WTZAYh5srIEDgPEDjzwn']"
+      ]
+    }
+  ],
+  "keepArchivedProfiles": [
+    {
+      "id": "HfwmG7tjVQT02J9XJvFZ",
+      "code": "HS260267",
+      "name": "BẢO NGÂN",
+      "deletedAt": "2026-07-15T12:53:13.381Z",
+      "reason": "Archived by staff",
+      "holds": "1 course_closing_record",
+      "note": "Co deletedAt nhung KHONG merge vao ai. Ho so that, bi luu tru. Nap voi lifecycle=archived, is_revoked=true — bo di thi mat mot ban ghi ket khoa co that."
+    },
+    {
+      "id": "gNorxvFV0e6i8j5ehfWP",
+      "code": "HS260779",
+      "name": "ĐỖ THỊ PHƯƠNG NGÂN",
+      "deletedAt": "2026-08-07T10:19:16.240Z",
+      "reason": "Archived by staff",
+      "holds": "1 student_course_enrollment",
+      "note": "Nhu tren."
+    }
+  ],
+  "dropMergedShells": {
+    "count": 58,
+    "policy": "Ho so co mergedIntoStudentId: khong nap. Da kiem ca 58/58 dich den con song va mang CUNG ma hoc sinh, nen khong mat danh tinh nao.",
+    "referencesToRepoint": 0,
+    "note": "Chinh 58 ho so nay tao ra 58 ma trung. Bo chung di thi UNIQUE(code_normalized) di qua sach."
+  },
+  "dropRows": [
+    {
+      "collection": "class_sessions",
+      "id": "5WiJgcjDQSnpQbXfs3j4",
+      "reason": "Trung (classId=Z8oeO9IN5H3lsV6IOAoH, date=2026-05-13) voi Z8oeO9IN5H3lsV6IOAoH_2026-05-13.",
+      "keepInstead": "Z8oeO9IN5H3lsV6IOAoH_2026-05-13",
+      "why": "Ban giu co day du diem danh giao vien (present, office_admin, marked 2026-07-20); ban bo khong co truong teacherAttendance* nao. Cung classId/teacherId/salaryPerSession nen khong mat gi."
+    },
+    {
+      "collection": "users",
+      "id": "loadtest-student-001",
+      "reason": "role='student' nhung khong co studentId — vi pham users_student_link.",
+      "why": "Tai khoan sinh ra cho loadtest, khong phai nguoi that."
+    },
+    {
+      "collection": "zalo_bulk_job_items",
+      "id": "*",
+      "match": {
+        "jobId": [
+          "axo26waYNpA3MM9QUhIj",
+          "EplhA0TXgXp5amEn7olc"
+        ]
+      },
+      "count": 22,
+      "reason": "22 item tro toi hai zalo_bulk_job da bi xoa khoi Firestore.",
+      "why": "Chung chi la hang noi giua job va lan gui. Ban ghi gui THAT van nam nguyen trong zalo_notifications (ca 22 deu status=sent, ngay 2026-08-03, lop WqLGvTj9Kft3C69PU08V), nen bo hang noi khong mat bang chung nao. Truoc moc 2026-08-15."
+    }
+  ],
+  "fixValues": [
+    {
+      "collection": "classes",
+      "id": "2GIu9f1T94IoMFu7F6Ye",
+      "field": "startTime",
+      "from": "18:00",
+      "to": "18:00:00",
+      "why": "53 lop con lai deu dung HH:MM:SS. Cot TIME cua Postgres nhan ca hai, chuan hoa cho dong nhat."
+    }
+  ],
+  "mergeReceiptAllocations": [
+    {
+      "receiptId": "gqYhopq73bbhPQY9tPYF",
+      "receiptNo": "PT-260808-133",
+      "ledgerId": "b9C4QhZ1h7qQEFp8ChId_187uCU8mzdnrWpziZrDe_2026-07-08_2026-08-28",
+      "from": [
+        1200000,
+        200000
+      ],
+      "to": 1400000,
+      "why": "UNIQUE(receipt_id, ledger_id) khong cho hai dong cung tro mot ledger. Dong thu hai la phan 200.000 con lai trong vi duoc gan not vao hoc phi ngay 2026-08-10 (co wallet_transaction that: type=allocation, amount=200000, note='Gan not so du vi con lai cua phieu PT-260808-133 vao hoc phi'). Gop lai khong lam doi so tien: ledger van 1.400.000 da tra du."
+    }
+  ],
+  "staleCachesNotImported": [
+    {
+      "field": "students.walletBalance",
+      "example": "b9C4QhZ1h7qQEFp8ChId luu 200.000 nhung 5 giao dich vi cong lai ra 0",
+      "why": "Cache khong duoc cap nhat sau giao dich ngay 2026-08-10. Schema moi khong co cot nay — v_student_wallet_balance tinh tu giao dich, va 0 moi la so dung."
+    },
+    {
+      "field": "classes.studentCounts",
+      "example": "active am toi -16, onLeave am toi -3",
+      "why": "Bo dem cong tru bang tay tu nhieu duong ghi. Thay bang v_class_student_counts."
+    },
+    {
+      "field": "course_fee_ledgers.paidTotal / discountTotal / siblingDiscountTotal",
+      "why": "Thay bang v_ledger_totals. Da doi chieu: 739/739 khop, lech 0 dong."
+    }
+  ],
+  "schemaFixesFound": [
+    {
+      "migration": "0003_academic.sql",
+      "removed": "EXCLUDE class_terms_no_overlap",
+      "why": "Lop RI6vRY14dJtwLSpdy1Bc co khoa cu 2026-06-27..2026-08-16 va khoa moi 2026-08-15..2026-10-04 — chong 2 ngay, la chuyen khoa binh thuong. Bat bien 'ky khong bao gio chong' khong dung voi du lieu that. Thu that su chan ledger trung la UNIQUE(student_id, class_id, term_start), da do 0/739 vi pham."
+    },
+    {
+      "migration": "0004_assignments.sql",
+      "removed": "UNIQUE submission_attempt_key (assignment_id, student_id, attempt_number)",
+      "why": "Hoc sinh 9sUfWp5CuOPDIl4XFu6c co attemptNumber [1,1,3,3,3] tren cung mot bai tap; 4/26 bai nop trung bo ba nay. attemptNumber khong duoc ung dung cap tang dan dang tin."
+    }
+  ],
+  "loadOrderConstraints": [
+    "students -> users -> classes -> va nguoc students (users_student_link la CHECK, khong deferrable duoc).",
+    "assignment_questions va assignment_question_options phai nam trong CUNG MOT transaction: FK ghep (id, correct_answer) -> options(question_id, option_key) la DEFERRABLE INITIALLY DEFERRED, nen chi hoan kiem toi cuoi transaction chu khong lau hon."
+  ],
+  "deriveClassTerms": {
+    "note": "Ky co ghi danh + ledger tro toi nhung KHONG co trong doc lop tren Firestore. Bo qua thi class_terms thieu mot ky co tien va 26 ghi danh phai chiu term_id NULL vinh vien. Dung lai tu chinh ghi danh/ledger — chung deu mang termStart/termEnd cua rieng chung va deu duoc ghi cung luc voi nghiep vu that.",
+    "rule": "Chi dung lai khi MOI ghi danh va ledger cua ky do thong nhat mot term_end. Mau thuan thi bao ra, khong chon bua mot ben.",
+    "terms": [
+      {
+        "classId": "AoTj2RDMv9em1rURsXVh",
+        "className": "G8 - Ms. Hang - T3T5",
+        "termStart": "2026-08-11",
+        "termEnd": "2026-10-01",
+        "tuitionFee": 1300000,
+        "enrollments": 14,
+        "ledgers": 14,
+        "ledgerAmount": 18200000,
+        "ledgerPaid": 3900000,
+        "evidence": "classes/AoTj2RDMv9em1rURsXVh co terms[] rong va courseClosing null; doc lop chi mo ta ky 2026-08-06..2026-09-29. 14 ghi danh + 14 ledger deu ghi termStart=2026-08-11, termEnd=2026-10-01, amount=1300000 — khong hang nao khac.",
+        "noOverlap": "0 hoc sinh nam o ca hai ky, nen day la hai lop hoc sinh khac nhau chu khong phai ban sao."
+      },
+      {
+        "classId": "qKepfHLlCajcnoYjFgWZ",
+        "className": "G4 - Ms. Hang - T7CN",
+        "termStart": "2026-06-14",
+        "termEnd": "2026-08-08",
+        "tuitionFee": 1200000,
+        "enrollments": 12,
+        "ledgers": 12,
+        "ledgerAmount": 14400000,
+        "ledgerPaid": 3550000,
+        "evidence": "classes/qKepfHLlCajcnoYjFgWZ co terms[] rong va courseClosing null; doc lop chi mo ta ky 2026-08-09..2026-10-03. 12 ghi danh + 12 ledger deu ghi termStart=2026-06-14, termEnd=2026-08-08, amount=1200000 — khong hang nao khac.",
+        "noOverlap": "0 hoc sinh nam o ca hai ky. Day la ky cu ket thuc 2026-08-08 roi lop chuyen sang khoa moi tu 2026-08-09."
+      }
+    ],
+    "courseIdLeftNull": "Khong nhan chung nao con giu courseId cua ky da mat, nen course_id de NULL thay vi muon currentCourseId cua ky hien tai.",
+    "markedBy": "class_terms.repair_source = 'derived_from_enrollments'"
+  }
+}

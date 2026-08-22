@@ -1,0 +1,6 @@
+# Repo dat core.autocrlf=true tren may Windows. Neu run-migrations.sh bi checkout
+# ra CRLF roi chay tren Ubuntu, bash bao "bad interpreter: /usr/bin/env bash^M".
+# Ep LF cho moi thu trong thu muc nay.
+*.sh  text eol=lf
+*.sql text eol=lf
+*.mjs text eol=lf

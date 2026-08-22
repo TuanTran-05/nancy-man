@@ -1,0 +1,413 @@
+{
+  "todayLedgers": 657,
+  "rebuiltLedgers": 644,
+  "notRecreated": [
+    {
+      "reason": "other",
+      "ledgers": 113,
+      "billed": 142900000,
+      "paidMoneyStranded": 45670000,
+      "students": 95
+    }
+  ],
+  "totalStrandedPaidMoney": 45670000,
+  "strandedLedgersWithMoney": 36,
+  "strandedDetail": [
+    {
+      "ledgerId": "O7NlS4CE7NwhRyXEImje_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "QUÁCH VĂN HÓA",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "jwgpkhSKUVWFE3NrP3ln_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "VŨ DUY HOÀNG",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "GUad6vips5o2ps7tNaSQ_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "PHẠM ANH DUY",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "7kImoy6B0B5frTLG4d2v_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "PHẠM THÀNH DANH",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "NhdLhjhDjZaKXWhm8tjp_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "NGUYỄN CHÍ KHANG",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "T1nyVkgVVq5U7vXy7Ppu_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "TRƯƠNG CÔNG ĐẠT",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "iI3hLAso9rwBeztYvvo3_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "PHẠM PHƯƠNG LINH",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "8s9jXxZkSdATt5Ezizor_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "HỒ THỊ THANH BÌNH",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "jbDxFyKZv7lleHlhpWFD_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "PHẠM HOÀNG GIA BẢO",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "mGZ5XObe3TthurGYLxQ6_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "LÊ NGỌC HÀ TRANG",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "nijdfTnBAL2c2Yd5WuHF_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "ĐẬU THỊ PHƯƠNG NGÂN",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "ef0Ni9aUXV2tfK3ltHxT_FigsTfwBAQzGlLBxfU2u_2026-07-06_2026-08-30",
+      "reason": "other",
+      "studentName": "NGUYỄN THẢO TRANG",
+      "className": "G11 - Ms.Hương CN T2",
+      "termStart": "2026-07-11",
+      "termEnd": "2026-08-30",
+      "amount": 1400000,
+      "paidTotal": 1400000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "oLtt9DqLL7aV6Iae3iEp_71GVOT1409eW8tTLpPuE_2026-06-14_2026-08-08",
+      "reason": "other",
+      "studentName": "NGÔ TUẤN LỘC",
+      "className": "G8 - Mr. Kiệt Ca T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1300000,
+      "paidTotal": 1300000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "TYEcL8PlyxNuL7q89ieG_lmCjwxAFU0oXzXSBdjW8_2026-06-10_2026-07-31",
+      "reason": "other",
+      "studentName": "NGUYỄN PHẠM ĐỨC HUY",
+      "className": "Flyers - Mr. Duy Tú T4-T6",
+      "termStart": "2026-06-03",
+      "termEnd": "2026-07-24",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "prRuVeq8j5cFE9Ejc3Fn_Um5Y3hbveKaxYP2DdM05_2026-06-12_2026-08-05",
+      "reason": "other",
+      "studentName": "NGUYỄN HÀ MY",
+      "className": "Starters - Mr. Thái Tuấn T4-6",
+      "termStart": "2026-06-12",
+      "termEnd": "2026-08-05",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "40LuzdSymM5Tb4bjJBj0_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "NGUYỄN BẢO NGỌC",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "eFUWnmMnDCV8kdlqrned_lmCjwxAFU0oXzXSBdjW8_2026-06-10_2026-07-31",
+      "reason": "other",
+      "studentName": "VŨ KHÁNH TRANG",
+      "className": "Flyers - Mr. Duy Tú T4-T6",
+      "termStart": "2026-06-03",
+      "termEnd": "2026-07-24",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "HCxq2Bbli5ckLO4w18oy_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "ĐÀO LÊ HẢI CHÂU",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "b9C4QhZ1h7qQEFp8ChId_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "NGUYỄN LƯƠNG MAI LY",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "VOAjymHzGAwWCapyPwwO_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "NGUYỄN PHƯƠNG LOAN",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "A2EJWXSdfou0gupurFkL_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "DIỆP THÁI BÌNH",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "eFUWnmMnDCV8kdlqrned_lmCjwxAFU0oXzXSBdjW8_2026-08-05_2026-09-30",
+      "reason": "other",
+      "studentName": "VŨ KHÁNH TRANG",
+      "className": "Flyers - Mr. Duy Tú T4-T6",
+      "termStart": "2026-07-29",
+      "termEnd": "2026-09-18",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "YAcr3EVCaHv3bgokJQkN_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "NGUYỄN LINH CHI",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "fvmPCL8fZ2QvHgtMcQ0d_Um5Y3hbveKaxYP2DdM05_2026-06-12_2026-08-05",
+      "reason": "other",
+      "studentName": "HOÀNG SỸ MINH NHẬT",
+      "className": "Starters - Mr. Thái Tuấn T4-6",
+      "termStart": "2026-06-12",
+      "termEnd": "2026-08-05",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "Su8aWToP9piS4e9poVtf_lmCjwxAFU0oXzXSBdjW8_2026-08-05_2026-09-30",
+      "reason": "other",
+      "studentName": "NGUYỄN PHƯƠNG THẢO",
+      "className": "Flyers - Mr. Duy Tú T4-T6",
+      "termStart": "2026-07-29",
+      "termEnd": "2026-09-18",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "7PNAFCY0OIfProO7VZx2_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "VŨ PHƯƠNG ANH",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "9YcQq50qNUxxCXCUyNoE_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "NGUYỄN THỊ KHÁNH NGỌC",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "Su8aWToP9piS4e9poVtf_lmCjwxAFU0oXzXSBdjW8_2026-06-10_2026-07-31",
+      "reason": "other",
+      "studentName": "NGUYỄN PHƯƠNG THẢO",
+      "className": "Flyers - Mr. Duy Tú T4-T6",
+      "termStart": "2026-06-03",
+      "termEnd": "2026-07-24",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "tkcdJJ4X5HTgqTXXe0r2_Um5Y3hbveKaxYP2DdM05_2026-06-12_2026-08-05",
+      "reason": "other",
+      "studentName": "PHẠM THỊ THẢO AN",
+      "className": "Starters - Mr. Thái Tuấn T4-6",
+      "termStart": "2026-06-12",
+      "termEnd": "2026-08-05",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "zUd281841BxV8gIrt81W_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "NGUYỄN THỊ NGÂN VY",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "PmJmGrIQpPjXrPP832gF_lmCjwxAFU0oXzXSBdjW8_2026-06-10_2026-07-31",
+      "reason": "other",
+      "studentName": "VÕ MINH TIẾN",
+      "className": "Flyers - Mr. Duy Tú T4-T6",
+      "termStart": "2026-06-03",
+      "termEnd": "2026-07-24",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "6QBY4mOjJvXAuq0F14T9_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "PHAN LÊ HIẾU",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "V88jSNY0yhi5TZDrQe8p_Um5Y3hbveKaxYP2DdM05_2026-06-12_2026-08-05",
+      "reason": "other",
+      "studentName": "BÙI THỊ PHƯƠNG LINH",
+      "className": "Starters - Mr. Thái Tuấn T4-6",
+      "termStart": "2026-06-12",
+      "termEnd": "2026-08-05",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "PmJmGrIQpPjXrPP832gF_lmCjwxAFU0oXzXSBdjW8_2026-08-05_2026-09-30",
+      "reason": "other",
+      "studentName": "VÕ MINH TIẾN",
+      "className": "Flyers - Mr. Duy Tú T4-T6",
+      "termStart": "2026-07-29",
+      "termEnd": "2026-09-18",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "NqvO0zkENZO0ZtcNe6fz_XXTe0dcLydenBbhXkIHF_2026-06-20_2026-08-09",
+      "reason": "other",
+      "studentName": "NGUYỄN ĐĂNG KHÔI",
+      "className": "G6 - Quỳnh T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1200000,
+      "paidTotal": 1200000,
+      "status": "paid"
+    },
+    {
+      "ledgerId": "HfIJ5mPiDc3qVdmPVAc0_71GVOT1409eW8tTLpPuE_2026-06-14_2026-08-08",
+      "reason": "other",
+      "studentName": "NGUYỄN PHẠM QUỲNH ANH",
+      "className": "G8 - Mr. Kiệt Ca T7-CN 17H30",
+      "termStart": "2026-06-14",
+      "termEnd": "2026-08-08",
+      "amount": 1300000,
+      "paidTotal": 1170000,
+      "status": "partial"
+    }
+  ]
+}

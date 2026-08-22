@@ -1,0 +1,9 @@
+{
+  "migrationId": "safe-student-course-enrollments-v2",
+  "digest": "c9fa8370a0ed57b3c897c1782a8f70a285f8fd80d0f58874df713aed94a34b88",
+  "target": {
+    "projectId": "gen-lang-client-0014842483",
+    "databaseId": "ai-studio-4bd76afc-98c1-4f42-8d50-f17f1cfeb31a"
+  },
+  "entries": []
+}

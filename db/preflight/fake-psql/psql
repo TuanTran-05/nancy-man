@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Vo boc de run-migrations.sh goi duoc "psql" nhu binh thuong. Xem psql.mjs.
+exec node --max-old-space-size=4096 "$(dirname "${BASH_SOURCE[0]}")/psql.mjs" "$@"

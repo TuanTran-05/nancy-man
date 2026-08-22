@@ -1,0 +1,535 @@
+import { LessonDeck } from '../../../types';
+
+const deck: LessonDeck = {
+  id: 'gs-g7-u11-travelling-in-the-future',
+  curriculumFamily: 'global-success',
+  grade: 7,
+  unitNumber: 11,
+  title: 'Grammar Grade 7 - Unit 11: Travelling in the Future',
+  description:
+    'Bài giảng Unit 11 Global Success 7 về Future Simple, possessive adjectives, possessive pronouns và từ vựng chủ đề Travelling in the Future.',
+  createdAt: '2026-05-18T00:00:00.000Z',
+  slides: [
+    {
+      id: 's1',
+      title: 'GRAMMAR GRADE 7',
+      subtitle: 'UNIT 11: TRAVELLING IN THE FUTURE',
+      label: 'NỘI DUNG BÀI HỌC:',
+      layout: 'outline',
+      cards: [
+        {
+          title: 'FUTURE SIMPLE',
+          subtitle: '(Thì tương lai đơn)',
+          accent: 'orange',
+        },
+        {
+          title: 'POSSESSIVE ADJECTIVES & PRONOUNS',
+          subtitle: '(Tính từ sở hữu và đại từ sở hữu)',
+          accent: 'pink',
+        },
+        {
+          title: 'FUTURE TRANSPORT',
+          subtitle: '(Từ vựng phương tiện tương lai)',
+          accent: 'blue',
+        },
+      ],
+    },
+    {
+      id: 's2',
+      title: 'Mục tiêu bài học',
+      layout: 'objectives',
+      bullets: [
+        { content: 'Dùng will / will not để dự đoán về giao thông trong tương lai.' },
+        { content: 'Đặt câu hỏi Yes/No và Wh-questions với Future Simple.' },
+        { content: 'Phân biệt possessive adjectives và possessive pronouns.' },
+        { content: 'Hỏi và trả lời “của ai” bằng Whose trong ngữ cảnh phương tiện.' },
+      ],
+    },
+    {
+      id: 's3',
+      title: 'Phần 1',
+      subtitle: 'Future Simple',
+      layout: 'section-cover',
+      accent: 'orange',
+    },
+    {
+      id: 's4',
+      title: 'Công thức Future Simple',
+      subtitle: 'Dùng will để nói việc sẽ xảy ra trong tương lai.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Khẳng định',
+          accent: 'orange',
+          content: 'S + will + V nguyên mẫu',
+          example: 'People will travel by flying cars.',
+        },
+        {
+          title: 'Phủ định',
+          accent: 'pink',
+          content: 'S + will not / won’t + V nguyên mẫu',
+          example: 'Cars won’t use petrol.',
+        },
+        {
+          title: 'Nghi vấn',
+          accent: 'blue',
+          content: 'Will + S + V nguyên mẫu?',
+          example: 'Will people live on Mars?',
+        },
+        {
+          title: 'Trả lời ngắn',
+          accent: 'green',
+          content: 'Yes, S + will. / No, S + won’t.',
+          example: 'Yes, they will.',
+        },
+      ],
+    },
+    {
+      id: 's5',
+      title: 'Cách dùng Will',
+      subtitle: 'Future Simple trong chủ đề giao thông tương lai.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Dự đoán',
+          accent: 'orange',
+          content: 'Nói điều mình nghĩ sẽ xảy ra.',
+          example: 'Flying cars will become popular.',
+        },
+        {
+          title: 'Phương tiện tương lai',
+          accent: 'blue',
+          content: 'Nói về cách con người sẽ di chuyển.',
+          example: 'Children will go to school by solar-powered buses.',
+        },
+        {
+          title: 'Điều sẽ không xảy ra',
+          accent: 'pink',
+          content: 'Dùng won’t để phủ định dự đoán.',
+          example: 'Vehicles won’t pollute the air.',
+        },
+        {
+          title: 'Quyết định nhanh',
+          accent: 'green',
+          content: 'Quyết định tại thời điểm nói.',
+          example: 'The bus is late. I will take a taxi.',
+        },
+      ],
+    },
+    {
+      id: 's6',
+      title: 'Dấu hiệu nhận biết',
+      subtitle: 'Các cụm thời gian thường đi với Future Simple.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Gần tương lai',
+          accent: 'orange',
+          bullets: ['tomorrow', 'soon', 'next week', 'next month'],
+        },
+        {
+          title: 'Tương lai xa',
+          accent: 'blue',
+          bullets: ['in the future', 'one day', 'in 2050', 'next year'],
+        },
+        {
+          title: 'Ví dụ',
+          accent: 'green',
+          bullets: ['Driverless cars will appear soon.', 'People will use clean energy in 2050.'],
+        },
+      ],
+    },
+    {
+      id: 's7',
+      title: 'Câu hỏi với Will',
+      subtitle: 'Yes/No questions và Wh-questions.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Yes / No',
+          accent: 'orange',
+          content: 'Will + S + V nguyên mẫu?',
+          example: 'Will cars use solar energy?',
+        },
+        {
+          title: 'Wh-question',
+          accent: 'blue',
+          content: 'Wh-word + will + S + V nguyên mẫu?',
+          example: 'How will people travel in the future?',
+        },
+        {
+          title: 'Trả lời',
+          accent: 'green',
+          content: 'Dùng will / won’t hoặc thông tin cụ thể.',
+          example: 'They will travel by flying cars.',
+        },
+      ],
+    },
+    {
+      id: 's8',
+      title: 'Lưu ý với Will',
+      subtitle: 'Những lỗi cần tránh khi chia thì tương lai đơn.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Sau will',
+          accent: 'orange',
+          content: 'Luôn dùng động từ nguyên mẫu.',
+          example: 'People will travel by flying cars.',
+        },
+        {
+          title: 'Không chia theo chủ ngữ',
+          accent: 'blue',
+          content: 'I / He / She / They đều dùng will.',
+          example: 'She will use an electric car.',
+        },
+        {
+          title: 'Không dùng to',
+          accent: 'pink',
+          content: 'Sau will không dùng to trước động từ.',
+          example: 'We will go by bus.',
+        },
+        {
+          title: 'Will vs Going to',
+          accent: 'green',
+          content: 'Will: dự đoán nhanh. Going to: kế hoạch đã có.',
+          example: 'I think people will use flying cars.',
+        },
+      ],
+    },
+    {
+      id: 's9',
+      title: 'Ví dụ Future Simple',
+      subtitle: 'Nhìn câu và nhận diện cấu trúc.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Dự đoán',
+          accent: 'orange',
+          content: 'will + V để nói điều sẽ xảy ra.',
+          example: 'People will travel by flying cars.',
+        },
+        {
+          title: 'Phủ định',
+          accent: 'pink',
+          content: 'won’t + V để nói điều sẽ không xảy ra.',
+          example: 'Cars won’t use petrol in 2050.',
+        },
+        {
+          title: 'Yes / No question',
+          accent: 'blue',
+          content: 'Will + S + V?',
+          example: 'Will students go by solar-powered buses?',
+        },
+        {
+          title: 'Wh-question',
+          accent: 'green',
+          content: 'Wh-word + will + S + V?',
+          example: 'How will people travel in the future?',
+        },
+      ],
+    },
+    {
+      id: 's10',
+      title: 'Phần 2',
+      subtitle: 'Possessive Adjectives & Pronouns',
+      layout: 'section-cover',
+      accent: 'pink',
+    },
+    {
+      id: 's11',
+      title: 'Sở hữu trong tiếng Anh',
+      subtitle: 'Hai cách nói “của ai”.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Possessive adjective',
+          accent: 'orange',
+          content: 'Đứng trước danh từ.',
+          example: 'This is my bike.',
+        },
+        {
+          title: 'Possessive pronoun',
+          accent: 'pink',
+          content: 'Đứng một mình, thay cho cụm sở hữu.',
+          example: 'This bike is mine.',
+        },
+        {
+          title: 'Ý nghĩa',
+          accent: 'blue',
+          content: 'Cả hai đều dùng để nói sự sở hữu.',
+          example: 'This is our bus. / This bus is ours.',
+        },
+      ],
+    },
+    {
+      id: 's12',
+      title: 'Bảng sở hữu cần nhớ',
+      subtitle: 'Tính từ sở hữu đi với danh từ; đại từ sở hữu đứng một mình.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'I / You',
+          accent: 'orange',
+          bullets: ['my bike → mine', 'your car → yours'],
+        },
+        {
+          title: 'He / She',
+          accent: 'pink',
+          bullets: ['his motorbike → his', 'her scooter → hers'],
+        },
+        {
+          title: 'We / They',
+          accent: 'blue',
+          bullets: ['our bus → ours', 'their vehicle → theirs'],
+        },
+        {
+          title: 'It',
+          accent: 'green',
+          bullets: ['its battery', 'không có đại từ sở hữu độc lập cho it'],
+        },
+      ],
+    },
+    {
+      id: 's13',
+      title: 'Possessive Adjectives',
+      subtitle: 'Tính từ sở hữu luôn đứng trước danh từ.',
+      layout: 'explain',
+      accent: 'orange',
+      formula: 'possessive adjective + noun',
+      bullets: [
+        { content: 'Phía sau tính từ sở hữu phải có danh từ.' },
+        { content: 'Dùng để nói phương tiện hoặc đồ vật thuộc về ai.' },
+        { content: 'Không dùng tính từ sở hữu đứng một mình.' },
+      ],
+      examples: ['My bike is new.', 'Her scooter is electric.', 'Their flying car is very fast.'],
+    },
+    {
+      id: 's14',
+      title: 'Possessive Pronouns',
+      subtitle: 'Đại từ sở hữu đứng một mình.',
+      layout: 'explain',
+      accent: 'pink',
+      formula: 'S + be + possessive pronoun',
+      bullets: [
+        { content: 'Dùng để tránh lặp lại danh từ.' },
+        { content: 'Mine = my + noun; yours = your + noun.' },
+        { content: 'Không đặt danh từ sau đại từ sở hữu.' },
+      ],
+      examples: ['This bike is mine.', 'That car is yours.', 'The flying car is theirs.'],
+    },
+    {
+      id: 's15',
+      title: 'Câu hỏi Whose',
+      subtitle: 'Whose dùng để hỏi “của ai”.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Số ít',
+          accent: 'orange',
+          content: 'Whose + noun + is this / that?',
+          example: 'Whose bike is this?',
+        },
+        {
+          title: 'Số nhiều',
+          accent: 'blue',
+          content: 'Whose + plural noun + are these / those?',
+          example: 'Whose helmets are these?',
+        },
+        {
+          title: 'Trả lời',
+          accent: 'green',
+          content: 'It is / They are + possessive pronoun.',
+          example: 'It is mine. / They are ours.',
+        },
+      ],
+    },
+    {
+      id: 's16',
+      title: 'Lưu ý sở hữu',
+      subtitle: 'Những cặp dễ nhầm trong bài.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'My vs Mine',
+          accent: 'orange',
+          content: 'My đứng trước danh từ; mine đứng một mình.',
+          example: 'my bike / This bike is mine.',
+        },
+        {
+          title: 'Her vs Hers',
+          accent: 'pink',
+          content: 'Her là tính từ sở hữu; hers là đại từ sở hữu.',
+          example: 'her car / This car is hers.',
+        },
+        {
+          title: 'His',
+          accent: 'blue',
+          content: 'His vừa là tính từ sở hữu vừa là đại từ sở hữu.',
+          example: 'his car / This car is his.',
+        },
+        {
+          title: 'Its',
+          accent: 'green',
+          content: 'Its chỉ dùng trước danh từ.',
+          example: 'The car uses its battery.',
+        },
+      ],
+    },
+    {
+      id: 's17',
+      title: 'Ví dụ sở hữu',
+      subtitle: 'Chuyển từ tính từ sở hữu sang đại từ sở hữu.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'My → Mine',
+          accent: 'orange',
+          content: 'This is my bike.',
+          example: 'This bike is mine.',
+        },
+        {
+          title: 'Your → Yours',
+          accent: 'blue',
+          content: 'Is this your electric car?',
+          example: 'Is this electric car yours?',
+        },
+        {
+          title: 'Their → Theirs',
+          accent: 'pink',
+          content: 'Their vehicle is faster than ours.',
+          example: 'This vehicle is theirs.',
+        },
+        {
+          title: 'Whose',
+          accent: 'green',
+          content: 'Whose helmet is this?',
+          example: 'It is hers.',
+        },
+      ],
+    },
+    {
+      id: 's18',
+      title: 'Phần 3',
+      subtitle: 'Travelling in the Future',
+      layout: 'section-cover',
+      accent: 'blue',
+    },
+    {
+      id: 's19',
+      title: 'Future Vehicles',
+      subtitle: 'Phương tiện giao thông tương lai.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'New vehicles',
+          accent: 'orange',
+          bullets: ['flying car', 'driverless car', 'electric car'],
+        },
+        {
+          title: 'Public transport',
+          accent: 'blue',
+          bullets: ['hyperloop', 'bullet train', 'sky train'],
+        },
+        {
+          title: 'Eco-friendly',
+          accent: 'green',
+          bullets: ['solar-powered car', 'eco-friendly bus', 'bamboo-copter'],
+        },
+        {
+          title: 'Space travel',
+          accent: 'pink',
+          bullets: ['spaceship', 'travel to Mars', 'one day'],
+        },
+      ],
+    },
+    {
+      id: 's20',
+      title: 'Technology & Actions',
+      subtitle: 'Từ vựng về năng lượng, công nghệ và hành động.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Energy',
+          accent: 'green',
+          bullets: ['solar energy', 'electricity', 'battery', 'petrol'],
+        },
+        {
+          title: 'Technology',
+          accent: 'blue',
+          bullets: ['technology', 'automatic', 'high-speed', 'modern'],
+        },
+        {
+          title: 'Verbs',
+          accent: 'orange',
+          bullets: ['travel', 'use', 'drive', 'fly', 'invent'],
+        },
+        {
+          title: 'Environment',
+          accent: 'pink',
+          bullets: ['reduce pollution', 'pollute the air', 'run on electricity'],
+        },
+      ],
+    },
+    {
+      id: 's21',
+      title: 'Cấu trúc giao tiếp',
+      subtitle: 'Ba mẫu câu dùng nhiều trong Unit 11.',
+      layout: 'cards',
+      cards: [
+        {
+          title: 'Dự đoán',
+          accent: 'orange',
+          content: 'I think + S + will + V.',
+          example: 'I think people will use flying cars.',
+        },
+        {
+          title: 'Hỏi cách di chuyển',
+          accent: 'blue',
+          content: 'How will + S + travel + in the future?',
+          example: 'How will people travel in the future?',
+        },
+        {
+          title: 'Hỏi của ai',
+          accent: 'pink',
+          content: 'Whose + vehicle + is this / that?',
+          example: 'Whose electric bike is this?',
+        },
+      ],
+    },
+    {
+      id: 's22',
+      title: 'Luyện tập nhanh',
+      subtitle: 'Điền từ hoặc cụm từ phù hợp.',
+      layout: 'practice',
+      accent: 'orange',
+      bullets: [
+        { content: 'People _____ travel by flying cars in the future.' },
+        { content: 'Cars _____ use petrol in 2050.' },
+        { content: 'This is _____ bike. This bike is mine.' },
+        { content: 'Whose helmets are these? They are _____.' },
+      ],
+      examples: ['will', 'won’t', 'my', 'ours'],
+    },
+    {
+      id: 's23',
+      title: 'Unit 11 Recap',
+      subtitle: 'Travelling in the Future',
+      layout: 'practice',
+      accent: 'purple',
+      bullets: [
+        { content: 'Future Simple: S + will / won’t + V nguyên mẫu.' },
+        { content: 'Câu hỏi tương lai: Will + S + V? hoặc Wh-word + will + S + V?' },
+        { content: 'Possessive adjectives đứng trước danh từ: my bike, their vehicle.' },
+        { content: 'Possessive pronouns đứng một mình: mine, yours, hers, ours, theirs.' },
+      ],
+      examples: [
+        'People will use eco-friendly vehicles.',
+        'Will cars use solar energy?',
+        'This electric bike is mine.',
+      ],
+    },
+  ],
+};
+
+export default deck;

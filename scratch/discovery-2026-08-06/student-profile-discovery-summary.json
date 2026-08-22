@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-08-06T05:32:18.413Z",
+  "sourceCommitSha": "aa34df529a189231a6ad31c98fad5e705147621e",
+  "readOnly": true,
+  "candidateProfileCount": 58,
+  "physicalProfiles": 679,
+  "canonicalProfiles": 621,
+  "tombstones": 0,
+  "aliasDocuments": 0,
+  "legacySoftMerges": 58,
+  "legacySoftMergePointerStates": {
+    "resolves": 58
+  },
+  "missingAdmissionSearchFields": 190,
+  "orphanLedgers": 0,
+  "totalOrphanAmount": 0,
+  "collectionsScanned": 45,
+  "documentsScanned": 21152,
+  "documentsWithMatches": 538,
+  "collectionsWithMatches": [
+    "accounting_student_summaries",
+    "admin_notifications",
+    "audit_logs",
+    "course_closing_records",
+    "students",
+    "users"
+  ]
+}
