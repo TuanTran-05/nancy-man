@@ -17,7 +17,7 @@ export type MfaFactorSummary = {
   label: string;
 };
 
-type PasswordCredential = {
+export type PasswordCredential = {
   id: string;
   username: string;
   displayName: string;
@@ -27,7 +27,7 @@ type PasswordCredential = {
   mfaFactors: readonly MfaFactorSummary[];
 };
 
-type TotpChallenge = {
+export type TotpChallenge = {
   id: string;
   userId: string;
   role: OpsRole;

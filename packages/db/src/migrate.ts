@@ -59,6 +59,13 @@ const migrations: readonly Migration[] = [
       new URL('../migrations/0009_alert_delivery_outbox.sql', import.meta.url),
       'utf8'
     )
+  },
+  {
+    id: '0010_ops_login_challenges',
+    sql: readFileSync(
+      new URL('../migrations/0010_ops_login_challenges.sql', import.meta.url),
+      'utf8'
+    )
   }
 ];
 

@@ -42,7 +42,8 @@ describe('Ops database migration runner', () => {
       '0006_release_publishers',
       '0007_ingest_nonces',
       '0008_ingest_rate_limits',
-      '0009_alert_delivery_outbox'
+      '0009_alert_delivery_outbox',
+      '0010_ops_login_challenges'
     ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {
@@ -67,7 +68,8 @@ describe('Ops database migration runner', () => {
               { migrationId: '0006_release_publishers' },
               { migrationId: '0007_ingest_nonces' },
               { migrationId: '0008_ingest_rate_limits' },
-              { migrationId: '0009_alert_delivery_outbox' }
+              { migrationId: '0009_alert_delivery_outbox' },
+              { migrationId: '0010_ops_login_challenges' }
             ] as T[]
           };
         }
