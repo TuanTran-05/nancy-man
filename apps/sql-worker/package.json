@@ -5,5 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json --pretty false"
+  },
+  "dependencies": {
+    "pgsql-ast-parser": "^12.0.2"
   }
 }

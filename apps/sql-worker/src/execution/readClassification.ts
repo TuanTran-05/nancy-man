@@ -1,26 +1,34 @@
+import { parse } from 'pgsql-ast-parser';
+
 type Result =
-  | { allowed: true; kind: 'select' | 'show' | 'explain' }
+  | { allowed: true; kind: 'select' | 'show' }
   | { allowed: false; code: 'SQL_READ_ONLY_REQUIRED' };
 
-function normalized(sql: string): string | null {
-  const withoutComments = sql
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/--[^\n]*/g, ' ')
-    .trim();
-  if (!withoutComments || (withoutComments.includes(';') && !/;\s*$/.test(withoutComments)))
-    return null;
-  const statement = withoutComments.replace(/;\s*$/, '').trim();
-  return statement && !statement.includes(';')
-    ? statement.replace(/\s+/g, ' ').toUpperCase()
-    : null;
+function isReadSelect(statement: unknown): boolean {
+  if (!statement || typeof statement !== 'object') return false;
+  const value = statement as {
+    type?: string;
+    for?: unknown;
+    bind?: Array<{ statement?: unknown }>;
+    in?: unknown;
+  };
+  if (value.type === 'select') return !value.for;
+  return (
+    value.type === 'with' &&
+    Array.isArray(value.bind) &&
+    value.bind.every((binding) => isReadSelect(binding.statement)) &&
+    isReadSelect(value.in)
+  );
 }
 
 export function classifyReadOnlySql(sql: string): Result {
-  const statement = normalized(sql);
-  if (!statement) return { allowed: false, code: 'SQL_READ_ONLY_REQUIRED' };
-  if (statement.startsWith('SELECT ') && !/\b(INTO|FOR UPDATE|FOR SHARE)\b/.test(statement))
-    return { allowed: true, kind: 'select' };
-  if (statement.startsWith('SHOW ')) return { allowed: true, kind: 'show' };
-  if (/^EXPLAIN(?: \([^)]*\))? SELECT /.test(statement)) return { allowed: true, kind: 'explain' };
-  return { allowed: false, code: 'SQL_READ_ONLY_REQUIRED' };
+  try {
+    const statements = parse(sql);
+    if (statements.length !== 1) return { allowed: false, code: 'SQL_READ_ONLY_REQUIRED' };
+    if (isReadSelect(statements[0])) return { allowed: true, kind: 'select' };
+    if (statements[0]?.type === 'show') return { allowed: true, kind: 'show' };
+    return { allowed: false, code: 'SQL_READ_ONLY_REQUIRED' };
+  } catch {
+    return { allowed: false, code: 'SQL_READ_ONLY_REQUIRED' };
+  }
 }

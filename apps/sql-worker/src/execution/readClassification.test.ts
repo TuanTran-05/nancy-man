@@ -7,8 +7,8 @@ describe('classifyReadOnlySql', () => {
       kind: 'select'
     });
     expect(classifyReadOnlySql('/* note */ EXPLAIN SELECT 1')).toEqual({
-      allowed: true,
-      kind: 'explain'
+      allowed: false,
+      code: 'SQL_READ_ONLY_REQUIRED'
     });
     for (const sql of [
       'DELETE FROM students',
