@@ -19,6 +19,16 @@ export function createIssueRouter(input: {
       actorUserId: string;
       status: 'acknowledged' | 'investigating' | 'resolved' | 'ignored';
     }) => Promise<boolean>;
+    comment?: (input: {
+      issueId: string;
+      actorUserId: string;
+      comment: string;
+    }) => Promise<boolean>;
+    assign?: (input: {
+      issueId: string;
+      actorUserId: string;
+      assignedUserId: string | null;
+    }) => Promise<boolean>;
   };
 }): Router {
   const router = express.Router();
@@ -95,6 +105,78 @@ export function createIssueRouter(input: {
         )
           return response.status(404).json({ code: 'ISSUE_NOT_FOUND' });
         return response.status(204).end();
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+  router.post(
+    '/:issueId/comments',
+    express.json({ limit: '4kb' }),
+    async (request, response, next) => {
+      try {
+        const parsed = z
+          .object({ comment: z.string().trim().min(1).max(2_000) })
+          .safeParse(request.body);
+        if (!parsed.success || !input.workflow?.comment)
+          return response.status(400).json({ code: 'INVALID_ISSUE_COMMENT' });
+        const cookieHeader = request.get('cookie');
+        const csrfToken = request.get('X-Ops-CSRF');
+        const principal = await input.authorize({
+          ...(cookieHeader ? { cookieHeader } : {}),
+          ...(csrfToken ? { csrfToken } : {}),
+          mutation: true
+        });
+        if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+        try {
+          assertPermission(principal.role, 'issues:write');
+        } catch {
+          return response.status(403).json({ code: 'PERMISSION_DENIED' });
+        }
+        const created = await input.workflow.comment({
+          issueId: request.params.issueId,
+          actorUserId: principal.userId,
+          comment: parsed.data.comment
+        });
+        return created
+          ? response.status(204).end()
+          : response.status(404).json({ code: 'ISSUE_NOT_FOUND' });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+  router.post(
+    '/:issueId/assign',
+    express.json({ limit: '2kb' }),
+    async (request, response, next) => {
+      try {
+        const parsed = z
+          .object({ assignedUserId: z.string().uuid().nullable() })
+          .safeParse(request.body);
+        if (!parsed.success || !input.workflow?.assign)
+          return response.status(400).json({ code: 'INVALID_ISSUE_ASSIGNMENT' });
+        const cookieHeader = request.get('cookie');
+        const csrfToken = request.get('X-Ops-CSRF');
+        const principal = await input.authorize({
+          ...(cookieHeader ? { cookieHeader } : {}),
+          ...(csrfToken ? { csrfToken } : {}),
+          mutation: true
+        });
+        if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+        try {
+          assertPermission(principal.role, 'issues:write');
+        } catch {
+          return response.status(403).json({ code: 'PERMISSION_DENIED' });
+        }
+        const changed = await input.workflow.assign({
+          issueId: request.params.issueId,
+          actorUserId: principal.userId,
+          assignedUserId: parsed.data.assignedUserId
+        });
+        return changed
+          ? response.status(204).end()
+          : response.status(404).json({ code: 'ISSUE_NOT_FOUND_OR_ASSIGNEE_INVALID' });
       } catch (error) {
         next(error);
       }
