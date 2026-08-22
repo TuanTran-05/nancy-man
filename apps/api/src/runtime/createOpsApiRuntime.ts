@@ -1,4 +1,6 @@
 import { createOpsApi } from '../index.js';
+import { OpsAuthService } from '../modules/auth/authService.js';
+import { PostgresOpsAuthRepository } from '../modules/auth/postgresAuthRepository.js';
 import { createBrowserIngestService } from '../modules/ingest/browserIngest.js';
 import { PostgresBrowserRateLimiter } from '../modules/ingest/postgresBrowserRateLimiter.js';
 import { PostgresIngestStore } from '../modules/ingest/postgresIngestStore.js';
@@ -23,6 +25,8 @@ export function createOpsApiRuntime(input: {
   sessionPepper: string;
   rateLimitPepper: string;
   browserContextKey: string;
+  authSessionPepper: string;
+  mfaEncryptionKey: Buffer;
   resolveSecret: (reference: string) => Promise<string | null>;
 }): { app: ReturnType<typeof createOpsApi> } {
   const ingestStore = new PostgresIngestStore(input.database);
@@ -58,7 +62,17 @@ export function createOpsApiRuntime(input: {
     app: createOpsApi({
       ingest: { browser, server, browserCorsOrigins: input.config.browserCorsOrigins },
       releases,
+      auth: {
+        service: new OpsAuthService({
+          repository: new PostgresOpsAuthRepository(input.database),
+          sessionPepper: input.authSessionPepper,
+          mfaEncryptionKey: input.mfaEncryptionKey
+        }),
+        hashClientIp: (ip) =>
+          createHash('sha256').update(`${ip}${input.rateLimitPepper}`).digest('hex')
+      },
       trustedProxy: 'loopback'
     })
   };
 }
+import { createHash } from 'node:crypto';

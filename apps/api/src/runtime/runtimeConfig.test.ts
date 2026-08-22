@@ -10,6 +10,8 @@ const validEnvironment = {
   OPS_DATABASE_URL_REFERENCE: 'ops-database-url',
   OPS_SESSION_PEPPER_REFERENCE: 'ops-session-pepper',
   OPS_RATE_LIMIT_PEPPER_REFERENCE: 'ops-rate-limit-pepper',
+  OPS_AUTH_SESSION_PEPPER_REFERENCE: 'ops-auth-session-pepper',
+  OPS_MFA_ENCRYPTION_KEY_REFERENCE: 'ops-mfa-encryption-key',
   OPS_BROWSER_CONTEXT_KEY_ID: 'edutrack-browser-v1',
   OPS_BROWSER_CONTEXT_KEY_REFERENCE: 'browser-context-edutrack-v1',
   OPS_OBJECT_STORE_DIRECTORY: '/var/lib/edutrack-ops/object-store',
@@ -26,6 +28,8 @@ describe('readOpsRuntimeConfig', () => {
       databaseUrlReference: 'ops-database-url',
       sessionPepperReference: 'ops-session-pepper',
       rateLimitPepperReference: 'ops-rate-limit-pepper',
+      authSessionPepperReference: 'ops-auth-session-pepper',
+      mfaEncryptionKeyReference: 'ops-mfa-encryption-key',
       browserContextKey: {
         id: 'edutrack-browser-v1',
         secretReference: 'browser-context-edutrack-v1'

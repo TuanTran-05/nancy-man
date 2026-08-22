@@ -15,6 +15,8 @@ export type OpsRuntimeConfig = {
   databaseUrlReference: string;
   sessionPepperReference: string;
   rateLimitPepperReference: string;
+  authSessionPepperReference: string;
+  mfaEncryptionKeyReference: string;
   browserContextKey: BrowserContextKey;
   objectStoreDirectory: string;
   browserCorsOrigins: string[];
@@ -100,6 +102,14 @@ export function readOpsRuntimeConfig(environment: Environment): OpsRuntimeConfig
     rateLimitPepperReference: requiredCredentialReference(
       environment,
       'OPS_RATE_LIMIT_PEPPER_REFERENCE'
+    ),
+    authSessionPepperReference: requiredCredentialReference(
+      environment,
+      'OPS_AUTH_SESSION_PEPPER_REFERENCE'
+    ),
+    mfaEncryptionKeyReference: requiredCredentialReference(
+      environment,
+      'OPS_MFA_ENCRYPTION_KEY_REFERENCE'
     ),
     browserContextKey: {
       id: requiredCredentialReference(environment, 'OPS_BROWSER_CONTEXT_KEY_ID'),

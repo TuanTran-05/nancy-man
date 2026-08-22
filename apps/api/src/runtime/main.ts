@@ -14,22 +14,50 @@ type RuntimeCredentials = {
   sessionPepper: string;
   rateLimitPepper: string;
   browserContextKey: string;
+  authSessionPepper: string;
+  mfaEncryptionKey: Buffer;
 };
 
 export async function resolveRuntimeCredentials(input: {
   config: OpsRuntimeConfig;
   resolveSecret: (reference: string) => Promise<string | null>;
 }): Promise<RuntimeCredentials> {
-  const [databaseUrl, sessionPepper, rateLimitPepper, browserContextKey] = await Promise.all([
+  const [
+    databaseUrl,
+    sessionPepper,
+    rateLimitPepper,
+    browserContextKey,
+    authSessionPepper,
+    mfaKey
+  ] = await Promise.all([
     input.resolveSecret(input.config.databaseUrlReference),
     input.resolveSecret(input.config.sessionPepperReference),
     input.resolveSecret(input.config.rateLimitPepperReference),
-    input.resolveSecret(input.config.browserContextKey.secretReference)
+    input.resolveSecret(input.config.browserContextKey.secretReference),
+    input.resolveSecret(input.config.authSessionPepperReference),
+    input.resolveSecret(input.config.mfaEncryptionKeyReference)
   ]);
-  if (!databaseUrl || !sessionPepper || !rateLimitPepper || !browserContextKey) {
+  if (
+    !databaseUrl ||
+    !sessionPepper ||
+    !rateLimitPepper ||
+    !browserContextKey ||
+    !authSessionPepper ||
+    !mfaKey
+  ) {
     throw new Error('Ops API runtime credentials are unavailable');
   }
-  return { databaseUrl, sessionPepper, rateLimitPepper, browserContextKey };
+  const mfaEncryptionKey = Buffer.from(mfaKey, 'base64url');
+  if (mfaEncryptionKey.length !== 32)
+    throw new Error('Ops API runtime credentials are unavailable');
+  return {
+    databaseUrl,
+    sessionPepper,
+    rateLimitPepper,
+    browserContextKey,
+    authSessionPepper,
+    mfaEncryptionKey
+  };
 }
 
 function listen(app: ReturnType<typeof createOpsApiRuntime>['app'], host: string, port: number) {
@@ -69,6 +97,8 @@ export async function startOpsApi(environment: NodeJS.ProcessEnv = process.env):
       sessionPepper: credentials.sessionPepper,
       rateLimitPepper: credentials.rateLimitPepper,
       browserContextKey: credentials.browserContextKey,
+      authSessionPepper: credentials.authSessionPepper,
+      mfaEncryptionKey: credentials.mfaEncryptionKey,
       resolveSecret: (ref) => resolver.resolve(ref)
     });
     const server = await listen(runtime.app, config.apiHost, config.apiPort);

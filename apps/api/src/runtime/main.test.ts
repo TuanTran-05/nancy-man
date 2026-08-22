@@ -10,6 +10,8 @@ const config = {
   databaseUrlReference: 'ops-database-url',
   sessionPepperReference: 'ops-session-pepper',
   rateLimitPepperReference: 'ops-rate-limit-pepper',
+  authSessionPepperReference: 'ops-auth-session-pepper',
+  mfaEncryptionKeyReference: 'ops-mfa-encryption-key',
   browserContextKey: {
     id: 'edutrack-browser-v1',
     secretReference: 'browser-context-edutrack-v1'
@@ -19,7 +21,7 @@ const config = {
 };
 
 describe('resolveRuntimeCredentials', () => {
-  it('loads only the four required credentials before starting the Ops API', async () => {
+  it('loads all required credentials before starting the Ops API', async () => {
     const requested: string[] = [];
 
     await expect(
@@ -27,6 +29,8 @@ describe('resolveRuntimeCredentials', () => {
         config,
         resolveSecret: async (reference) => {
           requested.push(reference);
+          if (reference === 'ops-mfa-encryption-key')
+            return Buffer.alloc(32, 7).toString('base64url');
           return `value-for-${reference}`;
         }
       })
@@ -34,11 +38,15 @@ describe('resolveRuntimeCredentials', () => {
       databaseUrl: 'value-for-ops-database-url',
       sessionPepper: 'value-for-ops-session-pepper',
       rateLimitPepper: 'value-for-ops-rate-limit-pepper',
-      browserContextKey: 'value-for-browser-context-edutrack-v1'
+      browserContextKey: 'value-for-browser-context-edutrack-v1',
+      authSessionPepper: 'value-for-ops-auth-session-pepper',
+      mfaEncryptionKey: expect.any(Buffer)
     });
     expect(requested.sort()).toEqual([
       'browser-context-edutrack-v1',
+      'ops-auth-session-pepper',
       'ops-database-url',
+      'ops-mfa-encryption-key',
       'ops-rate-limit-pepper',
       'ops-session-pepper'
     ]);
