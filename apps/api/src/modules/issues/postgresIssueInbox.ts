@@ -32,12 +32,10 @@ export class PostgresIssueInbox {
        FROM error_issues ORDER BY last_seen_at DESC LIMIT $1`,
       [limit + 1]
     );
-    return rows
-      .slice(0, limit)
-      .map((row) => ({
-        ...row,
-        occurrenceCount: Number(row.occurrenceCount),
-        affectedUserCount: Number(row.affectedUserCount)
-      }));
+    return rows.slice(0, limit).map((row) => ({
+      ...row,
+      occurrenceCount: Number(row.occurrenceCount),
+      affectedUserCount: Number(row.affectedUserCount)
+    }));
   }
 }
