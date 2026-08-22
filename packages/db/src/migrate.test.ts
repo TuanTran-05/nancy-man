@@ -39,7 +39,8 @@ describe('Ops database migration runner', () => {
       '0003_ingest_processing_state',
       '0004_error_source_extensions',
       '0005_error_issue_affected_users',
-      '0006_release_publishers'
+      '0006_release_publishers',
+      '0007_ingest_nonces'
     ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {
@@ -61,7 +62,8 @@ describe('Ops database migration runner', () => {
               { migrationId: '0003_ingest_processing_state' },
               { migrationId: '0004_error_source_extensions' },
               { migrationId: '0005_error_issue_affected_users' },
-              { migrationId: '0006_release_publishers' }
+              { migrationId: '0006_release_publishers' },
+              { migrationId: '0007_ingest_nonces' }
             ] as T[]
           };
         }
