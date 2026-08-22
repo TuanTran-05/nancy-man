@@ -12,8 +12,9 @@ web console is deployed in a later phase.
   `/var/lib/edutrack-ops/object-store` owned by that user with mode `0700`.
 - Stage a built repository at `/srv/edutrack-ops/current`; run
   `npm run build --workspace=@edutrack-ops/api` before activating it.
-- Keep all SQL feature flags false. The private SQL worker may be installed, but it
-  must not receive a production database credential or enable reads yet.
+- Keep `OPS_SQL_WORKER_ENABLED=false` and all SQL feature flags false. The private
+  SQL worker may be installed, but it must not receive a production database
+  credential or enable reads yet.
 - Do not place a database URL, HMAC key, session pepper, or browser-context key
   in Git or `/etc/edutrack-ops/api.env`.
 
@@ -33,6 +34,33 @@ web console is deployed in a later phase.
 4. Install the Nginx template, replace only `REPLACE_WITH_CERT_NAME`, validate
    with `nginx -t`, and reload Nginx. Confirm the Node port has no public
    firewall rule: only Nginx reaches `127.0.0.1:3100`.
+
+## Enabling the private SQL bridge (not part of collector rollout)
+
+Do this only after the separate Phase 3 read-only deployment gate, including
+the PostgreSQL-role verifier, TLS identity check, and explicit operational
+approval. It does not enable database reads by itself.
+
+1. Install
+   `deploy/ops/systemd/edutrack-ops-api-sql-worker.conf.template` as
+   `/etc/systemd/system/edutrack-ops-api.service.d/sql-worker.conf`.
+2. Create `/etc/edutrack-ops/credentials/ops-sql-worker-hmac` as a root-owned,
+   mode-`0400`, nonempty credential file with the same HMAC value loaded by
+   `edutrack-ops-sql-worker.service`.
+3. Set all three values in `/etc/edutrack-ops/api.env`:
+
+   ```ini
+   OPS_SQL_WORKER_ENABLED=true
+   OPS_SQL_SOCKET_PATH=/run/edutrack-ops/sql-worker.sock
+   OPS_SQL_WORKER_HMAC_REFERENCE=ops-sql-worker-hmac
+   ```
+
+4. Run `systemctl daemon-reload` and restart the API. Keep the worker's
+   `OPS_SQL_READ_ENABLED=false` until its independent read-only gate has also
+   been approved.
+
+Removing either the drop-in or `OPS_SQL_WORKER_ENABLED=true` disables the API
+route after the next restart; do both when rolling the bridge back.
 
 ## Acceptance checks
 

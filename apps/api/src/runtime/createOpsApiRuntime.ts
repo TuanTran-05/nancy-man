@@ -21,6 +21,7 @@ import {
 } from '../modules/releases/postgresReleaseStore.js';
 import { createReleasePublisherService } from '../modules/releases/releasePublisher.js';
 import { registerRelease } from '../modules/releases/releaseService.js';
+import { SqlWorkerClient } from '../modules/sql/workerClient.js';
 
 import { type TransactionalQueryDatabase } from './poolDatabase.js';
 import { type OpsRuntimeConfig } from './runtimeConfig.js';
@@ -35,6 +36,7 @@ export function createOpsApiRuntime(input: {
   browserContextKey: string;
   authSessionPepper: string;
   mfaEncryptionKey: Buffer;
+  sqlWorker?: { socketPath: string; hmacSecret: string };
   resolveSecret: (reference: string) => Promise<string | null>;
 }): { app: ReturnType<typeof createOpsApi> } {
   const ingestStore = new PostgresIngestStore(input.database);
@@ -108,6 +110,22 @@ export function createOpsApiRuntime(input: {
         inbox: new PostgresIssueInbox(input.database),
         workflow: new PostgresIssueWorkflow(input.database)
       },
+      ...(input.sqlWorker
+        ? {
+            sql: {
+              authorize: (request) =>
+                authorizeOpsSession({
+                  ...request,
+                  sessionPepper: input.authSessionPepper,
+                  repository: sessionRepository
+                }),
+              worker: new SqlWorkerClient({
+                socketPath: input.sqlWorker.socketPath,
+                secret: input.sqlWorker.hmacSecret
+              })
+            }
+          }
+        : {}),
       trustedProxy: 'loopback'
     })
   };

@@ -15,7 +15,8 @@ const validEnvironment = {
   OPS_BROWSER_CONTEXT_KEY_ID: 'edutrack-browser-v1',
   OPS_BROWSER_CONTEXT_KEY_REFERENCE: 'browser-context-edutrack-v1',
   OPS_OBJECT_STORE_DIRECTORY: '/var/lib/edutrack-ops/object-store',
-  OPS_BROWSER_CORS_ORIGINS: 'https://thienuy.edu.vn'
+  OPS_BROWSER_CORS_ORIGINS: 'https://thienuy.edu.vn',
+  OPS_SQL_WORKER_ENABLED: 'false'
 };
 
 describe('readOpsRuntimeConfig', () => {
@@ -35,7 +36,8 @@ describe('readOpsRuntimeConfig', () => {
         secretReference: 'browser-context-edutrack-v1'
       },
       objectStoreDirectory: '/var/lib/edutrack-ops/object-store',
-      browserCorsOrigins: ['https://thienuy.edu.vn']
+      browserCorsOrigins: ['https://thienuy.edu.vn'],
+      sqlWorker: { enabled: false }
     });
   });
 
@@ -66,5 +68,22 @@ describe('readOpsRuntimeConfig', () => {
     expect(() => readOpsRuntimeConfig({ ...validEnvironment, OPS_AUTO_MIGRATE: 'true' })).toThrow(
       /migration/i
     );
+  });
+
+  it('requires a private socket and credential reference before enabling the SQL worker client', () => {
+    expect(
+      readOpsRuntimeConfig({
+        ...validEnvironment,
+        OPS_SQL_WORKER_ENABLED: 'true',
+        OPS_SQL_SOCKET_PATH: '/run/edutrack-ops/sql-worker.sock',
+        OPS_SQL_WORKER_HMAC_REFERENCE: 'ops-sql-worker-hmac'
+      })
+    ).toMatchObject({
+      sqlWorker: {
+        enabled: true,
+        socketPath: '/run/edutrack-ops/sql-worker.sock',
+        hmacSecretReference: 'ops-sql-worker-hmac'
+      }
+    });
   });
 });

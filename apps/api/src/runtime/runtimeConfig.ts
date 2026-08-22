@@ -1,4 +1,4 @@
-import { isAbsolute } from 'node:path';
+import { isAbsolute, normalize } from 'node:path';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -6,6 +6,9 @@ type BrowserContextKey = {
   id: string;
   secretReference: string;
 };
+type SqlWorkerConfig =
+  | { enabled: false }
+  | { enabled: true; socketPath: string; hmacSecretReference: string };
 
 export type OpsRuntimeConfig = {
   apiHost: '127.0.0.1';
@@ -20,6 +23,7 @@ export type OpsRuntimeConfig = {
   browserContextKey: BrowserContextKey;
   objectStoreDirectory: string;
   browserCorsOrigins: string[];
+  sqlWorker: SqlWorkerConfig;
 };
 
 const credentialReference = /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/;
@@ -42,6 +46,30 @@ function requiredAbsolutePath(environment: Environment, name: string): string {
   const value = required(environment, name);
   if (!isAbsolute(value) || value === '/') throw new Error(`${name} must be an absolute directory`);
   return value;
+}
+
+function requiredBoolean(environment: Environment, name: string): boolean {
+  const value = required(environment, name);
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error(`${name} must be true or false`);
+}
+
+function socketPath(environment: Environment): string {
+  const value = required(environment, 'OPS_SQL_SOCKET_PATH');
+  if (!isAbsolute(value) || normalize(value) !== value || !value.endsWith('.sock')) {
+    throw new Error('OPS_SQL_SOCKET_PATH must be an absolute socket path');
+  }
+  return value;
+}
+
+function sqlWorker(environment: Environment): SqlWorkerConfig {
+  if (!requiredBoolean(environment, 'OPS_SQL_WORKER_ENABLED')) return { enabled: false };
+  return {
+    enabled: true,
+    socketPath: socketPath(environment),
+    hmacSecretReference: requiredCredentialReference(environment, 'OPS_SQL_WORKER_HMAC_REFERENCE')
+  };
 }
 
 function browserOrigins(environment: Environment): string[] {
@@ -116,6 +144,7 @@ export function readOpsRuntimeConfig(environment: Environment): OpsRuntimeConfig
       secretReference: requiredCredentialReference(environment, 'OPS_BROWSER_CONTEXT_KEY_REFERENCE')
     },
     objectStoreDirectory: requiredAbsolutePath(environment, 'OPS_OBJECT_STORE_DIRECTORY'),
-    browserCorsOrigins: browserOrigins(environment)
+    browserCorsOrigins: browserOrigins(environment),
+    sqlWorker: sqlWorker(environment)
   };
 }

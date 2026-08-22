@@ -17,7 +17,8 @@ const config = {
     secretReference: 'browser-context-edutrack-v1'
   },
   objectStoreDirectory: '/var/lib/edutrack-ops/object-store',
-  browserCorsOrigins: ['https://thienuy.edu.vn']
+  browserCorsOrigins: ['https://thienuy.edu.vn'],
+  sqlWorker: { enabled: false as const }
 };
 
 describe('resolveRuntimeCredentials', () => {
@@ -60,5 +61,30 @@ describe('resolveRuntimeCredentials', () => {
           reference === 'ops-database-url' ? 'postgres://ops:password@localhost/ops' : null
       })
     ).rejects.toThrow('Ops API runtime credentials are unavailable');
+  });
+
+  it('resolves the SQL worker HMAC only when the private worker client is enabled', async () => {
+    await expect(
+      resolveRuntimeCredentials({
+        config: {
+          ...config,
+          sqlWorker: {
+            enabled: true,
+            socketPath: '/run/edutrack-ops/sql-worker.sock',
+            hmacSecretReference: 'ops-sql-worker-hmac'
+          }
+        },
+        resolveSecret: async (reference) => {
+          if (reference === 'ops-mfa-encryption-key')
+            return Buffer.alloc(32, 7).toString('base64url');
+          return `value-for-${reference}`;
+        }
+      })
+    ).resolves.toMatchObject({
+      sqlWorker: {
+        socketPath: '/run/edutrack-ops/sql-worker.sock',
+        hmacSecret: 'value-for-ops-sql-worker-hmac'
+      }
+    });
   });
 });
