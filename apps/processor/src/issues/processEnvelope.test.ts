@@ -52,7 +52,7 @@ function repository(): IssueProcessorRepository & {
       };
       issues.set(input.fingerprint, issue);
       activities.push('created');
-      return issue;
+      return { issue, created: true };
     },
     insertOccurrence: async ({ event }) => {
       if (events.has(event.eventId)) return { inserted: false, newAffectedUser: false };

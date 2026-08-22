@@ -15,7 +15,10 @@ type IssueSnapshot = {
 export type IssueProcessorRepository = {
   withTransaction: <T>(operation: () => Promise<T>) => Promise<T>;
   findIssue: (fingerprint: string) => Promise<IssueSnapshot | null>;
-  createIssue: (input: { fingerprint: string; event: NormalizedEvent }) => Promise<IssueSnapshot>;
+  createIssue: (input: {
+    fingerprint: string;
+    event: NormalizedEvent;
+  }) => Promise<{ issue: IssueSnapshot; created: boolean }>;
   insertOccurrence: (input: {
     issueId: string;
     event: NormalizedEvent;
@@ -48,6 +51,7 @@ export async function processEnvelope(
     receivedAt: Date;
     envelope: TelemetryEnvelopeV1;
     identity?: SignedIdentity;
+    ingestClientId?: string;
   },
   repository: IssueProcessorRepository,
   sourceMaps?: {
@@ -63,7 +67,8 @@ export async function processEnvelope(
   let event = normalizeEvent({
     receivedAt: input.receivedAt,
     envelope: input.envelope,
-    ...(input.identity ? { identity: input.identity } : {})
+    ...(input.identity ? { identity: input.identity } : {}),
+    ...(input.ingestClientId ? { ingestClientId: input.ingestClientId } : {})
   });
   if (sourceMaps && event.stackTrace) {
     try {
@@ -82,8 +87,9 @@ export async function processEnvelope(
     let issue = await repository.findIssue(fingerprint);
     let stateChange: 'created' | 'regressed' | undefined;
     if (!issue) {
-      issue = await repository.createIssue({ fingerprint, event });
-      stateChange = 'created';
+      const created = await repository.createIssue({ fingerprint, event });
+      issue = created.issue;
+      if (created.created) stateChange = 'created';
     }
 
     const occurrence = await repository.insertOccurrence({ issueId: issue.id, event });

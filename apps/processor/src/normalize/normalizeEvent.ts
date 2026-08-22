@@ -11,6 +11,7 @@ export type NormalizedEvent = {
   safeMessage: string;
   service: string;
   release: string;
+  ingestClientId?: string;
   requestId?: `REQ_${string}`;
   traceId?: string;
   route?: string;
@@ -68,6 +69,7 @@ export function normalizeEvent(input: {
   receivedAt: Date;
   envelope: TelemetryEnvelopeV1;
   identity?: SignedIdentity;
+  ingestClientId?: string;
 }): NormalizedEvent {
   const { envelope, identity } = input;
   return {
@@ -81,6 +83,7 @@ export function normalizeEvent(input: {
     safeMessage: envelope.error.safeMessage,
     service: envelope.context.service,
     release: envelope.context.release,
+    ...(input.ingestClientId ? { ingestClientId: input.ingestClientId } : {}),
     ...(envelope.context.requestId ? { requestId: envelope.context.requestId } : {}),
     ...(envelope.context.traceId ? { traceId: envelope.context.traceId } : {}),
     ...(envelope.context.route ? { route: envelope.context.route } : {}),
