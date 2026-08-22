@@ -39,7 +39,9 @@ export class PostgresIssueInbox {
     }));
   }
 
-  async detail(issueId: string): Promise<{ issue: InboxIssue; events: unknown[] } | null> {
+  async detail(
+    issueId: string
+  ): Promise<{ issue: InboxIssue; events: unknown[]; activities: unknown[] } | null> {
     const issueRows = await this.listById(issueId);
     const issue = issueRows[0];
     if (!issue) return null;
@@ -51,7 +53,17 @@ export class PostgresIssueInbox {
        FROM error_events WHERE issue_id = $1 ORDER BY occurred_at DESC LIMIT 50`,
       [issueId]
     );
-    return { issue, events };
+    const { rows: activities } = await this.database.query(
+      `SELECT activity.id, activity.activity_type AS "activityType",
+        activity.occurred_at AS "occurredAt", activity.comment, activity.metadata,
+        activity.actor_user_id AS "actorUserId", actor.display_name AS "actorDisplayName"
+       FROM error_issue_activity AS activity
+       LEFT JOIN ops_users AS actor ON actor.id = activity.actor_user_id
+       WHERE activity.issue_id = $1
+       ORDER BY activity.occurred_at DESC, activity.id DESC LIMIT 100`,
+      [issueId]
+    );
+    return { issue, events, activities };
   }
 
   private async listById(issueId: string): Promise<InboxIssue[]> {

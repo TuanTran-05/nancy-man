@@ -58,14 +58,38 @@ describe('PostgresIssueInbox', () => {
               }
             ] as T[]
           };
+        if (sql.includes('FROM error_issue_activity'))
+          return {
+            rows: [
+              {
+                id: 'activity-id',
+                activityType: 'commented',
+                occurredAt: '2026-08-22T03:02:00.000Z',
+                comment: 'Investigating the timeout.',
+                metadata: {},
+                actorUserId: 'maintainer-id',
+                actorDisplayName: 'Maintainer'
+              }
+            ] as T[]
+          };
         return { rows: [{ eventId: 'EVT_1', safeMessage: 'failed' }] as T[] };
       }
     });
     await expect(inbox.detail('issue-id')).resolves.toMatchObject({
-      events: [{ eventId: 'EVT_1' }]
+      events: [{ eventId: 'EVT_1' }],
+      activities: [
+        {
+          activityType: 'commented',
+          actorDisplayName: 'Maintainer',
+          comment: 'Investigating the timeout.'
+        }
+      ]
     });
     const eventQuery = calls.find((sql) => sql.includes('FROM error_events'));
     expect(eventQuery).toContain('LIMIT 50');
     expect(eventQuery).not.toContain(' context');
+    const activityQuery = calls.find((sql) => sql.includes('FROM error_issue_activity'));
+    expect(activityQuery).toContain('LEFT JOIN ops_users AS actor');
+    expect(activityQuery).toContain('LIMIT 100');
   });
 });

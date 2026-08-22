@@ -7,6 +7,7 @@ import { SqlElevationService } from '../modules/auth/sqlElevation.js';
 import { TotpEnrollmentService } from '../modules/auth/totpEnrollment.js';
 import { PostgresIssueInbox } from '../modules/issues/postgresIssueInbox.js';
 import { PostgresIssueWorkflow } from '../modules/issues/postgresIssueWorkflow.js';
+import { PostgresIncidentStore } from '../modules/incidents/postgresIncidentStore.js';
 import { authorizeOpsSession } from '../modules/auth/sessionAuthorization.js';
 import { OpsSessionRepository } from '../../../../packages/db/src/repositories/opsSessions.js';
 import { createBrowserIngestService } from '../modules/ingest/browserIngest.js';
@@ -128,6 +129,15 @@ export function createOpsApiRuntime(input: {
           }),
         inbox: new PostgresIssueInbox(input.database),
         workflow: new PostgresIssueWorkflow(input.database)
+      },
+      incidents: {
+        authorize: (request) =>
+          authorizeOpsSession({
+            ...request,
+            sessionPepper: input.authSessionPepper,
+            repository: sessionRepository
+          }),
+        incidents: new PostgresIncidentStore(input.database)
       },
       ...(sqlWorker
         ? {
