@@ -42,4 +42,35 @@ describe('authenticateWorkerCommand', () => {
       })
     ).toBe(false);
   });
+
+  it('permits a viewer only for a signed schema-read command', async () => {
+    const base = {
+      protocolVersion: 1 as const,
+      commandId: 'cmd-schema',
+      issuedAt: '2026-08-22T03:14:00.000Z',
+      nonce: 'viewer-nonce',
+      actor: { userId: 'viewer', sessionId: 'session', role: 'ops_viewer' as const },
+      kind: 'schema.read' as const,
+      payload: {}
+    };
+    const command = { ...base, signature: signWorkerCommand(base, 'secret') };
+    expect(
+      await authenticateWorkerCommand({
+        command,
+        secret: 'secret',
+        now: new Date(base.issuedAt),
+        consumeNonce: async () => true
+      })
+    ).toBe(true);
+    const classify = { ...base, kind: 'sql.classify' as const };
+    const signedClassify = { ...classify, signature: signWorkerCommand(classify, 'secret') };
+    expect(
+      await authenticateWorkerCommand({
+        command: signedClassify,
+        secret: 'secret',
+        now: new Date(base.issuedAt),
+        consumeNonce: async () => true
+      })
+    ).toBe(false);
+  });
 });

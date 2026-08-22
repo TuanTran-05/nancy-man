@@ -1,12 +1,12 @@
 import { executeReadOnly } from '../execution/readExecution.js';
 
-type QueryDatabase = {
-  query: <T>(sql: string) => Promise<{ rows: T[] }>;
+export type QueryDatabase = {
+  query: <T>(sql: string, values?: readonly unknown[]) => Promise<{ rows: T[] }>;
 };
 
-type ReadConnection = QueryDatabase & { release: () => void };
+export type ReadConnection = QueryDatabase & { release: () => void };
 
-type ReadPool = {
+export type ReadPool = {
   connect: () => Promise<ReadConnection>;
 };
 

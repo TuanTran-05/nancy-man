@@ -1,3 +1,4 @@
+export * from './databaseSchema.js';
 export * from './issues.js';
 export * from './problems.js';
 export * from './recovery.js';

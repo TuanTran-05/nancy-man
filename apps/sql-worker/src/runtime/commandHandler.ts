@@ -1,4 +1,5 @@
 import type { WorkerCommand } from '../../../../packages/contracts/src/workerProtocol.js';
+import type { DatabaseSchemaSnapshot } from '../../../../packages/contracts/src/databaseSchema.js';
 
 import { classifyReadOnlySql } from '../execution/readClassification.js';
 type ReadWorker =
@@ -6,6 +7,7 @@ type ReadWorker =
   | {
       enabled: true;
       preview: (input: { sql: string; maxRows?: number }) => Promise<unknown>;
+      schema: () => Promise<DatabaseSchemaSnapshot>;
     };
 
 export class SqlWorkerCommandError extends Error {
@@ -40,6 +42,10 @@ export function createSqlWorkerCommandHandler(input: { read: ReadWorker }): {
   handle: (command: WorkerCommand) => Promise<unknown>;
 }['handle'] {
   return async (command) => {
+    if (command.kind === 'schema.read') {
+      if (!input.read.enabled) throw new SqlWorkerCommandError('SQL_READ_DISABLED');
+      return input.read.schema();
+    }
     if (command.kind === 'sql.classify') {
       return classifyReadOnlySql(readPayload(command.payload).sql);
     }

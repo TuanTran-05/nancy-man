@@ -57,4 +57,17 @@ describe('createSqlWorkerCommandHandler', () => {
     ).resolves.toEqual({ rows: [{ id: 1 }], truncated: true });
     expect(previews).toEqual([{ sql: 'SELECT id FROM students', maxRows: 1 }]);
   });
+
+  it('returns a structural schema snapshot only through the enabled read worker', async () => {
+    const snapshot = { checksum: 'a'.repeat(64), schemas: [] };
+    const handler = createSqlWorkerCommandHandler({
+      read: {
+        enabled: true,
+        preview: async () => ({ rows: [], truncated: false }),
+        schema: async () => snapshot
+      }
+    });
+
+    await expect(handler(command({ kind: 'schema.read', payload: {} }))).resolves.toBe(snapshot);
+  });
 });

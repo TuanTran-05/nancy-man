@@ -56,7 +56,7 @@ describe('Ops sessions and authorization', () => {
   });
 
   it('enforces RBAC and a separate 15-minute SQL elevation', () => {
-    expect(() => assertPermission('ops_viewer', 'sql:read')).toThrow(/permission/i);
+    expect(() => assertPermission('ops_viewer', 'sql:read')).not.toThrow();
     expect(() => assertPermission('ops_maintainer', 'sql:workspace')).not.toThrow();
     expect(
       isSqlElevationActive(

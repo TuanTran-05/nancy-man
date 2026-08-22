@@ -19,7 +19,7 @@ export type OpsPermission =
   | 'audit:anchor';
 
 const rolePermissions: Readonly<Record<OpsRole, readonly OpsPermission[]>> = {
-  ops_viewer: ['health:read', 'issues:read', 'audit:read'],
+  ops_viewer: ['health:read', 'issues:read', 'audit:read', 'sql:read'],
   ops_maintainer: [
     'health:read',
     'issues:read',

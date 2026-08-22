@@ -112,6 +112,18 @@ export function createOpsApiRuntime(input: {
       },
       ...(input.sqlWorker
         ? {
+            database: {
+              authorize: (request) =>
+                authorizeOpsSession({
+                  ...request,
+                  sessionPepper: input.authSessionPepper,
+                  repository: sessionRepository
+                }),
+              worker: new SqlWorkerClient({
+                socketPath: input.sqlWorker.socketPath,
+                secret: input.sqlWorker.hmacSecret
+              })
+            },
             sql: {
               authorize: (request) =>
                 authorizeOpsSession({

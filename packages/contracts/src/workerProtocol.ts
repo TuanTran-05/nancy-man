@@ -1,9 +1,15 @@
+export type SqlWorkerActor = {
+  userId: string;
+  sessionId: string;
+  role: 'ops_viewer' | 'ops_maintainer' | 'ops_owner';
+};
+
 export type WorkerCommand = {
   protocolVersion: 1;
   commandId: string;
   issuedAt: string;
   nonce: string;
-  actor: { userId: string; sessionId: string; role: 'ops_maintainer' | 'ops_owner' };
+  actor: SqlWorkerActor;
   kind: 'schema.read' | 'sql.classify' | 'sql.previewRead' | 'sql.cancel';
   payload: unknown;
   signature: string;

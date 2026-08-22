@@ -6,6 +6,7 @@ import {
   assertTlsProtectedPostgresUrl,
   createReadPreviewer
 } from '../database/readPool.js';
+import { createProductionSchemaReader } from '../schema/introspectSchema.js';
 import { startWorkerProtocolServer } from '../protocol/server.js';
 import { createSqlWorkerCommandHandler } from './commandHandler.js';
 import { createExpiringNonceStore } from './nonceStore.js';
@@ -25,9 +26,9 @@ type SqlWorkerCredentials = {
 };
 
 type ProductionReadPool = {
-  query: <T>(sql: string) => Promise<{ rows: T[] }>;
+  query: <T>(sql: string, values?: readonly unknown[]) => Promise<{ rows: T[] }>;
   connect: () => Promise<{
-    query: <T>(sql: string) => Promise<{ rows: T[] }>;
+    query: <T>(sql: string, values?: readonly unknown[]) => Promise<{ rows: T[] }>;
     release: () => void;
   }>;
   end: () => Promise<void>;
@@ -89,7 +90,14 @@ export async function startOpsSqlWorker(
         expectedDatabase: readCredentials.databaseName
       });
       handle = createSqlWorkerCommandHandler({
-        read: { enabled: true, preview: createReadPreviewer({ pool: readPool }) }
+        read: {
+          enabled: true,
+          preview: createReadPreviewer({ pool: readPool }),
+          schema: createProductionSchemaReader({
+            pool: readPool,
+            identity: { role: readCredentials.role, database: readCredentials.databaseName }
+          })
+        }
       });
     } else {
       handle = createSqlWorkerCommandHandler({ read: { enabled: false } });

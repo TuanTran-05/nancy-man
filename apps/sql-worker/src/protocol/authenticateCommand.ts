@@ -15,8 +15,10 @@ export async function authenticateWorkerCommand(input: {
   consumeNonce: (nonce: string) => Promise<boolean>;
   now?: Date;
 }): Promise<boolean> {
-  if (input.command.actor.role !== 'ops_maintainer' && input.command.actor.role !== 'ops_owner')
-    return false;
+  const isSchemaRead = input.command.kind === 'schema.read';
+  const isMaintainer =
+    input.command.actor.role === 'ops_maintainer' || input.command.actor.role === 'ops_owner';
+  if (!isSchemaRead && !isMaintainer) return false;
   const { signature, ...unsigned } = input.command;
   const expected = Buffer.from(signWorkerCommand(unsigned, input.secret), 'utf8');
   const actual = Buffer.from(signature, 'utf8');
