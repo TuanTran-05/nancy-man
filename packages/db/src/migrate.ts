@@ -15,6 +15,10 @@ const migrations: readonly Migration[] = [
   {
     id: '0001_ops_foundation',
     sql: readFileSync(new URL('../migrations/0001_ops_foundation.sql', import.meta.url), 'utf8')
+  },
+  {
+    id: '0002_error_operations',
+    sql: readFileSync(new URL('../migrations/0002_error_operations.sql', import.meta.url), 'utf8')
   }
 ];
 

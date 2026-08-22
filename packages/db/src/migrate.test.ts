@@ -33,11 +33,12 @@ describe('Ops database migration runner', () => {
       }
     });
 
-    expect(result.appliedMigrations).toEqual(['0001_ops_foundation']);
+    expect(result.appliedMigrations).toEqual(['0001_ops_foundation', '0002_error_operations']);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {
       expect(migrationSql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
     }
+    expect(migrationSql).toMatch(/CREATE TABLE IF NOT EXISTS ingest_envelopes/);
   });
 
   it('is idempotent when the migration is already recorded', async () => {
@@ -46,7 +47,12 @@ describe('Ops database migration runner', () => {
     const result = await migrateOpsDatabase({
       query: async <T>(sql: string) => {
         if (sql.includes('SELECT migration_id')) {
-          return { rows: [{ migrationId: '0001_ops_foundation' }] as T[] };
+          return {
+            rows: [
+              { migrationId: '0001_ops_foundation' },
+              { migrationId: '0002_error_operations' }
+            ] as T[]
+          };
         }
         executed.push(sql);
         return { rows: [] as T[] };
