@@ -21,6 +21,9 @@ import {
 } from '../modules/releases/postgresReleaseStore.js';
 import { createReleasePublisherService } from '../modules/releases/releasePublisher.js';
 import { registerRelease } from '../modules/releases/releaseService.js';
+import { PostgresOpsAuditLedger } from '../modules/audit/postgresAuditLedger.js';
+import { PostgresSqlExecutionStore } from '../modules/sql/postgresSqlExecutionStore.js';
+import { SqlReadPreviewService } from '../modules/sql/readPreviewService.js';
 import { SqlWorkerClient } from '../modules/sql/workerClient.js';
 
 import { type TransactionalQueryDatabase } from './poolDatabase.js';
@@ -36,7 +39,7 @@ export function createOpsApiRuntime(input: {
   browserContextKey: string;
   authSessionPepper: string;
   mfaEncryptionKey: Buffer;
-  sqlWorker?: { socketPath: string; hmacSecret: string };
+  sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
   resolveSecret: (reference: string) => Promise<string | null>;
 }): { app: ReturnType<typeof createOpsApi> } {
   const ingestStore = new PostgresIngestStore(input.database);
@@ -69,6 +72,22 @@ export function createOpsApiRuntime(input: {
         repository: new PostgresReleaseRepository(input.database)
       })
   });
+  const sqlWorker = input.sqlWorker
+    ? new SqlWorkerClient({
+        socketPath: input.sqlWorker.socketPath,
+        secret: input.sqlWorker.hmacSecret
+      })
+    : undefined;
+  const sqlPreview =
+    input.sqlWorker && sqlWorker
+      ? new SqlReadPreviewService({
+          elevation: sqlElevationRepository,
+          executionStore: new PostgresSqlExecutionStore(input.database),
+          audit: new PostgresOpsAuditLedger({ database: input.database }),
+          worker: sqlWorker,
+          encryptionKey: input.sqlWorker.auditEncryptionKey
+        })
+      : undefined;
 
   return {
     app: createOpsApi({
@@ -110,7 +129,7 @@ export function createOpsApiRuntime(input: {
         inbox: new PostgresIssueInbox(input.database),
         workflow: new PostgresIssueWorkflow(input.database)
       },
-      ...(input.sqlWorker
+      ...(sqlWorker
         ? {
             database: {
               authorize: (request) =>
@@ -119,10 +138,7 @@ export function createOpsApiRuntime(input: {
                   sessionPepper: input.authSessionPepper,
                   repository: sessionRepository
                 }),
-              worker: new SqlWorkerClient({
-                socketPath: input.sqlWorker.socketPath,
-                secret: input.sqlWorker.hmacSecret
-              })
+              worker: sqlWorker
             },
             sql: {
               authorize: (request) =>
@@ -131,10 +147,8 @@ export function createOpsApiRuntime(input: {
                   sessionPepper: input.authSessionPepper,
                   repository: sessionRepository
                 }),
-              worker: new SqlWorkerClient({
-                socketPath: input.sqlWorker.socketPath,
-                secret: input.sqlWorker.hmacSecret
-              })
+              worker: sqlWorker,
+              ...(sqlPreview ? { preview: sqlPreview } : {})
             }
           }
         : {}),

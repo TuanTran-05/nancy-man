@@ -6,3 +6,4 @@
 # installs this credential and sets OPS_SQL_WORKER_ENABLED=true in api.env.
 [Service]
 LoadCredential=ops-sql-worker-hmac:/etc/edutrack-ops/credentials/ops-sql-worker-hmac
+LoadCredential=ops-sql-audit-encryption-key:/etc/edutrack-ops/credentials/ops-sql-audit-encryption-key

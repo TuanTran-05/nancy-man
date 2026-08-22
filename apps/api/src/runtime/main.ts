@@ -16,7 +16,7 @@ type RuntimeCredentials = {
   browserContextKey: string;
   authSessionPepper: string;
   mfaEncryptionKey: Buffer;
-  sqlWorker?: { socketPath: string; hmacSecret: string };
+  sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
 };
 
 export async function resolveRuntimeCredentials(input: {
@@ -51,10 +51,22 @@ export async function resolveRuntimeCredentials(input: {
   const mfaEncryptionKey = Buffer.from(mfaKey, 'base64url');
   if (mfaEncryptionKey.length !== 32)
     throw new Error('Ops API runtime credentials are unavailable');
-  const sqlWorkerHmac = input.config.sqlWorker.enabled
-    ? await input.resolveSecret(input.config.sqlWorker.hmacSecretReference)
-    : null;
-  if (input.config.sqlWorker.enabled && !sqlWorkerHmac) {
+  if (!input.config.sqlWorker.enabled) {
+    return {
+      databaseUrl,
+      sessionPepper,
+      rateLimitPepper,
+      browserContextKey,
+      authSessionPepper,
+      mfaEncryptionKey
+    };
+  }
+  const [sqlWorkerHmac, sqlAuditKey] = await Promise.all([
+    input.resolveSecret(input.config.sqlWorker.hmacSecretReference),
+    input.resolveSecret(input.config.sqlWorker.auditEncryptionKeyReference)
+  ]);
+  const auditEncryptionKey = sqlAuditKey ? Buffer.from(sqlAuditKey, 'base64url') : null;
+  if (!sqlWorkerHmac || !auditEncryptionKey || auditEncryptionKey.length !== 32) {
     throw new Error('Ops API runtime credentials are unavailable');
   }
   return {
@@ -64,14 +76,11 @@ export async function resolveRuntimeCredentials(input: {
     browserContextKey,
     authSessionPepper,
     mfaEncryptionKey,
-    ...(input.config.sqlWorker.enabled
-      ? {
-          sqlWorker: {
-            socketPath: input.config.sqlWorker.socketPath,
-            hmacSecret: sqlWorkerHmac as string
-          }
-        }
-      : {})
+    sqlWorker: {
+      socketPath: input.config.sqlWorker.socketPath,
+      hmacSecret: sqlWorkerHmac,
+      auditEncryptionKey
+    }
   };
 }
 

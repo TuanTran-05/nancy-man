@@ -76,13 +76,15 @@ describe('readOpsRuntimeConfig', () => {
         ...validEnvironment,
         OPS_SQL_WORKER_ENABLED: 'true',
         OPS_SQL_SOCKET_PATH: '/run/edutrack-ops/sql-worker.sock',
-        OPS_SQL_WORKER_HMAC_REFERENCE: 'ops-sql-worker-hmac'
+        OPS_SQL_WORKER_HMAC_REFERENCE: 'ops-sql-worker-hmac',
+        OPS_SQL_AUDIT_ENCRYPTION_KEY_REFERENCE: 'ops-sql-audit-encryption-key'
       })
     ).toMatchObject({
       sqlWorker: {
         enabled: true,
         socketPath: '/run/edutrack-ops/sql-worker.sock',
-        hmacSecretReference: 'ops-sql-worker-hmac'
+        hmacSecretReference: 'ops-sql-worker-hmac',
+        auditEncryptionKeyReference: 'ops-sql-audit-encryption-key'
       }
     });
   });

@@ -8,7 +8,12 @@ type BrowserContextKey = {
 };
 type SqlWorkerConfig =
   | { enabled: false }
-  | { enabled: true; socketPath: string; hmacSecretReference: string };
+  | {
+      enabled: true;
+      socketPath: string;
+      hmacSecretReference: string;
+      auditEncryptionKeyReference: string;
+    };
 
 export type OpsRuntimeConfig = {
   apiHost: '127.0.0.1';
@@ -68,7 +73,11 @@ function sqlWorker(environment: Environment): SqlWorkerConfig {
   return {
     enabled: true,
     socketPath: socketPath(environment),
-    hmacSecretReference: requiredCredentialReference(environment, 'OPS_SQL_WORKER_HMAC_REFERENCE')
+    hmacSecretReference: requiredCredentialReference(environment, 'OPS_SQL_WORKER_HMAC_REFERENCE'),
+    auditEncryptionKeyReference: requiredCredentialReference(
+      environment,
+      'OPS_SQL_AUDIT_ENCRYPTION_KEY_REFERENCE'
+    )
   };
 }
 

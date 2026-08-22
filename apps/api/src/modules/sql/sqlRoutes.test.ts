@@ -93,4 +93,84 @@ describe('createSqlRouter', () => {
       );
     }
   });
+
+  it('requires a CSRF-protected SQL elevation before a maintainer can request a preview', async () => {
+    const authorizations: unknown[] = [];
+    const previews: unknown[] = [];
+    const app = express();
+    app.use(
+      '/sql',
+      createSqlRouter({
+        authorize: async (input) => {
+          authorizations.push(input);
+          return { userId: 'user', sessionId: 'session', role: 'ops_maintainer' };
+        },
+        worker: {
+          command: async () => ({
+            protocolVersion: 1,
+            commandId: 'cmd',
+            ok: true,
+            result: { allowed: true, kind: 'select' }
+          })
+        },
+        preview: {
+          preview: async (input) => {
+            previews.push(input);
+            return {
+              status: 'previewed',
+              executionKey: 'SQL-20260822-execution',
+              previewId: 'PRV_execution',
+              expiresAt: '2026-08-22T10:05:00.000Z',
+              result: { rows: [{ id: 1 }], encodedBytes: 10, truncated: false }
+            };
+          }
+        }
+      })
+    );
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Expected test server');
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/sql/preview`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: '__Host-ops-session=opaque',
+          'X-Ops-CSRF': 'csrf-token'
+        },
+        body: JSON.stringify({
+          sql: 'SELECT id FROM students',
+          reason: 'Investigate issue ERR_01K3',
+          maxRows: 100
+        })
+      });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        executionKey: 'SQL-20260822-execution',
+        previewId: 'PRV_execution',
+        expiresAt: '2026-08-22T10:05:00.000Z',
+        result: { rows: [{ id: 1 }], encodedBytes: 10, truncated: false }
+      });
+      expect(authorizations).toEqual([
+        {
+          cookieHeader: '__Host-ops-session=opaque',
+          csrfToken: 'csrf-token',
+          mutation: true
+        }
+      ]);
+      expect(previews).toEqual([
+        {
+          actor: { userId: 'user', sessionId: 'session', role: 'ops_maintainer' },
+          sql: 'SELECT id FROM students',
+          reason: 'Investigate issue ERR_01K3',
+          maxRows: 100
+        }
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
 });

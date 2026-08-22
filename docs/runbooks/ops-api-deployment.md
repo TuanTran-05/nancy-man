@@ -44,15 +44,21 @@ approval. It does not enable database reads by itself.
 1. Install
    `deploy/ops/systemd/edutrack-ops-api-sql-worker.conf.template` as
    `/etc/systemd/system/edutrack-ops-api.service.d/sql-worker.conf`.
-2. Create `/etc/edutrack-ops/credentials/ops-sql-worker-hmac` as a root-owned,
-   mode-`0400`, nonempty credential file with the same HMAC value loaded by
-   `edutrack-ops-sql-worker.service`.
-3. Set all three values in `/etc/edutrack-ops/api.env`:
+2. Create these two root-owned, mode-`0400`, nonempty credential files:
+
+   - `/etc/edutrack-ops/credentials/ops-sql-worker-hmac` contains the same HMAC
+     value loaded by `edutrack-ops-sql-worker.service`.
+   - `/etc/edutrack-ops/credentials/ops-sql-audit-encryption-key` contains a
+     distinct 32-byte key encoded as base64url. It encrypts SQL artifacts and
+     must never reuse the MFA encryption key.
+
+3. Set all four values in `/etc/edutrack-ops/api.env`:
 
    ```ini
    OPS_SQL_WORKER_ENABLED=true
    OPS_SQL_SOCKET_PATH=/run/edutrack-ops/sql-worker.sock
    OPS_SQL_WORKER_HMAC_REFERENCE=ops-sql-worker-hmac
+   OPS_SQL_AUDIT_ENCRYPTION_KEY_REFERENCE=ops-sql-audit-encryption-key
    ```
 
 4. Run `systemctl daemon-reload` and restart the API. Keep the worker's

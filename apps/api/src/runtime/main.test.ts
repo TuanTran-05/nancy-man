@@ -71,11 +71,15 @@ describe('resolveRuntimeCredentials', () => {
           sqlWorker: {
             enabled: true,
             socketPath: '/run/edutrack-ops/sql-worker.sock',
-            hmacSecretReference: 'ops-sql-worker-hmac'
+            hmacSecretReference: 'ops-sql-worker-hmac',
+            auditEncryptionKeyReference: 'ops-sql-audit-encryption-key'
           }
         },
         resolveSecret: async (reference) => {
-          if (reference === 'ops-mfa-encryption-key')
+          if (
+            reference === 'ops-mfa-encryption-key' ||
+            reference === 'ops-sql-audit-encryption-key'
+          )
             return Buffer.alloc(32, 7).toString('base64url');
           return `value-for-${reference}`;
         }
@@ -83,7 +87,8 @@ describe('resolveRuntimeCredentials', () => {
     ).resolves.toMatchObject({
       sqlWorker: {
         socketPath: '/run/edutrack-ops/sql-worker.sock',
-        hmacSecret: 'value-for-ops-sql-worker-hmac'
+        hmacSecret: 'value-for-ops-sql-worker-hmac',
+        auditEncryptionKey: expect.any(Buffer)
       }
     });
   });
