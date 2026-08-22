@@ -2,7 +2,13 @@ import { getTableName } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 
 import { alertDeliveries, alertRules } from './alerts.js';
-import { errorEvents, errorIssues, incidents, ingestDeadLetters } from './errors.js';
+import {
+  errorEvents,
+  errorIssueAffectedUsers,
+  errorIssues,
+  incidents,
+  ingestDeadLetters
+} from './errors.js';
 import { ingestClients, ingestEnvelopes, ingestIdempotency, ingestProcessing } from './ingestion.js';
 import { releases, sourceMapObjects } from './releases.js';
 
@@ -15,6 +21,7 @@ describe('Error Operations Drizzle schema', () => {
       getTableName(ingestProcessing),
       getTableName(errorEvents),
       getTableName(errorIssues),
+      getTableName(errorIssueAffectedUsers),
       getTableName(incidents),
       getTableName(ingestDeadLetters),
       getTableName(alertRules),
@@ -28,6 +35,7 @@ describe('Error Operations Drizzle schema', () => {
       'ingest_processing',
       'error_events',
       'error_issues',
+      'error_issue_affected_users',
       'incidents',
       'ingest_dead_letters',
       'alert_rules',

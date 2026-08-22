@@ -91,6 +91,16 @@ export const errorIssueActivity = pgTable(
   (table) => [index('error_issue_activity_issue_occurred_idx').on(table.issueId, table.occurredAt)]
 );
 
+export const errorIssueAffectedUsers = pgTable(
+  'error_issue_affected_users',
+  {
+    issueId: uuid('issue_id').notNull(),
+    userReference: text('user_reference').notNull(),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull()
+  },
+  (table) => [primaryKey({ columns: [table.issueId, table.userReference] })]
+);
+
 export const incidents = pgTable(
   'incidents',
   {
