@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { ParameterizedDatabase } from '../../../../../packages/db/src/repositories/opsUsers.js';
 
 import type { OpsAuthRepository, PasswordCredential, TotpChallenge } from './authService.js';
@@ -77,6 +79,28 @@ export class PostgresOpsAuthRepository implements OpsAuthRepository {
         input.reasonCode
       ]
     );
+    if (input.outcome !== 'failed' || !input.userId) return;
+    const { rows } = await this.database.query<{ id: string }>(
+      `
+        UPDATE ops_users
+        SET status = 'locked', locked_until = now() + interval '30 minutes'
+        WHERE id = $1 AND status = 'active'
+          AND (
+            SELECT count(*) FROM ops_login_events
+            WHERE user_id = $1 AND outcome = 'failed'
+              AND occurred_at >= now() - interval '15 minutes'
+          ) >= 5
+        RETURNING id
+      `,
+      [input.userId]
+    );
+    if (rows.length > 0) {
+      await this.database.query(
+        `INSERT INTO ops_login_events (id, user_id, outcome, ip_hash, user_agent, reason_code)
+         VALUES ($1, $2, 'locked', $3, $4, 'FAILED_LOGIN_THRESHOLD')`,
+        [randomUUID(), input.userId, input.ipHash, input.userAgent]
+      );
+    }
   }
 
   async createMfaChallenge(
@@ -160,4 +184,3 @@ export class PostgresOpsAuthRepository implements OpsAuthRepository {
     return rows[0]?.authenticated === true;
   }
 }
-import { randomUUID } from 'node:crypto';

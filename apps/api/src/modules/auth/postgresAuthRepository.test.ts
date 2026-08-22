@@ -54,4 +54,25 @@ describe('PostgresOpsAuthRepository', () => {
     expect(consume?.sql).toContain('INSERT INTO ops_sessions');
     expect(consume?.parameters).toContain('session-id');
   });
+
+  it('locks only the affected active account after five failed attempts in fifteen minutes', async () => {
+    const calls: string[] = [];
+    const repository = new PostgresOpsAuthRepository({
+      query: async <T>(sql: string) => {
+        calls.push(sql);
+        if (sql.includes("SET status = 'locked'")) return { rows: [{ id: 'user-id' }] as T[] };
+        return { rows: [] as T[] };
+      }
+    });
+    await repository.recordLoginEvent({
+      userId: 'user-id',
+      outcome: 'failed',
+      ipHash: 'a'.repeat(64),
+      userAgent: 'agent',
+      reasonCode: 'INVALID_MFA'
+    });
+    expect(calls.join('\n')).toContain("interval '15 minutes'");
+    expect(calls.join('\n')).toContain("interval '30 minutes'");
+    expect(calls.filter((sql) => sql.includes('INSERT INTO ops_login_events'))).toHaveLength(2);
+  });
 });
