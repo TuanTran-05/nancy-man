@@ -3,6 +3,7 @@ export type PendingOwnerInput = {
   email: string;
   displayName: string;
   passwordHash: string;
+  passwordFingerprint: string;
   status: 'pending_mfa';
   enrollmentTokenHash: string;
 };
@@ -22,6 +23,7 @@ export async function bootstrapOwner(input: {
   additionalOwner: boolean;
   repository: OwnerBootstrapRepository;
   hashPassword: (password: string) => Promise<string>;
+  passwordFingerprint: (password: string) => string;
   issueEnrollmentToken: () => { plainToken: string; tokenHash: string };
 }): Promise<{ userId: string; enrollmentUrl: string }> {
   if (!input.interactiveConfirmation) {
@@ -45,6 +47,7 @@ export async function bootstrapOwner(input: {
     email: input.email,
     displayName: input.displayName,
     passwordHash,
+    passwordFingerprint: input.passwordFingerprint(input.password),
     status: 'pending_mfa',
     enrollmentTokenHash: enrollmentToken.tokenHash
   });

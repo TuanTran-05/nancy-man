@@ -24,6 +24,7 @@ describe('offline owner bootstrap', () => {
         additionalOwner: true,
         repository,
         hashPassword: async () => 'hash',
+        passwordFingerprint: () => 'fingerprint',
         issueEnrollmentToken: () => ({ plainToken: 'token', tokenHash: 'hash' })
       })
     ).rejects.toThrow(/TTY confirmation/i);
@@ -35,6 +36,7 @@ describe('offline owner bootstrap', () => {
         additionalOwner: false,
         repository,
         hashPassword: async () => 'hash',
+        passwordFingerprint: () => 'fingerprint',
         issueEnrollmentToken: () => ({ plainToken: 'token', tokenHash: 'hash' })
       })
     ).rejects.toThrow(/active owner/i);
@@ -54,6 +56,7 @@ describe('offline owner bootstrap', () => {
         }
       },
       hashPassword: async () => '$argon2id$encoded',
+      passwordFingerprint: () => 'fingerprint',
       issueEnrollmentToken: () => ({ plainToken: 'single-use-token', tokenHash: 'hashed-token' })
     });
 
