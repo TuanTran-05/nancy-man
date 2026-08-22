@@ -1,4 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*.ts", "../../deploy/dr/dr-status.schema.ts"]
+  "include": [
+    "src/**/*.ts",
+    "../../deploy/dr/dr-status.schema.ts",
+    "../../packages/contracts/src/**/*.ts",
+    "../../packages/security/src/**/*.ts"
+  ]
 }
