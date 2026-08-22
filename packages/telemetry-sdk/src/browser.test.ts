@@ -57,4 +57,25 @@ describe('browser telemetry factory', () => {
     expect(serialized).not.toMatch(/Bearer |password=|0912345678|do-not-send/i);
     expect(serialized).toContain('[REDACTED]');
   });
+
+  it('queues locally when a browser spool is configured instead of waiting for the collector', async () => {
+    const queued: unknown[] = [];
+    const telemetry = createBrowserTelemetry({
+      release: '0123456789abcdef0123456789abcdef01234567',
+      service: 'edutrack-web',
+      transport: async () => {
+        throw new Error('collector should not be awaited during capture');
+      },
+      spool: {
+        enqueue: async (event) => {
+          queued.push(event);
+          return { queued: true, evicted: 0 };
+        },
+        flush: async () => ({ delivered: 0, deferred: 1 })
+      }
+    });
+
+    await expect(telemetry.captureException(new Error('offline event'))).resolves.toMatch(/^EVT_/);
+    expect(queued).toHaveLength(1);
+  });
 });

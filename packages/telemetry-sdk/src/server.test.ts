@@ -22,4 +22,25 @@ describe('server telemetry factory', () => {
     expect(serialized).not.toMatch(/postgres:\/\/|password|must-not-leave/i);
     expect(serialized).toContain('[REDACTED]');
   });
+
+  it('durably queues a server exception without waiting on remote delivery', async () => {
+    const queued: unknown[] = [];
+    const telemetry = createServerTelemetry({
+      release: '0123456789abcdef0123456789abcdef01234567',
+      service: 'edutrack-api',
+      transport: async () => {
+        throw new Error('collector should not be awaited during capture');
+      },
+      spool: {
+        enqueue: async (event) => {
+          queued.push(event);
+          return { queued: true, evicted: 0 };
+        },
+        flush: async () => ({ delivered: 0, deferred: 1 })
+      }
+    });
+
+    await expect(telemetry.captureException(new Error('offline event'))).resolves.toMatch(/^EVT_/);
+    expect(queued).toHaveLength(1);
+  });
 });

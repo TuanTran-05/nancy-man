@@ -5,6 +5,15 @@ import { createEventId } from './ids.js';
 
 const maximumBrowserEnvelopeBytes = 64 * 1024;
 
+type TelemetrySpool = {
+  enqueue: (envelope: TelemetryEnvelopeV1) => Promise<{ queued: boolean; evicted: number }>;
+  flush: (
+    deliver: (
+      envelope: TelemetryEnvelopeV1
+    ) => Promise<{ acknowledgedIdempotencyKey: string }>
+  ) => Promise<unknown>;
+};
+
 function boundedText(value: string | undefined, maximumLength: number): string | undefined {
   if (!value) {
     return undefined;
@@ -17,6 +26,7 @@ export function createBrowserTelemetry(input: {
   release: string;
   service: string;
   transport: (envelope: TelemetryEnvelopeV1) => Promise<void>;
+  spool?: TelemetrySpool;
   now?: () => Date;
 }): {
   captureException: (
@@ -69,10 +79,20 @@ export function createBrowserTelemetry(input: {
         throw new Error('Browser telemetry envelope exceeds 64 KiB');
       }
 
-      try {
-        await input.transport(sanitizedEnvelope);
-      } catch {
-        // Delivery is intentionally fail-open; the spool implementation retries later.
+      if (input.spool) {
+        await input.spool.enqueue(sanitizedEnvelope);
+        void input.spool
+          .flush(async (queued) => {
+            await input.transport(queued);
+            return { acknowledgedIdempotencyKey: queued.idempotencyKey };
+          })
+          .catch(() => undefined);
+      } else {
+        try {
+          await input.transport(sanitizedEnvelope);
+        } catch {
+          // Delivery is intentionally fail-open; the spool implementation retries later.
+        }
       }
 
       return eventId;

@@ -3,11 +3,21 @@ import { sanitizeTelemetry } from '../../security/src/telemetry/sanitizer.js';
 
 import { createEventId } from './ids.js';
 
+type TelemetrySpool = {
+  enqueue: (envelope: TelemetryEnvelopeV1) => Promise<{ queued: boolean; evicted: number }>;
+  flush: (
+    deliver: (
+      envelope: TelemetryEnvelopeV1
+    ) => Promise<{ acknowledgedIdempotencyKey: string }>
+  ) => Promise<unknown>;
+};
+
 export function createServerTelemetry(input: {
   release: string;
   service: string;
   sessionPepper?: string;
   transport: (envelope: TelemetryEnvelopeV1) => Promise<void>;
+  spool?: TelemetrySpool;
   now?: () => Date;
 }): {
   captureException: (
@@ -43,14 +53,23 @@ export function createServerTelemetry(input: {
         }
       };
 
-      try {
-        await input.transport(
-          sanitizeTelemetry(envelope, {
-            sessionPepper: input.sessionPepper ?? 'server-telemetry-session-id-not-provided'
-          }).envelope
-        );
-      } catch {
-        // Server spool delivery is fail-open for the originating request.
+      const sanitizedEnvelope = sanitizeTelemetry(envelope, {
+        sessionPepper: input.sessionPepper ?? 'server-telemetry-session-id-not-provided'
+      }).envelope;
+      if (input.spool) {
+        await input.spool.enqueue(sanitizedEnvelope);
+        void input.spool
+          .flush(async (queued) => {
+            await input.transport(queued);
+            return { acknowledgedIdempotencyKey: queued.idempotencyKey };
+          })
+          .catch(() => undefined);
+      } else {
+        try {
+          await input.transport(sanitizedEnvelope);
+        } catch {
+          // Remote capture is fail-open for the originating request.
+        }
       }
 
       return eventId;
