@@ -25,7 +25,7 @@ web console is deployed in a later phase.
    `/etc/edutrack-ops/credentials/`; each must be a regular file, mode `0400`,
    containing one nonempty value. systemd copies them into `%d` for the service;
    the API rejects symbolic links or group/world-readable credential files.
-3. Install the API, processor, and migration systemd units, run `systemctl daemon-reload`, then use the
+3. Install the API, processor, notifier, and migration systemd units, run `systemctl daemon-reload`, then use the
    explicit one-shot migration command once: `systemctl start` is **not** a
    migration. Run `systemctl start edutrack-ops-migrate.service` and inspect
    its journal before starting `edutrack-ops-api.service`.
@@ -41,8 +41,10 @@ web console is deployed in a later phase.
   an unlisted Origin receives no CORS grant.
 - Replaying an identical signed server request returns `REPLAYED_NONCE`.
 - `systemctl status edutrack-ops-processor` is healthy; a controlled synthetic
-  event becomes a grouped issue in the Ops database without creating an alert
-  delivery in the dark-launch phase.
+  event becomes a grouped issue in the Ops database.
+- `systemctl status edutrack-ops-notifier` is healthy; it creates deduplicated
+  alert-delivery records only. Do not configure Zalo or email provider
+  credentials or dispatch channels until the alert policy review is approved.
 - Stop the user app briefly in a controlled window; the Ops collector stays
   healthy. Stop the collector; user requests remain healthy and spool locally.
 - Do not send actual Zalo/email alerts or mutate production data during this

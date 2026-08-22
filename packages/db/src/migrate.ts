@@ -52,6 +52,13 @@ const migrations: readonly Migration[] = [
   {
     id: '0008_ingest_rate_limits',
     sql: readFileSync(new URL('../migrations/0008_ingest_rate_limits.sql', import.meta.url), 'utf8')
+  },
+  {
+    id: '0009_alert_delivery_outbox',
+    sql: readFileSync(
+      new URL('../migrations/0009_alert_delivery_outbox.sql', import.meta.url),
+      'utf8'
+    )
   }
 ];
 
