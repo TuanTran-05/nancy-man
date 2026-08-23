@@ -14,7 +14,6 @@ ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/collector-main.js
 Restart=on-failure
 RestartSec=5
 WatchdogSec=45
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target

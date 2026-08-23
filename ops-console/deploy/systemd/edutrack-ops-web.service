@@ -11,7 +11,6 @@ WorkingDirectory=/srv/edutrack-ops/current
 ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/web-server.js
 Restart=on-failure
 RestartSec=5
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target
