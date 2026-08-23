@@ -57,7 +57,7 @@ export function createAlertService(deps: AlertServiceDeps) {
     const cooldownMs = input.sample.errorCode === 'backup_local_only' ? 24 * 60 * 60_000 : COOLDOWN_MS;
     const since = new Date(now().getTime() - cooldownMs).toISOString();
     if (kind !== 'recovered' && deps.store.hasDelivery({ incidentId: incident.id, kind: 'opened', since })) return [];
-    const deliveryKind: AlertDelivery['kind'] = input.sample.errorCode === 'backup_local_only' && deps.store.hasDelivery({ incidentId: incident.id, kind: 'opened' }) ? 'reminder' : kind;
+    const deliveryKind: AlertDelivery['kind'] = kind !== 'recovered' && deps.store.hasDelivery({ incidentId: incident.id, kind: 'opened' }) ? 'reminder' : kind;
     return deps.recipientIds.map((recipientId) => deps.store.enqueueDelivery({ incidentId: incident.id, recipientId, kind: deliveryKind, nextAttemptAt: now().toISOString(), lastErrorCode: null }));
   }
 
