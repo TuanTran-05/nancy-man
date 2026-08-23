@@ -17,7 +17,6 @@ ALTER ROLE ops_monitor PASSWORD :'ops_monitor_password';
 
 CREATE SCHEMA IF NOT EXISTS ops_metrics AUTHORIZATION ops_metrics_owner;
 REVOKE ALL ON SCHEMA ops_metrics FROM PUBLIC;
-REVOKE ALL ON FUNCTION ops_metrics.snapshot() FROM PUBLIC;
 
 CREATE OR REPLACE FUNCTION ops_metrics.snapshot()
 RETURNS jsonb

@@ -24,4 +24,12 @@ describe('PostgreSQL metric provisioning policy', () => {
     expect(script).toContain('runuser -u postgres -- psql');
     expect(script).not.toMatch(/set -x|echo\s+.*password|echo\s+.*DATABASE_URL/i);
   });
+
+  it('creates the fixed function before revoking its public privileges', () => {
+    const sql = readFileSync(sqlPath, 'utf8');
+    const createIndex = sql.indexOf('CREATE OR REPLACE FUNCTION ops_metrics.snapshot()');
+    const revokeIndex = sql.indexOf('REVOKE ALL ON FUNCTION ops_metrics.snapshot() FROM PUBLIC');
+    expect(createIndex).toBeGreaterThanOrEqual(0);
+    expect(revokeIndex).toBeGreaterThan(createIndex);
+  });
 });
