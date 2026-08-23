@@ -8,7 +8,7 @@ User=edutrack-ops-web
 Group=edutrack-ops
 EnvironmentFile=/etc/edutrack-ops/web.env
 WorkingDirectory=/srv/edutrack-ops/current
-ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/web-server.js
+ExecStart=/usr/bin/node --jitless /srv/edutrack-ops/current/dist/server/web-server.js
 Restart=on-failure
 RestartSec=5
 
