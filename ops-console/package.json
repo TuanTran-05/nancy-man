@@ -10,6 +10,7 @@
     "build": "npm run build:web",
     "build:web": "vite build",
     "build:server": "node scripts/build-server.mjs",
+    "start:collector": "node dist/server/collector-main.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
