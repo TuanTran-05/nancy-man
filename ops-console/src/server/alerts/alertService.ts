@@ -7,6 +7,7 @@ export interface AlertServiceDeps {
   store: OpsStore;
   botToken: string;
   recipientIds: string[];
+  recipientProvider?: () => string[];
   timeoutMs: number;
   now?: () => Date;
   sender?: (config: ZaloSendConfig, text: string) => Promise<{ messageId: string }>;
@@ -58,7 +59,8 @@ export function createAlertService(deps: AlertServiceDeps) {
     const since = new Date(now().getTime() - cooldownMs).toISOString();
     if (kind !== 'recovered' && deps.store.hasDelivery({ incidentId: incident.id, kind: 'opened', since })) return [];
     const deliveryKind: AlertDelivery['kind'] = kind !== 'recovered' && deps.store.hasDelivery({ incidentId: incident.id, kind: 'opened' }) ? 'reminder' : kind;
-    return deps.recipientIds.map((recipientId) => deps.store.enqueueDelivery({ incidentId: incident.id, recipientId, kind: deliveryKind, nextAttemptAt: now().toISOString(), lastErrorCode: null }));
+    const recipients = deps.recipientProvider ? deps.recipientProvider() : deps.recipientIds;
+    return recipients.map((recipientId) => deps.store.enqueueDelivery({ incidentId: incident.id, recipientId, kind: deliveryKind, nextAttemptAt: now().toISOString(), lastErrorCode: null }));
   }
 
   async function deliverDueAlerts(at: Date = now(), limit = 50): Promise<void> {

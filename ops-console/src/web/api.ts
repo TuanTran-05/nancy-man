@@ -1,6 +1,7 @@
 import type { DashboardOverview, Incident } from '../shared/models.js';
 
 export interface SessionInfo { username: string; csrfToken: string; expiresAt: string; }
+export interface ZaloLinkInfo { linked: boolean; linkedAt?: string; lastSeenAt?: string; }
 
 async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, { ...init, headers: { accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...(init.headers ?? {}) }, credentials: 'same-origin' });
@@ -14,3 +15,6 @@ export const login = (credentials: { username: string; password: string; totp: s
 export const logout = (csrfToken: string) => request<void>('/api/session', { method: 'DELETE', headers: { 'X-CSRF-Token': csrfToken } });
 export const getOverview = () => request<DashboardOverview>('/api/overview');
 export const acknowledgeIncident = (id: string, note: string, csrfToken: string) => request<Incident>(`/api/incidents/${encodeURIComponent(id)}/ack`, { method: 'POST', headers: { 'X-CSRF-Token': csrfToken }, body: JSON.stringify({ note }) });
+export const getZaloLink = () => request<ZaloLinkInfo>('/api/zalo/link');
+export const createZaloLinkCode = (csrfToken: string) => request<{ code: string; command: string; expiresAt: string }>('/api/zalo/link-code', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken }, body: '{}' });
+export const disableZaloLink = (csrfToken: string) => request<void>('/api/zalo/link', { method: 'DELETE', headers: { 'X-CSRF-Token': csrfToken } });

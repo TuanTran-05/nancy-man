@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const schemaSql = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -94,9 +94,34 @@ CREATE TABLE IF NOT EXISTS daily_rollups (
   PRIMARY KEY (day, monitor)
 );
 
+CREATE TABLE IF NOT EXISTS zalo_link_codes (
+  code_hash TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  consumed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS zalo_links (
+  account_id TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  chat_id_hash TEXT NOT NULL UNIQUE,
+  chat_id_ciphertext TEXT NOT NULL,
+  linked_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  disabled_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS zalo_webhook_events (
+  event_id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_samples_monitor_observed ON monitor_samples (monitor, observed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_incidents_state_seen ON incidents (state, last_seen_at DESC);
 CREATE INDEX IF NOT EXISTS idx_deliveries_due ON alert_deliveries (state, next_attempt_at);
 CREATE INDEX IF NOT EXISTS idx_audit_occurred ON audit_events (occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_login_attempts_username_time ON login_attempts (username, attempted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_zalo_link_codes_account_expiry ON zalo_link_codes (account_id, expires_at);
+CREATE INDEX IF NOT EXISTS idx_zalo_links_active ON zalo_links (disabled_at, linked_at DESC);
 `;

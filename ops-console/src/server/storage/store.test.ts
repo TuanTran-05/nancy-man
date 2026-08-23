@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, afterEach } from 'vitest';
 import { createOpsStore } from './store.js';
+import { encryptSecret } from '../security/crypto.js';
 
 const tempDirs: string[] = [];
 const makeStore = () => {
@@ -49,5 +50,17 @@ describe('Ops SQLite store', () => {
     expect(store.getCursor('/var/log/cron.log')).toEqual({ inode: 4, offset: 10 });
     store.recordAuditEvent({ actorId: null, action: 'login_failed', target: 'ops-a', details: { reason: 'invalid' }, occurredAt: '2026-08-23T00:00:00Z' });
     expect(store.listAuditEvents()).toContainEqual(expect.objectContaining({ action: 'login_failed' }));
+  });
+
+  it('consumes an Ops Zalo link code once and keeps only encrypted recipient data', () => {
+    const store = makeStore();
+    const key = Buffer.alloc(32, 9);
+    store.createAccount({ id: 'ops-a', username: 'ops-a', passwordHash: 'hash', totpSecretEnc: 'enc', createdAt: '2026-08-23T00:00:00.000Z' });
+    store.createZaloLinkCode({ codeHash: 'code-hash', accountId: 'ops-a', expiresAt: '2026-08-23T00:10:00.000Z', createdAt: '2026-08-23T00:00:00.000Z' });
+    const linked = store.consumeZaloLink({ codeHash: 'code-hash', chatIdHash: 'chat-hash', chatIdCiphertext: encryptSecret('chat-123', key), eventId: 'message-1', now: '2026-08-23T00:01:00.000Z' });
+    expect(linked).toMatchObject({ outcome: 'linked', accountId: 'ops-a' });
+    expect(store.listActiveZaloRecipientCiphertexts()).toEqual([expect.not.stringContaining('chat-123')]);
+    expect(store.consumeZaloLink({ codeHash: 'code-hash', chatIdHash: 'chat-hash', chatIdCiphertext: 'unused', eventId: 'message-1', now: '2026-08-23T00:02:00.000Z' })).toEqual({ outcome: 'already_processed' });
+    expect(store.getZaloLinkStatus('ops-a')).toMatchObject({ linkedAt: '2026-08-23T00:01:00.000Z' });
   });
 });

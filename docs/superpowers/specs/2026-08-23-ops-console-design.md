@@ -26,7 +26,7 @@ Không thuộc phiên bản đầu:
 | PostgreSQL | PostgreSQL 16, ~81 MB; không có lock chờ/deadlock tại thời điểm khảo sát. `pg_stat_statements` chưa cài, `track_io_timing` tắt. | V1 dùng metric catalog tổng hợp đã phê duyệt, không thu query text. |
 | Error log | PM2 lưu log thô; các lỗi gần nhất là đợt timeout/kết nối PostgreSQL ngày 22/08. Chưa có error store cấu trúc. | Chỉ collector đọc log và lưu event đã redaction/fingerprint. |
 | Cron/backup | Cron ghi `cron.log`; backup PostgreSQL mã hóa, checksum và chạy hằng ngày. Backup hiện chỉ local trên VPS. | Theo dõi log/artifact; local-only là cảnh báo rủi ro. |
-| Zalo Bot | Đã bật, có token/webhook secret; danh sách người nhận pilot hiện rỗng. | Release phải có allowlist UID nhận alert riêng cho Ops. |
+| Zalo Bot | Bot Ops riêng có token/webhook secret; recipient được tạo qua private-chat link từ Ops Console. | Release phải link được một UID nhận alert riêng cho Ops. |
 
 ## 3. Kiến trúc
 
@@ -116,7 +116,7 @@ Mỗi monitor là một state machine `unknown -> healthy/warning/critical -> re
 | Backup chỉ local | Warning liên tục trên dashboard, nhắc Zalo tối đa một lần/ngày |
 | Cùng fingerprint lỗi >=10 lần/5 phút hoặc dòng `FATAL` mới | Critical |
 
-Một alert gửi Zalo ngay khi transition vào warning/critical; cùng fingerprint chỉ nhắc sau 30 phút. Hai mẫu healthy liên tiếp tạo recovery event và gửi một tin recovery. Tin Zalo chỉ chứa severity, monitor, thời điểm, số lần lỗi và link console; không chứa error excerpt hay database/business data. Người nhận chỉ lấy từ `OPS_ALERT_ZALO_RECIPIENT_UIDS`, bắt buộc non-empty trên production và không dùng allowlist chat/admin thông thường.
+Một alert gửi Zalo ngay khi transition vào warning/critical; cùng fingerprint chỉ nhắc sau 30 phút. Hai mẫu healthy liên tiếp tạo recovery event và gửi một tin recovery. Tin Zalo chỉ chứa severity, monitor, thời điểm, số lần lỗi và link console; không chứa error excerpt hay database/business data. Người nhận chỉ lấy từ private chat đã link với bot Ops trong Ops Console; chat ID lưu mã hóa bằng khóa riêng và không dùng link/allowlist của webapp nội bộ.
 
 Nếu Zalo lỗi, alert được persist là `delivery_failed`, retry exponential có giới hạn và xuất hiện ở dashboard. Console không được đánh dấu healthy chỉ vì gửi alert thành công.
 
@@ -134,7 +134,7 @@ Nếu Zalo lỗi, alert được persist là `delivery_failed`, retry exponentia
 ### Release gates
 
 1. `man.thienuy.edu.vn` DNS trỏ VPS và HTTP ACME challenge truy cập được.
-2. Secret file và `OPS_ALERT_ZALO_RECIPIENT_UIDS` được provision; không commit secret/UID.
+2. Secret file của bot Ops và khóa recipient được provision; recipient chỉ được tạo qua private-chat link, không commit secret/UID.
 3. `ops_monitor` least-privilege test pass và collector không có capability DML.
 4. Cả web/collector chạy qua systemd, restart độc lập; Nginx certificate và renewal test pass.
 5. Synthetic alert/recovery nhận qua Zalo với recipient được phê duyệt; không có PII/secret trong message.

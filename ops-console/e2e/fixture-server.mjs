@@ -15,6 +15,13 @@ process.env.OPS_DB_PATH = dbPath;
 process.env.OPS_DATA_KEY = dataKey.toString('base64');
 process.env.OPS_LISTEN_HOST = '127.0.0.1';
 process.env.OPS_PORT = String(port);
+process.env.OPS_ALERT_ZALO_BOT_TOKEN = 'e2e-bot-token';
+process.env.OPS_ZALO_WEBHOOK_SECRET = 'e'.repeat(32);
+process.env.OPS_ZALO_LINK_CODE_PEPPER = 'p'.repeat(32);
+process.env.OPS_ZALO_CHAT_HASH_SECRET = 'h'.repeat(32);
+process.env.OPS_ZALO_RECIPIENT_KEY = Buffer.alloc(32, 8).toString('base64');
+process.env.OPS_ALERT_ZALO_TIMEOUT_MS = '5000';
+process.env.OPS_ZALO_LINK_TTL_SECONDS = '600';
 
 const passwordSalt = randomBytes(16);
 const passwordKey = scryptSync(password, passwordSalt, 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });

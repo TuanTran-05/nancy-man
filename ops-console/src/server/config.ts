@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidOpsZaloSecret } from './security/zaloLink.js';
 
 export interface WebConfig {
   nodeEnv: string;
@@ -6,10 +7,18 @@ export interface WebConfig {
   listenHost: '127.0.0.1';
   port: number;
   dataKey: Buffer;
+  zaloBotToken: string;
+  zaloWebhookSecret: string;
+  zaloLinkCodePepper: string;
+  zaloChatHashSecret: string;
+  zaloRecipientKey: Buffer;
+  zaloTimeoutMs: number;
+  zaloLinkTtlSeconds: number;
 }
 
 export interface CollectorConfig {
   nodeEnv: string;
+  dbPath: string;
   appUrl: string;
   postgresUrl: string;
   pm2PidPath: string;
@@ -18,12 +27,15 @@ export interface CollectorConfig {
   backupDir: string;
   zaloBotToken: string;
   recipientIds: string[];
+  zaloRecipientKey: Buffer;
   zaloTimeoutMs: number;
 }
 
 export interface FailsafeConfig {
+  dbPath: string;
   zaloBotToken: string;
   recipientIds: string[];
+  zaloRecipientKey: Buffer;
   zaloTimeoutMs: number;
 }
 
@@ -43,13 +55,26 @@ const positiveInteger = (env: Env, name: string, fallback?: number): number => {
 };
 
 const parseRecipients = (env: Env): string[] => {
-  const raw = required(env, 'OPS_ALERT_ZALO_RECIPIENT_UIDS');
+  const raw = (env.OPS_ALERT_ZALO_RECIPIENT_UIDS ?? '').trim();
+  if (!raw) return [];
   const recipients = raw.split(',').map((item) => item.trim()).filter(Boolean);
-  if (recipients.length === 0) throw new Error('OPS_ALERT_ZALO_RECIPIENT_UIDS must not be empty');
   if (recipients.some((item) => !/^[A-Za-z0-9_.:-]{1,128}$/.test(item))) {
     throw new Error('OPS_ALERT_ZALO_RECIPIENT_UIDS contains an invalid recipient');
   }
   return [...new Set(recipients)];
+};
+
+const requiredSecret = (env: Env, name: string): string => {
+  const value = required(env, name);
+  if (!isValidOpsZaloSecret(value)) throw new Error(`${name} must contain 32 to 256 characters`);
+  return value;
+};
+
+const requiredKey = (env: Env, name: string): Buffer => {
+  const raw = required(env, name);
+  const value = Buffer.from(raw, 'base64');
+  if (value.length !== 32 || value.toString('base64') !== raw) throw new Error(`${name} must encode exactly 32 bytes`);
+  return value;
 };
 
 const requireLoopbackUrl = (env: Env, name: string): string => {
@@ -85,6 +110,13 @@ export function loadWebConfig(env: Env = process.env): WebConfig {
     listenHost,
     port: positiveInteger(env, 'OPS_PORT', 3101),
     dataKey,
+    zaloBotToken: required(env, 'OPS_ALERT_ZALO_BOT_TOKEN'),
+    zaloWebhookSecret: requiredSecret(env, 'OPS_ZALO_WEBHOOK_SECRET'),
+    zaloLinkCodePepper: requiredSecret(env, 'OPS_ZALO_LINK_CODE_PEPPER'),
+    zaloChatHashSecret: requiredSecret(env, 'OPS_ZALO_CHAT_HASH_SECRET'),
+    zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
+    zaloTimeoutMs: positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000),
+    zaloLinkTtlSeconds: positiveInteger(env, 'OPS_ZALO_LINK_TTL_SECONDS', 600),
   };
 }
 
@@ -92,6 +124,7 @@ export function loadCollectorConfig(env: Env = process.env): CollectorConfig {
   const nodeEnv = env.NODE_ENV ?? 'development';
   const config: CollectorConfig = {
     nodeEnv,
+    dbPath: required(env, 'OPS_DB_PATH'),
     appUrl: requireLoopbackUrl(env, 'OPS_APP_URL'),
     postgresUrl: required(env, 'OPS_MONITOR_DATABASE_URL'),
     pm2PidPath: required(env, 'OPS_PM2_PID_PATH'),
@@ -100,13 +133,11 @@ export function loadCollectorConfig(env: Env = process.env): CollectorConfig {
     backupDir: required(env, 'OPS_BACKUP_DIR'),
     zaloBotToken: required(env, 'OPS_ALERT_ZALO_BOT_TOKEN'),
     recipientIds: parseRecipients(env),
+    zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
     zaloTimeoutMs: positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000),
   };
   if (config.zaloTimeoutMs < 5000 || config.zaloTimeoutMs > 60000) {
     throw new Error('OPS_ALERT_ZALO_TIMEOUT_MS must be between 5000 and 60000');
-  }
-  if (nodeEnv === 'production' && config.recipientIds.length === 0) {
-    throw new Error('production collector requires at least one Zalo recipient');
   }
   return config;
 }
@@ -115,8 +146,10 @@ export function loadFailsafeConfig(env: Env = process.env): FailsafeConfig {
   const timeout = positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000);
   if (timeout < 5000 || timeout > 60000) throw new Error('OPS_ALERT_ZALO_TIMEOUT_MS must be between 5000 and 60000');
   return {
+    dbPath: required(env, 'OPS_DB_PATH'),
     zaloBotToken: required(env, 'OPS_ALERT_ZALO_BOT_TOKEN'),
     recipientIds: parseRecipients(env),
+    zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
     zaloTimeoutMs: timeout,
   };
 }

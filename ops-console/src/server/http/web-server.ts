@@ -8,7 +8,24 @@ export function startWebServer() {
   const config = loadWebConfig(process.env);
   const store = createOpsStore(config.dbPath);
   const auth = createAuthService({ store, dataKey: config.dataKey });
-  const app = createOpsApp({ store, auth, staticDir: resolve(process.cwd(), 'dist/web') });
+  const app = createOpsApp({
+    store,
+    auth,
+    staticDir: resolve(process.cwd(), 'dist/web'),
+    zalo: {
+      store,
+      auth,
+      config: {
+        botToken: config.zaloBotToken,
+        webhookSecret: config.zaloWebhookSecret,
+        linkCodePepper: config.zaloLinkCodePepper,
+        chatHashSecret: config.zaloChatHashSecret,
+        recipientKey: config.zaloRecipientKey,
+        timeoutMs: config.zaloTimeoutMs,
+        linkTtlSeconds: config.zaloLinkTtlSeconds,
+      },
+    },
+  });
   return app.listen(config.port, config.listenHost);
 }
 

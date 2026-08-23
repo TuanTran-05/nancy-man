@@ -34,6 +34,17 @@ export interface SessionRecord {
   username: string;
 }
 
+export interface ZaloLinkStatus {
+  linkedAt: string;
+  lastSeenAt: string;
+}
+
+export type ZaloLinkConsumeResult =
+  | { outcome: 'linked'; accountId: string; linkedAt: string }
+  | { outcome: 'already_processed' }
+  | { outcome: 'invalid_code' }
+  | { outcome: 'chat_already_linked' };
+
 export interface OpsStore {
   recordSample(sample: MonitorSample): void;
   upsertIncident(
@@ -61,6 +72,17 @@ export interface OpsStore {
   deleteSession(tokenHash: string): void;
   countRecentFailedLogins(username: string, since: string): number;
   recordLoginAttempt(input: { username: string; attemptedAt: string; success: boolean }): void;
+  createZaloLinkCode(input: { codeHash: string; accountId: string; expiresAt: string; createdAt: string }): void;
+  getZaloLinkStatus(accountId: string): ZaloLinkStatus | undefined;
+  consumeZaloLink(input: {
+    codeHash: string;
+    chatIdHash: string;
+    chatIdCiphertext: string;
+    eventId: string;
+    now: string;
+  }): ZaloLinkConsumeResult;
+  disableZaloLink(accountId: string, disabledAt: string): void;
+  listActiveZaloRecipientCiphertexts(): string[];
   getDatabaseForBackup(): SqliteDatabase;
 }
 
@@ -117,7 +139,8 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
     db.exec(schemaSql);
     const version = db.prepare('SELECT version FROM schema_version LIMIT 1').get() as { version: number } | undefined;
     if (!version) db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
-    else if (version.version !== SCHEMA_VERSION) throw new Error(`Unsupported Ops schema version ${version.version}`);
+    else if (version.version > SCHEMA_VERSION) throw new Error(`Unsupported Ops schema version ${version.version}`);
+    else if (version.version < SCHEMA_VERSION) db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -397,6 +420,65 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
 
     recordLoginAttempt(input) {
       db.prepare('INSERT INTO login_attempts (username, attempted_at, success) VALUES (?, ?, ?)').run(input.username, input.attemptedAt, input.success ? 1 : 0);
+    },
+
+    createZaloLinkCode(input) {
+      db.prepare(
+        `INSERT INTO zalo_link_codes (code_hash, account_id, expires_at, created_at, consumed_at)
+         VALUES (?, ?, ?, ?, NULL)`,
+      ).run(input.codeHash, input.accountId, input.expiresAt, input.createdAt);
+    },
+
+    getZaloLinkStatus(accountId) {
+      const row = db
+        .prepare('SELECT linked_at, last_seen_at FROM zalo_links WHERE account_id = ? AND disabled_at IS NULL')
+        .get(accountId) as { linked_at: string; last_seen_at: string } | undefined;
+      return row ? { linkedAt: row.linked_at, lastSeenAt: row.last_seen_at } : undefined;
+    },
+
+    consumeZaloLink(input) {
+      const transaction = db.transaction((): ZaloLinkConsumeResult => {
+        if (db.prepare('SELECT 1 FROM zalo_webhook_events WHERE event_id = ?').get(input.eventId)) {
+          return { outcome: 'already_processed' };
+        }
+        const code = db
+          .prepare('SELECT account_id, expires_at, consumed_at FROM zalo_link_codes WHERE code_hash = ?')
+          .get(input.codeHash) as { account_id: string; expires_at: string; consumed_at: string | null } | undefined;
+        if (!code || code.consumed_at || Date.parse(code.expires_at) <= Date.parse(input.now)) {
+          return { outcome: 'invalid_code' };
+        }
+        const existingClaim = db
+          .prepare('SELECT account_id FROM zalo_links WHERE chat_id_hash = ? AND disabled_at IS NULL')
+          .get(input.chatIdHash) as { account_id: string } | undefined;
+        if (existingClaim && existingClaim.account_id !== code.account_id) {
+          return { outcome: 'chat_already_linked' };
+        }
+        db.prepare(
+          `INSERT INTO zalo_links (account_id, chat_id_hash, chat_id_ciphertext, linked_at, last_seen_at, disabled_at)
+           VALUES (?, ?, ?, ?, ?, NULL)
+           ON CONFLICT(account_id) DO UPDATE SET
+             chat_id_hash = excluded.chat_id_hash,
+             chat_id_ciphertext = excluded.chat_id_ciphertext,
+             linked_at = excluded.linked_at,
+             last_seen_at = excluded.last_seen_at,
+             disabled_at = NULL`,
+        ).run(code.account_id, input.chatIdHash, input.chatIdCiphertext, input.now, input.now);
+        db.prepare('UPDATE zalo_link_codes SET consumed_at = ? WHERE code_hash = ?').run(input.now, input.codeHash);
+        db.prepare('INSERT INTO zalo_webhook_events (event_id, account_id, created_at) VALUES (?, ?, ?)').run(input.eventId, code.account_id, input.now);
+        return { outcome: 'linked', accountId: code.account_id, linkedAt: input.now };
+      });
+      return transaction();
+    },
+
+    disableZaloLink(accountId, disabledAt) {
+      db.prepare('UPDATE zalo_links SET disabled_at = ?, last_seen_at = ? WHERE account_id = ? AND disabled_at IS NULL').run(disabledAt, disabledAt, accountId);
+    },
+
+    listActiveZaloRecipientCiphertexts() {
+      return (db
+        .prepare('SELECT chat_id_ciphertext FROM zalo_links WHERE disabled_at IS NULL ORDER BY linked_at ASC')
+        .all() as Array<{ chat_id_ciphertext: string }>)
+        .map((row) => row.chat_id_ciphertext);
     },
 
     getDatabaseForBackup() {
