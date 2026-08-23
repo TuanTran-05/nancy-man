@@ -1,0 +1,16 @@
+[Unit]
+Description=EduTrack Ops SQLite backup
+After=edutrack-ops-collector.service
+
+[Service]
+Type=oneshot
+User=deploy
+Group=edutrack-ops
+WorkingDirectory=/srv/edutrack-ops/current
+ExecStart=/bin/sh -c 'umask 077; /usr/bin/sqlite3 /srv/edutrack-ops/shared/ops.sqlite ".backup /srv/edutrack-ops/shared/backups/ops-latest.sqlite"; /usr/bin/stat -c "%%n %%s %%y" /srv/edutrack-ops/current/dist/server/*.js > /srv/edutrack-ops/shared/backups/release-metadata.txt'
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/edutrack-ops/shared
+CapabilityBoundingSet=

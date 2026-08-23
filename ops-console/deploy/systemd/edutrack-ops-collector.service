@@ -1,0 +1,28 @@
+[Unit]
+Description=EduTrack Ops Console Collector
+After=network-online.target
+Wants=network-online.target
+OnFailure=edutrack-ops-collector-failed@%n.service
+
+[Service]
+Type=simple
+User=deploy
+Group=edutrack-ops
+EnvironmentFile=/etc/edutrack-ops/collector.env
+WorkingDirectory=/srv/edutrack-ops/current
+ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/collector-main.js
+Restart=on-failure
+RestartSec=5
+WatchdogSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/edutrack-ops/shared
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

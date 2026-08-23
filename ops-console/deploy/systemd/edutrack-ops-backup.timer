@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily EduTrack Ops SQLite backup timer
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=edutrack-ops-backup.service
+
+[Install]
+WantedBy=timers.target

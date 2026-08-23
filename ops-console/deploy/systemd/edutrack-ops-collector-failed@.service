@@ -1,0 +1,17 @@
+[Unit]
+Description=EduTrack Ops Collector failure notification
+
+[Service]
+Type=oneshot
+User=deploy
+Group=edutrack-ops
+EnvironmentFile=/etc/edutrack-ops/collector.env
+WorkingDirectory=/srv/edutrack-ops/current
+ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/failsafe-main.js
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/edutrack-ops/shared
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
