@@ -11,9 +11,6 @@ WorkingDirectory=/srv/edutrack-ops/current
 ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/web-server.js
 Restart=on-failure
 RestartSec=5
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/srv/edutrack-ops/shared
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]

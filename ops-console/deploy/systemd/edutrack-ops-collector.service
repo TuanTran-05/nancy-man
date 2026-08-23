@@ -14,9 +14,6 @@ ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/collector-main.js
 Restart=on-failure
 RestartSec=5
 WatchdogSec=45
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/srv/edutrack-ops/shared
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
