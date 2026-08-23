@@ -8,7 +8,6 @@ Group=edutrack-ops
 EnvironmentFile=/etc/edutrack-ops/collector.env
 WorkingDirectory=/srv/edutrack-ops/current
 ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/failsafe-entry.js
-NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
