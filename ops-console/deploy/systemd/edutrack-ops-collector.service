@@ -10,7 +10,7 @@ User=deploy
 Group=edutrack-ops
 EnvironmentFile=/etc/edutrack-ops/collector.env
 WorkingDirectory=/srv/edutrack-ops/current
-ExecStart=/usr/bin/node --jitless /srv/edutrack-ops/current/dist/server/collector-entry.js
+ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/collector-entry.js
 Restart=on-failure
 RestartSec=5
 WatchdogSec=45
@@ -22,7 +22,7 @@ ReadWritePaths=/srv/edutrack-ops/shared
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 CapabilityBoundingSet=
 LockPersonality=true
-MemoryDenyWriteExecute=true
+MemoryDenyWriteExecute=false
 
 [Install]
 WantedBy=multi-user.target
