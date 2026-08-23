@@ -8,6 +8,7 @@ describe('deployment assets', () => {
   it('binds only Ops Web to loopback and never starts PM2 or touches the EduTrack current symlink', () => {
     const release = read('deploy/release-ops.sh');
     expect(release).toContain('/srv/edutrack-ops/current');
+    expect(release).toContain('node_modules/better-sqlite3/package.json');
     expect(release).not.toMatch(/pm2\s+(restart|reload|start)|\/srv\/edutrack\/current/);
   });
 

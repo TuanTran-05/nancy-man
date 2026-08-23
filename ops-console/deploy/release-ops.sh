@@ -12,7 +12,7 @@ if [[ -z "$build_dir" || ! -d "$build_dir" ]]; then
   echo "usage: release-ops.sh <verified-build-dir> [commit]" >&2
   exit 1
 fi
-for required in dist/web/index.html dist/server/web-server.js dist/server/collector-main.js dist/server/failsafe-main.js dist/server/provision-ops-user.js; do
+for required in package.json package-lock.json node_modules/better-sqlite3/package.json dist/web/index.html dist/server/web-server.js dist/server/collector-main.js dist/server/failsafe-main.js dist/server/provision-ops-user.js; do
   [[ -f "$build_dir/$required" ]] || { echo "missing build artifact: $required" >&2; exit 1; }
 done
 
@@ -27,6 +27,7 @@ if [[ -e "$release_dir" ]]; then echo "release already exists" >&2; exit 1; fi
 install -d -o root -g edutrack-ops -m 2750 "$release_dir"
 cp -a "$build_dir/dist" "$release_dir/"
 cp -a "$build_dir/deploy" "$release_dir/"
+cp -a "$build_dir/package.json" "$build_dir/package-lock.json" "$build_dir/node_modules" "$release_dir/"
 chown -R root:edutrack-ops "$release_dir"
 find "$release_dir" -type d -exec chmod 2750 {} +
 find "$release_dir" -type f -exec chmod 0640 {} +
