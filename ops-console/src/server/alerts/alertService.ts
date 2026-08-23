@@ -32,6 +32,10 @@ export function createAlertService(deps: AlertServiceDeps) {
   const sender = deps.sender ?? sendZaloText;
 
   function openOrUpdateIncident(input: CollectorTransition): Incident {
+    if (input.incidentId) {
+      const existing = deps.store.getIncident(input.incidentId);
+      if (existing) return existing;
+    }
     return deps.store.upsertIncident({
       dedupeKey: input.dedupeKey,
       monitor: input.monitor,
@@ -50,10 +54,11 @@ export function createAlertService(deps: AlertServiceDeps) {
     const incident = openOrUpdateIncident(input);
     const kind: AlertDelivery['kind'] = input.transition === 'recovered' ? 'recovered' : 'opened';
     if (kind === 'recovered' && deps.store.hasDelivery({ incidentId: incident.id, kind })) return [];
-    const since = new Date(now().getTime() - COOLDOWN_MS).toISOString();
+    const cooldownMs = input.sample.errorCode === 'backup_local_only' ? 24 * 60 * 60_000 : COOLDOWN_MS;
+    const since = new Date(now().getTime() - cooldownMs).toISOString();
     if (kind !== 'recovered' && deps.store.hasDelivery({ incidentId: incident.id, kind: 'opened', since })) return [];
-    const text = formatAlertText({ level: input.level, monitor: input.monitor, occurrenceCount: incident.occurrenceCount, observedAt: input.sample.observedAt, recovered: kind === 'recovered' });
-    return deps.recipientIds.map((recipientId) => deps.store.enqueueDelivery({ incidentId: incident.id, recipientId, kind, nextAttemptAt: now().toISOString(), lastErrorCode: null }));
+    const deliveryKind: AlertDelivery['kind'] = input.sample.errorCode === 'backup_local_only' && deps.store.hasDelivery({ incidentId: incident.id, kind: 'opened' }) ? 'reminder' : kind;
+    return deps.recipientIds.map((recipientId) => deps.store.enqueueDelivery({ incidentId: incident.id, recipientId, kind: deliveryKind, nextAttemptAt: now().toISOString(), lastErrorCode: null }));
   }
 
   async function deliverDueAlerts(at: Date = now(), limit = 50): Promise<void> {
@@ -68,7 +73,7 @@ export function createAlertService(deps: AlertServiceDeps) {
         deps.store.completeDelivery(delivery.id);
       } catch (error) {
         const failure = error instanceof ZaloDeliveryError ? error : new ZaloDeliveryError('delivery_failed', true, true);
-        const nextAttemptAt = new Date(at.getTime() + retryDelayMs(delivery.attemptCount)).toISOString();
+        const nextAttemptAt = new Date(at.getTime() + (failure.retryable ? retryDelayMs(delivery.attemptCount) : 365 * 24 * 60 * 60_000)).toISOString();
         deps.store.failDelivery(delivery.id, { state: failure.ambiguous ? 'delivery_ambiguous' : 'failed', errorCode: failure.code, nextAttemptAt });
       }
     }

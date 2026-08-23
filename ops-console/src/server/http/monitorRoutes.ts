@@ -5,7 +5,7 @@ import type { DashboardOverview, MonitorSample } from '../../shared/models.js';
 import { requireOpsSession, type AuthService, type SessionRequest } from './authRoutes.js';
 
 const noteSchema = z.object({ note: z.string().min(1).max(500) }).strict();
-const publicDetailKeys = new Set(['probeOk', 'status', 'release', 'postgres', 'pid', 'state', 'memoryBytes', 'processName', 'startedAt', 'waitingLockCount', 'connectionStates', 'settings', 'databaseSizeBytes', 'activeCount', 'deadlocks', 'rollbacks', 'tempFiles', 'tempBytes', 'userTables', 'jobs', 'latestBackupAt', 'ageHours', 'encrypted', 'checksumPresent', 'localOnly', 'diskUsagePercent', 'fingerprint', 'fingerprintCount5m', 'isFatal', 'safeExcerpt']);
+const publicDetailKeys = new Set(['probeOk', 'status', 'release', 'postgres', 'pid', 'state', 'memoryBytes', 'processName', 'startedAt', 'uptimeSeconds', 'waitingLockCount', 'connectionStates', 'settings', 'databaseSizeBytes', 'activeCount', 'deadlocks', 'rollbacks', 'tempFiles', 'tempBytes', 'userTables', 'jobs', 'latestBackupAt', 'ageHours', 'encrypted', 'checksumPresent', 'localOnly', 'diskUsagePercent', 'fingerprint', 'fingerprintCount5m', 'isFatal', 'safeExcerpt']);
 
 function safeValue(value: unknown): unknown {
   if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;

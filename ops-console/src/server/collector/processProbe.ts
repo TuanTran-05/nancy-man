@@ -25,6 +25,12 @@ export function probeAppProcess(config: ProcessProbeConfig, now: Date = new Date
     const rssMatch = status.match(/^VmRSS:\s+(\d+)\s+kB$/mu);
     const nameMatch = status.match(/^Name:\s+([^\n]+)$/mu);
     const statInfo = statSync(statPath);
+    const startTicks = Number(fields[19]);
+    let uptimeSeconds: number | null = null;
+    try {
+      const systemUptime = Number.parseFloat(readFileSync(`${procRoot}/uptime`, 'utf8').split(/\s+/u)[0]);
+      if (Number.isFinite(startTicks) && Number.isFinite(systemUptime)) uptimeSeconds = Math.max(0, systemUptime - startTicks / 100);
+    } catch { uptimeSeconds = null; }
     return {
       monitor: 'app_process',
       level: 'healthy',
@@ -35,6 +41,7 @@ export function probeAppProcess(config: ProcessProbeConfig, now: Date = new Date
         pid,
         state,
         memoryBytes: rssMatch ? Number(rssMatch[1]) * 1024 : null,
+        uptimeSeconds,
         processName: nameMatch && /^[A-Za-z0-9._-]{1,100}$/.test(nameMatch[1].trim()) ? nameMatch[1].trim() : null,
         startedAt: statInfo.ctime.toISOString(),
       },

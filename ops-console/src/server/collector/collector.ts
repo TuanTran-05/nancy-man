@@ -10,6 +10,7 @@ import { parseCronAndBackupState } from './opsParsers.js';
 import { evaluateMonitor, type Evaluation, type Transition } from './statusMachine.js';
 
 export interface CollectorTransition {
+  incidentId?: string;
   monitor: MonitorName;
   sample: MonitorSample;
   level: 'warning' | 'critical';
@@ -78,7 +79,7 @@ export async function runCollectorCycle(deps: CollectorDeps, now: Date = new Dat
         safeSummary: evaluation.safeSummary,
         now: sample.observedAt,
       });
-      if (evaluation.transition) transitions.push({ monitor: sample.monitor, sample, level: evaluation.level, transition: evaluation.transition, dedupeKey: incident.dedupeKey, safeSummary: evaluation.safeSummary, occurrenceCount: incident.occurrenceCount });
+      if (evaluation.transition) transitions.push({ incidentId: incident.id, monitor: sample.monitor, sample, level: evaluation.level, transition: evaluation.transition, dedupeKey: incident.dedupeKey, safeSummary: evaluation.safeSummary, occurrenceCount: incident.occurrenceCount });
     } else if (evaluation.transition === 'recovered') {
       const incident = deps.store.upsertIncident({
         dedupeKey: previousDedupe,
@@ -92,7 +93,7 @@ export async function runCollectorCycle(deps: CollectorDeps, now: Date = new Dat
         safeSummary: evaluation.safeSummary,
         now: sample.observedAt,
       });
-      transitions.push({ monitor: sample.monitor, sample, level: incident.level, transition: 'recovered', dedupeKey: incident.dedupeKey, safeSummary: evaluation.safeSummary, occurrenceCount: incident.occurrenceCount });
+      transitions.push({ incidentId: incident.id, monitor: sample.monitor, sample, level: incident.level, transition: 'recovered', dedupeKey: incident.dedupeKey, safeSummary: evaluation.safeSummary, occurrenceCount: incident.occurrenceCount });
     }
   };
 
@@ -103,7 +104,9 @@ export async function runCollectorCycle(deps: CollectorDeps, now: Date = new Dat
   const fingerprintCounts = new Map<string, number>();
   for (const line of redacted) fingerprintCounts.set(line.fingerprint, (fingerprintCounts.get(line.fingerprint) ?? 0) + 1);
   const mostCommon = [...fingerprintCounts.entries()].sort((a, b) => b[1] - a[1])[0];
-  evaluateAndCollect({ monitor: 'errors', level: redacted.length ? 'warning' : 'healthy', observedAt: now.toISOString(), latencyMs: 0, details: { fingerprint: mostCommon?.[0] ?? null, fingerprintCount5m: mostCommon?.[1] ?? 0, isFatal: redacted.some((line) => line.isFatal), safeExcerpt: redacted[0]?.safeText ?? null }, errorCode: redacted.some((line) => line.isFatal) ? 'fatal_log_line' : null });
+  const fiveMinutesAgo = now.getTime() - 5 * 60_000;
+  const historicalCount = mostCommon ? (deps.histories.get('errors') ?? []).filter((item) => Date.parse(item.observedAt) >= fiveMinutesAgo && item.details.fingerprint === mostCommon[0]).reduce((sum, item) => sum + Number(item.details.fingerprintCountSample ?? 0), 0) : 0;
+  evaluateAndCollect({ monitor: 'errors', level: redacted.length ? 'warning' : 'healthy', observedAt: now.toISOString(), latencyMs: 0, details: { fingerprint: mostCommon?.[0] ?? null, fingerprintCount5m: (mostCommon?.[1] ?? 0) + historicalCount, fingerprintCountSample: mostCommon?.[1] ?? 0, isFatal: redacted.some((line) => line.isFatal), safeExcerpt: redacted[0]?.safeText ?? null }, errorCode: redacted.some((line) => line.isFatal) ? 'fatal_log_line' : null });
 
   const cronLines = readLogLines(deps, deps.config.cronLogPath, deps.config.cronLogPath);
   const parsed = parseCronAndBackupState({ cronLines, backupDir: deps.config.backupDir }, now);
