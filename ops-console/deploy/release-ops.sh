@@ -12,7 +12,7 @@ if [[ -z "$build_dir" || ! -d "$build_dir" ]]; then
   echo "usage: release-ops.sh <verified-build-dir> [commit]" >&2
   exit 1
 fi
-for required in package.json package-lock.json node_modules/better-sqlite3/package.json dist/web/index.html dist/server/web-server.js dist/server/collector-main.js dist/server/failsafe-main.js dist/server/provision-ops-user.js; do
+for required in package.json package-lock.json node_modules/better-sqlite3/package.json dist/web/index.html dist/server/web-server.js dist/server/web-entry.js dist/server/collector-main.js dist/server/collector-entry.js dist/server/failsafe-main.js dist/server/failsafe-entry.js dist/server/provision-ops-user.js; do
   [[ -f "$build_dir/$required" ]] || { echo "missing build artifact: $required" >&2; exit 1; }
 done
 

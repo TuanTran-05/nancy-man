@@ -8,9 +8,18 @@ User=edutrack-ops-web
 Group=edutrack-ops
 EnvironmentFile=/etc/edutrack-ops/web.env
 WorkingDirectory=/srv/edutrack-ops/current
-ExecStart=/usr/bin/node --jitless /srv/edutrack-ops/current/dist/server/web-server.js
+ExecStart=/usr/bin/node --jitless /srv/edutrack-ops/current/dist/server/web-entry.js
 Restart=on-failure
 RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/edutrack-ops/shared
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
 
 [Install]
 WantedBy=multi-user.target

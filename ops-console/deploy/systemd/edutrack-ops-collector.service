@@ -10,10 +10,19 @@ User=deploy
 Group=edutrack-ops
 EnvironmentFile=/etc/edutrack-ops/collector.env
 WorkingDirectory=/srv/edutrack-ops/current
-ExecStart=/usr/bin/node --jitless /srv/edutrack-ops/current/dist/server/collector-main.js
+ExecStart=/usr/bin/node --jitless /srv/edutrack-ops/current/dist/server/collector-entry.js
 Restart=on-failure
 RestartSec=5
 WatchdogSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/edutrack-ops/shared
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
 
 [Install]
 WantedBy=multi-user.target
