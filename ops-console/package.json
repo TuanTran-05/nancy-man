@@ -7,11 +7,13 @@
     "node": ">=22.22.0"
   },
   "scripts": {
-    "build": "npm run build:web",
+    "build": "npm run build:web && npm run build:server",
     "build:web": "vite build",
     "build:server": "node scripts/build-server.mjs",
     "start:collector": "node dist/server/collector-main.js",
     "start:failsafe": "node dist/server/failsafe-main.js",
+    "start:web": "node dist/server/web-server.js",
+    "ops:provision-user": "node dist/server/provision-ops-user.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

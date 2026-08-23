@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS accounts (
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
   account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  csrf_token TEXT NOT NULL,
   csrf_token_hash TEXT NOT NULL,
   created_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,

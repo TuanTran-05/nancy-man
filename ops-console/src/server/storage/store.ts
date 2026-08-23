@@ -25,6 +25,7 @@ export interface AccountRecord {
 export interface SessionRecord {
   tokenHash: string;
   accountId: string;
+  csrfToken: string;
   csrfTokenHash: string;
   createdAt: string;
   lastSeenAt: string;
@@ -357,9 +358,9 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
 
     createSession(input) {
       db.prepare(
-        `INSERT INTO sessions (token_hash, account_id, csrf_token_hash, created_at, last_seen_at, expires_at, absolute_expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      ).run(input.tokenHash, input.accountId, input.csrfTokenHash, input.createdAt, input.lastSeenAt, input.expiresAt, input.absoluteExpiresAt);
+        `INSERT INTO sessions (token_hash, account_id, csrf_token, csrf_token_hash, created_at, last_seen_at, expires_at, absolute_expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(input.tokenHash, input.accountId, input.csrfToken, input.csrfTokenHash, input.createdAt, input.lastSeenAt, input.expiresAt, input.absoluteExpiresAt);
     },
 
     findSession(tokenHash) {
@@ -372,6 +373,7 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
       return row ? {
         tokenHash: row.token_hash as string,
         accountId: row.account_id as string,
+        csrfToken: row.csrf_token as string,
         csrfTokenHash: row.csrf_token_hash as string,
         createdAt: row.created_at as string,
         lastSeenAt: row.last_seen_at as string,

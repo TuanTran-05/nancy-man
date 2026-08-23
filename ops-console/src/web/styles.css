@@ -1,0 +1,29 @@
+:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #0b1020; color: #eef2ff; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; background: radial-gradient(circle at top right, #172554, #0b1020 48%); }
+button, input, textarea { font: inherit; }
+button { border: 0; border-radius: 10px; padding: .7rem 1rem; cursor: pointer; color: #07111f; background: #a7f3d0; font-weight: 700; }
+button:disabled { cursor: wait; opacity: .55; }
+input, textarea { width: 100%; border: 1px solid #334155; border-radius: 8px; padding: .7rem; color: #eef2ff; background: #111827; }
+textarea { min-height: 100px; resize: vertical; }
+h1, h2, h3, p { margin-top: 0; }
+.app-shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 56px; }
+.app-header, .monitor-heading, .header-actions, .dialog-actions, .status-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.app-header { margin-bottom: 28px; }
+.header-actions { flex-wrap: wrap; }
+.eyebrow { color: #67e8f9; font-size: .74rem; letter-spacing: .16em; font-weight: 800; margin-bottom: 8px; }
+.muted { color: #94a3b8; }
+.status-banner, .metric-card, .monitor-card, .panel, .login-card { border: 1px solid #263451; background: rgba(15, 23, 42, .82); border-radius: 16px; }
+.status-banner { padding: 16px 20px; margin-bottom: 16px; }
+.status-healthy { border-color: #166534; }.status-warning { border-color: #a16207; }.status-stale { border-color: #be123c; }
+.card-grid, .monitor-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.monitor-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.metric-card, .monitor-card { padding: 18px; }.metric-card strong { display: block; font-size: 2rem; margin-top: 8px; }
+.monitor-card { min-height: 145px; }.monitor-card h3 { font-size: 1rem; margin-bottom: 0; }
+.level { display: inline-block; border-radius: 999px; padding: .2rem .55rem; font-size: .72rem; text-transform: uppercase; font-weight: 800; }.level-healthy { color: #86efac; background: #14532d; }.level-warning { color: #fde68a; background: #713f12; }.level-critical { color: #fecaca; background: #7f1d1d; }.level-unknown { color: #cbd5e1; background: #334155; }
+.panel { padding: 20px; margin-top: 28px; }.incident-list { display: grid; gap: 12px; }.incident-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-top: 1px solid #263451; padding-top: 14px; }.incident-row:first-child { border-top: 0; padding-top: 0; }.incident-row h3 { margin: 8px 0 4px; font-size: 1rem; }
+.footer-note { color: #64748b; text-align: center; margin-top: 28px; }.alert-text { color: #fda4af; }
+.login-shell, .loading-shell { min-height: 100vh; display: grid; place-items: center; padding: 20px; }.login-card { width: min(420px, 100%); padding: 28px; }.login-card label, .dialog label { display: grid; gap: 7px; margin: 16px 0; color: #cbd5e1; }.login-card button { width: 100%; margin-top: 8px; }
+.dialog-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(2, 6, 23, .78); }.dialog { width: min(520px, 100%); padding: 24px; border: 1px solid #475569; border-radius: 16px; background: #111827; }.dialog-actions { justify-content: flex-end; }.dialog-actions button:first-child { color: #e2e8f0; background: #334155; }
+@media (max-width: 880px) { .monitor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .app-shell { width: min(100% - 20px, 1180px); padding-top: 20px; }.app-header, .status-banner, .incident-row { align-items: flex-start; flex-direction: column; }.card-grid, .monitor-grid { grid-template-columns: 1fr; } }

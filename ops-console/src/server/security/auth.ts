@@ -28,6 +28,7 @@ export interface RequiredSession {
   accountId: string;
   username: string;
   tokenHash: string;
+  csrfToken: string;
   csrfTokenHash: string;
   expiresAt: string;
   absoluteExpiresAt: string;
@@ -78,6 +79,7 @@ export function createAuthService(deps: AuthDependencies) {
     deps.store.createSession({
       tokenHash: hashToken(token),
       accountId: account.id,
+      csrfToken,
       csrfTokenHash: hashToken(csrfToken),
       createdAt,
       lastSeenAt: createdAt,
@@ -129,7 +131,7 @@ export function createAuthService(deps: AuthDependencies) {
     }
     const expiresAt = new Date(Math.min(current.getTime() + IDLE_MS, Date.parse(session.absoluteExpiresAt))).toISOString();
     deps.store.touchSession(tokenHash, current.toISOString(), expiresAt);
-    return { accountId: session.accountId, username: session.username, tokenHash, csrfTokenHash: session.csrfTokenHash, expiresAt, absoluteExpiresAt: session.absoluteExpiresAt };
+    return { accountId: session.accountId, username: session.username, tokenHash, csrfToken: session.csrfToken, csrfTokenHash: session.csrfTokenHash, expiresAt, absoluteExpiresAt: session.absoluteExpiresAt };
   }
 
   function destroySession(token: string): void {
