@@ -7,7 +7,7 @@ export default defineConfig({
     outDir: 'dist/web',
     emptyOutDir: true,
     rollupOptions: {
-      input: 'src/web/main.tsx',
+      input: 'index.html',
     },
   },
   test: {

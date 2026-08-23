@@ -8,4 +8,6 @@ Install the unit files under `/etc/systemd/system/`, enable `edutrack-ops-web.se
 
 For the host, first run `deploy/nginx/activate-host.sh man.thienuy.edu.vn` as root. It validates the bootstrap vhost before requesting the certificate, validates the TLS vhost before the final reload, and restores the previous vhost on failure. Verify HTTPS SNI, authentication, a loopback collector sample and synthetic Zalo alert/recovery before declaring release.
 
+Use `deploy/release-checklist.md` as the ordered sign-off record. The local E2E fixture is repeatable with `npm run build && npm run test:e2e -- e2e/ops-console.spec.ts`; a production run additionally requires the approved cutover window and external secret/recipient provisioning.
+
 Rollback is the reversible operation of restoring the prior `/srv/edutrack-ops/current` symlink, stopping/restarting only the two Ops services and restoring the prior Nginx vhost. Do not restart PM2, PostgreSQL or the EduTrack service as part of this workflow.
