@@ -6,6 +6,7 @@ After=network.target
 Type=simple
 User=edutrack-ops-web
 Group=edutrack-ops
+UMask=0007
 EnvironmentFile=/etc/edutrack-ops/web.env
 WorkingDirectory=/srv/edutrack-ops/current
 ExecStart=/usr/bin/node --jitless /srv/edutrack-ops/current/dist/server/web-entry.js

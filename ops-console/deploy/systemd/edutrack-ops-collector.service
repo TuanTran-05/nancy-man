@@ -8,6 +8,7 @@ OnFailure=edutrack-ops-collector-failed@%n.service
 Type=simple
 User=deploy
 Group=edutrack-ops
+UMask=0007
 EnvironmentFile=/etc/edutrack-ops/collector.env
 WorkingDirectory=/srv/edutrack-ops/current
 ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/collector-entry.js
