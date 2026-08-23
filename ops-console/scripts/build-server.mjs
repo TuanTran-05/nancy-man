@@ -5,6 +5,7 @@ await mkdir('dist/server', { recursive: true });
 await build({
   entryPoints: {
     'collector-main': 'src/server/collector/collector-main.ts',
+    'failsafe-main': 'src/server/alerts/failsafe-main.ts',
   },
   bundle: true,
   format: 'esm',

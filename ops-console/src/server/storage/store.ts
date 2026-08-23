@@ -41,6 +41,7 @@ export interface OpsStore {
   getIncident(id: string): Incident | undefined;
   acknowledgeIncident(id: string, input: { accountId: string; note: string; now: string }): Incident;
   enqueueDelivery(input: Omit<AlertDelivery, 'id' | 'attemptCount' | 'state'>): AlertDelivery;
+  hasDelivery(input: { incidentId: string; kind: AlertDelivery['kind']; since?: string }): boolean;
   claimDueDeliveries(now: string, limit: number): AlertDelivery[];
   completeDelivery(id: string): void;
   failDelivery(id: string, input: { state: 'failed' | 'delivery_ambiguous'; errorCode: string; nextAttemptAt: string }): void;
@@ -213,6 +214,13 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
          VALUES (?, ?, ?, ?, 'queued', 0, ?, NULL, ?)`,
       ).run(id, input.incidentId, input.recipientId, input.kind, input.nextAttemptAt, createdAt);
       return deliveryFromRow(db.prepare('SELECT * FROM alert_deliveries WHERE id = ?').get(id) as Record<string, unknown>);
+    },
+
+    hasDelivery(input) {
+      const row = db.prepare(
+        `SELECT 1 FROM alert_deliveries WHERE incident_id = ? AND kind = ? ${input.since ? 'AND created_at >= ?' : ''} LIMIT 1`,
+      ).get(...(input.since ? [input.incidentId, input.kind, input.since] : [input.incidentId, input.kind]));
+      return Boolean(row);
     },
 
     claimDueDeliveries(nowIso, limit) {

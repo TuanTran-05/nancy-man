@@ -11,6 +11,7 @@
     "build:web": "vite build",
     "build:server": "node scripts/build-server.mjs",
     "start:collector": "node dist/server/collector-main.js",
+    "start:failsafe": "node dist/server/failsafe-main.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
