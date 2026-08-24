@@ -2,7 +2,7 @@
 
 **Ngày:** 2026-08-24
 
-**Trạng thái:** Chờ người dùng duyệt
+**Trạng thái:** Đã được người dùng duyệt ngày 2026-08-24; hiệu chỉnh contract theo source Beszel `v0.18.8`
 
 **Beszel pin:** `v0.18.8` (`0a9cad31d90b0902302d7a3c538b53c2a548c3cb`)
 
@@ -18,7 +18,7 @@ Không thay Ops Console bằng Beszel, không fork mã nguồn Beszel, không ch
 
 - Thu thập CPU tổng, CPU breakdown, memory, swap, load average và uptime của VPS.
 - Thu thập dung lượng đĩa, disk I/O, network throughput và tổng băng thông.
-- Thu trạng thái, CPU, memory và restart count của danh sách systemd service được cho phép.
+- Thu trạng thái, sub-state, CPU và memory của danh sách systemd service được cho phép. Beszel `v0.18.8` không có restart count trong collection `systemd_services`, nên metric này không thuộc bản đầu.
 - Hiển thị metric hiện tại, biểu đồ `1h`, `24h`, `7d`, `30d` và trạng thái stale trên Ops Console.
 - Dùng incident/dedupe/recovery/Zalo pipeline hiện tại cho cảnh báo hạ tầng.
 - Cài Hub/Agent từ binary release đã pin và xác minh checksum; không bật auto-update.
@@ -112,11 +112,14 @@ OPS_BESZEL_TIMEOUT_MS=5000
 
 `OPS_BESZEL_SYSTEM_ID` là giá trị provision-time, không phải giá trị do request cung cấp. Khi `OPS_BESZEL_ENABLED=true`, loader bắt buộc URL phải là `http://127.0.0.1`, timeout nằm trong `1000..10000`, password file là regular file và password không rỗng. Khi flag false, collector không yêu cầu các giá trị còn lại và hành vi cũ không đổi.
 
+Trong production đầu tiên URL phải đúng origin `http://127.0.0.1:8090`, không có credential, path, query hay fragment. Giới hạn chặt hơn này loại bỏ khả năng biến cấu hình thành một SSRF target khác trên loopback.
+
 ### Client và contract
 
 Adapter dùng `fetch` có sẵn của Node 22, không thêm PocketBase SDK. Client chỉ được gọi các endpoint cố định:
 
 - `POST /api/collections/users/auth-with-password`;
+- `GET /api/beszel/info` để xác nhận runtime Hub đúng `v0.18.8`; field public key trong response bị schema strip và không được persist;
 - `GET /api/collections/systems/records/{configured-id}`;
 - `GET /api/collections/system_stats/records` với filter, sort và fields cố định;
 - `GET /api/collections/systemd_services/records` với system ID cố định.
@@ -151,7 +154,7 @@ networkReceiveBytesPerSecond, networkTransmitBytesPerSecond,
 agentVersion, metricObservedAt, probeOk
 ```
 
-`host_services.details.services` là mảng tối đa 32 phần tử. Mỗi phần tử chỉ có `name`, `state`, `cpuPercent`, `memoryBytes`, `restartCount`, `observedAt`. `name` phải match allowlist `SERVICE_PATTERNS`; description, command, environment, unit path và log không được persist.
+`host_services.details.services` là mảng tối đa 32 phần tử. Mỗi phần tử chỉ có `name`, `state`, `subState`, `cpuPercent`, `memoryBytes`, `observedAt`. `name` phải match allowlist `SERVICE_PATTERNS`; description, command, environment, unit path, restart count và log không được persist. Enum upstream được map cố định: state `0..5` thành `active|inactive|failed|activating|deactivating|reloading`, sub-state `0..4` thành `dead|running|exited|failed|unknown`; giá trị ngoài enum làm contract fail.
 
 Không cần migration bảng mới: sample được lưu trong `monitor_samples`, raw retention 30 ngày và status rollup 12 tháng như hiện tại. Store thêm method đọc history theo monitor/thời gian bằng parameterized SQL. Metric values chỉ có history 30 ngày; daily rollup sau 30 ngày chỉ giữ sample count và level, không giữ giá trị CPU/RAM.
 
@@ -161,14 +164,14 @@ Mọi cảnh báo vẫn dùng hai healthy sample liên tiếp để recovery, in
 
 | Monitor | Warning | Critical |
 | --- | --- | --- |
-| `beszel` | Không dùng | Hai probe liên tiếp fail, Agent status `down`, hoặc metric age >180 giây |
+| `beszel` | Không dùng | Hai probe liên tiếp cùng phát hiện API fail, Agent status `down`, hoặc metric age >180 giây |
 | CPU | >=85% liên tục 10 phút | >=95% liên tục 10 phút |
 | Memory | >=85% liên tục 10 phút | >=95% liên tục 5 phút |
 | Root disk | >=80% trong hai sample | >=90% trong hai sample |
 | Load | `load5 / cpuThreads >= 1.0` liên tục 10 phút | `load5 / cpuThreads >= 1.5` liên tục 10 phút |
 | Systemd | Không dùng | Cùng một matched service failed trong hai sample |
 
-Nếu nhiều điều kiện cùng đúng, critical ưu tiên warning; thứ tự reason cố định là `beszel_unavailable`, `service_failed`, `disk`, `memory`, `cpu`, `load`. Network, swap, disk I/O và restart count chỉ hiển thị trong bản đầu, chưa phát alert để tránh nhiễu.
+Nếu nhiều điều kiện cùng đúng, critical ưu tiên warning; thứ tự reason cố định là `beszel_unavailable`, `service_failed`, `disk`, `memory`, `cpu`, `load`. Network, swap và disk I/O chỉ hiển thị trong bản đầu, chưa phát alert để tránh nhiễu.
 
 Tin Zalo không chứa hostname, service description, IP, raw JSON hay metric history. Nó tiếp tục chỉ có severity, tên monitor/reason an toàn, thời điểm, occurrence count và link Ops Console.
 
@@ -208,6 +211,8 @@ Response chỉ có:
 ```
 
 Range và resolution là mapping cố định: `1h/60s`, `24h/300s`, `7d/1800s`, `30d/7200s`. Backend bucket theo UTC và trả tối đa 720 points. Input không được nối vào SQL; range ngoài enum trả `400`.
+
+Mỗi giá trị metric trong history có type `number | null`. Ví dụ trên dùng số để minh họa một sample thật; dữ liệu thiếu phải trả `null`, không được tự đổi thành `0`.
 
 ### UI
 
