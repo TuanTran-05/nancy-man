@@ -20,7 +20,7 @@ function gate(
 }
 
 function affectsMoreThan(input: SqlRiskInput, fraction: number): boolean {
-  return input.tableRows > 0 && input.affectedRows / input.tableRows > fraction;
+  return input.tableRows !== null && input.tableRows > 0 && input.affectedRows / input.tableRows > fraction;
 }
 
 export function classifyRisk(input: SqlRiskInput): ExecutionGate {
@@ -58,7 +58,8 @@ export function classifyRisk(input: SqlRiskInput): ExecutionGate {
   const broadCascade = cascades > 100;
   const schemaChange =
     input.category === 'TRANSACTIONAL_DDL' || input.category === 'NON_TRANSACTIONAL';
-  if (broadDml || broadCascade || schemaChange) {
+  const unknownTableImpact = input.category === 'DML' && input.tableRows === null;
+  if (broadDml || broadCascade || schemaChange || unknownTableImpact) {
     const warnings: string[] = [];
     if (input.hasWhere === false)
       warnings.push('No WHERE clause; preview must prove the affected row set.');
@@ -67,6 +68,7 @@ export function classifyRisk(input: SqlRiskInput): ExecutionGate {
     if (broadCascade) warnings.push('The change cascades to more than 100 rows.');
     if (schemaChange)
       warnings.push('Schema changes require a restore point and post-change verification.');
+    if (unknownTableImpact) warnings.push('The full table impact could not be measured.');
 
     return gate({
       executionKey: input.executionKey,

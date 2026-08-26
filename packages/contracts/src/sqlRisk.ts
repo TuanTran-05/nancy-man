@@ -28,7 +28,7 @@ export type SqlRiskInput = {
   registeredTable: boolean;
   hasWhere?: boolean;
   affectedRows: number;
-  tableRows: number;
+  tableRows: number | null;
   cascadeRows?: number;
 };
 

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { classifyMutationSql } from './mutationClassification.js';
 
 type Database = {
@@ -29,6 +31,10 @@ function statement(sql: string): string {
   return sql.replace(/;\s*$/, '').trim();
 }
 
+function fingerprint(sql: string): string {
+  return createHash('sha256').update(sql.replace(/\s+/g, ' '), 'utf8').digest('hex');
+}
+
 export async function previewMutation(input: {
   database: Database;
   executionId: string;
@@ -50,20 +56,25 @@ export async function previewMutation(input: {
     transactionOpen = true;
     await input.database.query("SET LOCAL statement_timeout = '30s'");
     await input.database.query("SET LOCAL lock_timeout = '3s'");
-    await input.database.query("SELECT set_config('app.ops_execution_id', $1, true)", [
+    await input.database.query("SELECT set_config('ops.execution_id', $1, true)", [
       input.executionId
     ]);
     await input.database.query(
-      `INSERT INTO _ops.execution_registry (
-         execution_id, execution_key, actor_user_id, actor_session_id, operation_kind, reason, metadata
-       ) VALUES ($1, $2, $3, $4, 'dml', $5, $6::jsonb)`,
+      "SELECT set_config('ops.actor_user_id', $1, true)",
+      [input.actorUserId]
+    );
+    await input.database.query(
+      "SELECT set_config('ops.actor_session_id', $1, true)",
+      [input.actorSessionId]
+    );
+    await input.database.query("SELECT set_config('ops.statement_index', '0', true)");
+    await input.database.query(
+      'SELECT _ops.begin_dml_execution($1::uuid, $2, $3, $4)',
       [
         input.executionId,
         input.executionKey,
-        input.actorUserId,
-        input.actorSessionId,
         input.reason,
-        JSON.stringify({ preview: true, kind: classification.kind })
+        fingerprint(sql)
       ]
     );
     const mutation = await input.database.query(sql);

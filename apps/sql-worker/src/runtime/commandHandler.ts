@@ -11,6 +11,21 @@ type ReadWorker =
       schema: () => Promise<DatabaseSchemaSnapshot>;
     };
 
+type MutationWorker =
+  | { enabled: false }
+  | {
+      enabled: true;
+      preview: (input: {
+        executionId: string;
+        executionKey: string;
+        actorUserId: string;
+        actorSessionId: string;
+        reason: string;
+        sql: string;
+        maxChanges?: number;
+      }) => Promise<unknown>;
+    };
+
 export class SqlWorkerCommandError extends Error {
   constructor(readonly code: string) {
     super(code);
@@ -39,7 +54,65 @@ function readPayload(payload: unknown): { sql: string; maxRows?: number } {
     : { sql: value.sql, maxRows: value.maxRows };
 }
 
-export function createSqlWorkerCommandHandler(input: { read: ReadWorker }): {
+function mutationPayload(payload: unknown): {
+  executionId: string;
+  executionKey: string;
+  reason: string;
+  sql: string;
+  maxChanges?: number;
+} {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new SqlWorkerCommandError('WORKER_COMMAND_INVALID');
+  }
+  const value = payload as {
+    executionId?: unknown;
+    executionKey?: unknown;
+    reason?: unknown;
+    sql?: unknown;
+    maxChanges?: unknown;
+  };
+  if (
+    typeof value.executionId !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value.executionId
+    ) ||
+    typeof value.executionKey !== 'string' ||
+    value.executionKey.length < 12 ||
+    value.executionKey.length > 200 ||
+    typeof value.reason !== 'string' ||
+    value.reason.trim().length < 3 ||
+    value.reason.trim().length > 2_000 ||
+    typeof value.sql !== 'string' ||
+    value.sql.trim().length === 0 ||
+    value.sql.length > 65_536 ||
+    (value.maxChanges !== undefined &&
+      (typeof value.maxChanges !== 'number' ||
+        !Number.isInteger(value.maxChanges) ||
+        value.maxChanges < 1 ||
+        value.maxChanges > 500))
+  ) {
+    throw new SqlWorkerCommandError('WORKER_COMMAND_INVALID');
+  }
+  return value.maxChanges === undefined
+    ? {
+        executionId: value.executionId,
+        executionKey: value.executionKey,
+        reason: value.reason.trim(),
+        sql: value.sql
+      }
+    : {
+        executionId: value.executionId,
+        executionKey: value.executionKey,
+        reason: value.reason.trim(),
+        sql: value.sql,
+        maxChanges: value.maxChanges
+      };
+}
+
+export function createSqlWorkerCommandHandler(input: {
+  read: ReadWorker;
+  mutation?: MutationWorker;
+}): {
   handle: (command: WorkerCommand) => Promise<unknown>;
 }['handle'] {
   return async (command) => {
@@ -57,6 +130,17 @@ export function createSqlWorkerCommandHandler(input: { read: ReadWorker }): {
       if (!input.read.enabled) throw new SqlWorkerCommandError('SQL_READ_DISABLED');
       const payload = readPayload(command.payload);
       return input.read.preview(payload);
+    }
+    if (command.kind === 'sql.previewMutation') {
+      if (!input.mutation || !input.mutation.enabled) {
+        throw new SqlWorkerCommandError('SQL_MUTATION_DISABLED');
+      }
+      const payload = mutationPayload(command.payload);
+      return input.mutation.preview({
+        ...payload,
+        actorUserId: command.actor.userId,
+        actorSessionId: command.actor.sessionId
+      });
     }
     throw new SqlWorkerCommandError('WORKER_COMMAND_UNSUPPORTED');
   };

@@ -44,6 +44,25 @@ describe('SQL risk policy', () => {
     });
   });
 
+  it('does not label a DML preview low-risk when table impact cannot be measured', () => {
+    expect(
+      classifyRisk({
+        executionKey: 'SQL-20260822-01HUNKNOWN',
+        category: 'DML',
+        registeredTable: true,
+        hasWhere: true,
+        affectedRows: 1,
+        tableRows: null
+      })
+    ).toMatchObject({
+      risk: 'HIGH',
+      recoverability: 'REVERSIBLE',
+      requiresRecentMfa: true,
+      requiresRestorePoint: true,
+      confirmationPhrase: 'EXECUTE PRODUCTION SQL-20260822-01HUNKNOWN'
+    });
+  });
+
   it('classifies destructive, evidence-bypass, and unparsed commands as owner-only break-glass', () => {
     for (const category of ['TRUNCATE', 'JOURNAL_BYPASS', 'UNPARSED', 'CLUSTER'] as const) {
       expect(

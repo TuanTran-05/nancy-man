@@ -58,11 +58,21 @@ describe('previewMutation', () => {
       'BEGIN',
       "SET LOCAL statement_timeout = '30s'",
       "SET LOCAL lock_timeout = '3s'",
-      "SELECT set_config('app.ops_execution_id', $1, true)",
-      expect.stringContaining('INSERT INTO _ops.execution_registry'),
+      "SELECT set_config('ops.execution_id', $1, true)",
+      "SELECT set_config('ops.actor_user_id', $1, true)",
+      "SELECT set_config('ops.actor_session_id', $1, true)",
+      "SELECT set_config('ops.statement_index', '0', true)",
+      expect.stringContaining('SELECT _ops.begin_dml_execution'),
       "UPDATE public.students SET name = 'New' WHERE id = 'student-1'",
       expect.stringContaining('FROM _ops.row_change_journal'),
       'ROLLBACK'
+    ]);
+    const begin = calls.find((call) => call.sql.includes('_ops.begin_dml_execution'));
+    expect(begin?.values).toEqual([
+      'f16f9426-010c-4e06-a459-9fd18c4a442d',
+      'SQL-20260822-preview',
+      'Correct incorrectly assigned class.',
+      'ee3586ccdacf29198b20a9320ffa595c509f1ad53ae2927d8151b91f7ae99620'
     ]);
     expect(calls.at(-2)?.values).toEqual(['f16f9426-010c-4e06-a459-9fd18c4a442d', 51]);
   });

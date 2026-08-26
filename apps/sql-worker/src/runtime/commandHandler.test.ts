@@ -40,6 +40,67 @@ describe('createSqlWorkerCommandHandler', () => {
     ).resolves.toEqual({ allowed: true, kind: 'update', requiresTypedConfirmation: false });
   });
 
+  it('refuses a DML preview while mutation rollout is disabled', async () => {
+    const handler = createSqlWorkerCommandHandler({
+      read: { enabled: false },
+      mutation: { enabled: false }
+    });
+
+    await expect(
+      handler(
+        command({
+          kind: 'sql.previewMutation',
+          payload: {
+            executionId: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
+            executionKey: 'SQL-20260822-preview',
+            reason: 'Correct incorrect data.',
+            sql: 'DELETE FROM public.students WHERE id = 1'
+          }
+        })
+      )
+    ).rejects.toMatchObject({ code: 'SQL_MUTATION_DISABLED' });
+  });
+
+  it('passes signed actor context and a validated preview request only to an enabled mutation worker', async () => {
+    const requests: unknown[] = [];
+    const handler = createSqlWorkerCommandHandler({
+      read: { enabled: false },
+      mutation: {
+        enabled: true,
+        preview: async (input) => {
+          requests.push(input);
+          return { affectedRows: 1, changes: [], truncated: false };
+        }
+      }
+    });
+
+    await expect(
+      handler(
+        command({
+          kind: 'sql.previewMutation',
+          payload: {
+            executionId: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
+            executionKey: 'SQL-20260822-preview',
+            reason: 'Correct incorrect data.',
+            sql: 'DELETE FROM public.students WHERE id = 1',
+            maxChanges: 100
+          }
+        })
+      )
+    ).resolves.toEqual({ affectedRows: 1, changes: [], truncated: false });
+    expect(requests).toEqual([
+      {
+        executionId: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
+        executionKey: 'SQL-20260822-preview',
+        actorUserId: 'usr_1',
+        actorSessionId: 'ses_1',
+        reason: 'Correct incorrect data.',
+        sql: 'DELETE FROM public.students WHERE id = 1',
+        maxChanges: 100
+      }
+    ]);
+  });
+
   it('refuses a read preview while the read-only rollout flag is disabled', async () => {
     const handler = createSqlWorkerCommandHandler({ read: { enabled: false } });
 
