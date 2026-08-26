@@ -59,24 +59,19 @@ export async function previewMutation(input: {
     await input.database.query("SELECT set_config('ops.execution_id', $1, true)", [
       input.executionId
     ]);
-    await input.database.query(
-      "SELECT set_config('ops.actor_user_id', $1, true)",
-      [input.actorUserId]
-    );
-    await input.database.query(
-      "SELECT set_config('ops.actor_session_id', $1, true)",
-      [input.actorSessionId]
-    );
+    await input.database.query("SELECT set_config('ops.actor_user_id', $1, true)", [
+      input.actorUserId
+    ]);
+    await input.database.query("SELECT set_config('ops.actor_session_id', $1, true)", [
+      input.actorSessionId
+    ]);
     await input.database.query("SELECT set_config('ops.statement_index', '0', true)");
-    await input.database.query(
-      'SELECT _ops.begin_dml_execution($1::uuid, $2, $3, $4)',
-      [
-        input.executionId,
-        input.executionKey,
-        input.reason,
-        fingerprint(sql)
-      ]
-    );
+    await input.database.query('SELECT _ops.begin_dml_execution($1::uuid, $2, $3, $4)', [
+      input.executionId,
+      input.executionKey,
+      input.reason,
+      fingerprint(sql)
+    ]);
     const mutation = await input.database.query(sql);
     const { rows } = await input.database.query<JournalRow>(
       `SELECT journal_id AS "journalId", schema_name AS "schemaName", table_name AS "tableName",

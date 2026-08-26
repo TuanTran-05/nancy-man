@@ -20,7 +20,11 @@ function gate(
 }
 
 function affectsMoreThan(input: SqlRiskInput, fraction: number): boolean {
-  return input.tableRows !== null && input.tableRows > 0 && input.affectedRows / input.tableRows > fraction;
+  return (
+    input.tableRows !== null &&
+    input.tableRows > 0 &&
+    input.affectedRows / input.tableRows > fraction
+  );
 }
 
 export function classifyRisk(input: SqlRiskInput): ExecutionGate {
