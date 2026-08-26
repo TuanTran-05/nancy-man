@@ -25,6 +25,8 @@ export interface CollectorDeps {
   store: OpsStore;
   histories: Map<MonitorName, MonitorSample[]>;
   lastPostgresAt?: number;
+  lastBeszelAt?: number;
+  beszelProbe?: (now: Date) => Promise<MonitorSample[]>;
   appProbe?: (config: AppProbeConfig, kind: 'liveness' | 'health', now: Date) => Promise<MonitorSample>;
   postgresProbe?: typeof probePostgres;
 }
@@ -39,33 +41,55 @@ function readLogLines(deps: CollectorDeps, source: string, path: string): string
   }
 }
 
-function remember(deps: CollectorDeps, sample: MonitorSample): Evaluation {
+function remember(deps: CollectorDeps, sample: MonitorSample): { evaluation: Evaluation; stored: MonitorSample } {
   const history = deps.histories.get(sample.monitor) ?? [];
   const evaluation = evaluateMonitor(history, sample);
-  deps.store.recordSample(sample);
-  history.push({ ...sample, details: { ...sample.details, dedupeKey: evaluation.dedupeKey, effectiveLevel: evaluation.level } });
+  const details = { ...sample.details, dedupeKey: evaluation.dedupeKey, effectiveLevel: evaluation.level, conditionHealthy: evaluation.conditionHealthy };
+  const stored = { ...sample, level: evaluation.level, details };
+  deps.store.recordSample(stored);
+  history.push({ ...sample, details });
   deps.histories.set(sample.monitor, history.slice(-120));
-  return evaluation;
+  return { evaluation, stored };
 }
 
 export async function runCollectorCycle(deps: CollectorDeps, now: Date = new Date()): Promise<CollectorTransition[]> {
   const appConfig: AppProbeConfig = { appUrl: deps.config.appUrl, timeoutMs: 5000 };
   const appProbe = deps.appProbe ?? ((config, kind, at) => kind === 'liveness' ? probeLiveness(config, at) : probeHealth(config, at));
-  const samples: MonitorSample[] = await Promise.all([
-    appProbe(appConfig, 'liveness', now),
-    appProbe(appConfig, 'health', now),
-    Promise.resolve(probeAppProcess({ pidFile: deps.config.pm2PidPath }, now)),
+  const probePromises: Array<Promise<MonitorSample[]>> = [
+    appProbe(appConfig, 'liveness', now).then((sample) => [sample]),
+    appProbe(appConfig, 'health', now).then((sample) => [sample]),
+    Promise.resolve(probeAppProcess({ pidFile: deps.config.pm2PidPath }, now)).then((sample) => [sample]),
     ...(deps.lastPostgresAt === undefined || now.getTime() - deps.lastPostgresAt >= 60_000
-      ? [ (deps.postgresProbe ?? probePostgres)({ postgresUrl: deps.config.postgresUrl }, now).then((sample) => { deps.lastPostgresAt = now.getTime(); return sample; }) ]
+      ? [ (deps.postgresProbe ?? probePostgres)({ postgresUrl: deps.config.postgresUrl }, now).then((sample) => { deps.lastPostgresAt = now.getTime(); return [sample]; }) ]
       : []),
-  ]);
+  ];
+  const beszelDue = deps.config.beszel.enabled && deps.beszelProbe !== undefined && (deps.lastBeszelAt === undefined || now.getTime() - deps.lastBeszelAt >= 60_000);
+  if (beszelDue) {
+    probePromises.push(deps.beszelProbe!(now).catch((): MonitorSample[] => [{ monitor: 'beszel', level: 'critical', observedAt: now.toISOString(), latencyMs: null, details: { probeOk: false }, errorCode: 'beszel_unreachable' }]).then((result) => {
+      deps.lastBeszelAt = now.getTime();
+      return result;
+    }));
+  }
+  const samples = (await Promise.all(probePromises)).flat();
 
   const transitions: CollectorTransition[] = [];
   const evaluateAndCollect = (sample: MonitorSample) => {
     const history = deps.histories.get(sample.monitor) ?? [];
     const previous = history.at(-1);
-    const evaluation = remember(deps, sample);
+    const remembered = remember(deps, sample);
+    const evaluation = remembered.evaluation;
+    const stored = remembered.stored;
     const previousDedupe = (previous?.details.dedupeKey as string | undefined) ?? evaluation.dedupeKey;
+    const shouldReconcile = evaluation.level === 'healthy' && evaluation.transition !== 'recovered'
+      || evaluation.level === 'warning'
+      || evaluation.level === 'critical';
+    if (shouldReconcile) {
+      deps.store.reconcileIncidents({
+        monitor: sample.monitor,
+        activeDedupeKey: evaluation.level === 'warning' || evaluation.level === 'critical' ? evaluation.dedupeKey : undefined,
+        now: sample.observedAt,
+      });
+    }
     if (evaluation.level === 'warning' || evaluation.level === 'critical') {
       const incident = deps.store.upsertIncident({
         dedupeKey: evaluation.transition === 'recovered' ? previousDedupe : evaluation.dedupeKey,
@@ -79,7 +103,7 @@ export async function runCollectorCycle(deps: CollectorDeps, now: Date = new Dat
         safeSummary: evaluation.safeSummary,
         now: sample.observedAt,
       });
-      if (evaluation.transition) transitions.push({ incidentId: incident.id, monitor: sample.monitor, sample, level: evaluation.level, transition: evaluation.transition, dedupeKey: incident.dedupeKey, safeSummary: evaluation.safeSummary, occurrenceCount: incident.occurrenceCount });
+      if (evaluation.transition) transitions.push({ incidentId: incident.id, monitor: sample.monitor, sample: stored, level: evaluation.level, transition: evaluation.transition, dedupeKey: incident.dedupeKey, safeSummary: evaluation.safeSummary, occurrenceCount: incident.occurrenceCount });
     } else if (evaluation.transition === 'recovered') {
       const incident = deps.store.upsertIncident({
         dedupeKey: previousDedupe,
@@ -93,7 +117,7 @@ export async function runCollectorCycle(deps: CollectorDeps, now: Date = new Dat
         safeSummary: evaluation.safeSummary,
         now: sample.observedAt,
       });
-      transitions.push({ incidentId: incident.id, monitor: sample.monitor, sample, level: incident.level, transition: 'recovered', dedupeKey: incident.dedupeKey, safeSummary: evaluation.safeSummary, occurrenceCount: incident.occurrenceCount });
+      transitions.push({ incidentId: incident.id, monitor: sample.monitor, sample: stored, level: incident.level, transition: 'recovered', dedupeKey: incident.dedupeKey, safeSummary: evaluation.safeSummary, occurrenceCount: incident.occurrenceCount });
     }
   };
 
@@ -110,8 +134,8 @@ export async function runCollectorCycle(deps: CollectorDeps, now: Date = new Dat
 
   const cronLines = readLogLines(deps, deps.config.cronLogPath, deps.config.cronLogPath);
   const parsed = parseCronAndBackupState({ cronLines, backupDir: deps.config.backupDir }, now);
-  evaluateAndCollect({ monitor: 'cron', level: parsed.level, observedAt: now.toISOString(), latencyMs: 0, details: { jobs: parsed.cron }, errorCode: parsed.errorCode });
-  evaluateAndCollect({ monitor: 'backup', level: parsed.level, observedAt: now.toISOString(), latencyMs: 0, details: parsed.backup, errorCode: parsed.errorCode });
+  evaluateAndCollect({ monitor: 'cron', level: parsed.cronLevel, observedAt: now.toISOString(), latencyMs: 0, details: { jobs: parsed.cron }, errorCode: parsed.cronErrorCode });
+  evaluateAndCollect({ monitor: 'backup', level: parsed.backupLevel, observedAt: now.toISOString(), latencyMs: 0, details: parsed.backup, errorCode: parsed.backupErrorCode });
 
   return transitions;
 }

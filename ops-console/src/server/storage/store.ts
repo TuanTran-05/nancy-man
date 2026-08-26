@@ -9,6 +9,8 @@ import type {
   MonitorLevel,
   MonitorName,
   MonitorSample,
+  InfrastructureHistoryPoint,
+  InfrastructureHistoryResolution,
 } from '../../shared/models.js';
 
 type SqliteDatabase = InstanceType<typeof Database>;
@@ -50,6 +52,7 @@ export interface OpsStore {
   upsertIncident(
     input: Omit<Incident, 'id' | 'openedAt' | 'lastSeenAt' | 'occurrenceCount'> & { now: string },
   ): Incident;
+  reconcileIncidents(input: { monitor: MonitorName; activeDedupeKey?: string; now: string }): void;
   getIncident(id: string): Incident | undefined;
   acknowledgeIncident(id: string, input: { accountId: string; note: string; now: string }): Incident;
   enqueueDelivery(input: Omit<AlertDelivery, 'id' | 'attemptCount' | 'state'>): AlertDelivery;
@@ -60,6 +63,7 @@ export interface OpsStore {
   recordAuditEvent(input: { actorId: string | null; action: string; target: string; details: Record<string, string>; occurredAt: string }): void;
   listAuditEvents(): Array<{ actorId: string | null; action: string; target: string; occurredAt: string }>;
   readDashboardOverview(now?: string): DashboardOverview;
+  readInfrastructureHistory(input: { from: string; to: string; resolutionSeconds: InfrastructureHistoryResolution; limit: number }): InfrastructureHistoryPoint[];
   getCursor(source: string): { inode: number; offset: number } | undefined;
   setCursor(source: string, cursor: { inode: number; offset: number }): void;
   pruneRetention(now?: string): void;
@@ -207,6 +211,16 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
       return incidentFromRow(db.prepare('SELECT * FROM incidents WHERE id = ?').get(id) as Record<string, unknown>);
     },
 
+    reconcileIncidents(input) {
+      const activeDedupeKey = input.activeDedupeKey ?? null;
+      db.prepare(
+        `UPDATE incidents
+         SET state = 'recovered', recovered_at = ?, last_seen_at = ?
+         WHERE monitor = ? AND state IN ('open', 'acknowledged')
+           AND (? IS NULL OR dedupe_key != ?)`,
+      ).run(input.now, input.now, input.monitor, activeDedupeKey, activeDedupeKey);
+    },
+
     getIncident(id) {
       const row = db.prepare('SELECT * FROM incidents WHERE id = ?').get(id) as Record<string, unknown> | undefined;
       return row ? incidentFromRow(row) : undefined;
@@ -315,6 +329,48 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
         openIncidents: incidents.map(incidentFromRow),
         recentDeliveries: deliveries.map(deliveryFromRow),
       };
+    },
+
+    readInfrastructureHistory(input) {
+      const isoTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u;
+      if (!isoTimestamp.test(input.from) || !isoTimestamp.test(input.to) || !Number.isFinite(Date.parse(input.from)) || !Number.isFinite(Date.parse(input.to))) throw new Error('Invalid infrastructure history timestamp');
+      const fromMs = Date.parse(input.from);
+      const toMs = Date.parse(input.to);
+      if (fromMs > toMs) throw new Error('Invalid infrastructure history range');
+      if (![60, 300, 1800, 7200].includes(input.resolutionSeconds)) throw new Error('Invalid infrastructure history resolution');
+      if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 720) throw new Error('Invalid infrastructure history limit');
+      const cutoff = now().getTime() - 30 * 24 * 60 * 60 * 1000;
+      const from = new Date(Math.max(fromMs, cutoff)).toISOString();
+      const to = new Date(toMs).toISOString();
+      const rows = db.prepare(
+        `SELECT
+           CAST(CAST(strftime('%s', observed_at) AS INTEGER) / @resolution AS INTEGER) * @resolution AS bucket_epoch,
+           AVG(CASE WHEN json_type(details_json, '$.cpuPercent') IN ('integer','real') THEN json_extract(details_json, '$.cpuPercent') END) AS cpu_percent,
+           AVG(CASE WHEN json_type(details_json, '$.memoryPercent') IN ('integer','real') THEN json_extract(details_json, '$.memoryPercent') END) AS memory_percent,
+           AVG(CASE WHEN json_type(details_json, '$.diskPercent') IN ('integer','real') THEN json_extract(details_json, '$.diskPercent') END) AS disk_percent,
+           AVG(CASE WHEN json_type(details_json, '$.load1') IN ('integer','real') THEN json_extract(details_json, '$.load1') END) AS load_1,
+           AVG(CASE WHEN json_type(details_json, '$.networkReceiveBytesPerSecond') IN ('integer','real') THEN json_extract(details_json, '$.networkReceiveBytesPerSecond') END) AS network_receive,
+           AVG(CASE WHEN json_type(details_json, '$.networkTransmitBytesPerSecond') IN ('integer','real') THEN json_extract(details_json, '$.networkTransmitBytesPerSecond') END) AS network_transmit,
+           AVG(CASE WHEN json_type(details_json, '$.diskReadBytesPerSecond') IN ('integer','real') THEN json_extract(details_json, '$.diskReadBytesPerSecond') END) AS disk_read,
+           AVG(CASE WHEN json_type(details_json, '$.diskWriteBytesPerSecond') IN ('integer','real') THEN json_extract(details_json, '$.diskWriteBytesPerSecond') END) AS disk_write
+         FROM monitor_samples
+         WHERE monitor = 'host_resources' AND observed_at >= @from AND observed_at <= @to
+         GROUP BY bucket_epoch
+         ORDER BY bucket_epoch ASC
+         LIMIT @limit`,
+      ).all({ from, to, resolution: input.resolutionSeconds, limit: input.limit }) as Array<Record<string, unknown>>;
+      const numberOrNull = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
+      return rows.map((row) => ({
+        observedAt: new Date(Number(row.bucket_epoch) * 1000).toISOString(),
+        cpuPercent: numberOrNull(row.cpu_percent),
+        memoryPercent: numberOrNull(row.memory_percent),
+        diskPercent: numberOrNull(row.disk_percent),
+        load1: numberOrNull(row.load_1),
+        networkReceiveBytesPerSecond: numberOrNull(row.network_receive),
+        networkTransmitBytesPerSecond: numberOrNull(row.network_transmit),
+        diskReadBytesPerSecond: numberOrNull(row.disk_read),
+        diskWriteBytesPerSecond: numberOrNull(row.disk_write),
+      }));
     },
 
     getCursor(source) {

@@ -15,6 +15,7 @@ ExecStart=/usr/bin/node /srv/edutrack-ops/current/dist/server/collector-entry.js
 Restart=on-failure
 RestartSec=5
 WatchdogSec=45
+NotifyAccess=all
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only

@@ -108,7 +108,7 @@ export async function handleSessionLogin(req: ApiRequest, res: ApiResponse) {
   }
 
   const access = await verifyStaffPasswordAccess(email, password);
-  if (!access.authenticated) {
+  if (access.authenticated === false) {
     if (access.reason === 'revoked') {
       return res.status(403).json({
         success: false,
@@ -335,7 +335,7 @@ export async function handleGoogleCallback(req: ApiRequest, res: ApiResponse) {
       return res.redirect(303, `${state.returnTo}${state.returnTo.includes('?') ? '&' : '?'}googleLinked=1`);
     }
     const access = await resolveGoogleUserAccess(profile.email, profile.sub);
-    if (!access.allowed) {
+    if (access.allowed === false) {
       return res.redirect(303, `/login?authError=${access.reason}`);
     }
     const userId = access.userId;

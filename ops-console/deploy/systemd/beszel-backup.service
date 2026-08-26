@@ -1,0 +1,19 @@
+[Unit]
+Description=Beszel encrypted backup
+After=beszel-hub.service edutrack-ops-backup.service
+
+[Service]
+Type=oneshot
+User=beszel-hub
+Group=beszel-hub
+UMask=0077
+EnvironmentFile=/etc/beszel/backup/backup.env
+ExecStart=/usr/local/libexec/edutrack-backup-beszel
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/beszel/shared/backups
+ReadOnlyPaths=/srv/beszel/shared/hub /srv/beszel/current
+CapabilityBoundingSet=

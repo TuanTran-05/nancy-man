@@ -16,3 +16,16 @@ Complete and sign each gate in order. Production cutover requires an approved ma
 12. [ ] If any gate fails, atomically restore the prior Ops `current` symlink, reload the prior Nginx vhost and stop/restart only the Ops services. Do not restart PM2, PostgreSQL or the EduTrack service.
 
 Required evidence: command output, timestamp, operator, artifact digest, recipient approval reference and rollback target.
+
+## Beszel-specific gates
+
+Production cutover still requires the approved maintenance window and operator sign-off. Record the following evidence without credentials, raw API responses, hostname, system ID or user identifiers:
+
+1. [ ] `v0.18.8` release commit, both artifact SHA-256 values and attestation verification.
+2. [ ] Hub/Agent unit users, `127.0.0.1:8090` listener, no `45876` listener, and hardening properties.
+3. [ ] Read-only telemetry account/system share provisioned through the SSH local tunnel; only file hashes recorded for Agent key/token.
+4. [ ] Contract smoke JSON, 30-minute CPU/RSS pilot budget and EduTrack baseline comparison.
+5. [ ] Collector remains disabled until the gate is approved; after enable, dashboard current cards, all four history ranges, stale behavior and service projection verified.
+6. [ ] Exactly one deduplicated critical/recovery path verified in an isolated or explicitly approved test path.
+7. [ ] Encrypted daily backup checksum and isolated restore drill with `PRAGMA integrity_check=ok`.
+8. [ ] Prior Ops symlink and collector environment saved; rollback rehearsal proves PM2, PostgreSQL, Nginx and EduTrack data were untouched.

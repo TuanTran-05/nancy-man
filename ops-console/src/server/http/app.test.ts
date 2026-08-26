@@ -89,4 +89,37 @@ describe('protected Ops HTTP API', () => {
       expect(fixture.sent).toEqual([{ recipientId: 'chat-123', text: expect.stringContaining('Đã liên kết') }]);
     } finally { fixture.cleanup(); }
   });
+
+  it('serves authenticated bounded history ranges with no-store headers', async () => {
+    const fixture = makeFixture();
+    try {
+      fixture.store.recordSample({ monitor: 'host_resources', level: 'healthy', observedAt: '1970-01-01T00:00:00.000Z', latencyMs: null, details: { cpuPercent: 42 }, errorCode: null });
+      const login = await request(fixture.app).post('/api/session').send({ username: 'ops-a', password: 'correct horse battery staple', totp: '287082' }).expect(201);
+      const cookie = login.headers['set-cookie'][0].split(';')[0];
+      for (const [range, resolution] of [['1h', 60], ['24h', 300], ['7d', 1800], ['30d', 7200]] as const) {
+        const response = await request(fixture.app).get(`/api/infrastructure/history?range=${range}`).set('Cookie', cookie).expect(200);
+        expect(response.headers['cache-control']).toBe('no-store');
+        expect(response.body).toMatchObject({ range, resolutionSeconds: resolution, points: expect.any(Array) });
+        expect(response.body.points.length).toBeLessThanOrEqual(720);
+      }
+      await request(fixture.app).get('/api/infrastructure/history?range=invalid').set('Cookie', cookie).expect(400).expect({ error: 'invalid_range' });
+      await request(fixture.app).get('/api/infrastructure/history').set('Cookie', cookie).expect(400).expect({ error: 'invalid_range' });
+      await request(fixture.app).get('/api/infrastructure/history?range=1h&range=24h').set('Cookie', cookie).expect(400).expect({ error: 'invalid_range' });
+      await request(fixture.app).get('/api/infrastructure/history?range=1h').expect(401);
+    } finally { fixture.cleanup(); }
+  });
+
+  it('projects new monitor details without passing raw credentials or nested service fields', async () => {
+    const fixture = makeFixture();
+    try {
+      fixture.store.recordSample({ monitor: 'beszel', level: 'healthy', observedAt: '2026-08-24T00:00:45.000Z', latencyMs: null, details: { probeOk: true, hubVersion: '0.18.8', systemStatus: 'up', token: 'fixture-token', password: 'fixture-password', raw: { key: 'hidden' } }, errorCode: null });
+      fixture.store.recordSample({ monitor: 'host_resources', level: 'healthy', observedAt: '2026-08-24T00:00:45.000Z', latencyMs: null, details: { cpuPercent: 42.5, token: 'fixture-token', host: 'secret-host' }, errorCode: null });
+      fixture.store.recordSample({ monitor: 'host_services', level: 'healthy', observedAt: '2026-08-24T00:00:45.000Z', latencyMs: null, details: { matchedTotal: 1, failedServices: [], services: [{ name: 'nginx', state: 'active', subState: 'running', cpuPercent: 0.3, memoryBytes: 33554432, observedAt: '2026-08-24T00:00:45.000Z', command: 'secret', environment: 'secret', description: 'secret', restartCount: 3 }] } as Record<string, unknown>, errorCode: null });
+      const login = await request(fixture.app).post('/api/session').send({ username: 'ops-a', password: 'correct horse battery staple', totp: '287082' }).expect(201);
+      const cookie = login.headers['set-cookie'][0].split(';')[0];
+      const response = await request(fixture.app).get('/api/overview').set('Cookie', cookie).expect(200);
+      expect(response.body.latestByMonitor.host_services.details.services[0]).toEqual({ name: 'nginx', state: 'active', subState: 'running', cpuPercent: 0.3, memoryBytes: 33554432, observedAt: '2026-08-24T00:00:45.000Z' });
+      expect(JSON.stringify(response.body)).not.toMatch(/fixture-token|fixture-password|command|environment|description|restartCount|raw|secret-host/);
+    } finally { fixture.cleanup(); }
+  });
 });

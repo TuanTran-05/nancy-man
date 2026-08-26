@@ -1,0 +1,33 @@
+[Unit]
+Description=Beszel Agent
+After=network-online.target beszel-hub.service
+Wants=network-online.target beszel-hub.service
+
+[Service]
+Type=simple
+User=beszel-agent
+Group=beszel-agent
+UMask=0077
+EnvironmentFile=/etc/beszel/agent/agent.env
+WorkingDirectory=/srv/beszel/shared/agent
+ExecStart=/srv/beszel/current/beszel-agent
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/srv/beszel/shared/agent
+
+[Install]
+WantedBy=multi-user.target

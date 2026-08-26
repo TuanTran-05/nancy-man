@@ -1,0 +1,33 @@
+[Unit]
+Description=Beszel Hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=beszel-hub
+Group=beszel-hub
+UMask=0077
+EnvironmentFile=/etc/beszel/hub/hub.env
+WorkingDirectory=/srv/beszel/shared/hub
+ExecStart=/srv/beszel/current/beszel serve --http 127.0.0.1:8090
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/srv/beszel/shared/hub
+
+[Install]
+WantedBy=multi-user.target

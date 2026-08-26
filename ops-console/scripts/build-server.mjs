@@ -11,6 +11,7 @@ await build({
     'failsafe-entry': 'src/server/alerts/failsafe-entry.ts',
     'web-entry': 'src/server/http/web-entry.ts',
     'provision-ops-user': 'src/cli/provision-ops-user.ts',
+    'smoke-beszel': 'src/cli/smoke-beszel.ts',
   },
   bundle: true,
   format: 'esm',

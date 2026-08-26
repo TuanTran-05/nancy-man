@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Beszel encrypted backup timer
+
+[Timer]
+OnCalendar=*-*-* 03:45:00
+Persistent=true
+RandomizedDelaySec=5m
+Unit=beszel-backup.service
+
+[Install]
+WantedBy=timers.target

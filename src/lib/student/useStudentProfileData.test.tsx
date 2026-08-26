@@ -8,7 +8,7 @@ import type { StudentAdminReportResponse } from '../api/studentAdminReportApi';
 import { ApiError } from '../api/apiClient';
 import { useStudentProfileData } from './useStudentProfileData';
 import { fetchStudentAdminReport } from '../api/studentAdminReportApi';
-import { readClassesData, readOfficeAcademicReferences } from '../api/frontendReadApi';
+import { readClassesData, readOfficeTeacherReferences } from '../api/frontendReadApi';
 import { getStudentDirectory } from '../api/studentDirectoryApi';
 
 vi.mock('../api/studentAdminReportApi', () => ({
@@ -22,7 +22,7 @@ vi.mock('../../lib/auth/sessionAuth', () => ({
 
 vi.mock('../api/frontendReadApi', () => ({
   readClassesData: vi.fn(),
-  readOfficeAcademicReferences: vi.fn(),
+  readOfficeTeacherReferences: vi.fn(),
 }));
 
 vi.mock('../api/studentDirectoryApi', () => ({
@@ -91,8 +91,7 @@ function mockSupportData() {
     },
   ];
   vi.mocked(readClassesData).mockResolvedValue({ classes } as any);
-  vi.mocked(readOfficeAcademicReferences).mockResolvedValue({
-    classes: classes as any,
+  vi.mocked(readOfficeTeacherReferences).mockResolvedValue({
     teachers: [
       {
         uid: 'teacher-1',
@@ -113,7 +112,7 @@ describe('useStudentProfileData', () => {
       defaultOptions: { queries: { retry: false } },
     });
     vi.mocked(readClassesData).mockResolvedValue({ classes: [] });
-    vi.mocked(readOfficeAcademicReferences).mockResolvedValue({ classes: [], teachers: [] });
+    vi.mocked(readOfficeTeacherReferences).mockResolvedValue({ teachers: [] });
     vi.mocked(getStudentDirectory).mockResolvedValue({ students: [] } as any);
   });
 
@@ -236,7 +235,7 @@ describe('useStudentProfileData', () => {
     expect(result.current.parentLoginInfo).toBeUndefined();
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(readClassesData).not.toHaveBeenCalled();
-    expect(readOfficeAcademicReferences).not.toHaveBeenCalled();
+    expect(readOfficeTeacherReferences).not.toHaveBeenCalled();
 
     rerender({ role: 'accounting', seedParentLogin: null });
     expect(result.current.parentLoginInfo).toBeNull();
@@ -255,7 +254,7 @@ describe('useStudentProfileData', () => {
 
     await waitFor(() => expect(result.current.classes[0]?.id).toBe('class-1'));
     expect(readClassesData).toHaveBeenCalledTimes(1);
-    expect(readOfficeAcademicReferences).toHaveBeenCalledTimes(1);
+    expect(readOfficeTeacherReferences).toHaveBeenCalledTimes(1);
     // Admin reads references through the shared cached query, whose rows carry
     // the extra reference fields; the consumed contract is uid + displayName.
     expect(result.current.teachers[0]).toMatchObject({

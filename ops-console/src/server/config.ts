@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { lstatSync, readFileSync } from 'node:fs';
 import { isValidOpsZaloSecret } from './security/zaloLink.js';
 
 export interface WebConfig {
@@ -29,7 +30,19 @@ export interface CollectorConfig {
   recipientIds: string[];
   zaloRecipientKey: Buffer;
   zaloTimeoutMs: number;
+  beszel: BeszelCollectorConfig;
 }
+
+export type BeszelCollectorConfig =
+  | { enabled: false }
+  | {
+      enabled: true;
+      baseUrl: 'http://127.0.0.1:8090';
+      username: string;
+      passwordFile: string;
+      systemId: string;
+      timeoutMs: number;
+    };
 
 export interface FailsafeConfig {
   dbPath: string;
@@ -91,6 +104,32 @@ const requireLoopbackUrl = (env: Env, name: string): string => {
   return value.replace(/\/$/, '');
 };
 
+function loadBeszelConfig(env: Env): BeszelCollectorConfig {
+  const rawEnabled = env.OPS_BESZEL_ENABLED ?? 'false';
+  if (rawEnabled !== 'true' && rawEnabled !== 'false') throw new Error('OPS_BESZEL_ENABLED must be true or false');
+  if (rawEnabled === 'false') return { enabled: false };
+
+  const configuredUrl = required(env, 'OPS_BESZEL_URL');
+  let parsed: URL;
+  try {
+    parsed = new URL(configuredUrl);
+  } catch {
+    throw new Error('OPS_BESZEL_URL must be exactly http://127.0.0.1:8090');
+  }
+  if (parsed.href !== 'http://127.0.0.1:8090/') throw new Error('OPS_BESZEL_URL must be exactly http://127.0.0.1:8090');
+
+  const passwordFile = required(env, 'OPS_BESZEL_PASSWORD_FILE');
+  const stat = lstatSync(passwordFile);
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('OPS_BESZEL_PASSWORD_FILE must be a regular file');
+  if (!readFileSync(passwordFile, 'utf8').trim()) throw new Error('OPS_BESZEL_PASSWORD_FILE must not be empty');
+
+  const timeoutMs = positiveInteger(env, 'OPS_BESZEL_TIMEOUT_MS', 5000);
+  if (timeoutMs < 1000 || timeoutMs > 10000) throw new Error('OPS_BESZEL_TIMEOUT_MS must be between 1000 and 10000');
+  const username = z.string().email().max(254).parse(required(env, 'OPS_BESZEL_USER'));
+  const systemId = z.string().regex(/^[a-z0-9]{15}$/u).parse(required(env, 'OPS_BESZEL_SYSTEM_ID'));
+  return { enabled: true, baseUrl: 'http://127.0.0.1:8090', username, passwordFile, systemId, timeoutMs };
+}
+
 export function loadWebConfig(env: Env = process.env): WebConfig {
   const listenHost = env.OPS_LISTEN_HOST ?? '127.0.0.1';
   if (listenHost !== '127.0.0.1') throw new Error('OPS_LISTEN_HOST must be 127.0.0.1');
@@ -135,6 +174,7 @@ export function loadCollectorConfig(env: Env = process.env): CollectorConfig {
     recipientIds: parseRecipients(env),
     zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
     zaloTimeoutMs: positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000),
+    beszel: loadBeszelConfig(env),
   };
   if (config.zaloTimeoutMs < 5000 || config.zaloTimeoutMs > 60000) {
     throw new Error('OPS_ALERT_ZALO_TIMEOUT_MS must be between 5000 and 60000');
