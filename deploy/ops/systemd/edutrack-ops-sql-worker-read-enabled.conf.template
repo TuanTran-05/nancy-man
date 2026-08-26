@@ -1,0 +1,5 @@
+# Install this as a systemd drop-in only after the read-only role verifier passes
+# and a maintainer's read-only rollout has been approved. It is intentionally not
+# active in the base unit.
+[Service]
+LoadCredential=production-read-database-url:/etc/edutrack-ops/credentials/production-read-database-url

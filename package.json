@@ -1,0 +1,36 @@
+{
+  "name": "edutrack-ops",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc -b --pretty false",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
+    "format:check": "prettier --check . --ignore-unknown",
+    "test": "vitest run --passWithNoTests",
+    "build": "npm run build --workspaces --if-present",
+    "test:e2e": "playwright test --pass-with-no-tests"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.59.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "22.14.0",
+    "eslint": "10.3.0",
+    "prettier": "3.8.3",
+    "typescript": "5.8.2",
+    "typescript-eslint": "8.59.2",
+    "vite": "6.2.0",
+    "vitest": "4.1.10"
+  },
+  "allowScripts": {
+    "argon2@0.45.1": true
+  }
+}

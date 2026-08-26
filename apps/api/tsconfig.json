@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "composite": false,
+    "declaration": false,
+    "rootDir": "../..",
+    "outDir": "dist"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../deploy/dr/dr-status.schema.ts",
+    "../../packages/contracts/src/**/*.ts",
+    "../../packages/db/src/**/*.ts",
+    "../../packages/security/src/**/*.ts"
+  ],
+  "exclude": ["src/**/*.test.ts", "../../packages/**/*.test.ts"]
+}

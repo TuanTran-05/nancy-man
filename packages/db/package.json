@@ -1,0 +1,16 @@
+{
+  "name": "@edutrack-ops/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "0.45.2",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --pretty false"
+  }
+}

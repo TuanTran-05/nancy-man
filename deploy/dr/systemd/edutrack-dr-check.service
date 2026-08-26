@@ -1,0 +1,16 @@
+[Unit]
+Description=EduTrack continuous WAL archive health check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=postgres
+Group=postgres
+EnvironmentFile=/etc/edutrack-ops/dr.env
+ExecStart=/srv/edutrack-ops/current/deploy/dr/postgresql/archive-check.sh --json
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/edutrack-ops/dr

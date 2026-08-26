@@ -1,0 +1,15 @@
+{
+  "name": "@thienuy/ops-telemetry",
+  "version": "0.1.0",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./dist/telemetry-sdk/src/index.js"
+  },
+  "types": "./dist/telemetry-sdk/src/index.d.ts",
+  "scripts": {
+    "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.publish.json --pretty false"
+  }
+}

@@ -1,0 +1,92 @@
+import { describe, expect, it } from 'vitest';
+
+import { migrateOpsDatabase } from './migrate.js';
+
+const requiredTables = [
+  'ops_users',
+  'ops_password_credentials',
+  'ops_mfa_factors',
+  'ops_recovery_codes',
+  'ops_sessions',
+  'ops_login_events',
+  'ops_elevation_events',
+  'ops_sql_elevations',
+  'ops_audit_entries',
+  'ops_audit_checkpoints',
+  'service_heartbeats'
+];
+
+describe('Ops database migration runner', () => {
+  it('creates every foundation table from an empty database', async () => {
+    const executed: string[] = [];
+    const applied = new Set<string>();
+
+    const result = await migrateOpsDatabase({
+      query: async <T>(sql: string, parameters: readonly unknown[] = []) => {
+        if (sql.includes('SELECT migration_id')) {
+          return { rows: [...applied].map((migrationId) => ({ migrationId })) as T[] };
+        }
+        if (sql.includes('INSERT INTO ops_schema_migrations')) {
+          applied.add(String(parameters[0]));
+        }
+        executed.push(sql);
+        return { rows: [] as T[] };
+      }
+    });
+
+    expect(result.appliedMigrations).toEqual([
+      '0001_ops_foundation',
+      '0002_error_operations',
+      '0003_ingest_processing_state',
+      '0004_error_source_extensions',
+      '0005_error_issue_affected_users',
+      '0006_release_publishers',
+      '0007_ingest_nonces',
+      '0008_ingest_rate_limits',
+      '0009_alert_delivery_outbox',
+      '0010_ops_login_challenges',
+      '0011_ops_mfa_enrollment_tokens',
+      '0012_sql_execution_audit',
+      '0013_sql_session_elevations'
+    ]);
+    const migrationSql = executed.join('\n');
+    for (const table of requiredTables) {
+      expect(migrationSql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
+    }
+    expect(migrationSql).toMatch(/CREATE TABLE IF NOT EXISTS ingest_envelopes/);
+  });
+
+  it('is idempotent when the migration is already recorded', async () => {
+    const executed: string[] = [];
+
+    const result = await migrateOpsDatabase({
+      query: async <T>(sql: string) => {
+        if (sql.includes('SELECT migration_id')) {
+          return {
+            rows: [
+              { migrationId: '0001_ops_foundation' },
+              { migrationId: '0002_error_operations' },
+              { migrationId: '0003_ingest_processing_state' },
+              { migrationId: '0004_error_source_extensions' },
+              { migrationId: '0005_error_issue_affected_users' },
+              { migrationId: '0006_release_publishers' },
+              { migrationId: '0007_ingest_nonces' },
+              { migrationId: '0008_ingest_rate_limits' },
+              { migrationId: '0009_alert_delivery_outbox' },
+              { migrationId: '0010_ops_login_challenges' },
+              { migrationId: '0011_ops_mfa_enrollment_tokens' },
+              { migrationId: '0012_sql_execution_audit' },
+              { migrationId: '0013_sql_session_elevations' }
+            ] as T[]
+          };
+        }
+        executed.push(sql);
+        return { rows: [] as T[] };
+      }
+    });
+
+    expect(result.appliedMigrations).toEqual([]);
+    expect(executed).toHaveLength(1);
+    expect(executed[0]).toContain('CREATE TABLE IF NOT EXISTS ops_schema_migrations');
+  });
+});

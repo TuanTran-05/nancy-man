@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "apps/api" },
+    { "path": "apps/notifier" },
+    { "path": "apps/processor" },
+    { "path": "apps/sql-worker" },
+    { "path": "apps/web" },
+    { "path": "packages/contracts" },
+    { "path": "packages/db" },
+    { "path": "packages/security" },
+    { "path": "packages/telemetry-sdk" },
+    { "path": "packages/test-utils" }
+  ]
+}

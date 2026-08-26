@@ -1,0 +1,9 @@
+# Install only after the Phase 3 read-only gate is approved:
+#   /etc/systemd/system/edutrack-ops-api.service.d/sql-worker.conf
+#
+# This is deliberately a drop-in rather than part of the base API service. An
+# API deployment cannot access the private SQL worker unless an operator both
+# installs this credential and sets OPS_SQL_WORKER_ENABLED=true in api.env.
+[Service]
+LoadCredential=ops-sql-worker-hmac:/etc/edutrack-ops/credentials/ops-sql-worker-hmac
+LoadCredential=ops-sql-audit-encryption-key:/etc/edutrack-ops/credentials/ops-sql-audit-encryption-key

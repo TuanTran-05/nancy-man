@@ -1,0 +1,14 @@
+{
+  "name": "@edutrack-ops/security",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@simplewebauthn/server": "13.3.2",
+    "argon2": "0.45.1",
+    "otpauth": "9.5.1"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --pretty false"
+  }
+}
