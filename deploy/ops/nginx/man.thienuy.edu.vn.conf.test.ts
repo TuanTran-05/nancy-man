@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { createServer } from 'node:http';
+import { createServer, get as getHttp } from 'node:http';
 import { get as getHttps } from 'node:https';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -62,6 +62,29 @@ function requestThroughTlsNginx(port: number, path: string) {
   });
 }
 
+function requestThroughHttpNginx(port: number, path: string, host: string) {
+  return new Promise<{ status: number; location: string | undefined }>((resolve, reject) => {
+    const request = getHttp(
+      {
+        host: '127.0.0.1',
+        port,
+        path,
+        headers: { Host: host }
+      },
+      (response) => {
+        response.resume();
+        response.on('end', () => {
+          resolve({ status: response.statusCode ?? 0, location: response.headers.location });
+        });
+      }
+    );
+    request.on('error', reject);
+    request.setTimeout(200, () =>
+      request.destroy(new Error('Nginx did not accept an HTTP request'))
+    );
+  });
+}
+
 describe('man.thienuy.edu.vn canonical dual-plane vhost', () => {
   it('declares disjoint route ownership and no certificate placeholder', () => {
     const config = readFileSync(configPath, 'utf8');
@@ -73,7 +96,7 @@ describe('man.thienuy.edu.vn canonical dual-plane vhost', () => {
     expect(config).not.toContain('REPLACE_WITH_CERT_NAME');
   });
 
-  it('forwards each route namespace to only its designated loopback plane', async () => {
+  it('forwards each route namespace to only its designated loopback plane and canonicalizes HTTP redirects', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'ops-nginx-vhost-'));
     const httpPort = await freePort();
     const httpsPort = await freePort();
@@ -141,7 +164,9 @@ describe('man.thienuy.edu.vn canonical dual-plane vhost', () => {
 
       for (const [path, plane] of [
         ['/healthz', 'api'],
+        ['/api/v1', 'api'],
         ['/api/v1/auth/session', 'api'],
+        ['/api', 'web'],
         ['/api/overview', 'web'],
         ['/', 'web'],
         ['/assets/app.js', 'web']
@@ -152,6 +177,16 @@ describe('man.thienuy.edu.vn canonical dual-plane vhost', () => {
         expect(body).toMatchObject({ plane, path, forwardedProto: 'https' });
         expect(body.requestId).toEqual(expect.any(String));
       }
+
+      const redirect = await requestThroughHttpNginx(
+        httpPort,
+        '/api/v1?trace=1',
+        'attacker.invalid'
+      );
+      expect(redirect).toEqual({
+        status: 308,
+        location: 'https://man.thienuy.edu.vn/api/v1?trace=1'
+      });
     } finally {
       if (nginx.exitCode === null) {
         nginx.kill();
