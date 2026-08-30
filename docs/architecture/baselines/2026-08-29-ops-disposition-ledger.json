@@ -394,8 +394,8 @@
           "path": "docs/runbooks/ops-production-workflow.md"
         },
         {
-          "contentSha256": "a2d884a8edb896333c603ad6509a6f7c9fe6e4012c569eed08b910c7d741661d",
-          "gitBlobSha": "d19b012dd872fcddffca19883e33d00baaeae00b",
+          "contentSha256": "16abbe0139f2a19200f01fe66afe2dce5a14ef8cba966a90f90866d34fef0d87",
+          "gitBlobSha": "cbd0fc7dd95c115d00abd46a9ad856de619c067d",
           "path": "deploy/ops/release-assets.test.ts"
         },
         {
@@ -404,7 +404,7 @@
           "path": "deploy/ops/release-manifest.test.ts"
         }
       ],
-      "replacementSha": "5ff472a72d192c29e94a936dcfb3dcd45541b647",
+      "replacementSha": "e10498ca6ed17f4f08932c950b5186bb25dba778",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "992ea26aa08758120d7e290a21b7e7f0886db589",
       "sourceKind": "git-blob",
@@ -442,8 +442,8 @@
           "path": "deploy/ops/release-manifest.mjs"
         },
         {
-          "contentSha256": "a2d884a8edb896333c603ad6509a6f7c9fe6e4012c569eed08b910c7d741661d",
-          "gitBlobSha": "d19b012dd872fcddffca19883e33d00baaeae00b",
+          "contentSha256": "16abbe0139f2a19200f01fe66afe2dce5a14ef8cba966a90f90866d34fef0d87",
+          "gitBlobSha": "cbd0fc7dd95c115d00abd46a9ad856de619c067d",
           "path": "deploy/ops/release-assets.test.ts"
         },
         {
@@ -452,7 +452,7 @@
           "path": "deploy/ops/release-manifest.test.ts"
         }
       ],
-      "replacementSha": "9df23a9cb4158943f2fc06554ea7fed6b3cd647d",
+      "replacementSha": "e10498ca6ed17f4f08932c950b5186bb25dba778",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "b4db1a7db3fc1caed3209d89b655f6e4c8cfad17",
       "sourceKind": "git-blob",
