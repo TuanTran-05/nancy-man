@@ -1046,8 +1046,17 @@ describe('Ops disposition ledger', () => {
       'ops-console/test-results'
     ]);
     expect(inputs.generatedRoots[1].symlinkCount).toBe(22);
-    expect(ledger).toMatchObject({ schemaVersion: 1, state: 'construction' });
-    expect(validateOpsDispositionForConstruction(ledger, inputs).entries).toHaveLength(131);
+    expect(ledger).toMatchObject({ schemaVersion: 1, state: 'final' });
+    expect(
+      ledger.entries.some((item: { disposition: string }) => item.disposition === 'pending')
+    ).toBe(false);
+    expect(
+      validateFinalOpsDisposition(ledger, inputs, {
+        repositoryRoot: REPOSITORY_ROOT,
+        headSha: 'HEAD',
+        expectedEmbeddedGitSha: inputs.embedded.gitSha
+      }).entries
+    ).toHaveLength(131);
   });
 
   it('records an undeployed PostgreSQL migration plane without fabricating an empty capture', () => {
