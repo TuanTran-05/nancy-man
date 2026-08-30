@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   mkdirSync,
   mkdtempSync,
@@ -18,7 +19,8 @@ import {
   deterministicJson,
   validateOpsInputs,
   validateOpsDisposition,
-  validateOpsDispositionForConstruction
+  validateOpsDispositionForConstruction,
+  validateFinalOpsDisposition
 } from './opsDisposition.mjs';
 
 const capturedAt = '2026-08-30T05:17:12.000Z';
@@ -44,9 +46,12 @@ function pendingEntry(sourcePath = 'ops-console/src/web/App.tsx') {
     sourceSha256: sha64,
     targetRepository: 'edutrack-ops' as const,
     targetPath: null,
+    targetGitBlobSha: null,
+    targetContentSha256: null,
     disposition: 'pending' as const,
     replacementSha: null,
     evidence: ['docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json'],
+    evidenceIdentities: [],
     capturedAt
   };
 }
@@ -102,16 +107,117 @@ function frozenFixture() {
   });
 }
 
-function runValidationCli(inputs: unknown, ledger: unknown, extraArguments: string[] = []) {
+function runValidationCli(
+  inputs: unknown,
+  ledger: unknown,
+  extraArguments: string[] = [],
+  repositoryRoot?: string
+) {
   const directory = mkdtempSync(path.join(tmpdir(), 'ops-disposition-cli-'));
   const inputPath = path.join(directory, '2026-08-29-ops-consolidation-inputs.json');
   const ledgerPath = path.join(directory, '2026-08-29-ops-disposition-ledger.json');
   writeFileSync(inputPath, deterministicJson(inputs));
   writeFileSync(ledgerPath, deterministicJson(ledger));
   return spawnSync(process.execPath, [SCRIPT_PATH, ledgerPath, ...extraArguments], {
-    cwd: directory,
+    cwd: repositoryRoot ?? directory,
     encoding: 'utf8'
   });
+}
+
+function gitBlobIdentity(repositoryRoot: string, commitSha: string, filePath: string) {
+  const gitBlobSha = git(repositoryRoot, 'rev-parse', `${commitSha}:${filePath}`);
+  const bytes = execFileSync('git', ['cat-file', 'blob', `${commitSha}:${filePath}`], {
+    cwd: repositoryRoot
+  });
+  return {
+    path: filePath,
+    gitBlobSha,
+    contentSha256: createHash('sha256').update(bytes).digest('hex')
+  };
+}
+
+function finalMappingFixture() {
+  const fixture = repositoryFixture();
+  const embeddedGitSha = fixture.commitSha;
+  mkdirSync(path.join(fixture.repositoryRoot, 'canonical'), { recursive: true });
+  mkdirSync(path.join(fixture.repositoryRoot, 'docs'), { recursive: true });
+  writeFileSync(path.join(fixture.repositoryRoot, 'canonical/alpha.ts'), 'canonical alpha\n');
+  writeFileSync(path.join(fixture.repositoryRoot, 'canonical/Alpha.ts'), 'case alias\n');
+  writeFileSync(path.join(fixture.repositoryRoot, 'canonical/beta.ts'), 'canonical beta\n');
+  writeFileSync(path.join(fixture.repositoryRoot, 'canonical/caf\u00e9.ts'), 'nfc\n');
+  writeFileSync(path.join(fixture.repositoryRoot, 'canonical/cafe\u0301.ts'), 'nfd\n');
+  symlinkSync('alpha.ts', path.join(fixture.repositoryRoot, 'canonical/link.ts'));
+  writeFileSync(
+    path.join(fixture.repositoryRoot, 'docs/mapping-evidence.md'),
+    'mapping evidence\n'
+  );
+  writeFileSync(path.join(fixture.repositoryRoot, 'docs/other-evidence.md'), 'other evidence\n');
+  git(fixture.repositoryRoot, 'add', '.');
+  git(fixture.repositoryRoot, 'commit', '-m', 'canonical mapping targets');
+  const targetCommit = git(fixture.repositoryRoot, 'rev-parse', 'HEAD');
+  git(
+    fixture.repositoryRoot,
+    'update-index',
+    '--add',
+    '--cacheinfo',
+    `160000,${embeddedGitSha},canonical/submodule`
+  );
+  git(fixture.repositoryRoot, 'commit', '-m', 'gitlink fixture');
+  const headSha = git(fixture.repositoryRoot, 'rev-parse', 'HEAD');
+  generatedFixture(fixture.repositoryRoot);
+  const captured = buildFrozenOpsCapture({
+    canonicalRepositoryRoot: fixture.repositoryRoot,
+    canonicalGitSha: headSha,
+    embeddedRepositoryRoot: fixture.repositoryRoot,
+    embeddedGitSha,
+    embeddedWorktreeRoot: fixture.repositoryRoot,
+    capturedAt,
+    runtimeIdentity: {
+      currentReleaseName: 'fixture-release',
+      services: [
+        {
+          name: 'edutrack-ops-web.service',
+          activeState: 'active',
+          subState: 'running',
+          fragmentScope: 'system'
+        }
+      ]
+    }
+  });
+  const targetPaths = ['canonical/alpha.ts', 'canonical/beta.ts'];
+  const finalLedger = structuredClone(captured.ledger);
+  finalLedger.state = 'final';
+  let targetIndex = 0;
+  for (const item of finalLedger.entries) {
+    item.targetGitBlobSha ??= null;
+    item.targetContentSha256 ??= null;
+    item.evidenceIdentities ??= [];
+    if (item.sourceKind !== 'git-blob') continue;
+    const targetPath = targetPaths[targetIndex];
+    targetIndex += 1;
+    const target = gitBlobIdentity(fixture.repositoryRoot, headSha, targetPath);
+    const evidence = [
+      target,
+      gitBlobIdentity(fixture.repositoryRoot, headSha, 'docs/mapping-evidence.md')
+    ];
+    Object.assign(item, {
+      targetPath,
+      targetGitBlobSha: target.gitBlobSha,
+      targetContentSha256: target.contentSha256,
+      disposition: 'integrate',
+      replacementSha: headSha,
+      evidence: evidence.map((identity) => identity.path),
+      evidenceIdentities: evidence
+    });
+  }
+  return {
+    ...fixture,
+    embeddedGitSha,
+    targetCommit,
+    headSha,
+    inputs: captured.inputs,
+    ledger: finalLedger
+  };
 }
 
 describe('Ops disposition ledger', () => {
@@ -368,20 +474,266 @@ describe('Ops disposition ledger', () => {
     expect(bypass.status).toBe(1);
     expect(bypass.stdout).toBe('');
     expect(bypass.stderr).toBe('OPS_DISPOSITION_ARGUMENTS_INVALID\n');
+  });
 
-    const closed = structuredClone(ledger);
-    closed.state = 'final';
-    for (const item of closed.entries) {
-      if (item.sourceKind === 'git-blob') {
-        item.disposition = 'integrate';
-        item.targetPath = item.sourcePath;
-        item.replacementSha = inputs.canonical.gitSha;
+  it(
+    'rejects ungrounded final mappings through both the API and real CLI',
+    { timeout: 20_000 },
+    () => {
+      const fixture = finalMappingFixture();
+      const orphanTree = git(fixture.repositoryRoot, 'rev-parse', `${fixture.headSha}^{tree}`);
+      const unreachableSha = execFileSync(
+        'git',
+        ['commit-tree', orphanTree, '-m', 'unreachable fixture'],
+        { cwd: fixture.repositoryRoot, encoding: 'utf8' }
+      ).trim();
+      git(
+        fixture.repositoryRoot,
+        'tag',
+        '-a',
+        'replacement-tag',
+        fixture.headSha,
+        '-m',
+        'replacement tag fixture'
+      );
+      const tagObjectSha = git(fixture.repositoryRoot, 'rev-parse', 'replacement-tag^{tag}');
+      const firstTracked = fixture.ledger.entries.find(
+        (item: { sourceKind: string }) => item.sourceKind === 'git-blob'
+      );
+      if (!firstTracked) throw new Error('missing first tracked fixture');
+      const alphaTarget = gitBlobIdentity(
+        fixture.repositoryRoot,
+        fixture.headSha,
+        'canonical/alpha.ts'
+      );
+      const alphaEvidence = [
+        alphaTarget,
+        gitBlobIdentity(fixture.repositoryRoot, fixture.headSha, 'docs/mapping-evidence.md')
+      ];
+      const setTarget = (
+        ledger: typeof fixture.ledger,
+        index: number,
+        targetPath: string,
+        targetGitBlobSha: string,
+        targetContentSha256 = '9'.repeat(64)
+      ) => {
+        const tracked = ledger.entries.filter(
+          (item: { sourceKind: string }) => item.sourceKind === 'git-blob'
+        );
+        Object.assign(tracked[index], {
+          targetPath,
+          targetGitBlobSha,
+          targetContentSha256,
+          evidence: [targetPath, 'docs/mapping-evidence.md'],
+          evidenceIdentities: [
+            { path: targetPath, gitBlobSha: targetGitBlobSha, contentSha256: targetContentSha256 },
+            alphaEvidence[1]
+          ]
+        });
+      };
+      const cases = [
+        {
+          name: 'absent replacement',
+          code: 'OPS_DISPOSITION_REPLACEMENT_ABSENT',
+          mutate(ledger: typeof fixture.ledger) {
+            ledger.entries.find(
+              (item: { sourceKind: string }) => item.sourceKind === 'git-blob'
+            ).replacementSha = 'f'.repeat(40);
+          }
+        },
+        {
+          name: 'unreachable replacement',
+          code: 'OPS_DISPOSITION_REPLACEMENT_UNREACHABLE',
+          mutate(ledger: typeof fixture.ledger) {
+            ledger.entries.find(
+              (item: { sourceKind: string }) => item.sourceKind === 'git-blob'
+            ).replacementSha = unreachableSha;
+          }
+        },
+        {
+          name: 'replacement is not a commit object',
+          code: 'OPS_DISPOSITION_REPLACEMENT_NOT_COMMIT',
+          mutate(ledger: typeof fixture.ledger) {
+            ledger.entries.find(
+              (item: { sourceKind: string }) => item.sourceKind === 'git-blob'
+            ).replacementSha = tagObjectSha;
+          }
+        },
+        {
+          name: 'absent target',
+          code: 'OPS_DISPOSITION_TARGET_ABSENT',
+          mutate(ledger: typeof fixture.ledger) {
+            setTarget(ledger, 0, 'canonical/missing.ts', '8'.repeat(40));
+          }
+        },
+        {
+          name: 'tree target',
+          code: 'OPS_DISPOSITION_TARGET_TYPE_INVALID',
+          mutate(ledger: typeof fixture.ledger) {
+            setTarget(
+              ledger,
+              0,
+              'canonical',
+              git(fixture.repositoryRoot, 'rev-parse', `${fixture.headSha}:canonical`)
+            );
+          }
+        },
+        {
+          name: 'symlink target',
+          code: 'OPS_DISPOSITION_TARGET_TYPE_INVALID',
+          mutate(ledger: typeof fixture.ledger) {
+            const identity = gitBlobIdentity(
+              fixture.repositoryRoot,
+              fixture.headSha,
+              'canonical/link.ts'
+            );
+            setTarget(ledger, 0, identity.path, identity.gitBlobSha, identity.contentSha256);
+          }
+        },
+        {
+          name: 'submodule target',
+          code: 'OPS_DISPOSITION_TARGET_TYPE_INVALID',
+          mutate(ledger: typeof fixture.ledger) {
+            setTarget(
+              ledger,
+              0,
+              'canonical/submodule',
+              git(fixture.repositoryRoot, 'rev-parse', `${fixture.headSha}:canonical/submodule`)
+            );
+          }
+        },
+        {
+          name: 'target object identity tamper',
+          code: 'OPS_DISPOSITION_TARGET_IDENTITY_MISMATCH',
+          mutate(ledger: typeof fixture.ledger) {
+            ledger.entries.find(
+              (item: { sourceKind: string }) => item.sourceKind === 'git-blob'
+            ).targetGitBlobSha = 'f'.repeat(40);
+          }
+        },
+        {
+          name: 'target digest tamper',
+          code: 'OPS_DISPOSITION_TARGET_DIGEST_MISMATCH',
+          mutate(ledger: typeof fixture.ledger) {
+            ledger.entries.find(
+              (item: { sourceKind: string }) => item.sourceKind === 'git-blob'
+            ).targetContentSha256 = 'f'.repeat(64);
+          }
+        },
+        {
+          name: 'absent evidence',
+          code: 'OPS_DISPOSITION_EVIDENCE_ABSENT',
+          mutate(ledger: typeof fixture.ledger) {
+            const item = ledger.entries.find(
+              (entry: { sourceKind: string }) => entry.sourceKind === 'git-blob'
+            );
+            item.evidence = [item.targetPath, 'docs/missing.md'];
+            item.evidenceIdentities = [
+              alphaTarget,
+              { path: 'docs/missing.md', gitBlobSha: '8'.repeat(40), contentSha256: '9'.repeat(64) }
+            ];
+          }
+        },
+        {
+          name: 'evidence digest tamper',
+          code: 'OPS_DISPOSITION_EVIDENCE_DIGEST_MISMATCH',
+          mutate(ledger: typeof fixture.ledger) {
+            ledger.entries.find(
+              (item: { sourceKind: string }) => item.sourceKind === 'git-blob'
+            ).evidenceIdentities[1].contentSha256 = 'f'.repeat(64);
+          }
+        },
+        {
+          name: 'case target alias',
+          code: 'OPS_DISPOSITION_TARGET_ALIAS_COLLISION',
+          mutate(ledger: typeof fixture.ledger) {
+            const identity = gitBlobIdentity(
+              fixture.repositoryRoot,
+              fixture.headSha,
+              'canonical/Alpha.ts'
+            );
+            setTarget(ledger, 1, identity.path, identity.gitBlobSha, identity.contentSha256);
+          }
+        },
+        {
+          name: 'Unicode target alias',
+          code: 'OPS_DISPOSITION_TARGET_PATH_INVALID',
+          mutate(ledger: typeof fixture.ledger) {
+            const targetPath = 'canonical/cafe\u0301.ts';
+            const gitBlobSha = git(
+              fixture.repositoryRoot,
+              'rev-parse',
+              `${fixture.headSha}:${targetPath}`
+            );
+            setTarget(ledger, 1, targetPath, gitBlobSha);
+          }
+        },
+        {
+          name: 'arbitrary all-to-one substitution',
+          code: 'OPS_DISPOSITION_MANY_TO_ONE_CONFLICT',
+          mutate(ledger: typeof fixture.ledger) {
+            const tracked = ledger.entries.filter(
+              (item: { sourceKind: string }) => item.sourceKind === 'git-blob'
+            );
+            tracked[1].targetPath = tracked[0].targetPath;
+            tracked[1].targetGitBlobSha = tracked[0].targetGitBlobSha;
+            tracked[1].targetContentSha256 = tracked[0].targetContentSha256;
+            const otherEvidence = gitBlobIdentity(
+              fixture.repositoryRoot,
+              fixture.headSha,
+              'docs/other-evidence.md'
+            );
+            tracked[1].evidence = [tracked[0].targetPath, otherEvidence.path];
+            tracked[1].evidenceIdentities = [alphaTarget, otherEvidence];
+          }
+        }
+      ];
+
+      for (const testCase of cases) {
+        const ledger = structuredClone(fixture.ledger);
+        testCase.mutate(ledger);
+        expect(
+          () =>
+            validateFinalOpsDisposition(ledger, fixture.inputs, {
+              repositoryRoot: fixture.repositoryRoot,
+              headSha: fixture.headSha
+            }),
+          testCase.name
+        ).toThrow(testCase.code);
+        const cli = runValidationCli(fixture.inputs, ledger, [], fixture.repositoryRoot);
+        expect(cli.status, testCase.name).toBe(1);
+        expect(cli.stdout, testCase.name).toBe('');
+        expect(cli.stderr, testCase.name).toBe(`${testCase.code}\n`);
       }
     }
-    const valid = runValidationCli(inputs, closed);
-    expect(valid.status).toBe(0);
-    expect(valid.stdout).toBe('OPS_DISPOSITION_PASS entries=5\n');
-    expect(valid.stderr).toBe('');
+  );
+
+  it('allows an intentional exact many-to-one mapping proven by Git', () => {
+    const fixture = finalMappingFixture();
+    const ledger = structuredClone(fixture.ledger);
+    const tracked = ledger.entries.filter(
+      (item: { sourceKind: string }) => item.sourceKind === 'git-blob'
+    );
+    Object.assign(tracked[1], {
+      targetPath: tracked[0].targetPath,
+      targetGitBlobSha: tracked[0].targetGitBlobSha,
+      targetContentSha256: tracked[0].targetContentSha256,
+      replacementSha: tracked[0].replacementSha,
+      evidence: structuredClone(tracked[0].evidence),
+      evidenceIdentities: structuredClone(tracked[0].evidenceIdentities)
+    });
+
+    expect(() => validateOpsDisposition(ledger)).toThrow('OPS_DISPOSITION_FINAL_PROOF_REQUIRED');
+    expect(
+      validateFinalOpsDisposition(ledger, fixture.inputs, {
+        repositoryRoot: fixture.repositoryRoot,
+        headSha: fixture.headSha
+      }).entries
+    ).toHaveLength(5);
+    const cli = runValidationCli(fixture.inputs, ledger, [], fixture.repositoryRoot);
+    expect(cli.status).toBe(0);
+    expect(cli.stdout).toBe('OPS_DISPOSITION_PASS entries=5\n');
+    expect(cli.stderr).toBe('');
   });
 
   it('pins the reviewed inventory to 128 Git blobs and exactly three generated roots', () => {

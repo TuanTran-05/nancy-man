@@ -44,6 +44,11 @@ const relativePath = z
         .every((component) => component.length > 0 && component !== '.' && component !== '..')
   );
 const disposition = z.enum(['integrate', 'superseded', 'generated', 'pending']);
+const evidenceIdentity = z.strictObject({
+  path: relativePath,
+  gitBlobSha: sha40,
+  contentSha256: sha64
+});
 const entry = z.strictObject({
   sourceAlias: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/),
   sourceKind: z.enum(['git-blob', 'generated-root']),
@@ -52,9 +57,12 @@ const entry = z.strictObject({
   sourceSha256: sha64,
   targetRepository: z.literal('edutrack-ops'),
   targetPath: relativePath.nullable(),
+  targetGitBlobSha: sha40.nullable(),
+  targetContentSha256: sha64.nullable(),
   disposition,
   replacementSha: sha40.nullable(),
   evidence: z.array(relativePath).min(1),
+  evidenceIdentities: z.array(evidenceIdentity),
   capturedAt: z.string().datetime()
 });
 const ledger = z.strictObject({
@@ -191,6 +199,166 @@ function batchBlobSha256(repositoryRoot, blobShas) {
   }
   if (offset !== bytes.length) fail('OPS_GIT_BLOB_INVALID');
   return result;
+}
+
+function gitSucceeds(repositoryRoot, args) {
+  try {
+    execFileSync('git', args, {
+      cwd: repositoryRoot,
+      stdio: ['ignore', 'ignore', 'ignore']
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveCommit(repositoryRoot, revision, errorCode) {
+  const resolved = git(repositoryRoot, ['rev-parse', '--verify', `${revision}^{commit}`], {
+    errorCode
+  }).trim();
+  if (!sha40.safeParse(resolved).success) fail(errorCode);
+  return resolved;
+}
+
+function loadGitTree(repositoryRoot, commitSha) {
+  const output = git(repositoryRoot, ['ls-tree', '-r', '-t', '-z', '--full-tree', commitSha]);
+  const result = new Map();
+  for (const record of output.split('\0').filter(Boolean)) {
+    const separator = record.indexOf('\t');
+    if (separator < 0) fail('OPS_DISPOSITION_GIT_TREE_INVALID');
+    const metadata = /^(\d{6}) (blob|tree|commit) ([0-9a-f]{40})$/.exec(record.slice(0, separator));
+    if (!metadata) fail('OPS_DISPOSITION_GIT_TREE_INVALID');
+    const filePath = record.slice(separator + 1);
+    if (result.has(filePath)) fail('OPS_DISPOSITION_GIT_TREE_INVALID');
+    result.set(filePath, {
+      mode: metadata[1],
+      type: metadata[2],
+      objectSha: metadata[3]
+    });
+  }
+  return result;
+}
+
+function isRegularGitBlob(item) {
+  return item?.type === 'blob' && ['100644', '100755'].includes(item.mode);
+}
+
+function mappingEntries(parsedLedger) {
+  return parsedLedger.entries.filter((item) =>
+    ['integrate', 'superseded'].includes(item.disposition)
+  );
+}
+
+function validateFinalMappingAliases(parsedLedger) {
+  const aliases = new Map();
+  const groups = new Map();
+  for (const item of mappingEntries(parsedLedger)) {
+    const alias = item.targetPath.normalize('NFC').toLowerCase();
+    const previousPath = aliases.get(alias);
+    if (previousPath && previousPath !== item.targetPath) {
+      fail('OPS_DISPOSITION_TARGET_ALIAS_COLLISION');
+    }
+    aliases.set(alias, item.targetPath);
+    const group = groups.get(item.targetPath) ?? [];
+    group.push(item);
+    groups.set(item.targetPath, group);
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const fingerprints = new Set(
+      group.map((item) =>
+        JSON.stringify({
+          replacementSha: item.replacementSha,
+          targetGitBlobSha: item.targetGitBlobSha,
+          targetContentSha256: item.targetContentSha256,
+          evidence: item.evidence,
+          evidenceIdentities: item.evidenceIdentities
+        })
+      )
+    );
+    if (fingerprints.size !== 1) fail('OPS_DISPOSITION_MANY_TO_ONE_CONFLICT');
+  }
+}
+
+function validateFinalMappingGit(parsedLedger, inputs, { repositoryRoot, headSha = 'HEAD' } = {}) {
+  if (!repositoryRoot || !path.isAbsolute(repositoryRoot)) {
+    fail('OPS_DISPOSITION_REPOSITORY_INVALID');
+  }
+  const resolvedHead = resolveCommit(
+    repositoryRoot,
+    headSha,
+    'OPS_DISPOSITION_CANONICAL_HEAD_INVALID'
+  );
+  if (
+    !gitSucceeds(repositoryRoot, [
+      'merge-base',
+      '--is-ancestor',
+      inputs.canonical.gitSha,
+      resolvedHead
+    ])
+  ) {
+    fail('OPS_DISPOSITION_CANONICAL_LINEAGE_INVALID');
+  }
+  validateFinalMappingAliases(parsedLedger);
+  const trees = new Map();
+  const mappings = mappingEntries(parsedLedger);
+  for (const item of mappings) {
+    const replacementType = git(repositoryRoot, ['cat-file', '-t', item.replacementSha], {
+      errorCode: 'OPS_DISPOSITION_REPLACEMENT_ABSENT'
+    }).trim();
+    if (replacementType !== 'commit') fail('OPS_DISPOSITION_REPLACEMENT_NOT_COMMIT');
+    if (
+      !gitSucceeds(repositoryRoot, [
+        'merge-base',
+        '--is-ancestor',
+        item.replacementSha,
+        resolvedHead
+      ])
+    ) {
+      fail('OPS_DISPOSITION_REPLACEMENT_UNREACHABLE');
+    }
+    if (!trees.has(item.replacementSha)) {
+      trees.set(item.replacementSha, loadGitTree(repositoryRoot, item.replacementSha));
+    }
+  }
+  const blobShas = new Set();
+  const resolvedMappings = [];
+  for (const item of mappings) {
+    const tree = trees.get(item.replacementSha);
+    const target = tree.get(item.targetPath);
+    if (!target) fail('OPS_DISPOSITION_TARGET_ABSENT');
+    if (!isRegularGitBlob(target)) fail('OPS_DISPOSITION_TARGET_TYPE_INVALID');
+    blobShas.add(target.objectSha);
+    const evidence = item.evidence.map((evidencePath) => {
+      const evidenceObject = tree.get(evidencePath);
+      if (!evidenceObject) fail('OPS_DISPOSITION_EVIDENCE_ABSENT');
+      if (!isRegularGitBlob(evidenceObject)) fail('OPS_DISPOSITION_EVIDENCE_TYPE_INVALID');
+      blobShas.add(evidenceObject.objectSha);
+      return evidenceObject;
+    });
+    resolvedMappings.push({ item, target, evidence });
+  }
+  const contentDigests = batchBlobSha256(repositoryRoot, [...blobShas]);
+  for (const { item, target, evidence } of resolvedMappings) {
+    if (item.targetGitBlobSha !== target.objectSha) {
+      fail('OPS_DISPOSITION_TARGET_IDENTITY_MISMATCH');
+    }
+    if (item.targetContentSha256 !== contentDigests.get(target.objectSha)) {
+      fail('OPS_DISPOSITION_TARGET_DIGEST_MISMATCH');
+    }
+    for (let index = 0; index < evidence.length; index += 1) {
+      const expected = item.evidenceIdentities[index];
+      const actual = evidence[index];
+      if (expected.gitBlobSha !== actual.objectSha) {
+        fail('OPS_DISPOSITION_EVIDENCE_IDENTITY_MISMATCH');
+      }
+      if (expected.contentSha256 !== contentDigests.get(actual.objectSha)) {
+        fail('OPS_DISPOSITION_EVIDENCE_DIGEST_MISMATCH');
+      }
+    }
+  }
+  return parsedLedger;
 }
 
 export function captureTrackedGitInventory({ repositoryRoot, commitSha, prefix = 'ops-console' }) {
@@ -414,6 +582,18 @@ function validate(value, allowPending) {
       ) {
         fail('OPS_DISPOSITION_UNKNOWN');
       }
+      if (
+        item?.targetPath !== null &&
+        (typeof item?.targetPath !== 'string' || !relativePath.safeParse(item.targetPath).success)
+      ) {
+        fail('OPS_DISPOSITION_TARGET_PATH_INVALID');
+      }
+      if (
+        Array.isArray(item?.evidence) &&
+        item.evidence.some((evidencePath) => !relativePath.safeParse(evidencePath).success)
+      ) {
+        fail('OPS_DISPOSITION_EVIDENCE_PATH_INVALID');
+      }
     }
   }
   const parsed = ledger.safeParse(value);
@@ -437,15 +617,35 @@ function validate(value, allowPending) {
     if (item.disposition === 'pending' && !allowPending) fail('OPS_DISPOSITION_PENDING');
     if (
       ['integrate', 'superseded'].includes(item.disposition) &&
-      (!item.targetPath || !item.replacementSha)
+      (!item.targetPath ||
+        !item.replacementSha ||
+        !item.targetGitBlobSha ||
+        !item.targetContentSha256)
     ) {
       fail('OPS_DISPOSITION_REPLACEMENT_REQUIRED');
     }
     if (
       ['generated', 'pending'].includes(item.disposition) &&
-      (item.targetPath !== null || item.replacementSha !== null)
+      (item.targetPath !== null ||
+        item.targetGitBlobSha !== null ||
+        item.targetContentSha256 !== null ||
+        item.replacementSha !== null ||
+        item.evidenceIdentities.length !== 0)
     ) {
       fail('OPS_DISPOSITION_TARGET_FORBIDDEN');
+    }
+    if (['integrate', 'superseded'].includes(item.disposition)) {
+      if (
+        item.evidence.length !== item.evidenceIdentities.length ||
+        item.evidence.some(
+          (evidencePath, index) => item.evidenceIdentities[index].path !== evidencePath
+        )
+      ) {
+        fail('OPS_DISPOSITION_EVIDENCE_IDENTITY_MISMATCH');
+      }
+      if (!item.evidence.includes(item.targetPath)) {
+        fail('OPS_DISPOSITION_EVIDENCE_TARGET_REQUIRED');
+      }
     }
   }
   for (let index = 1; index < parsed.data.entries.length; index += 1) {
@@ -469,7 +669,9 @@ function validate(value, allowPending) {
 }
 
 export function validateOpsDisposition(value) {
-  return validate(value, false);
+  const parsed = validate(value, false);
+  if (mappingEntries(parsed).length > 0) fail('OPS_DISPOSITION_FINAL_PROOF_REQUIRED');
+  return parsed;
 }
 
 export function validateOpsDispositionForConstruction(value, inputs) {
@@ -525,9 +727,12 @@ export function buildFrozenOpsCapture({
     ...item,
     targetRepository: 'edutrack-ops',
     targetPath: null,
+    targetGitBlobSha: null,
+    targetContentSha256: null,
     disposition: item.sourceKind === 'generated-root' ? 'generated' : 'pending',
     replacementSha: null,
     evidence: [INPUT_EVIDENCE_PATH],
+    evidenceIdentities: [],
     capturedAt
   }));
   const result = {
@@ -538,8 +743,10 @@ export function buildFrozenOpsCapture({
   return result;
 }
 
-export function validateFinalOpsDisposition(value, inputs) {
-  return validateFrozenUniverse(validate(value, false), inputs);
+export function validateFinalOpsDisposition(value, inputs, options) {
+  const parsedInputs = validateOpsInputs(inputs);
+  const parsedLedger = validateFrozenUniverse(validate(value, false), parsedInputs);
+  return validateFinalMappingGit(parsedLedger, parsedInputs, options);
 }
 
 const CANONICAL_GIT_SHA = '4313023f483b48d81cab45174db38fc893900444';
@@ -632,7 +839,8 @@ function main() {
   );
   const validated = validateFinalOpsDisposition(
     readJson(ledgerPath, 'OPS_DISPOSITION_JSON_INVALID'),
-    readJson(inputsPath, 'OPS_INPUTS_JSON_INVALID')
+    readJson(inputsPath, 'OPS_INPUTS_JSON_INVALID'),
+    { repositoryRoot, headSha: 'HEAD' }
   );
   console.log(`OPS_DISPOSITION_PASS entries=${validated.entries.length}`);
 }
