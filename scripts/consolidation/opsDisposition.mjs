@@ -129,6 +129,45 @@ const inputsSchema = z.strictObject({
   frozenUniverseSha256: sha64,
   migrationBaseline
 });
+const candidateSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  sourceGitSha: sha40,
+  sourceTreeSha: sha40,
+  nodeVersion: z.string().regex(/^v\d+\.\d+\.\d+$/),
+  packageLockSha256: sha64,
+  migrationSetSha256: sha64,
+  releaseManifestSha256: sha64
+});
+const exportEntrySchema = z.strictObject({
+  sourceAlias: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/),
+  sourceIdentitySha256: sha64,
+  sourceContentSha256: sha64,
+  disposition: z.enum(['integrate', 'superseded', 'generated']),
+  targetRepository: z.literal('edutrack-ops'),
+  targetIdentitySha256: sha64,
+  replacementSha: sha40
+});
+const exportPayloadSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  surface: z.literal('ops'),
+  candidate: z.strictObject({
+    repository: z.literal('edutrack-ops'),
+    gitSha: sha40,
+    treeSha: sha40,
+    manifestSha256: sha64
+  }),
+  ledger: z.strictObject({
+    bytesSha256: sha64,
+    entryCount: z.number().int().positive()
+  }),
+  entries: z.array(exportEntrySchema).min(1)
+});
+const exportEnvelopeSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  kind: z.literal('canonical-disposition-export'),
+  payloadSha256: sha64,
+  payload: exportPayloadSchema
+});
 
 function fail(code) {
   const error = new Error(code);
@@ -214,6 +253,142 @@ function batchBlobSha256(repositoryRoot, blobShas) {
   }
   if (offset !== bytes.length) fail('OPS_GIT_BLOB_INVALID');
   return result;
+}
+
+function sourceCommitForCandidate(repositoryRoot, sourceGitSha) {
+  if (typeof repositoryRoot !== 'string' || !path.isAbsolute(repositoryRoot)) {
+    fail('OPS_CANDIDATE_REPOSITORY_INVALID');
+  }
+  if (!sha40.safeParse(sourceGitSha).success) fail('OPS_CANDIDATE_SOURCE_COMMIT_INVALID');
+  const resolved = git(repositoryRoot, ['rev-parse', '--verify', `${sourceGitSha}^{commit}`], {
+    errorCode: 'OPS_CANDIDATE_SOURCE_COMMIT_INVALID'
+  }).trim();
+  if (resolved !== sourceGitSha) fail('OPS_CANDIDATE_SOURCE_COMMIT_INVALID');
+  if (!gitSucceeds(repositoryRoot, ['merge-base', '--is-ancestor', resolved, 'HEAD'])) {
+    fail('OPS_CANDIDATE_SOURCE_UNREACHABLE');
+  }
+  return resolved;
+}
+
+function immutableBlobSha256(repositoryRoot, sourceGitSha, sourcePath, errorCode) {
+  const bytes = git(repositoryRoot, ['cat-file', 'blob', `${sourceGitSha}:${sourcePath}`], {
+    encoding: 'buffer',
+    errorCode
+  });
+  return hash(bytes);
+}
+
+function migrationSetSha256(repositoryRoot, sourceGitSha) {
+  const rawTree = git(
+    repositoryRoot,
+    ['ls-tree', '-r', '-z', '--full-tree', sourceGitSha, '--', 'packages/db/migrations'],
+    { encoding: 'buffer', errorCode: 'OPS_CANDIDATE_MIGRATION_TREE_INVALID' }
+  );
+  const records = rawTree
+    .toString('utf8')
+    .split('\0')
+    .filter(Boolean)
+    .map((record) => {
+      const match = /^(\d{6}) blob ([0-9a-f]{40})\t(.+)$/.exec(record);
+      if (!match || !['100644', '100755'].includes(match[1])) {
+        fail('OPS_CANDIDATE_MIGRATION_TREE_INVALID');
+      }
+      return { path: match[3], gitBlobSha: match[2] };
+    });
+  if (records.length === 0) fail('OPS_CANDIDATE_MIGRATION_EMPTY');
+  const digests = batchBlobSha256(
+    repositoryRoot,
+    records.map((record) => record.gitBlobSha)
+  );
+  const manifest = records
+    .map((record) => ({ path: record.path, sha256: digests.get(record.gitBlobSha) }))
+    .sort((left, right) => compareText(left.path, right.path))
+    .map((record) => `${record.sha256}  ${record.path}\n`)
+    .join('');
+  return hash(manifest);
+}
+
+function readReleaseManifestBytes({ releaseManifestBytes, releaseManifestPath }) {
+  if (releaseManifestBytes !== undefined && releaseManifestPath !== undefined) {
+    fail('OPS_CANDIDATE_RELEASE_MANIFEST_INPUT_AMBIGUOUS');
+  }
+  if (releaseManifestBytes !== undefined) {
+    if (!Buffer.isBuffer(releaseManifestBytes)) {
+      fail('OPS_CANDIDATE_RELEASE_MANIFEST_BYTES_INVALID');
+    }
+    return releaseManifestBytes;
+  }
+  if (typeof releaseManifestPath !== 'string' || !path.isAbsolute(releaseManifestPath)) {
+    fail('OPS_CANDIDATE_RELEASE_MANIFEST_UNVERIFIED');
+  }
+  try {
+    const stat = lstatSync(releaseManifestPath);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
+      fail('OPS_CANDIDATE_RELEASE_MANIFEST_FILE_INVALID');
+    }
+    return readFileSync(releaseManifestPath);
+  } catch (error) {
+    if (error?.code?.startsWith?.('OPS_CANDIDATE_')) throw error;
+    fail('OPS_CANDIDATE_RELEASE_MANIFEST_MISSING');
+  }
+}
+
+export function buildOpsCandidate({
+  repositoryRoot,
+  sourceGitSha,
+  releaseManifestBytes,
+  releaseManifestPath
+}) {
+  if (typeof repositoryRoot !== 'string' || !path.isAbsolute(repositoryRoot)) {
+    fail('OPS_CANDIDATE_REPOSITORY_INVALID');
+  }
+  const manifestBytes = readReleaseManifestBytes({ releaseManifestBytes, releaseManifestPath });
+  const sourceCommit = sourceCommitForCandidate(repositoryRoot, sourceGitSha);
+  return {
+    schemaVersion: 1,
+    sourceGitSha: sourceCommit,
+    sourceTreeSha: git(repositoryRoot, ['rev-parse', `${sourceCommit}^{tree}`]).trim(),
+    nodeVersion: process.version,
+    packageLockSha256: immutableBlobSha256(
+      repositoryRoot,
+      sourceCommit,
+      'package-lock.json',
+      'OPS_CANDIDATE_SOURCE_FILE_MISSING'
+    ),
+    migrationSetSha256: migrationSetSha256(repositoryRoot, sourceCommit),
+    releaseManifestSha256: hash(manifestBytes)
+  };
+}
+
+export function validateOpsCandidate(
+  value,
+  {
+    repositoryRoot,
+    sourceGitSha = value?.sourceGitSha,
+    releaseManifestBytes,
+    releaseManifestPath
+  } = {}
+) {
+  const parsed = candidateSchema.safeParse(value);
+  if (!parsed.success) fail('OPS_CANDIDATE_SCHEMA_INVALID');
+  const actual = buildOpsCandidate({
+    repositoryRoot,
+    sourceGitSha,
+    releaseManifestBytes,
+    releaseManifestPath
+  });
+  const fields = [
+    ['sourceGitSha', 'OPS_CANDIDATE_SOURCE_GIT_MISMATCH'],
+    ['sourceTreeSha', 'OPS_CANDIDATE_SOURCE_TREE_MISMATCH'],
+    ['nodeVersion', 'OPS_CANDIDATE_NODE_VERSION_MISMATCH'],
+    ['packageLockSha256', 'OPS_CANDIDATE_PACKAGE_LOCK_MISMATCH'],
+    ['migrationSetSha256', 'OPS_CANDIDATE_MIGRATION_SET_MISMATCH'],
+    ['releaseManifestSha256', 'OPS_CANDIDATE_RELEASE_MANIFEST_MISMATCH']
+  ];
+  for (const [field, code] of fields) {
+    if (parsed.data[field] !== actual[field]) fail(code);
+  }
+  return parsed.data;
 }
 
 function gitSucceeds(repositoryRoot, args) {
@@ -579,6 +754,56 @@ function validateFrozenUniverse(parsedLedger, inputValue) {
   return parsedLedger;
 }
 
+function validateEmbeddedSourceTree(parsedLedger, inputs, repositoryRoot, expectedGitSha) {
+  if (typeof repositoryRoot !== 'string' || !path.isAbsolute(repositoryRoot)) {
+    fail('OPS_DISPOSITION_REPOSITORY_INVALID');
+  }
+  const embeddedGitSha = expectedGitSha ?? inputs.embedded.gitSha;
+  if (expectedGitSha && inputs.embedded.gitSha !== expectedGitSha) {
+    fail('OPS_DISPOSITION_EMBEDDED_LINEAGE_INVALID');
+  }
+  const embeddedTreeSha = requireFullCommit(repositoryRoot, embeddedGitSha);
+  if (inputs.embedded.treeSha !== embeddedTreeSha) {
+    fail('OPS_DISPOSITION_EMBEDDED_TREE_MISMATCH');
+  }
+  const trackedTree = parseLsTree(
+    git(repositoryRoot, ['ls-tree', '-r', '-z', '--full-tree', embeddedGitSha, '--', 'ops-console'])
+  );
+  const treeByPath = new Map();
+  for (const item of trackedTree) {
+    if (treeByPath.has(item.sourcePath)) fail('OPS_DISPOSITION_SOURCE_DUPLICATE');
+    treeByPath.set(item.sourcePath, item);
+  }
+  const sourceEntries = parsedLedger.entries.filter((item) => item.sourceKind === 'git-blob');
+  const ledgerByPath = new Map();
+  for (const item of sourceEntries) {
+    if (ledgerByPath.has(item.sourcePath)) fail('OPS_DISPOSITION_DUPLICATE_SOURCE_PATH');
+    ledgerByPath.set(item.sourcePath, item);
+  }
+  for (const [sourcePath, treeItem] of treeByPath) {
+    const ledgerItem = ledgerByPath.get(sourcePath);
+    if (!ledgerItem) fail('OPS_DISPOSITION_SOURCE_MISSING');
+    if (ledgerItem.sourceGitBlobSha !== treeItem.gitBlobSha) {
+      fail('OPS_DISPOSITION_SOURCE_BLOB_MISMATCH');
+    }
+  }
+  for (const sourcePath of ledgerByPath.keys()) {
+    if (!treeByPath.has(sourcePath)) fail('OPS_DISPOSITION_SOURCE_UNEXPECTED');
+  }
+  const digests = batchBlobSha256(
+    repositoryRoot,
+    trackedTree.map((item) => item.gitBlobSha)
+  );
+  for (const { sourcePath, gitBlobSha } of trackedTree) {
+    const ledgerItem = ledgerByPath.get(sourcePath);
+    if (ledgerItem.sourceSha256 !== digests.get(gitBlobSha)) {
+      fail('OPS_DISPOSITION_SOURCE_DIGEST_MISMATCH');
+    }
+  }
+  if (sourceEntries.length !== treeByPath.size) fail('OPS_DISPOSITION_SOURCE_COUNT_MISMATCH');
+  return parsedLedger;
+}
+
 function validate(value, allowPending) {
   if (value?.schemaVersion === 1 && Array.isArray(value.entries) && value.entries.length === 0) {
     fail('OPS_DISPOSITION_EMPTY');
@@ -615,10 +840,13 @@ function validate(value, allowPending) {
   if (!parsed.success) fail('OPS_DISPOSITION_SCHEMA_INVALID');
   const seen = new Set();
   const seenAliases = new Set();
+  const seenPaths = new Set();
   for (const item of parsed.data.entries) {
     const identity = `${item.sourceAlias}\0${item.sourcePath}`;
     if (seen.has(identity)) fail('OPS_DISPOSITION_DUPLICATE_SOURCE');
     seen.add(identity);
+    if (seenPaths.has(item.sourcePath)) fail('OPS_DISPOSITION_DUPLICATE_SOURCE_PATH');
+    seenPaths.add(item.sourcePath);
     const identityAlias = `${item.sourceAlias.toLowerCase()}\0${item.sourcePath.toLowerCase()}`;
     if (seenAliases.has(identityAlias)) fail('OPS_DISPOSITION_PATH_ALIAS_COLLISION');
     seenAliases.add(identityAlias);
@@ -763,7 +991,97 @@ export function buildFrozenOpsCapture({
 export function validateFinalOpsDisposition(value, inputs, options) {
   const parsedInputs = validateOpsInputs(inputs);
   const parsedLedger = validateFrozenUniverse(validate(value, false), parsedInputs);
+  validateEmbeddedSourceTree(
+    parsedLedger,
+    parsedInputs,
+    options?.repositoryRoot,
+    options?.expectedEmbeddedGitSha
+  );
   return validateFinalMappingGit(parsedLedger, parsedInputs, options);
+}
+
+function sourceIdentitySha256(sourceAlias, sourcePath, sourceContentSha256) {
+  return hash(`${sourceAlias}\0${sourcePath}\0${sourceContentSha256}`);
+}
+
+function targetIdentitySha256(targetPath, targetContentSha256) {
+  return hash(`${targetPath}\0${targetContentSha256}`);
+}
+
+function candidateExportValue(value) {
+  const parsed = candidateSchema.safeParse(value);
+  if (!parsed.success) fail('OPS_EXPORT_CANDIDATE_INVALID');
+  return {
+    repository: 'edutrack-ops',
+    gitSha: parsed.data.sourceGitSha,
+    treeSha: parsed.data.sourceTreeSha,
+    manifestSha256: parsed.data.releaseManifestSha256
+  };
+}
+
+export function buildOpsDispositionExport({
+  ledger: ledgerValue,
+  inputs: inputsValue,
+  candidate,
+  ledgerBytes
+}) {
+  if (!Buffer.isBuffer(ledgerBytes)) fail('OPS_EXPORT_LEDGER_BYTES_INVALID');
+  const inputs = validateOpsInputs(inputsValue);
+  const parsedLedger = validateFrozenUniverse(validate(ledgerValue, false), inputs);
+  const candidateValue = candidateExportValue(candidate);
+  const entries = parsedLedger.entries
+    .filter((item) => item.disposition !== 'generated')
+    .map((item) => ({
+      sourceAlias: item.sourceAlias,
+      sourceIdentitySha256: sourceIdentitySha256(
+        item.sourceAlias,
+        item.sourcePath,
+        item.sourceSha256
+      ),
+      sourceContentSha256: item.sourceSha256,
+      disposition: item.disposition,
+      targetRepository: item.targetRepository,
+      targetIdentitySha256: targetIdentitySha256(item.targetPath, item.targetContentSha256),
+      replacementSha: item.replacementSha
+    }));
+  if (entries.length === 0) fail('OPS_EXPORT_ENTRIES_EMPTY');
+  const payload = {
+    schemaVersion: 1,
+    surface: 'ops',
+    candidate: candidateValue,
+    ledger: {
+      bytesSha256: hash(ledgerBytes),
+      entryCount: entries.length
+    },
+    entries
+  };
+  return {
+    schemaVersion: 1,
+    kind: 'canonical-disposition-export',
+    payloadSha256: hash(JSON.stringify(payload)),
+    payload
+  };
+}
+
+export function validateOpsDispositionExport(value) {
+  const parsed = exportEnvelopeSchema.safeParse(value);
+  if (!parsed.success) fail('OPS_EXPORT_SCHEMA_INVALID');
+  const result = parsed.data;
+  if (result.payload.candidate.repository !== 'edutrack-ops') {
+    fail('OPS_EXPORT_REPOSITORY_MISMATCH');
+  }
+  if (result.payload.entries.some((entry) => entry.targetRepository !== 'edutrack-ops')) {
+    fail('OPS_EXPORT_REPOSITORY_MISMATCH');
+  }
+  if (result.payload.ledger.entryCount !== result.payload.entries.length) {
+    fail('OPS_EXPORT_ENTRY_COUNT_MISMATCH');
+  }
+  if (hash(JSON.stringify(result.payload)) !== result.payloadSha256) {
+    fail('OPS_EXPORT_PAYLOAD_DIGEST_MISMATCH');
+  }
+  const identities = result.payload.entries.map((entry) => entry.sourceIdentitySha256);
+  if (new Set(identities).size !== identities.length) fail('OPS_EXPORT_DUPLICATE_SOURCE_IDENTITY');
+  return result;
 }
 
 const CANONICAL_GIT_SHA = '4313023f483b48d81cab45174db38fc893900444';
@@ -864,7 +1182,18 @@ function main() {
   const validated = validateFinalOpsDisposition(
     readJson(ledgerPath, 'OPS_DISPOSITION_JSON_INVALID'),
     readJson(inputsPath, 'OPS_INPUTS_JSON_INVALID'),
-    { repositoryRoot, headSha: 'HEAD' }
+    {
+      repositoryRoot,
+      headSha: 'HEAD',
+      expectedEmbeddedGitSha: gitSucceeds(repositoryRoot, [
+        'merge-base',
+        '--is-ancestor',
+        CANONICAL_GIT_SHA,
+        'HEAD'
+      ])
+        ? EMBEDDED_GIT_SHA
+        : undefined
+    }
   );
   console.log(`OPS_DISPOSITION_PASS entries=${validated.entries.length}`);
 }

@@ -16,11 +16,15 @@ import {
   buildFrozenOpsCapture,
   captureGeneratedRoot,
   captureTrackedGitInventory,
+  buildOpsCandidate,
+  buildOpsDispositionExport,
   deterministicJson,
   validateOpsInputs,
   validateOpsDisposition,
   validateOpsDispositionForConstruction,
-  validateFinalOpsDisposition
+  validateFinalOpsDisposition,
+  validateOpsCandidate,
+  validateOpsDispositionExport
 } from './opsDisposition.mjs';
 
 const capturedAt = '2026-08-30T05:17:12.000Z';
@@ -752,6 +756,100 @@ describe('Ops disposition ledger', () => {
     }
   );
 
+  it(
+    'compares the frozen ledger source universe with the reviewed embedded Git tree',
+    { timeout: 20_000 },
+    () => {
+      const fixture = finalMappingFixture();
+      const mutateEmbeddedCommit = (
+        mutate: () => void,
+        expectedCode: string,
+        cliExpectedCode = expectedCode
+      ) => {
+        mutate();
+        git(fixture.repositoryRoot, 'add', 'ops-console/src/alpha.txt');
+        git(fixture.repositoryRoot, 'commit', '-m', 'mutate embedded source fixture');
+        fixture.inputs.embedded.gitSha = git(fixture.repositoryRoot, 'rev-parse', 'HEAD');
+        fixture.inputs.embedded.treeSha = git(fixture.repositoryRoot, 'rev-parse', 'HEAD^{tree}');
+
+        expect(() =>
+          validateFinalOpsDisposition(fixture.ledger, fixture.inputs, {
+            repositoryRoot: fixture.repositoryRoot,
+            headSha: 'HEAD'
+          })
+        ).toThrow(expectedCode);
+        const cli = runValidationCli(fixture.inputs, fixture.ledger, [], fixture.repositoryRoot);
+        expect(cli.status).toBe(1);
+        expect(cli.stdout).toBe('');
+        expect(cli.stderr).toBe(`${cliExpectedCode}\n`);
+      };
+
+      mutateEmbeddedCommit(
+        () =>
+          writeFileSync(
+            path.join(fixture.repositoryRoot, 'ops-console/src/alpha.txt'),
+            'changed\n'
+          ),
+        'OPS_DISPOSITION_SOURCE_BLOB_MISMATCH'
+      );
+
+      const missingFixture = finalMappingFixture();
+      const missingCode = 'OPS_DISPOSITION_SOURCE_UNEXPECTED';
+      unlinkSync(path.join(missingFixture.repositoryRoot, 'ops-console/src/alpha.txt'));
+      git(missingFixture.repositoryRoot, 'add', 'ops-console/src/alpha.txt');
+      git(missingFixture.repositoryRoot, 'commit', '-m', 'remove embedded source fixture');
+      missingFixture.inputs.embedded.gitSha = git(
+        missingFixture.repositoryRoot,
+        'rev-parse',
+        'HEAD'
+      );
+      missingFixture.inputs.embedded.treeSha = git(
+        missingFixture.repositoryRoot,
+        'rev-parse',
+        'HEAD^{tree}'
+      );
+      expect(() =>
+        validateFinalOpsDisposition(missingFixture.ledger, missingFixture.inputs, {
+          repositoryRoot: missingFixture.repositoryRoot,
+          headSha: 'HEAD'
+        })
+      ).toThrow(missingCode);
+      const missingCli = runValidationCli(
+        missingFixture.inputs,
+        missingFixture.ledger,
+        [],
+        missingFixture.repositoryRoot
+      );
+      expect(missingCli.status).toBe(1);
+      expect(missingCli.stdout).toBe('');
+      expect(missingCli.stderr).toBe(`${missingCode}\n`);
+    }
+  );
+
+  it('rejects reviewed embedded tree metadata that does not match the immutable commit', () => {
+    const fixture = finalMappingFixture();
+    fixture.inputs.embedded.treeSha = 'f'.repeat(40);
+    expect(() =>
+      validateFinalOpsDisposition(fixture.ledger, fixture.inputs, {
+        repositoryRoot: fixture.repositoryRoot,
+        headSha: fixture.headSha
+      })
+    ).toThrow('OPS_DISPOSITION_EMBEDDED_TREE_MISMATCH');
+  });
+
+  it('rejects duplicate source paths even when their aliases differ', () => {
+    const first = pendingEntry('ops-console/a.ts');
+    const duplicate = { ...first, sourceAlias: 'second-source' };
+    expect(() =>
+      validateOpsDispositionForConstruction({
+        schemaVersion: 1,
+        state: 'construction',
+        capturedAt,
+        entries: [first, duplicate]
+      })
+    ).toThrow('OPS_DISPOSITION_DUPLICATE_SOURCE_PATH');
+  });
+
   it('allows an intentional exact many-to-one mapping proven by Git', () => {
     const fixture = finalMappingFixture();
     const ledger = structuredClone(fixture.ledger);
@@ -778,6 +876,132 @@ describe('Ops disposition ledger', () => {
     expect(cli.status).toBe(0);
     expect(cli.stdout).toBe('OPS_DISPOSITION_PASS entries=5\n');
     expect(cli.stderr).toBe('');
+  });
+
+  it('binds candidate metadata to the exact source commit and deterministic release inputs', () => {
+    const sourceGitSha = git(REPOSITORY_ROOT, 'rev-parse', 'HEAD');
+    const releaseManifestBytes = Buffer.from(
+      `${JSON.stringify({
+        schemaVersion: 1,
+        selfExcluded: ['.release-manifest.json', '.release-source.json'],
+        entries: [{ path: 'package.json', sha256: sha64, size: 7 }]
+      })}\n`
+    );
+    const candidate = buildOpsCandidate({
+      repositoryRoot: REPOSITORY_ROOT,
+      sourceGitSha,
+      releaseManifestBytes
+    });
+
+    expect(candidate).toMatchObject({
+      schemaVersion: 1,
+      sourceGitSha,
+      sourceTreeSha: git(REPOSITORY_ROOT, 'rev-parse', `${sourceGitSha}^{tree}`),
+      nodeVersion: process.version,
+      releaseManifestSha256: createHash('sha256').update(releaseManifestBytes).digest('hex')
+    });
+    expect(() =>
+      validateOpsCandidate(
+        { ...candidate, sourceTreeSha: 'f'.repeat(40) },
+        { repositoryRoot: REPOSITORY_ROOT, releaseManifestBytes }
+      )
+    ).toThrow('OPS_CANDIDATE_SOURCE_TREE_MISMATCH');
+  });
+
+  it('requires manifest bytes and rejects a changed manifest during candidate validation', () => {
+    const sourceGitSha = git(REPOSITORY_ROOT, 'rev-parse', 'HEAD');
+    const releaseManifestBytes = Buffer.from('verified release manifest\n');
+    expect(() =>
+      buildOpsCandidate({
+        repositoryRoot: REPOSITORY_ROOT,
+        sourceGitSha,
+        releaseManifestSha256: 'a'.repeat(64)
+      } as never)
+    ).toThrow('OPS_CANDIDATE_RELEASE_MANIFEST_UNVERIFIED');
+
+    const candidate = buildOpsCandidate({
+      repositoryRoot: REPOSITORY_ROOT,
+      sourceGitSha,
+      releaseManifestBytes
+    });
+    expect(() =>
+      validateOpsCandidate(candidate, {
+        repositoryRoot: REPOSITORY_ROOT,
+        releaseManifestBytes: Buffer.from('tampered release manifest\n')
+      })
+    ).toThrow('OPS_CANDIDATE_RELEASE_MANIFEST_MISMATCH');
+  });
+
+  it('rejects abbreviated and unreachable source commits before reading candidate inputs', () => {
+    const sourceGitSha = git(REPOSITORY_ROOT, 'rev-parse', 'HEAD');
+    const releaseManifestBytes = Buffer.from('verified release manifest\n');
+    expect(() =>
+      buildOpsCandidate({
+        repositoryRoot: REPOSITORY_ROOT,
+        sourceGitSha: sourceGitSha.slice(0, 12),
+        releaseManifestBytes
+      })
+    ).toThrow('OPS_CANDIDATE_SOURCE_COMMIT_INVALID');
+
+    const treeSha = git(REPOSITORY_ROOT, 'rev-parse', `${sourceGitSha}^{tree}`);
+    const unreachableSha = execFileSync(
+      'git',
+      ['commit-tree', treeSha, '-m', 'unreachable candidate fixture'],
+      { cwd: REPOSITORY_ROOT, encoding: 'utf8' }
+    ).trim();
+    expect(() =>
+      buildOpsCandidate({
+        repositoryRoot: REPOSITORY_ROOT,
+        sourceGitSha: unreachableSha,
+        releaseManifestBytes
+      })
+    ).toThrow('OPS_CANDIDATE_SOURCE_UNREACHABLE');
+  });
+
+  it('exports only closed source mappings with the central sanitized envelope contract', () => {
+    const fixture = finalMappingFixture();
+    const candidate = {
+      schemaVersion: 1,
+      sourceGitSha: fixture.headSha,
+      sourceTreeSha: git(fixture.repositoryRoot, 'rev-parse', `${fixture.headSha}^{tree}`),
+      nodeVersion: process.version,
+      packageLockSha256: '1'.repeat(64),
+      migrationSetSha256: '2'.repeat(64),
+      releaseManifestSha256: '3'.repeat(64)
+    };
+    const ledgerBytes = Buffer.from(deterministicJson(fixture.ledger));
+    const exported = buildOpsDispositionExport({
+      ledger: fixture.ledger,
+      inputs: fixture.inputs,
+      candidate,
+      ledgerBytes
+    });
+
+    expect(exported.kind).toBe('canonical-disposition-export');
+    expect(exported.payload.surface).toBe('ops');
+    expect(exported.payload.candidate).toEqual({
+      repository: 'edutrack-ops',
+      gitSha: fixture.headSha,
+      treeSha: candidate.sourceTreeSha,
+      manifestSha256: candidate.releaseManifestSha256
+    });
+    expect(exported.payload.ledger).toEqual({
+      bytesSha256: createHash('sha256').update(ledgerBytes).digest('hex'),
+      entryCount: fixture.ledger.entries.filter((item) => item.disposition !== 'generated').length
+    });
+    expect(exported.payload.entries).toHaveLength(
+      fixture.ledger.entries.filter((item) => item.disposition !== 'generated').length
+    );
+    expect(exported.payload.entries.every((item) => item.targetRepository === 'edutrack-ops')).toBe(
+      true
+    );
+    expect(JSON.stringify(exported)).not.toMatch(/sourcePath|replacementSha.*null|\/home\//u);
+    expect(validateOpsDispositionExport(exported)).toEqual(exported);
+    const tampered = structuredClone(exported);
+    tampered.payload.candidate.gitSha = 'f'.repeat(40);
+    expect(() => validateOpsDispositionExport(tampered)).toThrow(
+      'OPS_EXPORT_PAYLOAD_DIGEST_MISMATCH'
+    );
   });
 
   it('pins the reviewed inventory to 128 Git blobs and exactly three generated roots', () => {
