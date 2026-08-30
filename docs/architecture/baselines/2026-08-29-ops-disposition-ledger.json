@@ -760,17 +760,17 @@
           "path": "docs/architecture/baselines/2026-08-29-ops-public-contract.json"
         },
         {
-          "contentSha256": "1a639e334dfad766b1888bc540955814407a0c71fd4f0bcb0347c8e420979339",
-          "gitBlobSha": "65aa50e3e7b06e7c02ab5d849573653e5c0bdbb1",
+          "contentSha256": "a6cb99c723bd86953d7abe4750b0f96b63d85ddfc704a357dccf2babe226ba26",
+          "gitBlobSha": "519c48ecfa32c432732a6bf1cec180f1408c00d8",
           "path": "scripts/ops/capture-public-contract.mjs"
         },
         {
-          "contentSha256": "a9790e884036aca805a2c07240400d489bb01e7f0e604de066ba96a186e17567",
-          "gitBlobSha": "99cb0fa821276296a0a800c662859a66aad03fda",
+          "contentSha256": "710fc17f4122faaa1311a0df20da9d41711fd6857a9a01f21ec5e0ac1e879cf8",
+          "gitBlobSha": "02db10b3167e85aa715a8eaceec2f4b495f90ac4",
           "path": "scripts/ops/capture-public-contract.test.ts"
         }
       ],
-      "replacementSha": "5ac7b56ab1caede697dfee1139abee800ec3f4b1",
+      "replacementSha": "644343512e82eea710e9b7b46201246ced66a085",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "a3913c2e5f97a67be0a085c21a638f997c3604a9",
       "sourceKind": "git-blob",
