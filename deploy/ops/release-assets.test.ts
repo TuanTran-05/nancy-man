@@ -499,8 +499,14 @@ describe('immutable Ops prepare and activate assets', () => {
     mkdirSync(join(directory, 'installed', 'systemd'), { recursive: true });
     mkdirSync(join(directory, 'installed', 'nginx'), { recursive: true });
     writeFileSync(join(directory, 'installed', 'systemd', 'edutrack-ops-web.service'), 'old-web\n');
-    writeFileSync(join(directory, 'installed', 'nginx', 'man.thienuy.edu.vn-api.conf'), 'old-nginx\n');
-    execFileSync('chmod', ['0640', join(directory, 'installed', 'systemd', 'edutrack-ops-web.service')]);
+    writeFileSync(
+      join(directory, 'installed', 'nginx', 'man.thienuy.edu.vn-api.conf'),
+      'old-nginx\n'
+    );
+    execFileSync('chmod', [
+      '0640',
+      join(directory, 'installed', 'systemd', 'edutrack-ops-web.service')
+    ]);
     mkdirSync(join(directory, 'state'), { recursive: true });
     for (const service of [
       'edutrack-ops-api.service',
@@ -537,12 +543,12 @@ describe('immutable Ops prepare and activate assets', () => {
         (service) => readFileSync(join(directory, 'state', service), 'utf8') === `${sha}\n`
       )
     ).toBe(false);
-    expect(readFileSync(join(directory, 'installed', 'systemd', 'edutrack-ops-web.service'), 'utf8')).toBe(
-      'old-web\n'
-    );
-    expect(statSync(join(directory, 'installed', 'systemd', 'edutrack-ops-web.service')).mode & 0o777).toBe(
-      0o640
-    );
+    expect(
+      readFileSync(join(directory, 'installed', 'systemd', 'edutrack-ops-web.service'), 'utf8')
+    ).toBe('old-web\n');
+    expect(
+      statSync(join(directory, 'installed', 'systemd', 'edutrack-ops-web.service')).mode & 0o777
+    ).toBe(0o640);
   });
 
   it('reports the primary failure and rollback failure when an attempted candidate service cannot stop', () => {
@@ -566,7 +572,9 @@ describe('immutable Ops prepare and activate assets', () => {
         EDUTRACK_OPS_TEST_NGINX: nginx
       })
     ).toThrow(/RELEASE_ROLLBACK_FAILED primary=RELEASE_ACTIVATION_SERVICE_FAILED/u);
-    expect(readFileSync(join(directory, 'state', 'edutrack-ops-api.service'), 'utf8')).toBe(`${sha}\n`);
+    expect(readFileSync(join(directory, 'state', 'edutrack-ops-api.service'), 'utf8')).toBe(
+      `${sha}\n`
+    );
   });
 
   it('rejects symlinked test transaction and installed ancestors without escaping the fixture', () => {
