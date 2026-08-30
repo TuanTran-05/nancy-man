@@ -82,7 +82,7 @@ describe('cron and backup parser', () => {
     writeFileSync(join(postgresDirectory, 'edutrack-20260823.dump.age.sha256'), 'checksum');
     try {
       const state = parseCronAndBackupState(
-        { cronLines: [], backupDir: directory },
+        { cronLines: [], backupDir: directory, diskUsagePercent: 50 },
         new Date('2026-08-23T01:00:00Z')
       );
       expect(state).toMatchObject({

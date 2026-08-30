@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, statfsSync, statSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +10,11 @@ import { createOpsStore } from '../storage/store.js';
 import { runCollectorCycle } from './collector.js';
 import { createAuthService, provisionAccount } from '../security/auth.js';
 import { createOpsApp } from '../http/app.js';
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return { ...actual, statfsSync: vi.fn(actual.statfsSync) };
+});
 
 describe('collector cron and backup monitors', () => {
   it.each([
@@ -168,6 +173,9 @@ describe('collector cron and backup monitors', () => {
       safeSummary: 'backup critical',
       now: '2026-08-23T00:00:00Z'
     });
+    vi.mocked(statfsSync).mockImplementationOnce(
+      () => ({ blocks: 100, bavail: 50 }) as ReturnType<typeof statfsSync>
+    );
     try {
       await runCollectorCycle(
         {
