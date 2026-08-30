@@ -10,6 +10,13 @@ import { readOpsRuntimeConfig } from '../runtime/runtimeConfig.js';
 type MigrationDatabase = {
   query: <T>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: T[] }>;
 };
+type PinnedMigrationClient = {
+  query: (sql: string, parameters?: unknown[]) => Promise<{ rows: unknown[] }>;
+  release: () => void;
+};
+type MigrationPool = {
+  connect: () => Promise<PinnedMigrationClient>;
+};
 
 export async function runMigrationsWithLock(input: {
   database: MigrationDatabase;
@@ -27,6 +34,24 @@ export async function runMigrationsWithLock(input: {
   }
 }
 
+export async function runMigrationsWithPinnedConnection(input: {
+  pool: MigrationPool;
+  migrate: (database: MigrationDatabase) => Promise<{ appliedMigrations: string[] }>;
+}): Promise<{ appliedMigrations: string[] }> {
+  const client = await input.pool.connect();
+  const database: MigrationDatabase = {
+    query: async <T>(sql: string, parameters: readonly unknown[] = []) => {
+      const result = await client.query(sql, [...parameters]);
+      return { rows: result.rows as T[] };
+    }
+  };
+  try {
+    return await runMigrationsWithLock({ database, migrate: input.migrate });
+  } finally {
+    client.release();
+  }
+}
+
 export async function runOpsDatabaseMigrations(
   environment: NodeJS.ProcessEnv = process.env
 ): Promise<{ appliedMigrations: string[] }> {
@@ -37,14 +62,8 @@ export async function runOpsDatabaseMigrations(
   if (!databaseUrl) throw new Error('Ops migration credential is unavailable');
 
   const pool = getOpsPool(databaseUrl);
-  const database: MigrationDatabase = {
-    query: async <T>(sql: string, parameters: readonly unknown[] = []) => {
-      const result = await pool.query(sql, [...parameters]);
-      return { rows: result.rows as T[] };
-    }
-  };
   try {
-    return await runMigrationsWithLock({ database, migrate: migrateOpsDatabase });
+    return await runMigrationsWithPinnedConnection({ pool, migrate: migrateOpsDatabase });
   } finally {
     await pool.end();
   }

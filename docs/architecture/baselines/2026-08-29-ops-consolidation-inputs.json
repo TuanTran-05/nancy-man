@@ -6,6 +6,20 @@
     "treeSha": "8dd654a311f513932c8368a38bddbed1f73d517d"
   },
   "capturedAt": "2026-08-30T05:17:12.000Z",
+  "migrationBaseline": {
+    "evidence": {
+      "credentialResolver": "not_deployed",
+      "legacyRuntime": "sqlite_web_collector_only",
+      "postgresApiPlane": "not_deployed"
+    },
+    "requiredBeforeCutover": [
+      "deploy a credential-resolved canonical Ops PostgreSQL endpoint",
+      "capture sorted migration IDs through that resolver",
+      "persist only the approved ID list, count, and SHA-256 digest",
+      "reject cutover if capture is unavailable or migration history does not validate"
+    ],
+    "state": "not_deployed"
+  },
   "embedded": {
     "gitSha": "5dff838be4f4b60232cf4a8c34b6292c35c489dc",
     "repository": "embedded-ops-console",

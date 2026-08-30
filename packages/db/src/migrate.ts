@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { opsMigrationManifest } from './migrationManifest.js';
 
 export type QueryResult<T> = { rows: T[] };
 
@@ -6,89 +6,58 @@ export type MigrationDatabase = {
   query: <T>(sql: string, parameters?: readonly unknown[]) => Promise<QueryResult<T>>;
 };
 
-type Migration = {
-  id: string;
-  sql: string;
+type AppliedMigration = {
+  migrationId: string;
+  checksum?: string | null;
 };
 
-const migrations: readonly Migration[] = [
-  {
-    id: '0001_ops_foundation',
-    sql: readFileSync(new URL('../migrations/0001_ops_foundation.sql', import.meta.url), 'utf8')
-  },
-  {
-    id: '0002_error_operations',
-    sql: readFileSync(new URL('../migrations/0002_error_operations.sql', import.meta.url), 'utf8')
-  },
-  {
-    id: '0003_ingest_processing_state',
-    sql: readFileSync(
-      new URL('../migrations/0003_ingest_processing_state.sql', import.meta.url),
-      'utf8'
-    )
-  },
-  {
-    id: '0004_error_source_extensions',
-    sql: readFileSync(
-      new URL('../migrations/0004_error_source_extensions.sql', import.meta.url),
-      'utf8'
-    )
-  },
-  {
-    id: '0005_error_issue_affected_users',
-    sql: readFileSync(
-      new URL('../migrations/0005_error_issue_affected_users.sql', import.meta.url),
-      'utf8'
-    )
-  },
-  {
-    id: '0006_release_publishers',
-    sql: readFileSync(new URL('../migrations/0006_release_publishers.sql', import.meta.url), 'utf8')
-  },
-  {
-    id: '0007_ingest_nonces',
-    sql: readFileSync(new URL('../migrations/0007_ingest_nonces.sql', import.meta.url), 'utf8')
-  },
-  {
-    id: '0008_ingest_rate_limits',
-    sql: readFileSync(new URL('../migrations/0008_ingest_rate_limits.sql', import.meta.url), 'utf8')
-  },
-  {
-    id: '0009_alert_delivery_outbox',
-    sql: readFileSync(
-      new URL('../migrations/0009_alert_delivery_outbox.sql', import.meta.url),
-      'utf8'
-    )
-  },
-  {
-    id: '0010_ops_login_challenges',
-    sql: readFileSync(
-      new URL('../migrations/0010_ops_login_challenges.sql', import.meta.url),
-      'utf8'
-    )
-  },
-  {
-    id: '0011_ops_mfa_enrollment_tokens',
-    sql: readFileSync(
-      new URL('../migrations/0011_ops_mfa_enrollment_tokens.sql', import.meta.url),
-      'utf8'
-    )
-  },
-  {
-    id: '0012_sql_execution_audit',
-    sql: readFileSync(
-      new URL('../migrations/0012_sql_execution_audit.sql', import.meta.url),
-      'utf8'
-    )
-  },
-  {
-    id: '0013_sql_session_elevations',
-    sql: readFileSync(
-      new URL('../migrations/0013_sql_session_elevations.sql', import.meta.url),
-      'utf8'
-    )
+const migrationById = new Map(opsMigrationManifest.map((migration) => [migration.id, migration]));
+
+function validateAppliedMigrations(appliedRows: readonly AppliedMigration[]): Set<string> {
+  const appliedMigrationIds = new Set<string>();
+
+  for (const applied of appliedRows) {
+    const migration = migrationById.get(applied.migrationId);
+    if (!migration) {
+      throw new Error(`OPS_MIGRATION_UNKNOWN_APPLIED_ID:${applied.migrationId}`);
+    }
+    if (applied.checksum != null && applied.checksum !== migration.checksum) {
+      throw new Error(`OPS_MIGRATION_CHECKSUM_MISMATCH:${migration.id}`);
+    }
+    appliedMigrationIds.add(migration.id);
   }
-];
+
+  for (const [index, migration] of opsMigrationManifest.entries()) {
+    if (appliedMigrationIds.has(migration.id)) continue;
+    if (opsMigrationManifest.slice(index + 1).some((later) => appliedMigrationIds.has(later.id))) {
+      throw new Error(`OPS_MIGRATION_PREDECESSOR_MISSING:${migration.id}`);
+    }
+  }
+
+  return appliedMigrationIds;
+}
+
+async function applyMigration(
+  database: MigrationDatabase,
+  migration: (typeof opsMigrationManifest)[number]
+) {
+  await database.query('BEGIN');
+  try {
+    await database.query(migration.sql);
+    await database.query(
+      'INSERT INTO ops_schema_migrations (migration_id, checksum) VALUES ($1, $2)',
+      [migration.id, migration.checksum]
+    );
+    await database.query('COMMIT');
+  } catch (error) {
+    try {
+      await database.query('ROLLBACK');
+    } catch {
+      // Preserve the original migration failure after a best-effort rollback.
+    }
+    throw error;
+  }
+}
 
 export async function migrateOpsDatabase(
   database: MigrationDatabase
@@ -96,25 +65,34 @@ export async function migrateOpsDatabase(
   await database.query(`
     CREATE TABLE IF NOT EXISTS ops_schema_migrations (
       migration_id text PRIMARY KEY,
-      applied_at timestamptz NOT NULL DEFAULT now()
+      applied_at timestamptz NOT NULL DEFAULT now(),
+      checksum char(64)
     )
   `);
-
-  const { rows: appliedRows } = await database.query<{ migrationId: string }>(
-    'SELECT migration_id AS "migrationId" FROM ops_schema_migrations ORDER BY migration_id'
+  await database.query(
+    'ALTER TABLE ops_schema_migrations ADD COLUMN IF NOT EXISTS checksum char(64)'
   );
-  const alreadyApplied = new Set(appliedRows.map((row) => row.migrationId));
+
+  const { rows: appliedRows } = await database.query<AppliedMigration>(
+    'SELECT migration_id AS "migrationId", checksum FROM ops_schema_migrations ORDER BY migration_id'
+  );
+  const alreadyApplied = validateAppliedMigrations(appliedRows);
+
+  for (const applied of appliedRows) {
+    if (applied.checksum != null) continue;
+    const migration = migrationById.get(applied.migrationId)!;
+    await database.query(
+      'UPDATE ops_schema_migrations SET checksum = $2 WHERE migration_id = $1 AND checksum IS NULL',
+      [migration.id, migration.checksum]
+    );
+  }
+
+  await database.query('ALTER TABLE ops_schema_migrations ALTER COLUMN checksum SET NOT NULL');
+
   const appliedMigrations: string[] = [];
-
-  for (const migration of migrations) {
-    if (alreadyApplied.has(migration.id)) {
-      continue;
-    }
-
-    await database.query(migration.sql);
-    await database.query('INSERT INTO ops_schema_migrations (migration_id) VALUES ($1)', [
-      migration.id
-    ]);
+  for (const migration of opsMigrationManifest) {
+    if (alreadyApplied.has(migration.id)) continue;
+    await applyMigration(database, migration);
     appliedMigrations.push(migration.id);
   }
 

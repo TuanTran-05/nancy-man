@@ -96,6 +96,15 @@ const runtimeService = z.strictObject({
   subState: z.string().regex(/^[a-z][a-z-]*$/),
   fragmentScope: z.literal('system')
 });
+const migrationBaseline = z.strictObject({
+  state: z.literal('not_deployed'),
+  evidence: z.strictObject({
+    credentialResolver: z.literal('not_deployed'),
+    legacyRuntime: z.literal('sqlite_web_collector_only'),
+    postgresApiPlane: z.literal('not_deployed')
+  }),
+  requiredBeforeCutover: z.array(z.string().min(1)).min(1)
+});
 const inputsSchema = z.strictObject({
   schemaVersion: z.literal(1),
   capturedAt: z.string().datetime(),
@@ -112,7 +121,8 @@ const inputsSchema = z.strictObject({
   generatedRootCount: z.literal(3),
   generatedInventorySha256: sha64,
   generatedRoots: z.array(generatedRoot).length(3),
-  frozenUniverseSha256: sha64
+  frozenUniverseSha256: sha64,
+  migrationBaseline: migrationBaseline.optional()
 });
 
 function fail(code) {

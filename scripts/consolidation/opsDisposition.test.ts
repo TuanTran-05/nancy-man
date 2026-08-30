@@ -781,4 +781,35 @@ describe('Ops disposition ledger', () => {
     expect(ledger).toMatchObject({ schemaVersion: 1, state: 'construction' });
     expect(validateOpsDispositionForConstruction(ledger, inputs).entries).toHaveLength(131);
   });
+
+  it('records an undeployed PostgreSQL migration plane without fabricating an empty capture', () => {
+    const inputs = JSON.parse(readFileSync(REVIEWED_INPUT_PATH, 'utf8'));
+
+    expect(validateOpsInputs(inputs).migrationBaseline).toEqual({
+      evidence: {
+        credentialResolver: 'not_deployed',
+        legacyRuntime: 'sqlite_web_collector_only',
+        postgresApiPlane: 'not_deployed'
+      },
+      requiredBeforeCutover: [
+        'deploy a credential-resolved canonical Ops PostgreSQL endpoint',
+        'capture sorted migration IDs through that resolver',
+        'persist only the approved ID list, count, and SHA-256 digest',
+        'reject cutover if capture is unavailable or migration history does not validate'
+      ],
+      state: 'not_deployed'
+    });
+
+    expect(() =>
+      validateOpsInputs({
+        ...inputs,
+        migrationBaseline: {
+          ...inputs.migrationBaseline,
+          ids: [],
+          count: 0,
+          sha256: '0'.repeat(64)
+        }
+      })
+    ).toThrow('OPS_INPUTS_SCHEMA_INVALID');
+  });
 });
