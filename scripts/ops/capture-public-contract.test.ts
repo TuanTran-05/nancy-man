@@ -76,6 +76,23 @@ const expectedContract = {
   ]
 };
 
+async function rejectionCodeWithin(promise: Promise<unknown>, timeoutMs = 750): Promise<string> {
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise.then(
+        () => 'TEST_UNEXPECTED_RESOLUTION',
+        (error: unknown) => (error instanceof Error ? error.message : 'TEST_NON_ERROR_REJECTION')
+      ),
+      new Promise<string>((resolve) => {
+        watchdog = setTimeout(() => resolve('TEST_WATCHDOG_EXPIRED'), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (watchdog) clearTimeout(watchdog);
+  }
+}
+
 describe('Ops public-contract capture', () => {
   it('reduces shuffled fixtures to a deterministic route/status/shape/header/landmark allowlist', () => {
     const contract = buildPublicContract([
@@ -152,6 +169,42 @@ describe('Ops public-contract capture', () => {
         ...unauthorizedResponse('/api/session').headers,
         ...(mutation.headers ?? {})
       }
+    };
+    expect(() =>
+      buildPublicContract([rootResponse, unauthorizedResponse('/api/overview'), fixture])
+    ).toThrow('PUBLIC_CONTRACT_FORBIDDEN_MATERIAL');
+  });
+
+  it.each([
+    ['percent then standard base64 retained key', { body: '{"c2VjcmV0IMK%2B":"value"}' }],
+    ['percent then base64url retained key', { body: '{"c2VjcmV0IMK%2D":"value"}' }],
+    [
+      'percent then standard base64 selected header',
+      { headers: { 'cache-control': 'c2VjcmV0IMK%2B' } }
+    ],
+    ['percent then base64url selected header', { headers: { 'cache-control': 'c2VjcmV0IMK%2D' } }]
+  ])('rejects composed encoding in %s', (_name, mutation) => {
+    const fixture = {
+      ...unauthorizedResponse('/api/session'),
+      ...mutation,
+      headers: {
+        ...unauthorizedResponse('/api/session').headers,
+        ...(mutation.headers ?? {})
+      }
+    };
+    expect(() =>
+      buildPublicContract([rootResponse, unauthorizedResponse('/api/overview'), fixture])
+    ).toThrow('PUBLIC_CONTRACT_FORBIDDEN_MATERIAL');
+  });
+
+  it.each([
+    ['user_name', 'user_name=operator-a'],
+    ['ISO offset timestamp', 'at=2026-08-30T07:00:00+07:00'],
+    ['zoneless ISO timestamp', 'at=2026-08-30T07:00:00']
+  ])('rejects prohibited %s in a retained header', (_name, value) => {
+    const fixture = {
+      ...unauthorizedResponse('/api/session'),
+      headers: { ...unauthorizedResponse('/api/session').headers, 'cache-control': value }
     };
     expect(() =>
       buildPublicContract([rootResponse, unauthorizedResponse('/api/overview'), fixture])
@@ -268,6 +321,70 @@ describe('Ops public-contract capture', () => {
       })
     ).rejects.toThrow('PUBLIC_CONTRACT_CONTACT_TIMEOUT');
     expect(Date.now() - startedAt).toBeLessThan(1000);
+    expect(onContact).not.toHaveBeenCalled();
+  });
+
+  it('enforces the contact deadline when the transport ignores AbortSignal', async () => {
+    const onContact = vi.fn();
+    const code = await rejectionCodeWithin(
+      capturePublicContract({
+        baseUrl: 'http://127.0.0.1:3101',
+        timeoutMs: 100,
+        onContact,
+        fetchImpl: vi.fn(() => new Promise<Response>(() => {}))
+      })
+    );
+
+    expect(code).toBe('PUBLIC_CONTRACT_CONTACT_TIMEOUT');
+    expect(onContact).not.toHaveBeenCalled();
+  });
+
+  it('does not let a never-settling cancellation extend a stalled-body deadline', async () => {
+    const onContact = vi.fn();
+    const stalled = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('<!doctype html>'));
+      },
+      cancel: () => new Promise<void>(() => {})
+    });
+    const code = await rejectionCodeWithin(
+      capturePublicContract({
+        baseUrl: 'http://127.0.0.1:3101',
+        timeoutMs: 100,
+        onContact,
+        fetchImpl: vi.fn(
+          async () =>
+            new Response(stalled, {
+              status: 200,
+              headers: { 'content-type': 'text/html; charset=utf-8' }
+            })
+        )
+      })
+    );
+
+    expect(code).toBe('PUBLIC_CONTRACT_CONTACT_TIMEOUT');
+    expect(onContact).not.toHaveBeenCalled();
+  });
+
+  it('does not let a never-settling cancellation extend the body cap failure', async () => {
+    const onContact = vi.fn();
+    const oversized = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(17));
+      },
+      cancel: () => new Promise<void>(() => {})
+    });
+    const code = await rejectionCodeWithin(
+      capturePublicContract({
+        baseUrl: 'http://127.0.0.1:3101',
+        timeoutMs: 500,
+        bodyCapBytes: 16,
+        onContact,
+        fetchImpl: vi.fn(async () => new Response(oversized, { status: 200 }))
+      })
+    );
+
+    expect(code).toBe('PUBLIC_CONTRACT_BODY_TOO_LARGE');
     expect(onContact).not.toHaveBeenCalled();
   });
 });

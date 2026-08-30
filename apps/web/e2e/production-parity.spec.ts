@@ -1,15 +1,33 @@
-import { createHmac } from 'node:crypto';
-import { copyFile, lstat, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { createHash, createHmac, randomBytes, randomInt } from 'node:crypto';
+import {
+  chmod,
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile
+} from 'node:fs/promises';
 import type { Server } from 'node:http';
+import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 import { expect, test, type Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 
+import { startOpsApi } from '../../api/src/runtime/main.js';
+import { getOpsPool } from '../../../packages/db/src/client.js';
+import { migrateOpsDatabase } from '../../../packages/db/src/migrate.js';
+import { opsMigrationTrustRoot } from '../../../packages/db/src/migrationManifest.js';
 import { parseOpsE2eBaseUrl } from './baseUrl.js';
 import { createOpsApp } from '../src/server/http/app.js';
+import { createPostgresContractClient } from '../src/server/collector/postgresContractTarget.js';
 import { createAuthService } from '../src/server/security/auth.js';
 import { encryptSecret, hashPassword } from '../src/server/security/crypto.js';
 import { createOpsStore, type OpsStore } from '../src/server/storage/store.js';
@@ -49,14 +67,44 @@ const sqliteDataTables = [
   'zalo_webhook_events'
 ] as const;
 const expectedSqliteTables = [...sqliteDataTables, 'schema_version', 'sqlite_sequence'].sort();
+const execFileAsync = promisify(execFile);
+const postgresBinaries = {
+  initdb: '/usr/lib/postgresql/16/bin/initdb',
+  pgCtl: '/usr/lib/postgresql/16/bin/pg_ctl',
+  createdb: '/usr/lib/postgresql/16/bin/createdb'
+} as const;
+const postgresDatabaseName = 'edutrack_ops_test_parity';
+const postgresUser = 'task7_admin';
+const forbiddenDatabaseEnvironment = [
+  'OPS_PARITY_API_BASE_URL',
+  'OPS_TEST_DATABASE_URL',
+  'OPS_MONITOR_DATABASE_URL',
+  'OPS_DATABASE_URL',
+  'DATABASE_URL',
+  'PGHOST',
+  'PGPORT',
+  'PGDATABASE',
+  'PGUSER',
+  'PGPASSWORD',
+  'PGSERVICE',
+  'PGSERVICEFILE',
+  'PGPASSFILE'
+] as const;
 
 let candidateOrigin: string;
-let apiOrigin: string | undefined;
+let apiOrigin: string;
 let candidateServer: Server | undefined;
 let candidateStore: OpsStore | undefined;
 let candidateDirectory: string | undefined;
 let browserContacts: string[] = [];
 let usingSnapshot = false;
+let apiHandle: Awaited<ReturnType<typeof startOpsApi>> | undefined;
+let apiPort: number | undefined;
+let postgresRoot: string | undefined;
+let postgresDataDirectory: string | undefined;
+let postgresPort: number | undefined;
+let postgresStartAttempted = false;
+let migrationDigest: string | undefined;
 
 const expectedStoredContract = {
   schemaVersion: 1,
@@ -113,6 +161,322 @@ async function closeServer(server: Server | undefined): Promise<void> {
   if (!server) return;
   await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(new Error('OPS_PARITY_CLOSE_FAILED')) : resolve()))
+  );
+}
+
+async function runOwnedCommand(
+  executable: string,
+  argumentsValue: string[],
+  errorCode: string,
+  environment: NodeJS.ProcessEnv = { PATH: '/usr/bin:/bin', LANG: 'C', LC_ALL: 'C' }
+): Promise<void> {
+  try {
+    await execFileAsync(executable, argumentsValue, {
+      env: environment,
+      maxBuffer: 65_536,
+      shell: false,
+      timeout: 30_000
+    });
+  } catch {
+    safeFail(errorCode);
+  }
+}
+
+async function assertFixedPostgresBinaries(): Promise<void> {
+  for (const executable of Object.values(postgresBinaries)) {
+    const [resolved, details] = await Promise.all([
+      realpath(executable).catch(() => safeFail('OPS_PARITY_PG_BINARY_INVALID')),
+      lstat(executable).catch(() => safeFail('OPS_PARITY_PG_BINARY_INVALID'))
+    ]);
+    if (
+      resolved !== executable ||
+      !details.isFile() ||
+      details.isSymbolicLink() ||
+      (details.mode & 0o111) === 0
+    )
+      safeFail('OPS_PARITY_PG_BINARY_INVALID');
+  }
+}
+
+async function bindAndClose(port: number): Promise<boolean> {
+  const server = createNetServer();
+  const bound = await new Promise<boolean>((resolve, reject) => {
+    server.once('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') resolve(false);
+      else reject(new Error('OPS_PARITY_PORT_PROBE_FAILED'));
+    });
+    server.listen(port, '127.0.0.1', () => resolve(true));
+  });
+  if (!bound) return false;
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(new Error('OPS_PARITY_PORT_PROBE_FAILED')) : resolve()))
+  );
+  return true;
+}
+
+async function allocateUnusedHighPort(excluded: ReadonlySet<number>): Promise<number> {
+  for (let attempt = 0; attempt < 128; attempt += 1) {
+    const port = randomInt(49_152, 65_536);
+    if (!excluded.has(port) && (await bindAndClose(port))) return port;
+  }
+  safeFail('OPS_PARITY_UNUSED_PORT_UNAVAILABLE');
+}
+
+async function assertPortReleased(port: number): Promise<void> {
+  if (!(await bindAndClose(port))) safeFail('OPS_PARITY_PORT_CLEANUP_FAILED');
+}
+
+async function validatePostgresRoot(path: string): Promise<void> {
+  const [resolved, details] = await Promise.all([
+    realpath(path).catch(() => safeFail('OPS_PARITY_PG_TEMP_INVALID')),
+    lstat(path).catch(() => safeFail('OPS_PARITY_PG_TEMP_INVALID'))
+  ]);
+  if (
+    resolved !== path ||
+    dirname(path) !== '/tmp' ||
+    !/^edutrack-ops-pgtest\.[A-Za-z0-9]{6}$/u.test(basename(path)) ||
+    !details.isDirectory() ||
+    details.isSymbolicLink() ||
+    details.uid !== process.getuid?.() ||
+    (details.mode & 0o777) !== 0o700
+  )
+    safeFail('OPS_PARITY_PG_TEMP_INVALID');
+}
+
+async function writeSecret(root: string, reference: string, value: string): Promise<void> {
+  const path = join(root, reference);
+  try {
+    await writeFile(path, `${value}\n`, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+    await chmod(path, 0o600);
+    const details = await lstat(path);
+    if (
+      !details.isFile() ||
+      details.isSymbolicLink() ||
+      details.uid !== process.getuid?.() ||
+      (details.mode & 0o777) !== 0o600
+    )
+      safeFail('OPS_PARITY_SECRET_FILE_INVALID');
+  } catch (error) {
+    if (error instanceof Error && error.message === 'OPS_PARITY_SECRET_FILE_INVALID') throw error;
+    safeFail('OPS_PARITY_SECRET_FILE_INVALID');
+  }
+}
+
+async function startOwnedPostgresApi(excludedPorts: Set<number>): Promise<void> {
+  if (forbiddenDatabaseEnvironment.some((name) => name in process.env))
+    safeFail('OPS_PARITY_DATABASE_ENVIRONMENT_FORBIDDEN');
+  await assertFixedPostgresBinaries();
+
+  postgresRoot = await mkdtemp(join(tmpdir(), 'edutrack-ops-pgtest.'));
+  await validatePostgresRoot(postgresRoot);
+  postgresDataDirectory = join(postgresRoot, 'data');
+  const socketDirectory = join(postgresRoot, 'socket');
+  const secretDirectory = join(postgresRoot, 'secrets');
+  const objectStoreDirectory = join(postgresRoot, 'objects');
+  const passwordFile = join(postgresRoot, 'initdb-password');
+  const postgresLog = join(postgresRoot, 'postgres.log');
+  for (const directory of [socketDirectory, secretDirectory, objectStoreDirectory])
+    await mkdir(directory, { mode: 0o700 });
+
+  const passwordValue = randomBytes(32).toString('base64url');
+  await writeFile(passwordFile, `${passwordValue}\n`, { flag: 'wx', mode: 0o600 });
+  await chmod(passwordFile, 0o600);
+  await runOwnedCommand(
+    postgresBinaries.initdb,
+    [
+      '-D',
+      postgresDataDirectory,
+      '--username',
+      postgresUser,
+      '--pwfile',
+      passwordFile,
+      '--auth-host=scram-sha-256',
+      '--auth-local=scram-sha-256',
+      '--encoding=UTF8',
+      '--no-locale'
+    ],
+    'OPS_PARITY_PG_INIT_FAILED'
+  );
+  await rm(passwordFile, { force: false });
+
+  postgresPort = await allocateUnusedHighPort(excludedPorts);
+  excludedPorts.add(postgresPort);
+  postgresStartAttempted = true;
+  await runOwnedCommand(
+    postgresBinaries.pgCtl,
+    [
+      '-D',
+      postgresDataDirectory,
+      '-l',
+      postgresLog,
+      '-o',
+      `-p ${postgresPort} -h 127.0.0.1 -k ${socketDirectory}`,
+      '-w',
+      '-t',
+      '15',
+      'start'
+    ],
+    'OPS_PARITY_PG_START_FAILED'
+  );
+
+  await runOwnedCommand(
+    postgresBinaries.createdb,
+    [
+      '--host=127.0.0.1',
+      `--port=${postgresPort}`,
+      `--username=${postgresUser}`,
+      postgresDatabaseName
+    ],
+    'OPS_PARITY_PG_DATABASE_CREATE_FAILED',
+    {
+      PATH: '/usr/bin:/bin',
+      LANG: 'C',
+      LC_ALL: 'C',
+      PGPASSWORD: passwordValue
+    }
+  );
+
+  const databaseUrl = `postgresql://${postgresUser}:${encodeURIComponent(passwordValue)}@127.0.0.1:${postgresPort}/${postgresDatabaseName}`;
+  const contractEnvironment = Object.freeze({
+    OPS_TEST_DATABASE_URL: databaseUrl,
+    OPS_MONITOR_DATABASE_URL: undefined
+  });
+  const pool = createPostgresContractClient(contractEnvironment, (connectionString) =>
+    getOpsPool(connectionString, { max: 2 })
+  );
+  if (!pool) safeFail('OPS_PARITY_PG_GUARD_REJECTED');
+  let postgresSetupStage = 'IDENTITY_QUERY';
+  let postgresSetupFailure: Error | undefined;
+  try {
+    const identity = await pool.query<{
+      currentUser: string;
+      databaseName: string;
+      dataDirectory: string;
+      serverAddress: string;
+      serverPort: number;
+    }>(`
+      SELECT
+        current_user AS "currentUser",
+        current_database() AS "databaseName",
+        current_setting('data_directory') AS "dataDirectory",
+        host(inet_server_addr()) AS "serverAddress",
+        inet_server_port() AS "serverPort"
+    `);
+    const current = identity.rows[0];
+    postgresSetupStage = 'IDENTITY_PATH';
+    const currentDataDirectory = current
+      ? await realpath(current.dataDirectory)
+      : 'OPS_PARITY_MISSING_IDENTITY';
+    postgresSetupStage = 'IDENTITY_COMPARE';
+    const identityMismatches = !current
+      ? ['MISSING']
+      : [
+          current.currentUser === postgresUser ? null : 'USER',
+          current.databaseName === postgresDatabaseName ? null : 'DATABASE',
+          currentDataDirectory === postgresDataDirectory ? null : 'DATA',
+          current.serverAddress === '127.0.0.1' ? null : 'ADDRESS',
+          current.serverPort === postgresPort ? null : 'PORT'
+        ].filter(Boolean);
+    if (identityMismatches.length)
+      safeFail(`OPS_PARITY_PG_IDENTITY_MISMATCH_${identityMismatches.join('_')}`);
+
+    postgresSetupStage = 'MIGRATION';
+    const migration = await migrateOpsDatabase(pool);
+    const expectedMigrationIds = opsMigrationTrustRoot.map(({ id }) => id);
+    if (JSON.stringify(migration.appliedMigrations) !== JSON.stringify(expectedMigrationIds))
+      safeFail('OPS_PARITY_PG_MIGRATION_MISMATCH');
+    const storedMigrations = await pool.query<{ checksum: string; migrationId: string }>(
+      'SELECT migration_id AS "migrationId", checksum FROM ops_schema_migrations ORDER BY migration_id'
+    );
+    if (
+      JSON.stringify(storedMigrations.rows) !==
+      JSON.stringify(
+        opsMigrationTrustRoot.map(({ id, checksum }) => ({ migrationId: id, checksum }))
+      )
+    )
+      safeFail('OPS_PARITY_PG_MIGRATION_MISMATCH');
+    migrationDigest = createHash('sha256')
+      .update(
+        storedMigrations.rows
+          .map(({ migrationId, checksum }) => `${migrationId}:${checksum}`)
+          .join('\n'),
+        'utf8'
+      )
+      .digest('hex');
+
+    postgresSetupStage = 'SEED';
+    await pool.query(
+      `INSERT INTO ingest_clients
+       (id, client_name, client_kind, service_name, status, public_key_id, allowed_origins, metadata)
+       VALUES ($1, $2, 'browser', 'edutrack-web', 'active', $3, $4::jsonb, '{}'::jsonb)`,
+      [
+        '30000000-0000-4000-8000-000000000007',
+        'task7-isolated-browser',
+        'task7-browser-key',
+        JSON.stringify(['https://man.thienuy.edu.vn'])
+      ]
+    );
+  } catch (error) {
+    postgresSetupFailure =
+      error instanceof Error && /^OPS_PARITY_PG_IDENTITY_MISMATCH_[A-Z_]+$/u.test(error.message)
+        ? error
+        : new Error(`OPS_PARITY_PG_${postgresSetupStage}_FAILED`);
+  }
+  let postgresPoolCloseFailure: Error | undefined;
+  try {
+    await pool.end();
+  } catch {
+    postgresPoolCloseFailure = new Error('OPS_PARITY_PG_POOL_CLOSE_FAILED');
+  }
+  if (postgresSetupFailure && postgresPoolCloseFailure)
+    throw new AggregateError(
+      [postgresSetupFailure, postgresPoolCloseFailure],
+      'OPS_PARITY_PG_SETUP_CLEANUP_FAILED'
+    );
+  if (postgresSetupFailure) throw postgresSetupFailure;
+  if (postgresPoolCloseFailure) throw postgresPoolCloseFailure;
+
+  const guardedDatabaseUrl = createPostgresContractClient(contractEnvironment, (value) => value);
+  if (!guardedDatabaseUrl) safeFail('OPS_PARITY_PG_GUARD_REJECTED');
+  for (const [reference, value] of [
+    ['ops-database-url', guardedDatabaseUrl],
+    ['session-pepper', randomBytes(32).toString('base64url')],
+    ['rate-limit-pepper', randomBytes(32).toString('base64url')],
+    ['auth-session-pepper', randomBytes(32).toString('base64url')],
+    ['mfa-encryption-key', randomBytes(32).toString('base64url')],
+    ['browser-context-key', 'task7-browser-key']
+  ] as const)
+    await writeSecret(secretDirectory, reference, value);
+
+  apiPort = await allocateUnusedHighPort(excludedPorts);
+  excludedPorts.add(apiPort);
+  const controlledEnvironment: NodeJS.ProcessEnv = {
+    OPS_TEST_DATABASE_URL: guardedDatabaseUrl,
+    OPS_API_HOST: '127.0.0.1',
+    OPS_API_PORT: String(apiPort),
+    OPS_PUBLIC_URL: 'https://man.thienuy.edu.vn',
+    OPS_SECRET_DIRECTORY: secretDirectory,
+    OPS_DATABASE_URL_REFERENCE: 'ops-database-url',
+    OPS_SESSION_PEPPER_REFERENCE: 'session-pepper',
+    OPS_RATE_LIMIT_PEPPER_REFERENCE: 'rate-limit-pepper',
+    OPS_AUTH_SESSION_PEPPER_REFERENCE: 'auth-session-pepper',
+    OPS_MFA_ENCRYPTION_KEY_REFERENCE: 'mfa-encryption-key',
+    OPS_BROWSER_CONTEXT_KEY_ID: 'task7-browser-context',
+    OPS_BROWSER_CONTEXT_KEY_REFERENCE: 'browser-context-key',
+    OPS_OBJECT_STORE_DIRECTORY: objectStoreDirectory,
+    OPS_BROWSER_CORS_ORIGINS: 'https://man.thienuy.edu.vn',
+    OPS_SQL_WORKER_ENABLED: 'false'
+  };
+  if (createPostgresContractClient(controlledEnvironment, (value) => value) !== guardedDatabaseUrl)
+    safeFail('OPS_PARITY_PG_GUARD_REJECTED');
+  try {
+    apiHandle = await startOpsApi(controlledEnvironment);
+  } catch {
+    safeFail('OPS_PARITY_API_START_FAILED');
+  }
+  apiOrigin = `http://127.0.0.1:${apiPort}`;
+  console.log(
+    `OPS_PARITY_OWNED_RUNTIME postgres=ephemeral-loopback database=unmistakable-test api=owned-high-loopback migration_digest=${migrationDigest}`
   );
 }
 
@@ -397,27 +761,49 @@ async function login(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Hạ tầng VPS' })).toBeVisible();
 }
 
-test.beforeAll(async () => {
-  const configured = parseOpsE2eBaseUrl(process.env.OPS_E2E_BASE_URL);
-  const snapshotPath = process.env.OPS_PARITY_SQLITE_SNAPSHOT;
-  usingSnapshot = Boolean(snapshotPath);
-  const candidate = parseCandidateOrigin(
-    process.env.OPS_PARITY_CANDIDATE_BASE_URL,
-    configured.baseURL
-  );
-  if (snapshotPath && candidate.origin === configured.origin)
-    safeFail('OPS_PARITY_SNAPSHOT_REQUIRES_DISTINCT_CANDIDATE_PORT');
-  candidateOrigin = candidate.origin;
-  if (snapshotPath) await startSnapshotCandidate(snapshotPath, candidate.port);
-  apiOrigin = process.env.OPS_PARITY_API_BASE_URL
-    ? parseOpsE2eBaseUrl(process.env.OPS_PARITY_API_BASE_URL).origin
-    : undefined;
-  if (apiOrigin === candidateOrigin || apiOrigin === configured.origin)
-    safeFail('OPS_PARITY_API_PORT_INVALID');
-});
+async function postgresProcessIsGone(): Promise<boolean> {
+  if (!postgresDataDirectory) return true;
+  let contents: string;
+  try {
+    contents = await readFile(join(postgresDataDirectory, 'postmaster.pid'), 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return true;
+    safeFail('OPS_PARITY_PG_PROCESS_CHECK_FAILED');
+  }
+  const firstLine = contents.split('\n', 1)[0];
+  if (!/^[1-9][0-9]*$/u.test(firstLine)) safeFail('OPS_PARITY_PG_PROCESS_CHECK_FAILED');
+  try {
+    process.kill(Number(firstLine), 0);
+    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return true;
+    safeFail('OPS_PARITY_PG_PROCESS_CHECK_FAILED');
+  }
+}
 
-test.afterAll(async () => {
+async function cleanupOwnedResources(): Promise<unknown[]> {
   const failures: unknown[] = [];
+  const closingApiPort = apiPort;
+  let apiReleased = closingApiPort === undefined;
+  if (apiHandle) {
+    try {
+      await apiHandle.close();
+      apiHandle = undefined;
+    } catch {
+      failures.push(new Error('OPS_PARITY_API_CLOSE_FAILED'));
+    }
+  }
+  if (closingApiPort !== undefined) {
+    try {
+      await assertPortReleased(closingApiPort);
+      apiReleased = true;
+      apiHandle = undefined;
+      apiPort = undefined;
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+
   try {
     await closeServer(candidateServer);
   } catch (error) {
@@ -428,8 +814,8 @@ test.afterAll(async () => {
   try {
     const database = candidateStore?.getDatabaseForBackup();
     if (database?.open) database.close();
-  } catch (error) {
-    failures.push(error);
+  } catch {
+    failures.push(new Error('OPS_PARITY_CANDIDATE_DATABASE_CLOSE_FAILED'));
   } finally {
     candidateStore = undefined;
   }
@@ -441,12 +827,89 @@ test.afterAll(async () => {
     }
     try {
       await rm(candidateDirectory, { recursive: true, force: false });
-    } catch (error) {
-      failures.push(error);
-    } finally {
       candidateDirectory = undefined;
+    } catch {
+      failures.push(new Error('OPS_PARITY_CANDIDATE_TEMP_CLEANUP_FAILED'));
     }
   }
+
+  const closingPostgresPort = postgresPort;
+  let stopFailure: unknown;
+  if (postgresStartAttempted && postgresDataDirectory) {
+    try {
+      await runOwnedCommand(
+        postgresBinaries.pgCtl,
+        ['-D', postgresDataDirectory, '-m', 'fast', '-w', '-t', '15', 'stop'],
+        'OPS_PARITY_PG_STOP_FAILED'
+      );
+    } catch (error) {
+      stopFailure = error;
+    }
+  }
+  let processGone = false;
+  try {
+    processGone = await postgresProcessIsGone();
+    if (!processGone) failures.push(new Error('OPS_PARITY_PG_PROCESS_CLEANUP_FAILED'));
+  } catch (error) {
+    failures.push(error);
+  }
+  if (stopFailure && !processGone) failures.push(stopFailure);
+  if (closingPostgresPort !== undefined) {
+    try {
+      await assertPortReleased(closingPostgresPort);
+    } catch (error) {
+      failures.push(error);
+      processGone = false;
+    }
+  }
+  if (processGone) {
+    postgresStartAttempted = false;
+    postgresPort = undefined;
+  }
+
+  if (postgresRoot && processGone && apiReleased) {
+    try {
+      await validatePostgresRoot(postgresRoot);
+      await rm(postgresRoot, { recursive: true, force: false });
+      postgresRoot = undefined;
+      postgresDataDirectory = undefined;
+    } catch {
+      failures.push(new Error('OPS_PARITY_PG_TEMP_CLEANUP_FAILED'));
+    }
+  }
+  return failures;
+}
+
+test.beforeAll(async () => {
+  try {
+    const configured = parseOpsE2eBaseUrl(process.env.OPS_E2E_BASE_URL);
+    const snapshotPath = process.env.OPS_PARITY_SQLITE_SNAPSHOT;
+    usingSnapshot = Boolean(snapshotPath);
+    const candidate = parseCandidateOrigin(
+      process.env.OPS_PARITY_CANDIDATE_BASE_URL,
+      configured.baseURL
+    );
+    if (snapshotPath && candidate.origin === configured.origin)
+      safeFail('OPS_PARITY_SNAPSHOT_REQUIRES_DISTINCT_CANDIDATE_PORT');
+    candidateOrigin = candidate.origin;
+    if (snapshotPath) await startSnapshotCandidate(snapshotPath, candidate.port);
+    await startOwnedPostgresApi(new Set([configured.port, candidate.port]));
+  } catch (error) {
+    const primary =
+      error instanceof Error && /^OPS_PARITY_[A-Z_]+$/u.test(error.message)
+        ? error
+        : new Error('OPS_PARITY_SETUP_FAILED');
+    const cleanupFailures = await cleanupOwnedResources();
+    if (cleanupFailures.length) {
+      // eslint-disable-next-line preserve-caught-error -- Raw setup errors may contain credential-bearing connection details; the sanitized primary is preserved in the aggregate.
+      throw new AggregateError([primary, ...cleanupFailures], 'OPS_PARITY_SETUP_CLEANUP_FAILED');
+    }
+    throw primary;
+  }
+});
+
+test.afterAll(async () => {
+  const failures = await cleanupOwnedResources();
   if (failures.length) throw new AggregateError(failures, 'OPS_PARITY_CLEANUP_FAILED');
 });
 
@@ -510,7 +973,6 @@ test('rejects the separate API cookie in the monitoring session namespace', asyn
 });
 
 test('keeps API health, ingest validation and SQL denial bounded to an isolated PostgreSQL candidate', async () => {
-  test.skip(!apiOrigin, 'isolated PostgreSQL-backed API candidate was not supplied');
   const health = await fetch(`${apiOrigin}/healthz`);
   expect(health.status).toBe(200);
   await expect(health.json()).resolves.toEqual({ status: 'ok' });

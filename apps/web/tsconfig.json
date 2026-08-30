@@ -12,5 +12,22 @@
     "exactOptionalPropertyTypes": false,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "e2e", "vite.config.ts", "playwright.config.ts", "scripts"]
+  "include": [
+    "src",
+    "e2e",
+    "vite.config.ts",
+    "playwright.config.ts",
+    "scripts",
+    "../api/src/**/*.ts",
+    "../../deploy/dr/dr-status.schema.ts",
+    "../../packages/contracts/src/**/*.ts",
+    "../../packages/db/src/**/*.ts",
+    "../../packages/security/src/**/*.ts"
+  ],
+  "exclude": [
+    "../api/src/**/*.test.ts",
+    "../../packages/contracts/src/**/*.test.ts",
+    "../../packages/db/src/**/*.test.ts",
+    "../../packages/security/src/**/*.test.ts"
+  ]
 }

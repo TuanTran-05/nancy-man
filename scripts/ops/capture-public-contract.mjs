@@ -36,11 +36,14 @@ const UI_LANDMARK_VALUES = new Set(UI_LANDMARKS.map(({ value }) => value));
 const FORBIDDEN_KEY =
   /(?:^|[_-])(?:cookies?|csrf|csrf_?tokens?|csrftokens?|sessions?|mfas?|totps?|usernames?|user_names?|zalo[a-z0-9]*|passwords?|secrets?|tokens?|nonces?|authorizations?|notes?|incidents?|incident_?notes?|incidentnotes?|raw_incidents?|summar(?:y|ies)|databases?|db_paths?|sql|queries?|statements?|telemetry|payloads?|timestamps?|captured_at|observed_at|expires_at|created_at|updated_at|[a-z0-9]*_?ids?)(?:$|[_-])/iu;
 const FORBIDDEN_TEXT =
-  /(?:^|[^a-z])(?:cookies?|csrf|sessions?|mfas?|totps?|usernames?|zalo|passwords?|secrets?|tokens?|nonces?|bearer|authorizations?|incidents?(?:\s+notes?)?|raw\s+incidents?|telemetry|payloads?|sql|select\s+.+\s+from|insert\s+into|update\s+.+\s+set|delete\s+from)(?:$|[^a-z])/iu;
+  /(?:^|[^a-z])(?:cookies?|csrf|sessions?|mfas?|totps?|user[_-]?names?|zalo|passwords?|secrets?|tokens?|nonces?|bearer|authorizations?|incidents?(?:\s+notes?)?|raw\s+incidents?|telemetry|payloads?|sql|select\s+.+\s+from|insert\s+into|update\s+.+\s+set|delete\s+from)(?:$|[^a-z])/iu;
 const DATABASE_PATH =
   /(?:\/(?:srv|var|run|etc|home)\/[^\s"']+|[A-Za-z]:\\[^\s"']+|(?:postgres(?:ql)?):\/\/|\.(?:sqlite(?:3)?|db)(?:\b|[-.]))/iu;
-const ISO_TIMESTAMP = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/iu;
+const ISO_TIMESTAMP = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\b/iu;
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/iu;
+const MAX_DECODED_VARIANTS = 32;
+const MAX_DECODE_STAGES = 8;
+const MAX_ENCODED_LENGTH = 4096;
 
 function fail(code) {
   throw new Error(code);
@@ -52,35 +55,57 @@ function exactKeys(value, expected) {
   return keys.length === expected.length && keys.every((key, index) => key === expected[index]);
 }
 
-function decodedVariants(value) {
-  const values = new Set([value]);
-  let decoded = value;
-  for (let index = 0; index < 3; index += 1) {
+function decodeBase64Text(value, encoding) {
+  const compact = value.replace(/\s+/gu, '');
+  const pattern = encoding === 'base64' ? /^[A-Za-z0-9+/]+={0,2}$/u : /^[A-Za-z0-9_-]+={0,2}$/u;
+  if (
+    compact.length < 8 ||
+    compact.length > MAX_ENCODED_LENGTH ||
+    compact.length % 4 === 1 ||
+    !pattern.test(compact)
+  )
+    return null;
+  const unpadded = compact.replace(/=+$/u, '');
+  const padded = `${unpadded}${'='.repeat((4 - (unpadded.length % 4)) % 4)}`;
+  try {
+    const bytes = Buffer.from(padded, encoding);
+    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const canonical = Buffer.from(decoded, 'utf8').toString(encoding).replace(/=+$/u, '');
+    return canonical === unpadded ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+function decodingTransforms(value) {
+  const results = [];
+  if (/%[0-9a-f]{2}/iu.test(value)) {
     try {
-      const next = decodeURIComponent(decoded);
-      if (next === decoded) break;
-      values.add(next);
-      decoded = next;
+      const percentDecoded = decodeURIComponent(value);
+      if (percentDecoded !== value) results.push(percentDecoded);
     } catch {
-      break;
+      // Malformed percent encodings remain covered by the original text scan.
     }
   }
-  const compact = value.replace(/\s+/gu, '');
-  if (
-    compact.length >= 8 &&
-    compact.length <= 4096 &&
-    compact.length % 4 === 0 &&
-    /^[A-Za-z0-9+/]+={0,2}$/u.test(compact)
-  ) {
-    try {
-      const base64 = Buffer.from(compact, 'base64').toString('utf8');
-      if (
-        Buffer.from(base64, 'utf8').toString('base64').replace(/=+$/u, '') ===
-        compact.replace(/=+$/u, '')
-      )
-        values.add(base64);
-    } catch {
-      // Invalid encodings remain covered by the original text scan.
+  for (const encoding of ['base64', 'base64url']) {
+    const base64Decoded = decodeBase64Text(value, encoding);
+    if (base64Decoded !== null && base64Decoded !== value) results.push(base64Decoded);
+  }
+  return results;
+}
+
+function decodedVariants(value) {
+  const values = new Set([value]);
+  const pending = [{ value, depth: 0 }];
+  while (pending.length) {
+    const current = pending.shift();
+    const transforms = decodingTransforms(current.value);
+    for (const transformed of transforms) {
+      if (values.has(transformed)) continue;
+      if (current.depth >= MAX_DECODE_STAGES || values.size >= MAX_DECODED_VARIANTS)
+        fail('PUBLIC_CONTRACT_FORBIDDEN_MATERIAL');
+      values.add(transformed);
+      pending.push({ value: transformed, depth: current.depth + 1 });
     }
   }
   return values;
@@ -369,7 +394,15 @@ function validateCaptureBaseUrl(value) {
   return parsed.origin;
 }
 
-async function readCappedBody(response, bodyCapBytes, signal) {
+function cancelReaderBestEffort(reader) {
+  try {
+    void Promise.resolve(reader.cancel()).catch(() => {});
+  } catch {
+    // Cancellation is advisory; the independent deadline/body cap remains authoritative.
+  }
+}
+
+async function readCappedBody(response, bodyCapBytes, deadline) {
   const declaredLength = Number(response.headers.get('content-length'));
   if (Number.isFinite(declaredLength) && declaredLength > bodyCapBytes)
     fail('PUBLIC_CONTRACT_BODY_TOO_LARGE');
@@ -377,31 +410,22 @@ async function readCappedBody(response, bodyCapBytes, signal) {
   const reader = response.body.getReader();
   const chunks = [];
   let bytes = 0;
-  let rejectDeadline;
-  const deadline = new Promise((_, reject) => {
-    rejectDeadline = () => reject(new Error('PUBLIC_CONTRACT_CONTACT_TIMEOUT'));
-    signal.addEventListener('abort', rejectDeadline, { once: true });
-  });
   try {
     while (true) {
-      if (signal.aborted) fail('PUBLIC_CONTRACT_CONTACT_TIMEOUT');
       const { done, value } = await Promise.race([reader.read(), deadline]);
       if (done) break;
       bytes += value.byteLength;
       if (bytes > bodyCapBytes) {
-        await reader.cancel();
+        cancelReaderBestEffort(reader);
         fail('PUBLIC_CONTRACT_BODY_TOO_LARGE');
       }
       chunks.push(value);
     }
   } catch (error) {
-    if (signal.aborted) {
-      await reader.cancel().catch(() => {});
-      fail('PUBLIC_CONTRACT_CONTACT_TIMEOUT');
-    }
+    if (error instanceof Error && error.message === 'PUBLIC_CONTRACT_CONTACT_TIMEOUT')
+      cancelReaderBestEffort(reader);
     throw error;
   } finally {
-    signal.removeEventListener('abort', rejectDeadline);
     try {
       reader.releaseLock();
     } catch {
@@ -427,17 +451,29 @@ export async function capturePublicContract({
   const entries = [];
   for (const expected of ROUTES) {
     const controller = new globalThis.AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let rejectDeadline;
+    const deadline = new Promise((_, reject) => {
+      rejectDeadline = reject;
+    });
+    const timeout = setTimeout(() => {
+      controller.abort();
+      rejectDeadline(new Error('PUBLIC_CONTRACT_CONTACT_TIMEOUT'));
+    }, timeoutMs);
     try {
-      const response = await fetchImpl(new URL(expected.path, `${origin}/`), {
-        method: expected.method,
-        redirect: 'error',
-        credentials: 'omit',
-        headers: { accept: expected.path === '/' ? 'text/html' : 'application/json' },
-        signal: controller.signal
-      });
+      const response = await Promise.race([
+        Promise.resolve().then(() =>
+          fetchImpl(new URL(expected.path, `${origin}/`), {
+            method: expected.method,
+            redirect: 'error',
+            credentials: 'omit',
+            headers: { accept: expected.path === '/' ? 'text/html' : 'application/json' },
+            signal: controller.signal
+          })
+        ),
+        deadline
+      ]);
       if (response.status !== expected.status) fail('PUBLIC_CONTRACT_STATUS_MISMATCH');
-      const body = await readCappedBody(response, bodyCapBytes, controller.signal);
+      const body = await readCappedBody(response, bodyCapBytes, deadline);
       const entry = reduceResponse({
         method: expected.method,
         route: expected.path,
