@@ -89,6 +89,23 @@ describe('protected Ops HTTP API', () => {
     }
   });
 
+  it('does not authorize a separate Ops API session in the monitoring namespace', async () => {
+    const fixture = makeFixture();
+    try {
+      const apiCookie = '__Host-ops-session=api-session-token-012345678901234567890123';
+      await request(fixture.app).get('/api/overview').set('Cookie', apiCookie).expect(401);
+
+      const login = await request(fixture.app)
+        .post('/api/session')
+        .send({ username: 'ops-a', password: 'correct horse battery staple', totp: '287082' })
+        .expect(201);
+      const monitoringCookie = login.headers['set-cookie'][0].split(';')[0];
+      await request(fixture.app).get('/api/overview').set('Cookie', monitoringCookie).expect(200);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it('logs in with password plus TOTP and sets a secure host-only cookie', async () => {
     const fixture = makeFixture();
     try {

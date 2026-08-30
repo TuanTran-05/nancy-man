@@ -69,4 +69,62 @@ describe('createOpsApi', () => {
       );
     }
   });
+
+  it('does not authorize an Ops monitoring cookie in the separate Ops API session namespace', async () => {
+    const apiSessionCookie = '__Host-ops-session=api-session-token-012345678901234567890123';
+    const app = createOpsApi({
+      ingest: {
+        browser: { ingest: async () => ({ status: 401, accepted: false, code: 'UNUSED' }) },
+        server: {
+          ingest: async () => ({ status: 401, accepted: false, code: 'UNUSED' }),
+          ingestBatch: async () => ({ status: 401, accepted: false, code: 'UNUSED' })
+        },
+        browserCorsOrigins: ['https://thienuy.edu.vn']
+      },
+      auth: {
+        service: {
+          beginLogin: async () => ({ status: 'denied' as const }),
+          completeTotpLogin: async () => ({ status: 'denied' as const })
+        },
+        hashClientIp: (ip) => ip,
+        session: {
+          authorize: async ({ cookieHeader }) =>
+            cookieHeader === apiSessionCookie
+              ? {
+                  sessionId: '3a86a2e4-4f07-4ce5-a5fc-0cc0e03ea526',
+                  userId: '07de3aa9-572c-4c24-b761-4bb2727777e8',
+                  role: 'ops_viewer' as const
+                }
+              : null,
+          revoke: async () => undefined
+        }
+      }
+    });
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Expected TCP test server');
+
+    try {
+      const monitoringCookie = '__Host-ops_session=monitoring-session-token';
+      const denied = await fetch(`http://127.0.0.1:${address.port}/api/v1/auth/session`, {
+        headers: { Cookie: monitoringCookie }
+      });
+      expect(denied.status).toBe(401);
+      await expect(denied.json()).resolves.toEqual({ code: 'AUTH_DENIED' });
+
+      const authorized = await fetch(`http://127.0.0.1:${address.port}/api/v1/auth/session`, {
+        headers: { Cookie: apiSessionCookie }
+      });
+      expect(authorized.status).toBe(200);
+      await expect(authorized.json()).resolves.toEqual({
+        userId: '07de3aa9-572c-4c24-b761-4bb2727777e8',
+        role: 'ops_viewer'
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
 });
