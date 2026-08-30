@@ -1,0 +1,28 @@
+[Unit]
+Description=EduTrack Operations monitoring web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=edutrack-ops-web
+Group=edutrack-ops-shared
+UMask=0007
+WorkingDirectory=/srv/edutrack-ops/current
+EnvironmentFile=/etc/edutrack-ops/web.env
+ExecStart=/usr/bin/node apps/web/dist/server/web-entry.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/edutrack-ops/shared
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target

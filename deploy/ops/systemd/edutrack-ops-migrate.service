@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=edutrack-ops
-Group=edutrack-ops
+User=edutrack-ops-migrate
+Group=edutrack-ops-migrate
 WorkingDirectory=/srv/edutrack-ops/current
 EnvironmentFile=/etc/edutrack-ops/api.env
 Environment=OPS_SECRET_DIRECTORY=%d
@@ -20,5 +20,4 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/edutrack-ops/object-store
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

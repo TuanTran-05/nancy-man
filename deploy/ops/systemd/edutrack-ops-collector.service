@@ -1,0 +1,31 @@
+[Unit]
+Description=EduTrack Operations monitoring collector
+After=network-online.target
+Wants=network-online.target
+OnFailure=edutrack-ops-collector-failed@%n.service
+
+[Service]
+Type=simple
+User=edutrack-ops-collector
+Group=edutrack-ops-shared
+UMask=0007
+WorkingDirectory=/srv/edutrack-ops/current
+EnvironmentFile=/etc/edutrack-ops/collector.env
+ExecStart=/usr/bin/node apps/web/dist/server/collector-entry.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+WatchdogSec=45s
+NotifyAccess=all
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/edutrack-ops/shared
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target

@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=edutrack-ops
-Group=edutrack-ops
+User=edutrack-ops-sql-worker
+Group=edutrack-ops-sql-worker
 WorkingDirectory=/srv/edutrack-ops/current
 EnvironmentFile=/etc/edutrack-ops/sql-worker.env
 Environment=OPS_SECRET_DIRECTORY=%d
