@@ -39,6 +39,7 @@ if [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]]; then
   readonly SYSTEMCTL
   NGINX="$(test_command "${EDUTRACK_OPS_TEST_NGINX:-}")" || fail RELEASE_TEST_NGINX_INVALID
   readonly NGINX
+  readonly SYSTEMD_ANALYZE="$SYSTEMCTL"
 else
   [[ -z "${EDUTRACK_OPS_RELEASE_TEST_ROOT:-}${EDUTRACK_OPS_TEST_SYSTEMCTL:-}${EDUTRACK_OPS_TEST_NGINX:-}" ]] || fail RELEASE_TEST_OVERRIDE_FORBIDDEN
   readonly RELEASE_ROOT=/srv/edutrack-ops
@@ -47,8 +48,10 @@ else
   [[ "$(id -u)" == 0 ]] || fail RELEASE_ROOT_REQUIRED
   [[ -x /usr/bin/systemctl && -f /usr/bin/systemctl ]] || fail RELEASE_SYSTEMCTL_ABSENT
   [[ -x /usr/sbin/nginx && -f /usr/sbin/nginx ]] || fail RELEASE_NGINX_ABSENT
+  [[ -x /usr/bin/systemd-analyze && -f /usr/bin/systemd-analyze ]] || fail RELEASE_SYSTEMD_ANALYZE_ABSENT
   readonly SYSTEMCTL=/usr/bin/systemctl
   readonly NGINX=/usr/sbin/nginx
+  readonly SYSTEMD_ANALYZE=/usr/bin/systemd-analyze
 fi
 
 readonly SHA="${1:-}"
@@ -87,7 +90,15 @@ for required in \
   [[ -f "$RELEASE/$required" && ! -L "$RELEASE/$required" ]] || fail RELEASE_REQUIRED_FILE_ABSENT
 done
 
-nginx_preflight="$(mktemp "${TMPDIR:-/tmp}/edutrack-ops-nginx-preflight.XXXXXX")"
+"$SYSTEMD_ANALYZE" verify "${UNITS[@]/#/$RELEASE/deploy/ops/systemd/}" >/dev/null 2>&1 || fail RELEASE_SYSTEMD_PREFLIGHT_FAILED
+
+if [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]]; then
+  TEMP_DIRECTORY="$RELEASE_ROOT/.activation-tmp"
+  mkdir -p -- "$TEMP_DIRECTORY"
+else
+  TEMP_DIRECTORY=/tmp
+fi
+nginx_preflight="$(mktemp "$TEMP_DIRECTORY/edutrack-ops-nginx-preflight.XXXXXX")"
 trap 'rm -f -- "$nginx_preflight"' EXIT
 printf 'events {}\nhttp { include %s; }\n' "$RELEASE/deploy/ops/nginx/$VHOST" > "$nginx_preflight"
 "$NGINX" -t -c "$nginx_preflight" >/dev/null 2>&1 || fail RELEASE_NGINX_PREFLIGHT_FAILED
@@ -103,18 +114,6 @@ elif [[ -e "$RELEASE_ROOT/current" ]]; then
   fail RELEASE_PREVIOUS_POINTER_INVALID
 fi
 
-mkdir -p -- "$UNIT_DIRECTORY" "$NGINX_DIRECTORY"
-for unit in "${UNITS[@]}"; do install -m 0644 -- "$RELEASE/deploy/ops/systemd/$unit" "$UNIT_DIRECTORY/$unit"; done
-install -m 0644 -- "$RELEASE/deploy/ops/nginx/$VHOST" "$NGINX_DIRECTORY/$VHOST"
-"$SYSTEMCTL" daemon-reload
-
-swap_pointer() {
-  local target="$1" temporary="$RELEASE_ROOT/.current.${SHA}.$$"
-  ln -s -- "$target" "$temporary"
-  mv -T -- "$temporary" "$RELEASE_ROOT/current"
-}
-swap_pointer "$RELEASE"
-
 readonly SERVICES=(
   edutrack-ops-migrate.service
   edutrack-ops-api.service
@@ -124,12 +123,74 @@ readonly SERVICES=(
   edutrack-ops-web.service
   edutrack-ops-collector.service
 )
-for service in "${SERVICES[@]}"; do
-  if ! "$SYSTEMCTL" restart "$service"; then
-    if [[ -n "$previous" ]]; then swap_pointer "$previous"; else rm -f -- "$RELEASE_ROOT/current"; fi
-    printf 'RELEASE_ACTIVATION_SERVICE_FAILED service=%s rollback=%s\n' "$service" "${previous##*/}" >&2
-    exit 1
+transaction_directory="$(mktemp -d "$TEMP_DIRECTORY/edutrack-ops-activate.XXXXXX")"
+declare -a CONFIG_DESTINATIONS CONFIG_SOURCES CONFIG_STATE SERVICE_ACTIVE CANDIDATE_STARTED
+for unit in "${UNITS[@]}"; do
+  CONFIG_DESTINATIONS+=("$UNIT_DIRECTORY/$unit")
+  CONFIG_SOURCES+=("$RELEASE/deploy/ops/systemd/$unit")
+done
+CONFIG_DESTINATIONS+=("$NGINX_DIRECTORY/$VHOST")
+CONFIG_SOURCES+=("$RELEASE/deploy/ops/nginx/$VHOST")
+for index in "${!CONFIG_DESTINATIONS[@]}"; do
+  if [[ -e "${CONFIG_DESTINATIONS[$index]}" || -L "${CONFIG_DESTINATIONS[$index]}" ]]; then
+    [[ -f "${CONFIG_DESTINATIONS[$index]}" && ! -L "${CONFIG_DESTINATIONS[$index]}" ]] || fail RELEASE_PRIOR_CONFIG_INVALID
+    CONFIG_STATE[index]=present
+    cp -p -- "${CONFIG_DESTINATIONS[$index]}" "$transaction_directory/config-$index"
+  else
+    CONFIG_STATE[index]=absent
   fi
 done
-"$NGINX" -s reload
+for service in "${SERVICES[@]}"; do
+  if "$SYSTEMCTL" is-active --quiet "$service"; then SERVICE_ACTIVE+=(active); else SERVICE_ACTIVE+=(inactive); fi
+done
+
+rollback() {
+  local primary="$1" rollback_failed=0 index service state
+  for index in "${!SERVICES[@]}"; do
+    if [[ "${CANDIDATE_STARTED[$index]:-0}" == 1 ]]; then "$SYSTEMCTL" stop "${SERVICES[$index]}" >/dev/null 2>&1 || true; fi
+  done
+  if [[ -n "$previous" ]]; then swap_pointer "$previous" || rollback_failed=1; else rm -f -- "$RELEASE_ROOT/current" || rollback_failed=1; fi
+  for index in "${!CONFIG_DESTINATIONS[@]}"; do
+    if [[ "${CONFIG_STATE[$index]}" == present ]]; then install -D -m 0644 -- "$transaction_directory/config-$index" "${CONFIG_DESTINATIONS[$index]}" || rollback_failed=1; else rm -f -- "${CONFIG_DESTINATIONS[$index]}" || rollback_failed=1; fi
+  done
+  "$SYSTEMCTL" daemon-reload >/dev/null 2>&1 || rollback_failed=1
+  for index in "${!SERVICES[@]}"; do
+    service="${SERVICES[$index]}"
+    state="${SERVICE_ACTIVE[$index]}"
+    if [[ "$state" == active ]]; then "$SYSTEMCTL" start "$service" >/dev/null 2>&1 || rollback_failed=1; fi
+  done
+  "$NGINX" -s reload >/dev/null 2>&1 || rollback_failed=1
+  rm -rf -- "$transaction_directory"
+  if [[ "$rollback_failed" == 1 ]]; then printf 'RELEASE_ROLLBACK_FAILED primary=%s\n' "$primary" >&2; fi
+  printf '%s\n' "$primary" >&2
+  exit 1
+}
+
+swap_pointer() {
+  local target="$1" temporary="$RELEASE_ROOT/.current.${SHA}.$$"
+  ln -s -- "$target" "$temporary" || return 1
+  if ! mv -T -- "$temporary" "$RELEASE_ROOT/current"; then rm -f -- "$temporary"; return 1; fi
+}
+
+for service in edutrack-ops-web.service edutrack-ops-collector.service; do "$SYSTEMCTL" stop "$service" || rollback RELEASE_WRITER_COHORT_STOP_FAILED; done
+for service in edutrack-ops-web.service edutrack-ops-collector.service; do "$SYSTEMCTL" is-active --quiet "$service" && rollback RELEASE_WRITER_COHORT_ACTIVE; done
+
+mkdir -p -- "$UNIT_DIRECTORY" "$NGINX_DIRECTORY" || rollback RELEASE_CONFIG_DIRECTORY_FAILED
+for index in "${!CONFIG_DESTINATIONS[@]}"; do install -m 0644 -- "${CONFIG_SOURCES[$index]}" "${CONFIG_DESTINATIONS[$index]}" || rollback RELEASE_CONFIG_INSTALL_FAILED; done
+"$SYSTEMCTL" daemon-reload || rollback RELEASE_DAEMON_RELOAD_FAILED
+
+swap_pointer "$RELEASE" || rollback RELEASE_POINTER_SWAP_FAILED
+
+for index in 0 1 2 3 4; do
+  service="${SERVICES[$index]}"
+  "$SYSTEMCTL" restart "$service" || rollback RELEASE_ACTIVATION_SERVICE_FAILED
+  CANDIDATE_STARTED[index]=1
+done
+for index in 5 6; do
+  service="${SERVICES[$index]}"
+  "$SYSTEMCTL" start "$service" || rollback RELEASE_ACTIVATION_SERVICE_FAILED
+  CANDIDATE_STARTED[index]=1
+done
+"$NGINX" -s reload || rollback RELEASE_NGINX_RELOAD_FAILED
+rm -rf -- "$transaction_directory"
 printf 'RELEASE_ACTIVATED release=%s sha=%s previous=%s\n' "$SHA" "$SHA" "${previous##*/}"

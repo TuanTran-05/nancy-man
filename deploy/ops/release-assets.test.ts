@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
   lstatSync,
@@ -105,7 +106,9 @@ function sourceRepository(): { directory: string; sha: string; tree: string } {
 function stub(directory: string, name: string, body: string): string {
   const path = join(directory, 'stubs', name);
   mkdirSync(join(directory, 'stubs'), { recursive: true });
-  writeFileSync(path, `#!/usr/bin/env bash\nset -euo pipefail\n${body}\n`);
+  const normalizedBody =
+    name === 'systemctl' && body === ':' ? 'case "${1:-}" in is-active) exit 1;; esac\n:' : body;
+  writeFileSync(path, `#!/usr/bin/env bash\nset -euo pipefail\n${normalizedBody}\n`);
   execFileSync('chmod', ['0755', path]);
   return path;
 }
@@ -139,6 +142,20 @@ function prepareRelease(
   sourceSha = sha
 ): string {
   return run(prepare, directory, [sourceSha, buildDirectory]);
+}
+
+function refreshManifest(release: string): void {
+  execFileSync(process.execPath, [manifest, 'generate', release]);
+  const digest = createHash('sha256')
+    .update(
+      `${JSON.stringify(JSON.parse(readFileSync(join(release, '.release-manifest.json'), 'utf8')))}\n`
+    )
+    .digest('hex');
+  const marker = JSON.parse(readFileSync(join(release, '.release-source.json'), 'utf8'));
+  writeFileSync(
+    join(release, '.release-source.json'),
+    `${JSON.stringify({ ...marker, manifestDigest: digest })}\n`
+  );
 }
 
 describe('immutable Ops prepare and activate assets', () => {
@@ -232,7 +249,7 @@ describe('immutable Ops prepare and activate assets', () => {
     const systemctl = stub(
       directory,
       'systemctl',
-      'printf "%s\\n" "$*" >> "$EDUTRACK_OPS_RELEASE_TEST_ROOT/calls.log"\ncase "$*" in *edutrack-ops-web.service*) exit 9;; esac'
+      'printf "%s\\n" "$*" >> "$EDUTRACK_OPS_RELEASE_TEST_ROOT/calls.log"\ncase "$*" in verify*) ;; is-active*) exit 1;; start\\ edutrack-ops-web.service) exit 9;; esac'
     );
     const nginx = stub(
       directory,
@@ -247,7 +264,7 @@ describe('immutable Ops prepare and activate assets', () => {
       })
     ).toThrow(/RELEASE_ACTIVATION_SERVICE_FAILED/u);
     expect(readlinkSync(join(directory, 'current'))).toBe(previous);
-    expect(readFileSync(log, 'utf8')).toContain('restart edutrack-ops-web.service');
+    expect(readFileSync(log, 'utf8')).toContain('start edutrack-ops-web.service');
 
     writeFileSync(
       join(directory, 'releases', sha, 'apps', 'web', 'dist', 'server', 'web-entry.js'),
@@ -366,5 +383,109 @@ describe('immutable Ops prepare and activate assets', () => {
       .map((path) => readFileSync(path, 'utf8'))
       .join('\n');
     expect(assets).not.toContain(['/home', 'deploy'].join('/'));
+  });
+
+  it('preflights malformed systemd units without any manager, config, or pointer mutation', () => {
+    const directory = root();
+    prepareRelease(directory);
+    const release = join(directory, 'releases', sha);
+    writeFileSync(
+      join(release, 'deploy', 'ops', 'systemd', 'edutrack-ops-api.service'),
+      'not-a-unit\n'
+    );
+    refreshManifest(release);
+    const log = join(directory, 'calls.log');
+    const systemctl = stub(
+      directory,
+      'systemctl',
+      'printf "%s\\n" "$*" >> "$EDUTRACK_OPS_RELEASE_TEST_ROOT/calls.log"\ncase "$*" in verify*) exit 9;; esac'
+    );
+    const nginx = stub(
+      directory,
+      'nginx',
+      'printf "%s\\n" "$*" >> "$EDUTRACK_OPS_RELEASE_TEST_ROOT/calls.log"'
+    );
+
+    expect(() =>
+      run(activate, directory, [sha], {
+        EDUTRACK_OPS_TEST_SYSTEMCTL: systemctl,
+        EDUTRACK_OPS_TEST_NGINX: nginx
+      })
+    ).toThrow(/RELEASE_SYSTEMD_PREFLIGHT_FAILED/u);
+    expect(existsSync(join(directory, 'installed'))).toBe(false);
+    expect(existsSync(join(directory, 'current'))).toBe(false);
+    expect(readFileSync(log, 'utf8')).toContain('verify');
+    expect(readFileSync(log, 'utf8')).not.toMatch(/daemon-reload|restart|start|stop/u);
+  });
+
+  it('stops and confirms the writer cohort before the pointer swap, then rolls back pointer, services, and exact config bytes on late failure', () => {
+    const directory = root();
+    prepareRelease(directory);
+    const previous = join(directory, 'releases', 'previous');
+    mkdirSync(previous);
+    symlinkSync(previous, join(directory, 'current'));
+    mkdirSync(join(directory, 'installed', 'systemd'), { recursive: true });
+    mkdirSync(join(directory, 'installed', 'nginx'), { recursive: true });
+    writeFileSync(
+      join(directory, 'installed', 'systemd', 'edutrack-ops-web.service'),
+      'old-web-unit\n'
+    );
+    writeFileSync(
+      join(directory, 'installed', 'nginx', 'man.thienuy.edu.vn-api.conf'),
+      'old-vhost\n'
+    );
+    const log = join(directory, 'calls.log');
+    const systemctl = stub(
+      directory,
+      'systemctl',
+      'printf "%s\\n" "$*" >> "$EDUTRACK_OPS_RELEASE_TEST_ROOT/calls.log"\ncase "$*" in verify*) ;; "is-active --quiet edutrack-ops-web.service"|"is-active --quiet edutrack-ops-collector.service") exit 1;; start\\ edutrack-ops-collector.service) exit 9;; esac'
+    );
+    const nginx = stub(
+      directory,
+      'nginx',
+      'printf "%s\\n" "$*" >> "$EDUTRACK_OPS_RELEASE_TEST_ROOT/calls.log"'
+    );
+
+    expect(() =>
+      run(activate, directory, [sha], {
+        EDUTRACK_OPS_TEST_SYSTEMCTL: systemctl,
+        EDUTRACK_OPS_TEST_NGINX: nginx
+      })
+    ).toThrow(/RELEASE_ACTIVATION_SERVICE_FAILED/u);
+    const calls = readFileSync(log, 'utf8');
+    expect(calls.indexOf('stop edutrack-ops-web.service')).toBeLessThan(
+      calls.indexOf('restart edutrack-ops-api.service')
+    );
+    expect(calls).toContain('stop edutrack-ops-collector.service');
+    expect(readlinkSync(join(directory, 'current'))).toBe(previous);
+    expect(
+      readFileSync(join(directory, 'installed', 'systemd', 'edutrack-ops-web.service'), 'utf8')
+    ).toBe('old-web-unit\n');
+    expect(
+      readFileSync(join(directory, 'installed', 'nginx', 'man.thienuy.edu.vn-api.conf'), 'utf8')
+    ).toBe('old-vhost\n');
+  });
+
+  it('routes Nginx reload failure through the full rollback transaction', () => {
+    const directory = root();
+    prepareRelease(directory);
+    mkdirSync(join(directory, 'installed', 'nginx'), { recursive: true });
+    writeFileSync(
+      join(directory, 'installed', 'nginx', 'man.thienuy.edu.vn-api.conf'),
+      'previous-vhost\n'
+    );
+    const systemctl = stub(directory, 'systemctl', ':');
+    const nginx = stub(directory, 'nginx', 'case "$*" in *"-s reload") exit 9;; esac');
+
+    expect(() =>
+      run(activate, directory, [sha], {
+        EDUTRACK_OPS_TEST_SYSTEMCTL: systemctl,
+        EDUTRACK_OPS_TEST_NGINX: nginx
+      })
+    ).toThrow(/RELEASE_NGINX_RELOAD_FAILED/u);
+    expect(existsSync(join(directory, 'current'))).toBe(false);
+    expect(
+      readFileSync(join(directory, 'installed', 'nginx', 'man.thienuy.edu.vn-api.conf'), 'utf8')
+    ).toBe('previous-vhost\n');
   });
 });
