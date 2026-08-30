@@ -394,8 +394,8 @@
           "path": "docs/runbooks/ops-production-workflow.md"
         },
         {
-          "contentSha256": "6c24a8e164b7e7c25b7318c36d98bb04b0f2db0c5b259c543654d03c589135b6",
-          "gitBlobSha": "87aa0e941ca9d8f914898299f0e87385f54c56a9",
+          "contentSha256": "a2d884a8edb896333c603ad6509a6f7c9fe6e4012c569eed08b910c7d741661d",
+          "gitBlobSha": "d19b012dd872fcddffca19883e33d00baaeae00b",
           "path": "deploy/ops/release-assets.test.ts"
         },
         {
@@ -404,7 +404,7 @@
           "path": "deploy/ops/release-manifest.test.ts"
         }
       ],
-      "replacementSha": "199652ddefc3d0c8fe3b7c7d04a15dc20454daa6",
+      "replacementSha": "9df23a9cb4158943f2fc06554ea7fed6b3cd647d",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "992ea26aa08758120d7e290a21b7e7f0886db589",
       "sourceKind": "git-blob",
@@ -432,8 +432,8 @@
           "path": "deploy/ops/prepare-release.sh"
         },
         {
-          "contentSha256": "50964dbf94be80ed123e88f974bb85260c86dd608264036d9e6c614115b10298",
-          "gitBlobSha": "226ac9dea8704bd6c84a60f6559df0d0c70e2997",
+          "contentSha256": "4404eb6fe2e550faf5d38386206f4affd31cd5d9b5fd10d015b97fbc0c5619ce",
+          "gitBlobSha": "baaaf1790ee64637d6c87f6728948a9ebcc30a8a",
           "path": "deploy/ops/activate-release.sh"
         },
         {
@@ -442,8 +442,8 @@
           "path": "deploy/ops/release-manifest.mjs"
         },
         {
-          "contentSha256": "6c24a8e164b7e7c25b7318c36d98bb04b0f2db0c5b259c543654d03c589135b6",
-          "gitBlobSha": "87aa0e941ca9d8f914898299f0e87385f54c56a9",
+          "contentSha256": "a2d884a8edb896333c603ad6509a6f7c9fe6e4012c569eed08b910c7d741661d",
+          "gitBlobSha": "d19b012dd872fcddffca19883e33d00baaeae00b",
           "path": "deploy/ops/release-assets.test.ts"
         },
         {
@@ -452,7 +452,7 @@
           "path": "deploy/ops/release-manifest.test.ts"
         }
       ],
-      "replacementSha": "199652ddefc3d0c8fe3b7c7d04a15dc20454daa6",
+      "replacementSha": "9df23a9cb4158943f2fc06554ea7fed6b3cd647d",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "b4db1a7db3fc1caed3209d89b655f6e4c8cfad17",
       "sourceKind": "git-blob",
