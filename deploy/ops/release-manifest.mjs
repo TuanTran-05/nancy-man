@@ -29,10 +29,14 @@ function forbiddenPath(path) {
     segments.includes('node_modules') ||
     segments.includes('logs') ||
     segments.includes('backups') ||
+    segments.includes('credential') ||
+    segments.includes('credentials') ||
+    segments.includes('secret') ||
+    segments.includes('secrets') ||
     name === '.env' ||
     name.startsWith('.env.') ||
-    /(?:credential|secret|private[._-]?key|\.pem$|\.key$|\.p12$|\.sqlite(?:[.-]|$)|\.db(?:[.-]|$)|\.dump$|\.sql\.(?:gz|zip|zst)$)/iu.test(
-      path
+    /^(?:\.?)(?:credential|credentials|secret|secrets)(?:[._-]|$)|private[._-]?key|\.pem$|\.key$|\.p12$|\.sqlite(?:[.-]|$)|\.db(?:[.-]|$)|\.dump$|\.sql\.(?:gz|zip|zst)$/iu.test(
+      name
     )
   );
 }

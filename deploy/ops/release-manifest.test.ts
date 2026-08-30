@@ -47,6 +47,17 @@ describe('immutable Ops release manifest', () => {
     expect(run('verify', root)).toMatch(/RELEASE_MANIFEST_PASS/u);
   });
 
+  it('allows compiled code filenames that mention a secret without allowing secret-bearing paths', () => {
+    const root = fixture();
+    writeFileSync(join(root, 'apps', 'api', 'dist', 'fileSecretResolver.js'), 'export {};\n');
+
+    expect(() => run('generate', root)).not.toThrow();
+    const manifest = JSON.parse(readFileSync(join(root, '.release-manifest.json'), 'utf8'));
+    expect(manifest.entries.map((entry: { path: string }) => entry.path)).toContain(
+      'apps/api/dist/fileSecretResolver.js'
+    );
+  });
+
   it('rejects corruption, symlinks, hardlinks, traversal paths, and secret or shared-data classes', () => {
     const root = fixture();
     run('generate', root);
