@@ -71,8 +71,39 @@ describe('cron and backup parser', () => {
       },
       new Date('2026-08-23T01:00:00Z')
     );
-    expect(disk.backupErrorCode).toBe('backup_disk_critical');
+    expect(disk).toMatchObject({
+      backupLevel: 'critical',
+      backupErrorCode: 'backup_disk_critical'
+    });
   });
+
+  it.each([
+    { diskUsagePercent: 80, backupLevel: 'warning', backupErrorCode: 'backup_local_only' },
+    { diskUsagePercent: 81, backupLevel: 'warning', backupErrorCode: 'backup_disk_warning' },
+    { diskUsagePercent: 90, backupLevel: 'warning', backupErrorCode: 'backup_disk_warning' },
+    { diskUsagePercent: 91, backupLevel: 'critical', backupErrorCode: 'backup_disk_critical' }
+  ])(
+    'uses strict disk thresholds at $diskUsagePercent%',
+    ({ diskUsagePercent, backupLevel, backupErrorCode }) => {
+      const state = parseCronAndBackupState(
+        {
+          cronLines: [],
+          backupFiles: [
+            {
+              name: 'db.age',
+              mtimeMs: Date.parse('2026-08-23T00:00:00Z'),
+              size: 1,
+              encrypted: true,
+              checksumPresent: true
+            }
+          ],
+          diskUsagePercent
+        },
+        new Date('2026-08-23T01:00:00Z')
+      );
+      expect(state).toMatchObject({ backupLevel, backupErrorCode });
+    }
+  );
 
   it('keeps backup local-only warning separate from a healthy cron monitor', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ops-backup-'));
