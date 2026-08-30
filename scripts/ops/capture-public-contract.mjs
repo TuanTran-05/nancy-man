@@ -96,11 +96,15 @@ function encodedTokens(value) {
   for (const match of value.matchAll(/[A-Za-z0-9+/_-]+=*/gu)) {
     const token = match[0];
     addToken(token);
+    let segmentStart = 0;
     for (let index = 0; index < token.length; index += 1) {
       if (token[index] !== '_' && token[index] !== '-' && token[index] !== '/') continue;
       addToken(token.slice(0, index));
       addToken(token.slice(index + 1));
+      addToken(token.slice(segmentStart, index));
+      segmentStart = index + 1;
     }
+    addToken(token.slice(segmentStart));
   }
   return tokens;
 }
@@ -460,14 +464,19 @@ async function readCappedBody(response, bodyCapBytes, deadline, controller) {
       bytes += value.byteLength;
       if (bytes > bodyCapBytes) {
         controller.abort();
-        cancelBestEffort(() => reader.cancel());
         fail('PUBLIC_CONTRACT_BODY_TOO_LARGE');
       }
       chunks.push(value);
     }
   } catch (error) {
-    if (error instanceof Error && error.message === 'PUBLIC_CONTRACT_CONTACT_TIMEOUT')
-      cancelBestEffort(() => reader.cancel());
+    const abortedBeforeCleanup = controller.signal.aborted;
+    if (!abortedBeforeCleanup) controller.abort();
+    cancelBestEffort(() => reader.cancel());
+    if (
+      !(error instanceof Error && /^PUBLIC_CONTRACT_[A-Z_]+$/u.test(error.message)) &&
+      !abortedBeforeCleanup
+    )
+      fail('PUBLIC_CONTRACT_CONTACT_FAILED');
     throw error;
   } finally {
     try {

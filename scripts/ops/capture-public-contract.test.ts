@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Buffer } from 'node:buffer';
 
 import {
   buildPublicContract,
@@ -231,6 +232,78 @@ describe('Ops public-contract capture', () => {
         ...unauthorizedResponse('/api/session').headers,
         ...(mutation.headers ?? {})
       }
+    };
+    expect(() =>
+      buildPublicContract([rootResponse, unauthorizedResponse('/api/overview'), fixture])
+    ).toThrow('PUBLIC_CONTRACT_FORBIDDEN_MATERIAL');
+  });
+
+  it.each([
+    ['underscore-delimited interior shape key', { body: '{"prefix_c2VjcmV0_suffix":"value"}' }],
+    ['hyphen-delimited interior shape key', { body: '{"prefix-c2VjcmV0-suffix":"value"}' }],
+    ['slash-delimited interior shape key', { body: '{"prefix/c2VjcmV0/suffix":"value"}' }],
+    [
+      'percent-wrapped interior shape key',
+      { body: '{"%70%72%65%66%69%78%5Fc2VjcmV0%5F%73%75%66%66%69%78":"value"}' }
+    ],
+    [
+      'underscore-delimited interior selected header',
+      { headers: { 'cache-control': 'prefix_c2VjcmV0_suffix' } }
+    ],
+    [
+      'hyphen-delimited interior selected header',
+      { headers: { 'cache-control': 'prefix-c2VjcmV0-suffix' } }
+    ],
+    [
+      'slash-delimited interior selected header',
+      { headers: { 'cache-control': 'prefix/c2VjcmV0/suffix' } }
+    ],
+    [
+      'percent-wrapped interior selected header',
+      {
+        headers: {
+          'cache-control': '%70%72%65%66%69%78%5Fc2VjcmV0%5F%73%75%66%66%69%78'
+        }
+      }
+    ]
+  ])('rejects two-sided encoded tokens in retained %s', (_name, mutation) => {
+    const fixture = {
+      ...unauthorizedResponse('/api/session'),
+      ...mutation,
+      headers: {
+        ...unauthorizedResponse('/api/session').headers,
+        ...(mutation.headers ?? {})
+      }
+    };
+    expect(() =>
+      buildPublicContract([rootResponse, unauthorizedResponse('/api/overview'), fixture])
+    ).toThrow('PUBLIC_CONTRACT_FORBIDDEN_MATERIAL');
+  });
+
+  it.each([
+    [
+      'decode-stage budget',
+      Array.from({ length: 8 }).reduce((value) => encodeURIComponent(value), '%73ql')
+    ],
+    ['encoded-value length budget', 'A'.repeat(4097)],
+    [
+      'encoded-token count budget',
+      Array.from({ length: 65 }, (_, index) => `q${index.toString(36).padStart(3, '0')}`).join(',')
+    ],
+    [
+      'encoded-token character budget',
+      Array.from({ length: 5 }, (_, index) => `${'A'.repeat(4095)}${index}`).join(',')
+    ],
+    [
+      'decoded-variant budget',
+      Array.from({ length: 33 }, (_, index) =>
+        Buffer.from(`v${index.toString().padStart(2, '0')}`).toString('base64')
+      ).join(',')
+    ]
+  ])('fails closed at the adversarial %s', (_name, retainedKey) => {
+    const fixture = {
+      ...unauthorizedResponse('/api/session'),
+      body: JSON.stringify({ [retainedKey]: 'value' })
     };
     expect(() =>
       buildPublicContract([rootResponse, unauthorizedResponse('/api/overview'), fixture])
@@ -545,5 +618,135 @@ describe('Ops public-contract capture', () => {
     } finally {
       process.off('unhandledRejection', observeUnhandled);
     }
+  });
+
+  it('aborts and absorbs synchronous cancellation failure after an immediate reader rejection', async () => {
+    const onContact = vi.fn();
+    let abortCount = 0;
+    let cancelCount = 0;
+    const code = await rejectionCodeWithin(
+      capturePublicContract({
+        baseUrl: 'http://127.0.0.1:3101',
+        timeoutMs: 500,
+        onContact,
+        fetchImpl: vi.fn(async (_input, init) => {
+          init?.signal?.addEventListener('abort', () => {
+            abortCount += 1;
+          });
+          return {
+            status: 200,
+            headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+            body: {
+              getReader: () => ({
+                read: () => Promise.reject(new Error('fixture immediate reader failure')),
+                cancel: () => {
+                  cancelCount += 1;
+                  throw new Error('fixture synchronous cancellation failure');
+                },
+                releaseLock: () => {}
+              })
+            }
+          } as unknown as Response;
+        })
+      })
+    );
+
+    expect(code).toBe('PUBLIC_CONTRACT_CONTACT_FAILED');
+    expect(abortCount).toBe(1);
+    expect(cancelCount).toBe(1);
+    expect(onContact).not.toHaveBeenCalled();
+  });
+
+  it('absorbs a late cancellation rejection after an immediate reader rejection', async () => {
+    const onContact = vi.fn();
+    const unhandled: unknown[] = [];
+    let abortCount = 0;
+    let cancelCount = 0;
+    const observeUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', observeUnhandled);
+    try {
+      const code = await rejectionCodeWithin(
+        capturePublicContract({
+          baseUrl: 'http://127.0.0.1:3101',
+          timeoutMs: 500,
+          onContact,
+          fetchImpl: vi.fn(async (_input, init) => {
+            init?.signal?.addEventListener('abort', () => {
+              abortCount += 1;
+            });
+            return {
+              status: 200,
+              headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+              body: {
+                getReader: () => ({
+                  read: () => Promise.reject(new Error('fixture immediate reader failure')),
+                  cancel: () => {
+                    cancelCount += 1;
+                    return new Promise<void>((_resolve, reject) => {
+                      setTimeout(() => reject(new Error('fixture late cancellation failure')), 10);
+                    });
+                  },
+                  releaseLock: () => {}
+                })
+              }
+            } as unknown as Response;
+          })
+        })
+      );
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      expect(code).toBe('PUBLIC_CONTRACT_CONTACT_FAILED');
+      expect(abortCount).toBe(1);
+      expect(cancelCount).toBe(1);
+      expect(unhandled).toEqual([]);
+      expect(onContact).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', observeUnhandled);
+    }
+  });
+
+  it('non-blockingly cancels when AbortSignal makes a pending reader reject', async () => {
+    const onContact = vi.fn();
+    let abortCount = 0;
+    let cancelCount = 0;
+    const code = await rejectionCodeWithin(
+      capturePublicContract({
+        baseUrl: 'http://127.0.0.1:3101',
+        timeoutMs: 100,
+        onContact,
+        fetchImpl: vi.fn(async (_input, init) => {
+          const signal = init?.signal;
+          signal?.addEventListener('abort', () => {
+            abortCount += 1;
+          });
+          return {
+            status: 200,
+            headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+            body: {
+              getReader: () => ({
+                read: () =>
+                  new Promise<never>((_resolve, reject) => {
+                    signal?.addEventListener(
+                      'abort',
+                      () => reject(new Error('fixture AbortSignal reader failure')),
+                      { once: true }
+                    );
+                  }),
+                cancel: () => {
+                  cancelCount += 1;
+                  return new Promise<void>(() => {});
+                },
+                releaseLock: () => {}
+              })
+            }
+          } as unknown as Response;
+        })
+      })
+    );
+
+    expect(code).toBe('PUBLIC_CONTRACT_CONTACT_TIMEOUT');
+    expect(abortCount).toBe(1);
+    expect(cancelCount).toBe(1);
+    expect(onContact).not.toHaveBeenCalled();
   });
 });
