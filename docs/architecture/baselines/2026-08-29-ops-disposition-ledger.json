@@ -389,13 +389,13 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "6a957632e045972c16d004613961f0163e6a09a640696a5b815670da07bd198b",
-          "gitBlobSha": "6ab970b05ee66f7cec323cfc42dba27877af99db",
+          "contentSha256": "74d059d6417be0aba382b73cc986ec5e98aa5c37ddffd80e0f9d678b106e4082",
+          "gitBlobSha": "f4c392a1f3e8ceb1b1c4dc70a109c8253ad845a7",
           "path": "docs/runbooks/ops-production-workflow.md"
         },
         {
-          "contentSha256": "16abbe0139f2a19200f01fe66afe2dce5a14ef8cba966a90f90866d34fef0d87",
-          "gitBlobSha": "cbd0fc7dd95c115d00abd46a9ad856de619c067d",
+          "contentSha256": "ac8e47923d8f0670aef3d4b4e59469a0e80e792faeee90c456b6736f768c87e5",
+          "gitBlobSha": "70e0a635b9385750c63ca6d748184795256e3be7",
           "path": "deploy/ops/release-assets.test.ts"
         },
         {
@@ -404,14 +404,14 @@
           "path": "deploy/ops/release-manifest.test.ts"
         }
       ],
-      "replacementSha": "e10498ca6ed17f4f08932c950b5186bb25dba778",
+      "replacementSha": "837e8e183ed1cdee2ae4531c51ec462ecb9b33ee",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "992ea26aa08758120d7e290a21b7e7f0886db589",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/release-checklist.md",
       "sourceSha256": "db4729bea1b17c29bfbdce53823877bc3ad3edfe5857f7937c7f0a89bbb2b610",
-      "targetContentSha256": "6a957632e045972c16d004613961f0163e6a09a640696a5b815670da07bd198b",
-      "targetGitBlobSha": "6ab970b05ee66f7cec323cfc42dba27877af99db",
+      "targetContentSha256": "74d059d6417be0aba382b73cc986ec5e98aa5c37ddffd80e0f9d678b106e4082",
+      "targetGitBlobSha": "f4c392a1f3e8ceb1b1c4dc70a109c8253ad845a7",
       "targetPath": "docs/runbooks/ops-production-workflow.md",
       "targetRepository": "edutrack-ops"
     },
@@ -432,8 +432,8 @@
           "path": "deploy/ops/prepare-release.sh"
         },
         {
-          "contentSha256": "4404eb6fe2e550faf5d38386206f4affd31cd5d9b5fd10d015b97fbc0c5619ce",
-          "gitBlobSha": "baaaf1790ee64637d6c87f6728948a9ebcc30a8a",
+          "contentSha256": "5a8652495279d59b239deaad12cb4b4b904d22e6e19ebb98b26cffe477ea8f18",
+          "gitBlobSha": "a3e65d92b91ab6a41965048c301698fcf7fec9b2",
           "path": "deploy/ops/activate-release.sh"
         },
         {
@@ -442,8 +442,8 @@
           "path": "deploy/ops/release-manifest.mjs"
         },
         {
-          "contentSha256": "16abbe0139f2a19200f01fe66afe2dce5a14ef8cba966a90f90866d34fef0d87",
-          "gitBlobSha": "cbd0fc7dd95c115d00abd46a9ad856de619c067d",
+          "contentSha256": "ac8e47923d8f0670aef3d4b4e59469a0e80e792faeee90c456b6736f768c87e5",
+          "gitBlobSha": "70e0a635b9385750c63ca6d748184795256e3be7",
           "path": "deploy/ops/release-assets.test.ts"
         },
         {
@@ -452,7 +452,7 @@
           "path": "deploy/ops/release-manifest.test.ts"
         }
       ],
-      "replacementSha": "e10498ca6ed17f4f08932c950b5186bb25dba778",
+      "replacementSha": "837e8e183ed1cdee2ae4531c51ec462ecb9b33ee",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "b4db1a7db3fc1caed3209d89b655f6e4c8cfad17",
       "sourceKind": "git-blob",
