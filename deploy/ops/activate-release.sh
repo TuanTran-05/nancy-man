@@ -2,16 +2,32 @@
 set -euo pipefail
 umask 022
 
-readonly SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_DIR="$(unset CDPATH; cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 readonly MANIFEST_TOOL="$SCRIPT_DIR/release-manifest.mjs"
+TEST_TMP_DIRECTORY=/tmp
+readonly TEST_TMP_DIRECTORY
 fail() { printf '%s\n' "$1" >&2; exit 1; }
 
 test_root() {
-  local candidate="${EDUTRACK_OPS_RELEASE_TEST_ROOT:-}"
+  local candidate resolved parent
   [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]] || fail RELEASE_TEST_MODE_REQUIRED
-  [[ "$candidate" == /tmp/edutrack-ops-release-test-* ]] || fail RELEASE_TEST_ROOT_INVALID
+  candidate="${EDUTRACK_OPS_RELEASE_TEST_ROOT:-}"
+  [[ -d "$candidate" && ! -L "$candidate" ]] || fail RELEASE_TEST_ROOT_INVALID
+  resolved="$(unset CDPATH; cd -P -- "$candidate" && pwd)" || fail RELEASE_TEST_ROOT_INVALID
+  parent="$(dirname -- "$resolved")"
+  [[ "$parent" == "$TEST_TMP_DIRECTORY" && "${resolved##*/}" == edutrack-ops-release-test-* ]] || fail RELEASE_TEST_ROOT_INVALID
   [[ -d "$candidate/releases" && ! -L "$candidate" && ! -L "$candidate/releases" ]] || fail RELEASE_TEST_ROOT_INVALID
-  printf '%s\n' "$(CDPATH= cd -- "$candidate" && pwd -P)"
+  printf '%s\n' "$resolved"
+}
+
+test_command() {
+  local candidate resolved
+  candidate="$1"
+  [[ -n "$candidate" && -f "$candidate" && -x "$candidate" && ! -L "$candidate" ]] || return 1
+  resolved="$(readlink -f -- "$candidate" 2>/dev/null)" || return 1
+  [[ "$resolved" == "$RELEASE_ROOT"/* && -f "$resolved" && -x "$resolved" ]] || return 1
+  printf '%s\n' "$resolved"
 }
 
 if [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]]; then
@@ -19,17 +35,20 @@ if [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]]; then
   readonly RELEASE_ROOT
   readonly UNIT_DIRECTORY="$RELEASE_ROOT/installed/systemd"
   readonly NGINX_DIRECTORY="$RELEASE_ROOT/installed/nginx"
-  readonly SYSTEMCTL="${EDUTRACK_OPS_TEST_SYSTEMCTL:-}"
-  readonly NGINX="${EDUTRACK_OPS_TEST_NGINX:-}"
-  [[ -n "$SYSTEMCTL" && "$SYSTEMCTL" == "$RELEASE_ROOT"/* && -x "$SYSTEMCTL" ]] || fail RELEASE_TEST_SYSTEMCTL_INVALID
-  [[ -n "$NGINX" && "$NGINX" == "$RELEASE_ROOT"/* && -x "$NGINX" ]] || fail RELEASE_TEST_NGINX_INVALID
+  SYSTEMCTL="$(test_command "${EDUTRACK_OPS_TEST_SYSTEMCTL:-}")" || fail RELEASE_TEST_SYSTEMCTL_INVALID
+  readonly SYSTEMCTL
+  NGINX="$(test_command "${EDUTRACK_OPS_TEST_NGINX:-}")" || fail RELEASE_TEST_NGINX_INVALID
+  readonly NGINX
 else
   [[ -z "${EDUTRACK_OPS_RELEASE_TEST_ROOT:-}${EDUTRACK_OPS_TEST_SYSTEMCTL:-}${EDUTRACK_OPS_TEST_NGINX:-}" ]] || fail RELEASE_TEST_OVERRIDE_FORBIDDEN
   readonly RELEASE_ROOT=/srv/edutrack-ops
   readonly UNIT_DIRECTORY=/etc/systemd/system
   readonly NGINX_DIRECTORY=/etc/nginx/conf.d
-  readonly SYSTEMCTL="$(command -v systemctl)"
-  readonly NGINX="$(command -v nginx)"
+  [[ "$(id -u)" == 0 ]] || fail RELEASE_ROOT_REQUIRED
+  [[ -x /usr/bin/systemctl && -f /usr/bin/systemctl ]] || fail RELEASE_SYSTEMCTL_ABSENT
+  [[ -x /usr/sbin/nginx && -f /usr/sbin/nginx ]] || fail RELEASE_NGINX_ABSENT
+  readonly SYSTEMCTL=/usr/bin/systemctl
+  readonly NGINX=/usr/sbin/nginx
 fi
 
 readonly SHA="${1:-}"
@@ -39,10 +58,10 @@ readonly RELEASE="$RELEASE_ROOT/releases/$SHA"
 [[ -f "$RELEASE/.release-source.json" && -f "$RELEASE/.release-manifest.json" ]] || fail RELEASE_MARKER_ABSENT
 node "$MANIFEST_TOOL" verify "$RELEASE" >/dev/null
 
-marker="$(node -e '
+# shellcheck disable=SC2016 # JavaScript template interpolation must reach Node literally.
+node -e '
 const fs=require("node:fs"), crypto=require("node:crypto"); try { const marker=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const manifest=JSON.parse(fs.readFileSync(process.argv[2],"utf8")); const digest=crypto.createHash("sha256").update(`${JSON.stringify(manifest)}\n`).digest("hex"); if (marker.gitSha!==process.argv[3] || !/^[0-9a-f]{40}$/.test(marker.treeSha) || marker.manifestDigest!==digest || Object.keys(marker).some((key)=>!["gitSha","treeSha","manifestDigest"].includes(key))) process.exit(1); } catch { process.exit(1); }
-' "$RELEASE/.release-source.json" "$RELEASE/.release-manifest.json" "$SHA" || fail RELEASE_MARKER_INVALID)"
-readonly marker
+' "$RELEASE/.release-source.json" "$RELEASE/.release-manifest.json" "$SHA" || fail RELEASE_MARKER_INVALID
 
 readonly UNITS=(
   edutrack-ops-api.service

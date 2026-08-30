@@ -67,6 +67,41 @@ function build(directory: string, sourceSha = sha): string {
   return output;
 }
 
+function sourceRepository(): { directory: string; sha: string; tree: string } {
+  const directory = mkdtempSync(join(tmpdir(), 'edutrack-ops-release-source-'));
+  execFileSync('git', ['init', '--initial-branch=main', directory]);
+  execFileSync('git', ['-C', directory, 'config', 'user.email', 'test@example.invalid']);
+  execFileSync('git', ['-C', directory, 'config', 'user.name', 'Release Test']);
+  for (const path of [
+    'deploy/ops/env/api.env.example',
+    'deploy/ops/env/collector.env.example',
+    'deploy/ops/env/sql-worker.env.example',
+    'deploy/ops/env/web.env.example',
+    'deploy/ops/nginx/man.thienuy.edu.vn-api.conf',
+    'deploy/ops/systemd/edutrack-ops-api.service',
+    'deploy/ops/systemd/edutrack-ops-web.service',
+    'deploy/ops/systemd/edutrack-ops-collector.service',
+    'deploy/ops/systemd/edutrack-ops-collector-failed@.service',
+    'deploy/ops/systemd/edutrack-ops-processor.service',
+    'deploy/ops/systemd/edutrack-ops-notifier.service',
+    'deploy/ops/systemd/edutrack-ops-sql-worker.service',
+    'deploy/ops/systemd/edutrack-ops-migrate.service'
+  ]) {
+    mkdirSync(join(directory, path, '..'), { recursive: true });
+    writeFileSync(join(directory, path), `committed:${path}\n`);
+  }
+  writeFileSync(join(directory, 'deploy', 'ops', 'release-manifest.mjs'), 'committed-manifest\n');
+  execFileSync('git', ['-C', directory, 'add', '.']);
+  execFileSync('git', ['-C', directory, 'commit', '-m', 'fixture release assets']);
+  const sourceSha = execFileSync('git', ['-C', directory, 'rev-parse', 'HEAD'], {
+    encoding: 'utf8'
+  }).trim();
+  const sourceTree = execFileSync('git', ['-C', directory, 'rev-parse', 'HEAD^{tree}'], {
+    encoding: 'utf8'
+  }).trim();
+  return { directory, sha: sourceSha, tree: sourceTree };
+}
+
 function stub(directory: string, name: string, body: string): string {
   const path = join(directory, 'stubs', name);
   mkdirSync(join(directory, 'stubs'), { recursive: true });
@@ -156,6 +191,35 @@ describe('immutable Ops prepare and activate assets', () => {
     expect(
       execFileSync(process.execPath, [manifest, 'verify', release], { encoding: 'utf8' })
     ).toMatch(/RELEASE_MANIFEST_PASS/u);
+  });
+
+  it('copies deployment payload bytes from the requested Git commit, never dirty checkout files', () => {
+    const directory = root();
+    const source = sourceRepository();
+    const verifiedBuild = build(directory, source.sha);
+    writeFileSync(
+      join(verifiedBuild, '.edutrack-ops-build.json'),
+      `${JSON.stringify({ gitSha: source.sha, treeSha: source.tree })}\n`
+    );
+    writeFileSync(
+      join(source.directory, 'deploy', 'ops', 'nginx', 'man.thienuy.edu.vn-api.conf'),
+      'dirty-checkout-byte\n'
+    );
+    writeFileSync(
+      join(source.directory, 'deploy', 'ops', 'release-manifest.mjs'),
+      'dirty-manifest-byte\n'
+    );
+
+    run(prepare, directory, [source.sha, verifiedBuild], {
+      EDUTRACK_OPS_RELEASE_REPOSITORY: source.directory
+    });
+    const release = join(directory, 'releases', source.sha);
+    expect(
+      readFileSync(join(release, 'deploy', 'ops', 'nginx', 'man.thienuy.edu.vn-api.conf'), 'utf8')
+    ).toBe('committed:deploy/ops/nginx/man.thienuy.edu.vn-api.conf\n');
+    expect(readFileSync(join(release, 'deploy', 'ops', 'release-manifest.mjs'), 'utf8')).toBe(
+      'committed-manifest\n'
+    );
   });
 
   it('preflights before pointer or config side effects, atomically swaps a same-root current pointer, and rolls back a failed restart', () => {
@@ -261,6 +325,40 @@ describe('immutable Ops prepare and activate assets', () => {
         encoding: 'utf8'
       })
     ).toThrow(/RELEASE_TEST_ROOT_INVALID/u);
+  });
+
+  it('rejects traversal and escaped command stubs before a test operation can leave its fixture', () => {
+    const directory = root();
+    const escaped = mkdtempSync(join(tmpdir(), 'ops-release-escaped-'));
+    mkdirSync(join(escaped, 'releases'));
+    const escapedRoot = join(directory, '..', basename(escaped));
+    const escapedSystemctl = stub(escaped, 'systemctl', 'exit 99');
+    const escapedNginx = stub(escaped, 'nginx', 'exit 99');
+
+    expect(() =>
+      run(prepare, directory, [sha, build(directory)], {
+        EDUTRACK_OPS_RELEASE_TEST_ROOT: escapedRoot
+      })
+    ).toThrow(/RELEASE_TEST_ROOT_INVALID/u);
+    prepareRelease(directory);
+    expect(() =>
+      run(activate, directory, [sha], {
+        EDUTRACK_OPS_TEST_SYSTEMCTL: join(
+          directory,
+          '..',
+          basename(escaped),
+          'stubs',
+          basename(escapedSystemctl)
+        ),
+        EDUTRACK_OPS_TEST_NGINX: join(
+          directory,
+          '..',
+          basename(escaped),
+          'stubs',
+          basename(escapedNginx)
+        )
+      })
+    ).toThrow(/RELEASE_TEST_SYSTEMCTL_INVALID/u);
   });
 
   it('contains no source-checkout path in the deployment assets', () => {

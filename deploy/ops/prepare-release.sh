@@ -2,27 +2,38 @@
 set -euo pipefail
 umask 022
 
-readonly SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_DIR="$(unset CDPATH; cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 readonly MANIFEST_TOOL="$SCRIPT_DIR/release-manifest.mjs"
+TEST_TMP_DIRECTORY=/tmp
+readonly TEST_TMP_DIRECTORY
 
 fail() { printf '%s\n' "$1" >&2; exit 1; }
 
 test_root() {
-  local candidate="${EDUTRACK_OPS_RELEASE_TEST_ROOT:-}"
+  local candidate resolved parent
   [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]] || fail RELEASE_TEST_MODE_REQUIRED
-  [[ "$candidate" == /tmp/edutrack-ops-release-test-* ]] || fail RELEASE_TEST_ROOT_INVALID
+  candidate="${EDUTRACK_OPS_RELEASE_TEST_ROOT:-}"
+  [[ -d "$candidate" && ! -L "$candidate" ]] || fail RELEASE_TEST_ROOT_INVALID
+  resolved="$(unset CDPATH; cd -P -- "$candidate" && pwd)" || fail RELEASE_TEST_ROOT_INVALID
+  parent="$(dirname -- "$resolved")"
+  [[ "$parent" == "$TEST_TMP_DIRECTORY" && "${resolved##*/}" == edutrack-ops-release-test-* ]] || fail RELEASE_TEST_ROOT_INVALID
   [[ -d "$candidate/releases" && ! -L "$candidate" && ! -L "$candidate/releases" ]] || fail RELEASE_TEST_ROOT_INVALID
-  printf '%s\n' "$(CDPATH= cd -- "$candidate" && pwd -P)"
+  printf '%s\n' "$resolved"
 }
 
 if [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]]; then
   RELEASE_ROOT="$(test_root)" || exit 1
   readonly RELEASE_ROOT
-  readonly REPOSITORY="${EDUTRACK_OPS_RELEASE_REPOSITORY:-$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd -P)}"
+  REPOSITORY="${EDUTRACK_OPS_RELEASE_REPOSITORY:-$SCRIPT_DIR/../..}"
+  REPOSITORY="$(unset CDPATH; cd -P -- "$REPOSITORY" && pwd)" || fail RELEASE_REPOSITORY_INVALID
+  readonly REPOSITORY
 else
   [[ -z "${EDUTRACK_OPS_RELEASE_TEST_ROOT:-}${EDUTRACK_OPS_RELEASE_REPOSITORY:-}" ]] || fail RELEASE_TEST_OVERRIDE_FORBIDDEN
   readonly RELEASE_ROOT=/srv/edutrack-ops
-  readonly REPOSITORY="$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd -P)"
+  REPOSITORY="$(unset CDPATH; cd -P -- "$SCRIPT_DIR/../.." && pwd)" || fail RELEASE_REPOSITORY_INVALID
+  readonly REPOSITORY
+  [[ "$(id -u)" == 0 ]] || fail RELEASE_ROOT_REQUIRED
 fi
 
 readonly SHA="${1:-}"
@@ -48,7 +59,7 @@ is_safe_source_tree() {
   local base="$1" path relative links
   while IFS= read -r -d '' path; do
     relative="${path#"$base"/}"
-    [[ "$relative" != *'..'* && "$relative" != *'\\'* ]] || return 1
+    case "$relative" in *..*|*\\*) return 1 ;; esac
     [[ ! -L "$path" ]] || return 1
     links="$(stat -c '%h' -- "$path")"
     [[ "$links" == 1 ]] || return 1
@@ -82,6 +93,15 @@ trap 'rm -rf -- "$STAGING"' EXIT
 mkdir -- "$STAGING"
 copy_file() { install -D -m 0644 -- "$1" "$STAGING/$2"; }
 copy_tree() { mkdir -p -- "$STAGING/$2"; cp -a --no-preserve=ownership -- "$1/." "$STAGING/$2/"; }
+copy_git_blob() {
+  local source entry mode
+  source="$1"
+  entry="$(git -C "$REPOSITORY" ls-tree "$SHA" -- "$source")"
+  mode="${entry%% *}"
+  [[ "$mode" == 100644 || "$mode" == 100755 ]] || fail RELEASE_DEPLOY_ASSET_ABSENT
+  mkdir -p -- "$STAGING/$(dirname -- "$source")"
+  git -C "$REPOSITORY" show "$SHA:$source" > "$STAGING/$source"
+}
 
 copy_file "$BUILD_DIR/package.json" package.json
 copy_file "$BUILD_DIR/package-lock.json" package-lock.json
@@ -94,14 +114,26 @@ for dist in "$BUILD_DIR"/apps/*/dist "$BUILD_DIR"/packages/*/dist; do
   copy_tree "$dist" "${dist#"$BUILD_DIR"/}"
 done
 copy_tree "$BUILD_DIR/packages/db/migrations" packages/db/migrations
-for asset in env nginx systemd; do
-  [[ -d "$REPOSITORY/deploy/ops/$asset" && ! -L "$REPOSITORY/deploy/ops/$asset" ]] || fail RELEASE_DEPLOY_ASSET_ABSENT
-  is_safe_source_tree "$REPOSITORY/deploy/ops/$asset" || fail RELEASE_DEPLOY_ASSET_FORBIDDEN
-  copy_tree "$REPOSITORY/deploy/ops/$asset" "deploy/ops/$asset"
-done
-copy_file "$MANIFEST_TOOL" deploy/ops/release-manifest.mjs
+readonly DEPLOY_ASSETS=(
+  deploy/ops/release-manifest.mjs
+  deploy/ops/env/api.env.example
+  deploy/ops/env/collector.env.example
+  deploy/ops/env/sql-worker.env.example
+  deploy/ops/env/web.env.example
+  deploy/ops/nginx/man.thienuy.edu.vn-api.conf
+  deploy/ops/systemd/edutrack-ops-api.service
+  deploy/ops/systemd/edutrack-ops-web.service
+  deploy/ops/systemd/edutrack-ops-collector.service
+  deploy/ops/systemd/edutrack-ops-collector-failed@.service
+  deploy/ops/systemd/edutrack-ops-processor.service
+  deploy/ops/systemd/edutrack-ops-notifier.service
+  deploy/ops/systemd/edutrack-ops-sql-worker.service
+  deploy/ops/systemd/edutrack-ops-migrate.service
+)
+for asset in "${DEPLOY_ASSETS[@]}"; do copy_git_blob "$asset"; done
 
 node "$MANIFEST_TOOL" generate "$STAGING" >/dev/null
+# shellcheck disable=SC2016 # JavaScript template interpolation must reach Node literally.
 manifest_digest="$(node -e 'const fs=require("node:fs"), crypto=require("node:crypto"); const value=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(crypto.createHash("sha256").update(`${JSON.stringify(value)}\n`).digest("hex"));' "$STAGING/.release-manifest.json")"
 printf '{"gitSha":"%s","treeSha":"%s","manifestDigest":"%s"}\n' "$SHA" "$tree_sha" "$manifest_digest" > "$STAGING/.release-source.json"
 node "$MANIFEST_TOOL" verify "$STAGING" >/dev/null || fail RELEASE_MANIFEST_INVALID
