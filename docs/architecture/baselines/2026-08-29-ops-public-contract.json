@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "route": {
+        "method": "GET",
+        "path": "/"
+      },
+      "status": 200,
+      "jsonShape": null,
+      "securityHeaders": {
+        "cache-control": "public, max-age=3600"
+      },
+      "uiLandmarks": [
+        "#root",
+        "html[lang=vi]",
+        "meta[name=robots][content=noindex,nofollow]",
+        "title=Thien Uy Ops Console"
+      ]
+    },
+    {
+      "route": {
+        "method": "GET",
+        "path": "/api/overview"
+      },
+      "status": 401,
+      "jsonShape": {
+        "type": "object",
+        "keys": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "securityHeaders": {
+        "cache-control": "no-store"
+      },
+      "uiLandmarks": []
+    },
+    {
+      "route": {
+        "method": "GET",
+        "path": "/api/session"
+      },
+      "status": 401,
+      "jsonShape": {
+        "type": "object",
+        "keys": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "securityHeaders": {
+        "cache-control": "no-store"
+      },
+      "uiLandmarks": []
+    }
+  ]
+}
