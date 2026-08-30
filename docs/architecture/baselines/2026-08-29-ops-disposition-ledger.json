@@ -381,38 +381,86 @@
     },
     {
       "capturedAt": "2026-08-30T05:17:12.000Z",
-      "disposition": "pending",
+      "disposition": "superseded",
       "evidence": [
-        "docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json"
+        "docs/runbooks/ops-production-workflow.md",
+        "deploy/ops/release-assets.test.ts",
+        "deploy/ops/release-manifest.test.ts"
       ],
-      "evidenceIdentities": [],
-      "replacementSha": null,
+      "evidenceIdentities": [
+        {
+          "contentSha256": "6a44388944a47b17c7e6651e52df40466c3b32560467d79fd6ac13e011ca08fb",
+          "gitBlobSha": "ae8d0e7e6812dadba212ff2ff99930214eaca7fc",
+          "path": "docs/runbooks/ops-production-workflow.md"
+        },
+        {
+          "contentSha256": "79570dd78eb915398e9859d58a590db621e74dacd7cffaadbb0219ad11e8612c",
+          "gitBlobSha": "c3891a499319e0b73517d6e470e46477da41ce55",
+          "path": "deploy/ops/release-assets.test.ts"
+        },
+        {
+          "contentSha256": "79bb3f93185e0eee27ae1cc7db80274b9699727f3b0857a54a2e3aad7a9e1689",
+          "gitBlobSha": "603cd96f924f8d2f41f08bd4cf4b72221637986e",
+          "path": "deploy/ops/release-manifest.test.ts"
+        }
+      ],
+      "replacementSha": "7cc2193257e8437574d26cfd531f23b17609d828",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "992ea26aa08758120d7e290a21b7e7f0886db589",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/release-checklist.md",
       "sourceSha256": "db4729bea1b17c29bfbdce53823877bc3ad3edfe5857f7937c7f0a89bbb2b610",
-      "targetContentSha256": null,
-      "targetGitBlobSha": null,
-      "targetPath": null,
+      "targetContentSha256": "6a44388944a47b17c7e6651e52df40466c3b32560467d79fd6ac13e011ca08fb",
+      "targetGitBlobSha": "ae8d0e7e6812dadba212ff2ff99930214eaca7fc",
+      "targetPath": "docs/runbooks/ops-production-workflow.md",
       "targetRepository": "edutrack-ops"
     },
     {
       "capturedAt": "2026-08-30T05:17:12.000Z",
-      "disposition": "pending",
+      "disposition": "superseded",
       "evidence": [
-        "docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json"
+        "deploy/ops/prepare-release.sh",
+        "deploy/ops/activate-release.sh",
+        "deploy/ops/release-manifest.mjs",
+        "deploy/ops/release-assets.test.ts",
+        "deploy/ops/release-manifest.test.ts"
       ],
-      "evidenceIdentities": [],
-      "replacementSha": null,
+      "evidenceIdentities": [
+        {
+          "contentSha256": "52f1cb2934cfd383c289777eb9f26acac425c2accaaecc16d25b32b4544ed814",
+          "gitBlobSha": "402c06c472bd042672f7726beae47b1c4203cb77",
+          "path": "deploy/ops/prepare-release.sh"
+        },
+        {
+          "contentSha256": "8973551649bc4c49127938572b5171f012fda7779d02ade821f3354ca00235aa",
+          "gitBlobSha": "589edc411ca5398d08c3eb6fcae666ee6d1e72ed",
+          "path": "deploy/ops/activate-release.sh"
+        },
+        {
+          "contentSha256": "1c59c3fd04407aedac70c80920e375298093b2eb275868791b810709d236949f",
+          "gitBlobSha": "d965825af31b23a6c080b55a9dd3bf1153837ec5",
+          "path": "deploy/ops/release-manifest.mjs"
+        },
+        {
+          "contentSha256": "79570dd78eb915398e9859d58a590db621e74dacd7cffaadbb0219ad11e8612c",
+          "gitBlobSha": "c3891a499319e0b73517d6e470e46477da41ce55",
+          "path": "deploy/ops/release-assets.test.ts"
+        },
+        {
+          "contentSha256": "79bb3f93185e0eee27ae1cc7db80274b9699727f3b0857a54a2e3aad7a9e1689",
+          "gitBlobSha": "603cd96f924f8d2f41f08bd4cf4b72221637986e",
+          "path": "deploy/ops/release-manifest.test.ts"
+        }
+      ],
+      "replacementSha": "7cc2193257e8437574d26cfd531f23b17609d828",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "b4db1a7db3fc1caed3209d89b655f6e4c8cfad17",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/release-ops.sh",
       "sourceSha256": "1d06e98afdb1b4ea30631a59dda8ceb2f59861a66922d0ef4b66dd624bfb7d3a",
-      "targetContentSha256": null,
-      "targetGitBlobSha": null,
-      "targetPath": null,
+      "targetContentSha256": "52f1cb2934cfd383c289777eb9f26acac425c2accaaecc16d25b32b4544ed814",
+      "targetGitBlobSha": "402c06c472bd042672f7726beae47b1c4203cb77",
+      "targetPath": "deploy/ops/prepare-release.sh",
       "targetRepository": "edutrack-ops"
     },
     {
