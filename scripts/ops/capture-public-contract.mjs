@@ -44,6 +44,8 @@ const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a
 const MAX_DECODED_VARIANTS = 32;
 const MAX_DECODE_STAGES = 8;
 const MAX_ENCODED_LENGTH = 4096;
+const MAX_ENCODED_TOKENS = 64;
+const MAX_ENCODED_TOKEN_CHARACTERS = 16_384;
 
 function fail(code) {
   throw new Error(code);
@@ -57,15 +59,15 @@ function exactKeys(value, expected) {
 
 function decodeBase64Text(value, encoding) {
   const compact = value.replace(/\s+/gu, '');
-  const pattern = encoding === 'base64' ? /^[A-Za-z0-9+/]+={0,2}$/u : /^[A-Za-z0-9_-]+={0,2}$/u;
+  const pattern = encoding === 'base64' ? /^[A-Za-z0-9+/]+=*$/u : /^[A-Za-z0-9_-]+=*$/u;
+  const unpadded = compact.replace(/=+$/u, '');
   if (
-    compact.length < 8 ||
+    unpadded.length < 4 ||
     compact.length > MAX_ENCODED_LENGTH ||
-    compact.length % 4 === 1 ||
+    unpadded.length % 4 === 1 ||
     !pattern.test(compact)
   )
     return null;
-  const unpadded = compact.replace(/=+$/u, '');
   const padded = `${unpadded}${'='.repeat((4 - (unpadded.length % 4)) % 4)}`;
   try {
     const bytes = Buffer.from(padded, encoding);
@@ -75,6 +77,32 @@ function decodeBase64Text(value, encoding) {
   } catch {
     return null;
   }
+}
+
+function encodedTokens(value) {
+  const tokens = new Set();
+  let characterBudget = 0;
+  const addToken = (token) => {
+    if (token.replace(/=+$/u, '').length < 4 || tokens.has(token)) return;
+    if (
+      token.length > MAX_ENCODED_LENGTH ||
+      tokens.size >= MAX_ENCODED_TOKENS ||
+      characterBudget + token.length > MAX_ENCODED_TOKEN_CHARACTERS
+    )
+      fail('PUBLIC_CONTRACT_FORBIDDEN_MATERIAL');
+    tokens.add(token);
+    characterBudget += token.length;
+  };
+  for (const match of value.matchAll(/[A-Za-z0-9+/_-]+=*/gu)) {
+    const token = match[0];
+    addToken(token);
+    for (let index = 0; index < token.length; index += 1) {
+      if (token[index] !== '_' && token[index] !== '-' && token[index] !== '/') continue;
+      addToken(token.slice(0, index));
+      addToken(token.slice(index + 1));
+    }
+  }
+  return tokens;
 }
 
 function decodingTransforms(value) {
@@ -90,6 +118,13 @@ function decodingTransforms(value) {
   for (const encoding of ['base64', 'base64url']) {
     const base64Decoded = decodeBase64Text(value, encoding);
     if (base64Decoded !== null && base64Decoded !== value) results.push(base64Decoded);
+  }
+  for (const token of encodedTokens(value)) {
+    if (token === value) continue;
+    for (const encoding of ['base64', 'base64url']) {
+      const decodedToken = decodeBase64Text(token, encoding);
+      if (decodedToken !== null && decodedToken !== token) results.push(decodedToken);
+    }
   }
   return results;
 }
@@ -394,18 +429,26 @@ function validateCaptureBaseUrl(value) {
   return parsed.origin;
 }
 
-function cancelReaderBestEffort(reader) {
+function cancelBestEffort(cancel) {
   try {
-    void Promise.resolve(reader.cancel()).catch(() => {});
+    void Promise.resolve(cancel()).catch(() => {});
   } catch {
     // Cancellation is advisory; the independent deadline/body cap remains authoritative.
   }
 }
 
-async function readCappedBody(response, bodyCapBytes, deadline) {
+function cancelBodyBestEffort(response) {
+  if (response.body && typeof response.body.cancel === 'function')
+    cancelBestEffort(() => response.body.cancel());
+}
+
+async function readCappedBody(response, bodyCapBytes, deadline, controller) {
   const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > bodyCapBytes)
+  if (Number.isFinite(declaredLength) && declaredLength > bodyCapBytes) {
+    controller.abort();
+    cancelBodyBestEffort(response);
     fail('PUBLIC_CONTRACT_BODY_TOO_LARGE');
+  }
   if (!response.body) return '';
   const reader = response.body.getReader();
   const chunks = [];
@@ -416,14 +459,15 @@ async function readCappedBody(response, bodyCapBytes, deadline) {
       if (done) break;
       bytes += value.byteLength;
       if (bytes > bodyCapBytes) {
-        cancelReaderBestEffort(reader);
+        controller.abort();
+        cancelBestEffort(() => reader.cancel());
         fail('PUBLIC_CONTRACT_BODY_TOO_LARGE');
       }
       chunks.push(value);
     }
   } catch (error) {
     if (error instanceof Error && error.message === 'PUBLIC_CONTRACT_CONTACT_TIMEOUT')
-      cancelReaderBestEffort(reader);
+      cancelBestEffort(() => reader.cancel());
     throw error;
   } finally {
     try {
@@ -472,8 +516,12 @@ export async function capturePublicContract({
         ),
         deadline
       ]);
-      if (response.status !== expected.status) fail('PUBLIC_CONTRACT_STATUS_MISMATCH');
-      const body = await readCappedBody(response, bodyCapBytes, deadline);
+      if (response.status !== expected.status) {
+        controller.abort();
+        cancelBodyBestEffort(response);
+        fail('PUBLIC_CONTRACT_STATUS_MISMATCH');
+      }
+      const body = await readCappedBody(response, bodyCapBytes, deadline, controller);
       const entry = reduceResponse({
         method: expected.method,
         route: expected.path,
@@ -492,8 +540,8 @@ export async function capturePublicContract({
         sanitizedFields: ['route', 'status', 'jsonShape', 'securityHeaders', 'uiLandmarks']
       });
     } catch (error) {
-      if (controller.signal.aborted) fail('PUBLIC_CONTRACT_CONTACT_TIMEOUT');
       if (error instanceof Error && /^PUBLIC_CONTRACT_[A-Z_]+$/u.test(error.message)) throw error;
+      if (controller.signal.aborted) fail('PUBLIC_CONTRACT_CONTACT_TIMEOUT');
       fail('PUBLIC_CONTRACT_CONTACT_FAILED');
     } finally {
       clearTimeout(timeout);

@@ -198,6 +198,46 @@ describe('Ops public-contract capture', () => {
   });
 
   it.each([
+    ['compound standard base64 shape key', { body: '{"prefix_c2VjcmV0IMK+":"value"}' }],
+    ['compound base64url shape key', { body: '{"prefix_c2VjcmV0IMK-":"value"}' }],
+    [
+      'percent-wrapped compound base64url shape key',
+      { body: '{"%70%72%65%66%69%78%5Fc2VjcmV0IMK%2D":"value"}' }
+    ],
+    ['short base64 shape key', { body: '{"c3Fs":"value"}' }],
+    ['recoverably malformed base64 shape key', { body: '{"c2VjcmV0===":"value"}' }],
+    [
+      'compound standard base64 selected header',
+      { headers: { 'cache-control': 'public, x=c2VjcmV0IMK+' } }
+    ],
+    [
+      'compound base64url selected header',
+      { headers: { 'cache-control': 'public, x=c2VjcmV0IMK-' } }
+    ],
+    [
+      'percent-wrapped compound base64url selected header',
+      { headers: { 'cache-control': 'public%2C%20x%3Dc2VjcmV0IMK%2D' } }
+    ],
+    ['short base64 selected header', { headers: { 'cache-control': 'c3Fs' } }],
+    [
+      'recoverably malformed base64 selected header',
+      { headers: { 'cache-control': 'c2VjcmV0===' } }
+    ]
+  ])('rejects encoded tokens in retained %s', (_name, mutation) => {
+    const fixture = {
+      ...unauthorizedResponse('/api/session'),
+      ...mutation,
+      headers: {
+        ...unauthorizedResponse('/api/session').headers,
+        ...(mutation.headers ?? {})
+      }
+    };
+    expect(() =>
+      buildPublicContract([rootResponse, unauthorizedResponse('/api/overview'), fixture])
+    ).toThrow('PUBLIC_CONTRACT_FORBIDDEN_MATERIAL');
+  });
+
+  it.each([
     ['user_name', 'user_name=operator-a'],
     ['ISO offset timestamp', 'at=2026-08-30T07:00:00+07:00'],
     ['zoneless ISO timestamp', 'at=2026-08-30T07:00:00']
@@ -368,6 +408,7 @@ describe('Ops public-contract capture', () => {
 
   it('does not let a never-settling cancellation extend the body cap failure', async () => {
     const onContact = vi.fn();
+    let abortCount = 0;
     const oversized = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(new Uint8Array(17));
@@ -380,11 +421,129 @@ describe('Ops public-contract capture', () => {
         timeoutMs: 500,
         bodyCapBytes: 16,
         onContact,
-        fetchImpl: vi.fn(async () => new Response(oversized, { status: 200 }))
+        fetchImpl: vi.fn(async (_input, init) => {
+          init?.signal?.addEventListener('abort', () => {
+            abortCount += 1;
+          });
+          return new Response(oversized, { status: 200 });
+        })
       })
     );
 
     expect(code).toBe('PUBLIC_CONTRACT_BODY_TOO_LARGE');
+    expect(abortCount).toBe(1);
     expect(onContact).not.toHaveBeenCalled();
+  });
+
+  it('aborts and non-blockingly cancels a declared oversized response', async () => {
+    const onContact = vi.fn();
+    let abortCount = 0;
+    let cancelCount = 0;
+    const oversized = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelCount += 1;
+        return new Promise<void>(() => {});
+      }
+    });
+    const code = await rejectionCodeWithin(
+      capturePublicContract({
+        baseUrl: 'http://127.0.0.1:3101',
+        timeoutMs: 500,
+        bodyCapBytes: 16,
+        onContact,
+        fetchImpl: vi.fn(async (_input, init) => {
+          init?.signal?.addEventListener('abort', () => {
+            abortCount += 1;
+          });
+          return new Response(oversized, {
+            status: 200,
+            headers: { 'content-length': '17' }
+          });
+        })
+      })
+    );
+
+    expect(code).toBe('PUBLIC_CONTRACT_BODY_TOO_LARGE');
+    expect(abortCount).toBe(1);
+    expect(cancelCount).toBe(1);
+    expect(onContact).not.toHaveBeenCalled();
+  });
+
+  it('preserves unexpected status while aborting and absorbing synchronous cancellation failure', async () => {
+    const onContact = vi.fn();
+    let abortCount = 0;
+    let cancelCount = 0;
+    const code = await rejectionCodeWithin(
+      capturePublicContract({
+        baseUrl: 'http://127.0.0.1:3101',
+        timeoutMs: 500,
+        onContact,
+        fetchImpl: vi.fn(async (_input, init) => {
+          init?.signal?.addEventListener('abort', () => {
+            abortCount += 1;
+          });
+          return {
+            status: 302,
+            headers: new Headers(),
+            body: {
+              cancel() {
+                cancelCount += 1;
+                throw new Error('fixture synchronous cancellation failure');
+              }
+            }
+          } as unknown as Response;
+        })
+      })
+    );
+
+    expect(code).toBe('PUBLIC_CONTRACT_STATUS_MISMATCH');
+    expect(abortCount).toBe(1);
+    expect(cancelCount).toBe(1);
+    expect(onContact).not.toHaveBeenCalled();
+  });
+
+  it('absorbs a late response cancellation rejection after declared oversize', async () => {
+    const onContact = vi.fn();
+    const unhandled: unknown[] = [];
+    let abortCount = 0;
+    let cancelCount = 0;
+    const observeUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', observeUnhandled);
+    try {
+      const code = await rejectionCodeWithin(
+        capturePublicContract({
+          baseUrl: 'http://127.0.0.1:3101',
+          timeoutMs: 500,
+          bodyCapBytes: 16,
+          onContact,
+          fetchImpl: vi.fn(async (_input, init) => {
+            init?.signal?.addEventListener('abort', () => {
+              abortCount += 1;
+            });
+            return {
+              status: 200,
+              headers: new Headers({ 'content-length': '17' }),
+              body: {
+                cancel: () => {
+                  cancelCount += 1;
+                  return new Promise<void>((_resolve, reject) => {
+                    setTimeout(() => reject(new Error('fixture late cancellation failure')), 10);
+                  });
+                }
+              }
+            } as unknown as Response;
+          })
+        })
+      );
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      expect(code).toBe('PUBLIC_CONTRACT_BODY_TOO_LARGE');
+      expect(abortCount).toBe(1);
+      expect(cancelCount).toBe(1);
+      expect(unhandled).toEqual([]);
+      expect(onContact).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', observeUnhandled);
+    }
   });
 });
