@@ -737,16 +737,40 @@
       "capturedAt": "2026-08-30T05:17:12.000Z",
       "disposition": "integrate",
       "evidence": [
-        "apps/web/e2e/ops-console.spec.ts"
+        "apps/web/e2e/ops-console.spec.ts",
+        "apps/web/e2e/production-parity.spec.ts",
+        "docs/architecture/baselines/2026-08-29-ops-public-contract.json",
+        "scripts/ops/capture-public-contract.mjs",
+        "scripts/ops/capture-public-contract.test.ts"
       ],
       "evidenceIdentities": [
         {
           "contentSha256": "c6f8799ed35efb48e71aee3f357093d0a92b6651d7034a8c78dd464491ccd750",
           "gitBlobSha": "32306116e5a4b253afea0df68bb6dbfc5da13937",
           "path": "apps/web/e2e/ops-console.spec.ts"
+        },
+        {
+          "contentSha256": "d7eeffe3cb02c338970973c770e01f10a8c2a348af8d76a94390408b23cb6e4e",
+          "gitBlobSha": "2152491bf4b8c0c4586edd194e9867e9e6999e47",
+          "path": "apps/web/e2e/production-parity.spec.ts"
+        },
+        {
+          "contentSha256": "143d46a328538fab94e164eea7de575c89646c1fa72724ffe7248a7744ab33c3",
+          "gitBlobSha": "91a8a2c0a4cd98c4aad624c6e471c78a4f9d6f45",
+          "path": "docs/architecture/baselines/2026-08-29-ops-public-contract.json"
+        },
+        {
+          "contentSha256": "1ab82f5ef1c90e264dbb0cf6f2e04c8cb0afe508c6f4f5c2d18d375a40a04569",
+          "gitBlobSha": "bd1dd4af62607dcf83e6472750d4574740c718e2",
+          "path": "scripts/ops/capture-public-contract.mjs"
+        },
+        {
+          "contentSha256": "7b46f380e68b6144a48bf5f7061c9ae9004dcbad3fb62553d1c343d6aa06b615",
+          "gitBlobSha": "6304350b30da98bcd3e163be52a65b0e5592d44e",
+          "path": "scripts/ops/capture-public-contract.test.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "406eaa5ab7d09bd8546c2ced9e795a646f518d7e",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "a3913c2e5f97a67be0a085c21a638f997c3604a9",
       "sourceKind": "git-blob",
