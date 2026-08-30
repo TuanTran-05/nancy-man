@@ -1,0 +1,34 @@
+{
+  "page": 1,
+  "perPage": 200,
+  "totalPages": 1,
+  "totalItems": 3,
+  "items": [
+    {
+      "name": "nginx",
+      "state": 0,
+      "sub": 1,
+      "cpu": 0.3,
+      "memory": 33554432,
+      "updated": 1787539245000,
+      "cpuPeak": 1.2,
+      "memPeak": 67108864
+    },
+    {
+      "name": "postgresql",
+      "state": 2,
+      "sub": 3,
+      "cpu": 2.1,
+      "memory": 134217728,
+      "updated": 1787539245000
+    },
+    {
+      "name": "unapproved-unit",
+      "state": 0,
+      "sub": 1,
+      "cpu": 0,
+      "memory": 1,
+      "updated": 1787539245000
+    }
+  ]
+}

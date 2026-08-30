@@ -1,0 +1,8 @@
+{
+  "id": "abc123def456ghi",
+  "status": "up",
+  "info": { "t": 4, "u": 86400, "v": "0.18.8", "sv": [3, 1] },
+  "updated": "2026-08-24 00:00:50.000Z",
+  "host": "must-be-stripped",
+  "name": "must-be-stripped"
+}

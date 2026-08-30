@@ -16,7 +16,7 @@
     "format:check": "prettier --check . --ignore-unknown",
     "test": "vitest run --passWithNoTests",
     "build": "npm run build --workspaces --if-present",
-    "test:e2e": "playwright test --pass-with-no-tests",
+    "test:e2e": "npm run test:e2e --workspace @edutrack-ops/web",
     "consolidation:ops:capture": "node scripts/consolidation/opsDisposition.mjs --capture",
     "consolidation:ops:validate": "node scripts/consolidation/opsDisposition.mjs docs/architecture/baselines/2026-08-29-ops-disposition-ledger.json"
   },
@@ -34,6 +34,9 @@
     "zod": "3.25.76"
   },
   "allowScripts": {
-    "argon2@0.45.1": true
+    "argon2@0.45.1": true,
+    "better-sqlite3@13.0.3": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
   }
 }

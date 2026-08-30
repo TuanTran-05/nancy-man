@@ -4,6 +4,42 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json --pretty false"
+    "build": "npm run build:web && npm run build:server",
+    "build:web": "vite build",
+    "build:server": "node scripts/build-server.mjs",
+    "start:collector": "node dist/server/collector-main.js",
+    "start:failsafe": "node dist/server/failsafe-main.js",
+    "start:web": "node dist/server/web-server.js",
+    "ops:provision-user": "node dist/server/provision-ops-user.js",
+    "typecheck": "tsc -p tsconfig.json --pretty false",
+    "test": "vitest run --config vite.config.ts",
+    "test:e2e": "playwright test --config playwright.config.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.3",
+    "express": "5.2.1",
+    "pg": "8.23.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.59.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/express": "5.0.6",
+    "@types/node": "22.14.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/supertest": "6.0.3",
+    "@vitejs/plugin-react": "5.0.4",
+    "esbuild": "0.28.2",
+    "jsdom": "29.1.1",
+    "supertest": "7.1.4",
+    "typescript": "5.8.2",
+    "vite": "6.4.3",
+    "vitest": "4.1.10"
   }
 }
