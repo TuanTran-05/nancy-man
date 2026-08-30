@@ -255,20 +255,38 @@
     },
     {
       "capturedAt": "2026-08-30T05:17:12.000Z",
-      "disposition": "pending",
+      "disposition": "integrate",
       "evidence": [
-        "docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json"
+        "deploy/ops/nginx/man.thienuy.edu.vn-api.conf",
+        "deploy/ops/nginx/man.thienuy.edu.vn.conf.test.ts",
+        "docs/architecture/ops-runtime-boundaries.md"
       ],
-      "evidenceIdentities": [],
-      "replacementSha": null,
+      "evidenceIdentities": [
+        {
+          "contentSha256": "5ceae56d06d56f0ceb226060c1a70ad227f43c0418a58c597e1ff2c250866e01",
+          "gitBlobSha": "a375357c7754be9c8cebb5159bdb5a54bb75937b",
+          "path": "deploy/ops/nginx/man.thienuy.edu.vn-api.conf"
+        },
+        {
+          "contentSha256": "77cadd0d9927d47644dfaf49c72f2accb9b27d2cdef5208f97b798d0d8683827",
+          "gitBlobSha": "8465d1f10be7e9a04a894e0253e1d64a54ae3f2f",
+          "path": "deploy/ops/nginx/man.thienuy.edu.vn.conf.test.ts"
+        },
+        {
+          "contentSha256": "6d2c1d8dd3f74571e9722ad985875bb75d2eb7c713eaa76bbfbc2fea1abef0f5",
+          "gitBlobSha": "101404ce4c965c1e432bd7dc082219db258c3c18",
+          "path": "docs/architecture/ops-runtime-boundaries.md"
+        }
+      ],
+      "replacementSha": "58f0e5dfe28bf624c9ef18425633371a944b65c4",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "dd6f51e799b1d10c369c865b4b4006a49c39a8d7",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/nginx/man.thienuy.edu.vn.conf",
       "sourceSha256": "74e292354d202769b9ca32094abbdf5af360f7bff89ecd543d57f7536d764d6b",
-      "targetContentSha256": null,
-      "targetGitBlobSha": null,
-      "targetPath": null,
+      "targetContentSha256": "5ceae56d06d56f0ceb226060c1a70ad227f43c0418a58c597e1ff2c250866e01",
+      "targetGitBlobSha": "a375357c7754be9c8cebb5159bdb5a54bb75937b",
+      "targetPath": "deploy/ops/nginx/man.thienuy.edu.vn-api.conf",
       "targetRepository": "edutrack-ops"
     },
     {
