@@ -267,6 +267,6 @@ describe('immutable Ops prepare and activate assets', () => {
     const assets = [prepare, activate, manifest]
       .map((path) => readFileSync(path, 'utf8'))
       .join('\n');
-    expect(assets).not.toContain('/home/deploy');
+    expect(assets).not.toContain(['/home', 'deploy'].join('/'));
   });
 });
