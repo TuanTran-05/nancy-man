@@ -16,7 +16,9 @@
     "format:check": "prettier --check . --ignore-unknown",
     "test": "vitest run --passWithNoTests",
     "build": "npm run build --workspaces --if-present",
-    "test:e2e": "playwright test --pass-with-no-tests"
+    "test:e2e": "playwright test --pass-with-no-tests",
+    "consolidation:ops:capture": "node scripts/consolidation/opsDisposition.mjs --capture",
+    "consolidation:ops:validate": "node scripts/consolidation/opsDisposition.mjs docs/architecture/baselines/2026-08-29-ops-disposition-ledger.json"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -28,7 +30,8 @@
     "typescript": "5.8.2",
     "typescript-eslint": "8.59.2",
     "vite": "6.4.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "zod": "3.25.76"
   },
   "allowScripts": {
     "argon2@0.45.1": true

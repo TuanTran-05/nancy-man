@@ -1,0 +1,707 @@
+{
+  "canonical": {
+    "gitSha": "4313023f483b48d81cab45174db38fc893900444",
+    "repository": "edutrack-ops",
+    "sourceAlias": "canonical-ops",
+    "treeSha": "8dd654a311f513932c8368a38bddbed1f73d517d"
+  },
+  "capturedAt": "2026-08-30T05:17:12.000Z",
+  "embedded": {
+    "gitSha": "5dff838be4f4b60232cf4a8c34b6292c35c489dc",
+    "repository": "embedded-ops-console",
+    "sourceAlias": "embedded-console",
+    "treeSha": "0de2d5f7c0b7c7a87c4e06ec978e72e91829514a"
+  },
+  "frozenUniverseSha256": "52599cccdf80660614e115c87072031869c6cfd0ab0a9ac8276f9c03609a8776",
+  "generatedInventorySha256": "4a4efaa55e3abae3ab3cb5fc72c8785ad5c3a7777b4e6a01a51a20d035f19736",
+  "generatedRootCount": 3,
+  "generatedRoots": [
+    {
+      "directoryCount": 3,
+      "fileCount": 11,
+      "sourcePath": "ops-console/dist",
+      "symlinkCount": 0,
+      "totalBytes": 598780,
+      "treeSha256": "060ab80e057173e02598ec22d30cbb3a710f427841efb85725326ac73feb2dd0"
+    },
+    {
+      "directoryCount": 1019,
+      "fileCount": 8410,
+      "sourcePath": "ops-console/node_modules",
+      "symlinkCount": 22,
+      "totalBytes": 160253306,
+      "treeSha256": "3d93cdf642bcebd407c9de5af212400195929707905b0ae924f6e06e0b303070"
+    },
+    {
+      "directoryCount": 0,
+      "fileCount": 1,
+      "sourcePath": "ops-console/test-results",
+      "symlinkCount": 0,
+      "totalBytes": 45,
+      "treeSha256": "e4a51ac21460b51335e4cf294166834a354966871e2b233a943b658de489a4e8"
+    }
+  ],
+  "runtimeIdentity": {
+    "currentReleaseName": "beszel-disabled-20260824-1458",
+    "services": [
+      {
+        "activeState": "active",
+        "fragmentScope": "system",
+        "name": "edutrack-ops-collector.service",
+        "subState": "running"
+      },
+      {
+        "activeState": "active",
+        "fragmentScope": "system",
+        "name": "edutrack-ops-web.service",
+        "subState": "running"
+      }
+    ]
+  },
+  "schemaVersion": 1,
+  "trackedFileCount": 128,
+  "trackedFiles": [
+    {
+      "contentSha256": "47f437b8ed5678fda4a6729005a7c40f4f7d56df7eb2954b781428e3aa062432",
+      "gitBlobSha": "6944e45b0ccc3666fe99d0ef52c22252b34de2fd",
+      "sourcePath": "ops-console/deploy/README.md"
+    },
+    {
+      "contentSha256": "0e0b56361282fb38d9530deea9ed46a4c73763cdf3fda36e526a3b70d0e68301",
+      "gitBlobSha": "c5d466628d1f0df989c75f7f544bb7fea9af6861",
+      "sourcePath": "ops-console/deploy/beszel/LICENSE"
+    },
+    {
+      "contentSha256": "aef8c155bb32cab10e4c231812b3171da950db7d834eeb431bb6286831598764",
+      "gitBlobSha": "b2699ff2b30631b66dbd30bc10ea9639ca1b7906",
+      "sourcePath": "ops-console/deploy/beszel/agent.env.example"
+    },
+    {
+      "contentSha256": "e58271bd894e1a62c4f70b2d8e8c1a0f885c5252a9cfbcb78e41c382eb1debeb",
+      "gitBlobSha": "c3daf82647765820982a403833d5db7891dd1fec",
+      "sourcePath": "ops-console/deploy/beszel/backup-beszel.sh"
+    },
+    {
+      "contentSha256": "b6a7069f0d6e9b1ef11d4885d2c3033ac2c4e59497d44d76245a99c8a3e49a8b",
+      "gitBlobSha": "9254fbc63983a8a13c33db7eaf7818150a9cba60",
+      "sourcePath": "ops-console/deploy/beszel/backup.env.example"
+    },
+    {
+      "contentSha256": "cbc8839077eaa072f4c6c19170a40a911b0bac7c036e2c1699e99644efb7e1a5",
+      "gitBlobSha": "9a0f6914f30375d7d10e316048cf9622fc741f2a",
+      "sourcePath": "ops-console/deploy/beszel/hub.env.example"
+    },
+    {
+      "contentSha256": "6523eed0e77c7d30ad4e499b78e8d7ddf25a5e59d28375e8359481bc0b95fea9",
+      "gitBlobSha": "dedd8d23a127375ffede515a948587824b9d6c17",
+      "sourcePath": "ops-console/deploy/beszel/install-beszel.sh"
+    },
+    {
+      "contentSha256": "15bd84659fae6d18c54140207d553e2d589a6892535dd1775598a5a1bafe20d8",
+      "gitBlobSha": "899d810ace393c6cffaad05806b606c77494bd89",
+      "sourcePath": "ops-console/deploy/beszel/restore-beszel-drill.sh"
+    },
+    {
+      "contentSha256": "6e1c259d04541dec6360ef1f38c4c85ec9f9a10c1006a04ff74d26982a238127",
+      "gitBlobSha": "13806769b44a0436d1e580da77738d594c6e23fa",
+      "sourcePath": "ops-console/deploy/beszel/version.env"
+    },
+    {
+      "contentSha256": "ddfabf5a9d58c4e7550fdb50b17f61af36a81c523fcf396fb0a489d190c8fa0c",
+      "gitBlobSha": "bfeb7fbd0b69dc7bb83c2e3fd3a0ef90dadde9a6",
+      "sourcePath": "ops-console/deploy/collector.env.example"
+    },
+    {
+      "contentSha256": "c3cffc0c7e2d5fe51c980e6ba853a3fa83b0394314638859cb7753a3beb49980",
+      "gitBlobSha": "f1791fa595ca66db6606166743e89ca806ecd21c",
+      "sourcePath": "ops-console/deploy/deployment-assets.test.ts"
+    },
+    {
+      "contentSha256": "582b6eb280ec05ec9e99cc504df021d80bc12fab5268f90aa9f58b3ed8b99d20",
+      "gitBlobSha": "cb6f9bde88562c8fd0bf15c53f2882e69fcdea65",
+      "sourcePath": "ops-console/deploy/logrotate-ops.conf"
+    },
+    {
+      "contentSha256": "04c158459dcc814c595a2693996cc1e88ce844cb636d0342010108a1c78a6a08",
+      "gitBlobSha": "0a95c5a07a290fe03651062ddf8e6feecc5d179e",
+      "sourcePath": "ops-console/deploy/nginx/activate-host.sh"
+    },
+    {
+      "contentSha256": "a3419dfc6e260df76b0f1a3589c203b1aca615942acbc5c403e45e6e9a84ab4f",
+      "gitBlobSha": "6179d33f8cd719a82b6f6cc808b8d2caf25503a9",
+      "sourcePath": "ops-console/deploy/nginx/bootstrap.conf"
+    },
+    {
+      "contentSha256": "74e292354d202769b9ca32094abbdf5af360f7bff89ecd543d57f7536d764d6b",
+      "gitBlobSha": "dd6f51e799b1d10c369c865b4b4006a49c39a8d7",
+      "sourcePath": "ops-console/deploy/nginx/man.thienuy.edu.vn.conf"
+    },
+    {
+      "contentSha256": "410b659dd20a24b69c888665c5426fd8e27ed318e2cd95bb41aa948b0450ecc0",
+      "gitBlobSha": "24478e28aebbac60aa319bb42bbf6c099366855b",
+      "sourcePath": "ops-console/deploy/ops.env.example"
+    },
+    {
+      "contentSha256": "5d48a777ea5fe81e5c4f69b36c5a0f4a167c4935be59de613f9782212af75695",
+      "gitBlobSha": "0418eceb83980289098057c7551217f998148417",
+      "sourcePath": "ops-console/deploy/provision-postgres-monitor.sh"
+    },
+    {
+      "contentSha256": "7e67e5c77d675704bdfae2cacedba8fa90959dd054f7c4478fe376a25f2ae165",
+      "gitBlobSha": "945cecb18c4a2016951af84e5d0ee6d99d907d9b",
+      "sourcePath": "ops-console/deploy/provision-postgres-monitor.sql"
+    },
+    {
+      "contentSha256": "f29605d7edcdddc09efcedf601163a2e7ada30d99b65c270cb2cc52ac0feb87a",
+      "gitBlobSha": "c8781212235b61ad414f45ad1b38fedea98b651d",
+      "sourcePath": "ops-console/deploy/provision-postgres-monitor.test.ts"
+    },
+    {
+      "contentSha256": "db4729bea1b17c29bfbdce53823877bc3ad3edfe5857f7937c7f0a89bbb2b610",
+      "gitBlobSha": "992ea26aa08758120d7e290a21b7e7f0886db589",
+      "sourcePath": "ops-console/deploy/release-checklist.md"
+    },
+    {
+      "contentSha256": "1d06e98afdb1b4ea30631a59dda8ceb2f59861a66922d0ef4b66dd624bfb7d3a",
+      "gitBlobSha": "b4db1a7db3fc1caed3209d89b655f6e4c8cfad17",
+      "sourcePath": "ops-console/deploy/release-ops.sh"
+    },
+    {
+      "contentSha256": "b3bf40c892db4a99120157e6c726528cf5585feebb4fe78812cd3cbc3ac3c68d",
+      "gitBlobSha": "0dfd9a89412c28077b889440b93fa983a7fd56e9",
+      "sourcePath": "ops-console/deploy/systemd/beszel-agent.service"
+    },
+    {
+      "contentSha256": "fda9db0148f26d5d1c844ca397dc3c0ec17ec0853ea6ca24704b18d041dfb7dc",
+      "gitBlobSha": "028f8db1233d93dd7fcda2c509a29e6c3d613c3f",
+      "sourcePath": "ops-console/deploy/systemd/beszel-backup.service"
+    },
+    {
+      "contentSha256": "c4a87e721725d5239fa92c57e1466bf93a0c0124e27cae8284b625b143a9f3e3",
+      "gitBlobSha": "541743c2f998b06746853649ba9f87f9c09b7b94",
+      "sourcePath": "ops-console/deploy/systemd/beszel-backup.timer"
+    },
+    {
+      "contentSha256": "6b0720b77f2b06d62657f9a38765f3ac90f45948dbd556c62942dbeb2e83b816",
+      "gitBlobSha": "f50461ac04819c773834336a1a1dbafa9254113d",
+      "sourcePath": "ops-console/deploy/systemd/beszel-hub.service"
+    },
+    {
+      "contentSha256": "0b4ec6bc52368f15412b36f93ba0145ea8386387831e90d2c157af5f3ad74e31",
+      "gitBlobSha": "b5430a852fd9b22df21f1a985da47f8c9fdec486",
+      "sourcePath": "ops-console/deploy/systemd/edutrack-ops-backup.service"
+    },
+    {
+      "contentSha256": "8e6920c746d7cb3bd744859b4e465bde2f596cfa00cf14e2971bbe36e78c888f",
+      "gitBlobSha": "b74d40721e1314f9564e4bd95b7ab667f4633243",
+      "sourcePath": "ops-console/deploy/systemd/edutrack-ops-backup.timer"
+    },
+    {
+      "contentSha256": "34754fa41a0bd590a3e94411b236295c55b8bb45ab4627821ae1b7452042f22f",
+      "gitBlobSha": "c82da75e8ef50adb453d0b42d8ec909fd4d7f718",
+      "sourcePath": "ops-console/deploy/systemd/edutrack-ops-collector-failed@.service"
+    },
+    {
+      "contentSha256": "66388d3757b096bf468db75292666327a4772ddfe7627d0259642abc69a9700e",
+      "gitBlobSha": "ae5fa52cf984e30f79c6437641264b531c7061c5",
+      "sourcePath": "ops-console/deploy/systemd/edutrack-ops-collector.service"
+    },
+    {
+      "contentSha256": "0b8a431259b5d65e4031fa8a55b21479b7904a48e593946a710183a32f7c816f",
+      "gitBlobSha": "9d9b9dbeb357048fe955797ddbde19bd60cbb09e",
+      "sourcePath": "ops-console/deploy/systemd/edutrack-ops-web.service"
+    },
+    {
+      "contentSha256": "620c9e74f6c416f88f0150d17072a395060f005e60c60996a7411f4955aa2f71",
+      "gitBlobSha": "d88000f00c59c8c45c7db9dd5a96f6967a81812d",
+      "sourcePath": "ops-console/deploy/web.env.example"
+    },
+    {
+      "contentSha256": "c0034fb74b234ba3f797dd0606ca7073780d3d881b5a545b12249cffdf25b420",
+      "gitBlobSha": "c285629a2cea7de73f073010243acb801d787b21",
+      "sourcePath": "ops-console/e2e/fixture-server.mjs"
+    },
+    {
+      "contentSha256": "c646bc2e380fb6461ed9355ba1ba8c73060d5e73b7b6ecada0750148ea1e2229",
+      "gitBlobSha": "a3913c2e5f97a67be0a085c21a638f997c3604a9",
+      "sourcePath": "ops-console/e2e/ops-console.spec.ts"
+    },
+    {
+      "contentSha256": "0d7a22bd76d596e88c77d2159fcaaa0d41b7c5f681785b9c0a6eb0e8bc28b19d",
+      "gitBlobSha": "e90a2adb94a502b7b936290dab29f8c30289e64b",
+      "sourcePath": "ops-console/index.html"
+    },
+    {
+      "contentSha256": "16395f581ba5d57b6dd55951fd5930fd0775d3fe75e7198522abdfc4a7418497",
+      "gitBlobSha": "374a707b20ee7ac1d719c20858686d00c27f6656",
+      "sourcePath": "ops-console/package-lock.json"
+    },
+    {
+      "contentSha256": "5dba5d2810394c03ccd058e0992e1ca3a7c2242d87423081aa4098ecb0d7dd92",
+      "gitBlobSha": "90f1a83d62ae3e3671cb7ec849f86ecbffbd9769",
+      "sourcePath": "ops-console/package.json"
+    },
+    {
+      "contentSha256": "8f942d5cc90b0a5d64a4f2cad2fd9c5002d40a89e7632ab02d8c6132355389c8",
+      "gitBlobSha": "1dc5b25fba125934a6fdb3a9670b1d4051e3450b",
+      "sourcePath": "ops-console/playwright.config.ts"
+    },
+    {
+      "contentSha256": "cda5effb69428d2a1fc445d17229384e5fc575fb12533f2031c6dfeade217f81",
+      "gitBlobSha": "f52069456e162cd582e41a787c23411609c3275b",
+      "sourcePath": "ops-console/scripts/build-server.mjs"
+    },
+    {
+      "contentSha256": "a06d3968246a30751ee87669c4928e5ad4fd6b53cc483f738356252928b57602",
+      "gitBlobSha": "96a25e569f173a927ffefe51860b445745ea6c77",
+      "sourcePath": "ops-console/src/cli/provision-ops-user.ts"
+    },
+    {
+      "contentSha256": "8c5fda198a571b32d9fdadd5cf84a0ec1a98c411af231896c594550c0d6d31f2",
+      "gitBlobSha": "59497794c405bdc61d8d92e7a639fec7d7a3906b",
+      "sourcePath": "ops-console/src/cli/smoke-beszel.test.ts"
+    },
+    {
+      "contentSha256": "05878ba16c27833e68f823a46ba5d4ada941887c3c99739fe764c4ea50206540",
+      "gitBlobSha": "c932f7680b311f76c448f08fa9aa017fb50c03c7",
+      "sourcePath": "ops-console/src/cli/smoke-beszel.ts"
+    },
+    {
+      "contentSha256": "1b073c282f0eb7dec7ef3dd17ff32753d78850e5e05afb528794ea3c1ee1ec39",
+      "gitBlobSha": "cc146b753d22ad754c47d5125a49834229eb40b6",
+      "sourcePath": "ops-console/src/server/alerts/alertService.test.ts"
+    },
+    {
+      "contentSha256": "e2955be51f03f6dbf5087bb26841839982751f7f5b43293858781d79b3c82ca9",
+      "gitBlobSha": "c10d98ea36198379bc90d54b7f56273b34cb2a57",
+      "sourcePath": "ops-console/src/server/alerts/alertService.ts"
+    },
+    {
+      "contentSha256": "833e4c06bd0c78f3f143e69bf385642958f45f6e44522d46ecee434feca5ac55",
+      "gitBlobSha": "c27849222a0542c4daeaa708a302a932a2582a4e",
+      "sourcePath": "ops-console/src/server/alerts/failsafe-entry.ts"
+    },
+    {
+      "contentSha256": "ee48be455bf5bae1533f5d47f0118dd3597edc9655e4ec71fa9e9d6be35f6a18",
+      "gitBlobSha": "5a3d24ae183f9eab1b39fece4ea7d557a6329ed9",
+      "sourcePath": "ops-console/src/server/alerts/failsafe-main.ts"
+    },
+    {
+      "contentSha256": "021a085ae43adfdeec5cf00f6d6731a61c3ce5cd6fc7e37f79a348f394e2ffb1",
+      "gitBlobSha": "394cd24ec0da34c432797ceae533eaeea56a2d04",
+      "sourcePath": "ops-console/src/server/alerts/failsafe.test.ts"
+    },
+    {
+      "contentSha256": "e114b61d6561f064ee977b57d56e3b19dbf497087f3de6de1a8cff9d4b107a6d",
+      "gitBlobSha": "fa0f452b4409b9b02cbbdbbf606fc54ee683edec",
+      "sourcePath": "ops-console/src/server/alerts/failsafe.ts"
+    },
+    {
+      "contentSha256": "6dd875a3f8b12d82f1c5d3c8478602914964fc1dd1c9b5e37eb2cba3ee9b3aa5",
+      "gitBlobSha": "5009374c24cae4d3d2df2f39754f7341118a0ef7",
+      "sourcePath": "ops-console/src/server/alerts/recipientResolver.ts"
+    },
+    {
+      "contentSha256": "c7611241958751ffda4bb316ec83f1f93fd4a8dbea4ffbb49bb37d333ded0944",
+      "gitBlobSha": "8a130becdbfb62d9f0bc9d3583f3c8511b379e6b",
+      "sourcePath": "ops-console/src/server/alerts/zaloBotClient.test.ts"
+    },
+    {
+      "contentSha256": "9125ca80f4eb545e4be6c2fb7df1456040ad18f2f905ca0ca231ff9e15b2861c",
+      "gitBlobSha": "96099918db61e39253a0b36a5aab1d3d2d9866c0",
+      "sourcePath": "ops-console/src/server/alerts/zaloBotClient.ts"
+    },
+    {
+      "contentSha256": "a4c3da22a6df489840ed7558efa402621b6b82242547708c9697d56fd141ba59",
+      "gitBlobSha": "dbc14ae6c2ad6b1a15b093a3d85aa9f62c6fb484",
+      "sourcePath": "ops-console/src/server/beszel/client.integration.test.ts"
+    },
+    {
+      "contentSha256": "d20b0f548dbc04e953080086c97e47caf91d516e822fb0a30159bd9715a33f49",
+      "gitBlobSha": "e06b410451d62dabead6d395f295996febd95ca7",
+      "sourcePath": "ops-console/src/server/beszel/client.test.ts"
+    },
+    {
+      "contentSha256": "b1d3ef45d8912c903593dc40e1636e49c2c028172aeccaf6d42be53170006431",
+      "gitBlobSha": "4920d8ff3d36217d32575e75690d7d12f9361750",
+      "sourcePath": "ops-console/src/server/beszel/client.ts"
+    },
+    {
+      "contentSha256": "1ba3595c747ff36d2ed75061c9582d564f2182aac1dc93770986368d26c112ca",
+      "gitBlobSha": "91615ee0b13bd9355d21e9580626cb23238365c7",
+      "sourcePath": "ops-console/src/server/beszel/contracts.test.ts"
+    },
+    {
+      "contentSha256": "fc95c6c8e33b906a758f9ba4b6d47234cc19fae6b4de8650bdec309339c8cef8",
+      "gitBlobSha": "dce46cc3213e8df9bd6807ba337dac5905791c6d",
+      "sourcePath": "ops-console/src/server/beszel/contracts.ts"
+    },
+    {
+      "contentSha256": "83096610bdd1373f1f679b84400d6d472759aef9f389fbfbb8824f84a727a679",
+      "gitBlobSha": "235eaef2315f23d879e8a381c022559dba857520",
+      "sourcePath": "ops-console/src/server/beszel/fixtures/auth.json"
+    },
+    {
+      "contentSha256": "de6c811887bf4adb37e8a65b5a9fe88f69ffb692b21351aa68d01b063a4ae572",
+      "gitBlobSha": "e0baab7fc85b291f9d161e4c4c88d2a639e12eac",
+      "sourcePath": "ops-console/src/server/beszel/fixtures/info.json"
+    },
+    {
+      "contentSha256": "f53df806d3a7f2a40e84475fa619de42e897d2e794ebd74206b518b0b80c4e51",
+      "gitBlobSha": "8788e6e7c623acf84f70e4b22cfcb25a926da484",
+      "sourcePath": "ops-console/src/server/beszel/fixtures/system-stats.json"
+    },
+    {
+      "contentSha256": "07051751143189fa6c8742b5d8d9714e5d86c7a4ce0f6903a59fc588351b28db",
+      "gitBlobSha": "c9379a4799bf8542acfdc54e0e4b7084de09263d",
+      "sourcePath": "ops-console/src/server/beszel/fixtures/system.json"
+    },
+    {
+      "contentSha256": "3e50ed2a453d6954d11ef0543128d83fc603417e08853b2b626bcc10eb6ffdff",
+      "gitBlobSha": "58d343ef2bd140dd7dc2a0bd5de909474ad9d797",
+      "sourcePath": "ops-console/src/server/beszel/fixtures/systemd-services.json"
+    },
+    {
+      "contentSha256": "bd2d0b1c4483349f23b91d7278f865b74fe41b88633b73076a3f1dd8ec925f27",
+      "gitBlobSha": "4e5db3ddaef062e0fd10cb8d9b403edcab0a5377",
+      "sourcePath": "ops-console/src/server/beszel/mapper.test.ts"
+    },
+    {
+      "contentSha256": "d6f07ad806ab79825e24629edce07d77390c0e2cb94e19c603d149110ef79078",
+      "gitBlobSha": "92b407bb1bc1ebd4eb595eab6142640fb93d6185",
+      "sourcePath": "ops-console/src/server/beszel/mapper.ts"
+    },
+    {
+      "contentSha256": "9d0f97899219333a02df73f3fe1f20dd0a5a57cbebaa533c1366881b9e34abea",
+      "gitBlobSha": "9da625e3fbd775dc2a3edda647dfd8afbbc7300e",
+      "sourcePath": "ops-console/src/server/beszel/probe.test.ts"
+    },
+    {
+      "contentSha256": "60f0db40cd46854649271e59a3731e4ea368caf635069374c52c8ae7ddd2a7ac",
+      "gitBlobSha": "9c4866372cc06ac7f779c448f5059c52dc9275d2",
+      "sourcePath": "ops-console/src/server/beszel/probe.ts"
+    },
+    {
+      "contentSha256": "314f9033245daeeee17aa43b16413f6dd1e0d93ce470e4e7ff5ca4f11a7c22a7",
+      "gitBlobSha": "7d04fd59ec5c0c336fc204e36c2019ec7f8ebe81",
+      "sourcePath": "ops-console/src/server/collector/collector-entry.ts"
+    },
+    {
+      "contentSha256": "4a631e3e2a2dffd0c3b7a03e6274695fc160ff6010710ca9ba8d792d7f2f99bb",
+      "gitBlobSha": "1125327c690d9b31a8c5df93ab91a2c41b42c579",
+      "sourcePath": "ops-console/src/server/collector/collector-main.ts"
+    },
+    {
+      "contentSha256": "25ca8fd71f6316f733406b624e82206c5bc7361cfa8a469ff20551ecfa051ea8",
+      "gitBlobSha": "186201f650363306be6fc13c5ffc3ada68a5cff0",
+      "sourcePath": "ops-console/src/server/collector/collector.test.ts"
+    },
+    {
+      "contentSha256": "f49693dfab1df2e3a51411844d7a6b46662377fe19778c23440597bb034d4d01",
+      "gitBlobSha": "cfc63653a55ba61deb97905428eea6fc563b4d19",
+      "sourcePath": "ops-console/src/server/collector/collector.ts"
+    },
+    {
+      "contentSha256": "6834535624b57fa583716e71777ba9c9d07f2011454e92651093ffdabbc69d57",
+      "gitBlobSha": "bd5cf6d72541e3d904daebf39a29cd5f0d0b8c01",
+      "sourcePath": "ops-console/src/server/collector/healthProbe.test.ts"
+    },
+    {
+      "contentSha256": "fc86606cecce5b4e4a85e833148a74b5bcab970082fbbcff0a664d5f55e2059d",
+      "gitBlobSha": "20ece2e2d1e057ea38e8315e916e66a3585a0b99",
+      "sourcePath": "ops-console/src/server/collector/healthProbe.ts"
+    },
+    {
+      "contentSha256": "dd135c55ad7495426b3f1b00e7955645aa905c14f319af7a3376d3a224e04f50",
+      "gitBlobSha": "389d8a07bcd7f1756628d045202cd213a2d43aa8",
+      "sourcePath": "ops-console/src/server/collector/logTailer.test.ts"
+    },
+    {
+      "contentSha256": "1043a4b34ef77c92a47ad9107e0ef36a1446dc52f00190e202bd0ea80b3d097b",
+      "gitBlobSha": "9b56f4308cfe7296de4f36b9fa381f57c7ddb719",
+      "sourcePath": "ops-console/src/server/collector/logTailer.ts"
+    },
+    {
+      "contentSha256": "ec08856fcf92102bdef98f2703e0d60d96c44dd5d7da076e3dbaffbd1684e251",
+      "gitBlobSha": "9c4c2a74680fab3101d0e58f32a4de0ed65af46f",
+      "sourcePath": "ops-console/src/server/collector/opsParsers.test.ts"
+    },
+    {
+      "contentSha256": "2da696c42faf7bd86cacfbae8915ed7541c5c8a656b05ae595191ce478c4696e",
+      "gitBlobSha": "519292850a2b411472c2fda41c1238643d91d60a",
+      "sourcePath": "ops-console/src/server/collector/opsParsers.ts"
+    },
+    {
+      "contentSha256": "46f1447f1396364607df20695cf4512fa70b5136eb3b856d3f6778b365b1363e",
+      "gitBlobSha": "ca5df0493210ed035ebe5155d0b7abc6b7679364",
+      "sourcePath": "ops-console/src/server/collector/postgresProbe.contract.test.ts"
+    },
+    {
+      "contentSha256": "22d758002a4f59d22d3167883ed881180336c60297b22d8898fbf3efdceaa3c0",
+      "gitBlobSha": "d3a0a056d0ce1821215997075a2ae56e01905df6",
+      "sourcePath": "ops-console/src/server/collector/postgresProbe.test.ts"
+    },
+    {
+      "contentSha256": "71f786419bbc8a00ff3049d63ebd8d162fbe56161a89e840bd2f5a98876846ff",
+      "gitBlobSha": "7240aa44b3f2bc697bd3e296376776de3cec1a78",
+      "sourcePath": "ops-console/src/server/collector/postgresProbe.ts"
+    },
+    {
+      "contentSha256": "a2b153d38b9ff38cdb92023cfb25a3a5c34455c6c5ed426aa259656f1b6f5ada",
+      "gitBlobSha": "9e7625de0fd79ac1b7e3518fa27388c3e3530e42",
+      "sourcePath": "ops-console/src/server/collector/processProbe.test.ts"
+    },
+    {
+      "contentSha256": "429d7b060b8500bd7de02240abda23cac55ff5977471e45e323166d443e3761f",
+      "gitBlobSha": "117c8bed3290927e359b4a2de4a4102270f90e80",
+      "sourcePath": "ops-console/src/server/collector/processProbe.ts"
+    },
+    {
+      "contentSha256": "79a18c4ac9c700a7471d4e143a8fa5d1af21307dd809c7b161463afb16cf120e",
+      "gitBlobSha": "b417001b561aebfb7469513707dee8f8a4f71c56",
+      "sourcePath": "ops-console/src/server/collector/redactor.test.ts"
+    },
+    {
+      "contentSha256": "b8c6d74cfd07169b99bd9bcbdd8657084e4ab8d7c527d921374332e639cf0373",
+      "gitBlobSha": "50a6b919c56810f27ce7e5d03b4b8deefc6721ed",
+      "sourcePath": "ops-console/src/server/collector/redactor.ts"
+    },
+    {
+      "contentSha256": "f15f727b4b7a2dd24607a1456e9fbd5d27f047c82f413d4b88920fc24e577321",
+      "gitBlobSha": "bc809891a2650bb427a21d825ecb58379d4ad218",
+      "sourcePath": "ops-console/src/server/collector/statusMachine.test.ts"
+    },
+    {
+      "contentSha256": "d9f00595e7c7bcbf2c6862e9818980b03311eaaf51e6be2ff0003afc43934811",
+      "gitBlobSha": "223d431c9a5a2eaa316aa0550297edb36f74ef96",
+      "sourcePath": "ops-console/src/server/collector/statusMachine.ts"
+    },
+    {
+      "contentSha256": "415ce2b2bb03926fb78f413a166ced72bd0063be66801ae7721e25c689b2fa55",
+      "gitBlobSha": "27bacd6650bb040c20373ef85ba1593853671254",
+      "sourcePath": "ops-console/src/server/config.test.ts"
+    },
+    {
+      "contentSha256": "cf034f4a4710ea14b053b4f2800f1ce2bda7369a0c81726d593b8a1e69f4861a",
+      "gitBlobSha": "f2290a7984eac1a4e21476074aded9b7bd21da16",
+      "sourcePath": "ops-console/src/server/config.ts"
+    },
+    {
+      "contentSha256": "6b81c28576c1ac600f5dea7951b894e61371d9c5d5e848e6c2737f9a73019197",
+      "gitBlobSha": "1c41f4e867e4ba0b6b96a4c873368263d8c2a6b6",
+      "sourcePath": "ops-console/src/server/http/app.test.ts"
+    },
+    {
+      "contentSha256": "6f9eaa20d647b63628c2a8bc3bd19f8a3ec73efbeea9b0c05a6f029c7cf7501a",
+      "gitBlobSha": "b92612444607852bb08b6410a16f6b8f1f48bcfe",
+      "sourcePath": "ops-console/src/server/http/app.ts"
+    },
+    {
+      "contentSha256": "33f89e19a0aebd76596bedc482ea0901bc759ef7840b3652fd44cc2c97ca944e",
+      "gitBlobSha": "0f935c627631a8f080653d722f68fbdcd1ca9cac",
+      "sourcePath": "ops-console/src/server/http/authRoutes.ts"
+    },
+    {
+      "contentSha256": "0944cad2c2db9043f55221d6a9e5adc508c2f8af081dc5b6ef20498775524f51",
+      "gitBlobSha": "8c1e0609d2c5cfceb1e23063da26ee8abedf514a",
+      "sourcePath": "ops-console/src/server/http/monitorRoutes.ts"
+    },
+    {
+      "contentSha256": "0cf56d31bc2d0ad7553ff99dbce4fd961cbfa633cab979513928e3cb94603e24",
+      "gitBlobSha": "3c2b119b8fdacee1503f411d2f9d8b0ca4ba7f1b",
+      "sourcePath": "ops-console/src/server/http/web-entry.ts"
+    },
+    {
+      "contentSha256": "2c3d004e7b82bb61ac13a8a02987eac527c2052f94210eb7d0270c424bec9ee3",
+      "gitBlobSha": "97c4548a9080dc96ad0f13b0ab1105861c8e71fa",
+      "sourcePath": "ops-console/src/server/http/web-server.ts"
+    },
+    {
+      "contentSha256": "fbeb4bbe015e7ab7fffbb63033205c12e12968a154af861d6adda70240c20c27",
+      "gitBlobSha": "dcf452c37f09013dd015d93e8f8d9f2b0ad27853",
+      "sourcePath": "ops-console/src/server/http/zaloRoutes.ts"
+    },
+    {
+      "contentSha256": "28a76e2f2e21b058534108ef41acedcc193a1da62731fdc3515488ce6e755c52",
+      "gitBlobSha": "a2fa50036689c94b6ab497dad1e70d6ce048d0c9",
+      "sourcePath": "ops-console/src/server/security/auth.test.ts"
+    },
+    {
+      "contentSha256": "6701bec3afd7d303b7ed883285c5d63edc7614486fd077f636d1c966c657e6e1",
+      "gitBlobSha": "6e46a55c186d063286997baccb6ad883f53774ae",
+      "sourcePath": "ops-console/src/server/security/auth.ts"
+    },
+    {
+      "contentSha256": "53397253f485049151f5db8df0663d36f66bff77aa389ad6f739534fa3cb460e",
+      "gitBlobSha": "5d08c505a76463623ee76e2839da095ea43119ae",
+      "sourcePath": "ops-console/src/server/security/crypto.test.ts"
+    },
+    {
+      "contentSha256": "8be3007d82f0afa96520a1a6c145a2676b423196b413aaa8a648d9a556ac7567",
+      "gitBlobSha": "1f20808a6edf45be57a64647951d2b973fc21008",
+      "sourcePath": "ops-console/src/server/security/crypto.ts"
+    },
+    {
+      "contentSha256": "22bb3d959d8dc698c55f9e5e05cf88a5d0225df4894c371bd80ceb35c210fe7c",
+      "gitBlobSha": "9027f4ca519edb635e353930d0ffa863e36a02f9",
+      "sourcePath": "ops-console/src/server/security/totp.test.ts"
+    },
+    {
+      "contentSha256": "8bb771546321706c2ba437408eb9de63d06c40a1fb1fdc1824127c56de84aa1f",
+      "gitBlobSha": "009ed833d6cc6efe686946f823d8b936f803e45f",
+      "sourcePath": "ops-console/src/server/security/totp.ts"
+    },
+    {
+      "contentSha256": "65e193566e1d2b577f91b648e6248feb68ec4259f85bb24be6d24cbbbf5b20d3",
+      "gitBlobSha": "a887ca038eb34b32ca700604f1f0f08bf3a060cc",
+      "sourcePath": "ops-console/src/server/security/zaloLink.test.ts"
+    },
+    {
+      "contentSha256": "9ddf895ae730d45614f51720646d87d1588bef82e83d74e4a220bda78820d717",
+      "gitBlobSha": "80dc108cf64ef32f04adc0567d6105f9bd36eeef",
+      "sourcePath": "ops-console/src/server/security/zaloLink.ts"
+    },
+    {
+      "contentSha256": "d0a64d738ec1847ddf4e90776a03f5662893fcc4913987cfa064ca690a7505a0",
+      "gitBlobSha": "5ce44439a68c46c8d0521f9f30f82eb86412a4df",
+      "sourcePath": "ops-console/src/server/storage/history.test.ts"
+    },
+    {
+      "contentSha256": "69be59c7a15a6ed29645c4679946ecb1b55fe573c8d8cb9ab249535f58164444",
+      "gitBlobSha": "e0a845cbcb9d4d0e1c39b412fca079618a9c5b19",
+      "sourcePath": "ops-console/src/server/storage/schema.ts"
+    },
+    {
+      "contentSha256": "a8f9907fc762d453a652691855918ce4f467786f2e0de4d30c76a4ee2c2fc9af",
+      "gitBlobSha": "37e267ae6074818190f6bc7662a874e08cee8587",
+      "sourcePath": "ops-console/src/server/storage/store.test.ts"
+    },
+    {
+      "contentSha256": "ae74112a493e55706bcb354905a21b0fc1df450cc63ccc33a292413c018334d1",
+      "gitBlobSha": "11ca06bcf031e72c5f3a038cc5cee8203e3bf8d3",
+      "sourcePath": "ops-console/src/server/storage/store.ts"
+    },
+    {
+      "contentSha256": "0c44e5062a0ef6a53c253f436885aebe11b607643043051cece5b9101accd351",
+      "gitBlobSha": "95eba7cdcfa5ca5d63adaf0b2c3d9f3a3e640f9e",
+      "sourcePath": "ops-console/src/server/systemdNotify.test.ts"
+    },
+    {
+      "contentSha256": "897c49d7392d2ad8bfb23fb9d11938f73c60cf82b1a0155a2f1157ec650af5e9",
+      "gitBlobSha": "db3f9a9d1b23e4939ecfe1539f75aa4675b02ab3",
+      "sourcePath": "ops-console/src/server/systemdNotify.ts"
+    },
+    {
+      "contentSha256": "4071da050d2595be417f61bfd526472038e69c3fcf0588bc4e11a7e878b9507d",
+      "gitBlobSha": "524d36a3fa64896e02ddacf1f72c7b6268e085dc",
+      "sourcePath": "ops-console/src/shared/models.ts"
+    },
+    {
+      "contentSha256": "7da601157f274f795d053cc3cf47b331ef1a71f92fa0221bcf58f6a02e5ae420",
+      "gitBlobSha": "0da06294eee8105f117d511d49b5b24c8ba65376",
+      "sourcePath": "ops-console/src/web/App.test.tsx"
+    },
+    {
+      "contentSha256": "826b079db72b4398bd8746e7194ef8e94ca58ff4d05ccd5d19d59d337b0f92d4",
+      "gitBlobSha": "38d3732909868938b4988d5a486299ee4eb5cb2a",
+      "sourcePath": "ops-console/src/web/App.tsx"
+    },
+    {
+      "contentSha256": "2bfa69928ce9c3ad943f7476c9a9e6e2b430c3e337d13dfc48d2185e086fef6a",
+      "gitBlobSha": "21e8a5f0f4f2186bbfd8c7424d9c91a19129a5b4",
+      "sourcePath": "ops-console/src/web/api.ts"
+    },
+    {
+      "contentSha256": "959354a79722db015ccb17dc2c620233f49ed6552e4935e1c83214e9aebcbaad",
+      "gitBlobSha": "5d2005fd6e8c2e8f7fef6e0159cf5b3e0e42d4ff",
+      "sourcePath": "ops-console/src/web/components/AcknowledgeDialog.tsx"
+    },
+    {
+      "contentSha256": "8103a8ede11635d605a1b9fe925b43fd87883689a0c27bcc93b11a5d75ff48fa",
+      "gitBlobSha": "53948e2d0562a848432bee9ea69961e8d513c186",
+      "sourcePath": "ops-console/src/web/components/IncidentList.tsx"
+    },
+    {
+      "contentSha256": "5aa7b7ca73ac214a9afa08176ae5d271ce270ec36c3cbeaf6f83a86c69b2c664",
+      "gitBlobSha": "33718a51f6c39ba69be44211e5dc0634f94c7522",
+      "sourcePath": "ops-console/src/web/components/InfrastructureChart.test.tsx"
+    },
+    {
+      "contentSha256": "802fc886876eca31c6a1d2808b8936fddd09c207a39e5316dd7c8149d8945d2c",
+      "gitBlobSha": "601baf4aa9bc54a8bff7f7e76ab947abadd18f2e",
+      "sourcePath": "ops-console/src/web/components/InfrastructureChart.tsx"
+    },
+    {
+      "contentSha256": "60b4def0b26bd1c25a096cd93d3d0dc60cc5dc8aed5f87425d01c8507bec3e08",
+      "gitBlobSha": "c874c3962aaeacae1145fa5f3ddd10abf81dd883",
+      "sourcePath": "ops-console/src/web/components/InfrastructureSection.test.tsx"
+    },
+    {
+      "contentSha256": "e8b9f9470f175516d8f1bb5a4c7b37cf45f59caf10042c9c9f8388a855ec6391",
+      "gitBlobSha": "f2d4e22109e876071ccee1969c2b1ffcccebb8f3",
+      "sourcePath": "ops-console/src/web/components/InfrastructureSection.tsx"
+    },
+    {
+      "contentSha256": "f176e25896c583e035096057b28afc8a0f2f1ed650f1b4f3590618cf7de4ddc8",
+      "gitBlobSha": "40e97318c5506be5e9ab0a852d9252ed3c97f724",
+      "sourcePath": "ops-console/src/web/components/LoginForm.tsx"
+    },
+    {
+      "contentSha256": "6b242cee25e7df902d8217caab1b86740d672df731592112fb66344beba270ed",
+      "gitBlobSha": "bed3399e5c48f544f53db26a998f3d6fa62b4a36",
+      "sourcePath": "ops-console/src/web/components/MonitorPanel.tsx"
+    },
+    {
+      "contentSha256": "1bb3d80967d10baf39f64522162690153e6b4b16eeeae1ea91dbb4fae6e8663d",
+      "gitBlobSha": "af292e3f051acd732dca83801885c02804ec36bb",
+      "sourcePath": "ops-console/src/web/components/OverviewCards.test.tsx"
+    },
+    {
+      "contentSha256": "ab459155592dfaba6b9a3823bf185f7ca0a882d551ac8d647d8fedcd3dea4bc1",
+      "gitBlobSha": "acbcfbca3f2207bcba81a05648ca3f6e05ee0466",
+      "sourcePath": "ops-console/src/web/components/OverviewCards.tsx"
+    },
+    {
+      "contentSha256": "e747810820516c502748d642b104edfb12ad561ab22db6c8b7d88d811d692c03",
+      "gitBlobSha": "af8c6779a4226698036c0e6f9407a73f46d7df52",
+      "sourcePath": "ops-console/src/web/components/ZaloLinkPanel.tsx"
+    },
+    {
+      "contentSha256": "a374cc2c7115637e5ddaf3d5d3bdb33678599a899702760b088dd38cfdf74e8f",
+      "gitBlobSha": "7a844967d81ac7112cc7710b82d3a68cda8ad237",
+      "sourcePath": "ops-console/src/web/infrastructure.test.ts"
+    },
+    {
+      "contentSha256": "d4d50850d839bfe1ab4ae835a934a0b915ee93616e974f0fbbc72220e9fab3bc",
+      "gitBlobSha": "0dd983efd30d6f1ad227a3b6cb9d926f1e1dc365",
+      "sourcePath": "ops-console/src/web/infrastructure.ts"
+    },
+    {
+      "contentSha256": "f5b3c62998db8f8e709e9c7b354da3e21993a58fc4545b839657efbbae71e9b5",
+      "gitBlobSha": "7b1c9fd18cf1feef3a5cea2de28ef0df9d2082d3",
+      "sourcePath": "ops-console/src/web/main.tsx"
+    },
+    {
+      "contentSha256": "354e07797c30871222cd0025f0755bb62447c4f6ce5248ad38e243ef9e271070",
+      "gitBlobSha": "5ab0e8ebb2dfdceda66bd65ff2c1825c38bb8a37",
+      "sourcePath": "ops-console/src/web/styles.css"
+    },
+    {
+      "contentSha256": "91a3c8962a0edcb956206a501d943fe99e1c78c6d4d8b5c9a948a3362c75978c",
+      "gitBlobSha": "bb02c60cd055452852c33afe9078e35455935fb0",
+      "sourcePath": "ops-console/src/web/test-setup.ts"
+    },
+    {
+      "contentSha256": "8b1ad29f7df0dc68f055c01cb0ee96f6ecd9f29a05d6186dbbd642d1d1502840",
+      "gitBlobSha": "5d719d7e8173ab45c9c1638f6331d5478c8fa5b5",
+      "sourcePath": "ops-console/tsconfig.json"
+    },
+    {
+      "contentSha256": "c49d9fb3e3e55e4a6942384362e9abfbaea251d82f1e43f535bfea1f91f6bb36",
+      "gitBlobSha": "70eefe676455db1011ad0568f7d54fde46e0f4c1",
+      "sourcePath": "ops-console/vite.config.ts"
+    }
+  ],
+  "trackedInventorySha256": "704ba270ca8e4109a352bd37aa033f56e7520199a0a4fdac9fff2f1de2e86c84",
+  "trackedPrefix": "ops-console"
+}
