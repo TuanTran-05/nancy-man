@@ -765,19 +765,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "c46b8c35aacf0ff3152ee1c37fcb788af397b6873804bc3d69604546ef9b21c4",
-          "gitBlobSha": "e7ac6fc8073559076386ad0485a6ad04bde197ca",
+          "contentSha256": "3222a4e0d4adee4369ac3ef4eca95ff0224b4f8b32a1a5a2513748760b346c19",
+          "gitBlobSha": "b6783b43b8b24a5b80a0849aaa222609bee9f912",
           "path": "apps/web/src/cli/provision-ops-user.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "96a25e569f173a927ffefe51860b445745ea6c77",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/cli/provision-ops-user.ts",
       "sourceSha256": "a06d3968246a30751ee87669c4928e5ad4fd6b53cc483f738356252928b57602",
-      "targetContentSha256": "c46b8c35aacf0ff3152ee1c37fcb788af397b6873804bc3d69604546ef9b21c4",
-      "targetGitBlobSha": "e7ac6fc8073559076386ad0485a6ad04bde197ca",
+      "targetContentSha256": "3222a4e0d4adee4369ac3ef4eca95ff0224b4f8b32a1a5a2513748760b346c19",
+      "targetGitBlobSha": "b6783b43b8b24a5b80a0849aaa222609bee9f912",
       "targetPath": "apps/web/src/cli/provision-ops-user.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -837,19 +837,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "39512b6d363c658d8d4f2a00f8b82c1ad2bcbce5fe643247dedcb61498449308",
-          "gitBlobSha": "09d13eb03cee6162d90ab00f6b14327a9b0d50e1",
+          "contentSha256": "545d823e226fb4337ef0d8d17a98ee601327e35f843c7556895a90918da4e5c4",
+          "gitBlobSha": "0ce0d0874cb1080a1455195af3d65276b77be0cc",
           "path": "apps/web/src/server/alerts/alertService.test.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "cc146b753d22ad754c47d5125a49834229eb40b6",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/alerts/alertService.test.ts",
       "sourceSha256": "1b073c282f0eb7dec7ef3dd17ff32753d78850e5e05afb528794ea3c1ee1ec39",
-      "targetContentSha256": "39512b6d363c658d8d4f2a00f8b82c1ad2bcbce5fe643247dedcb61498449308",
-      "targetGitBlobSha": "09d13eb03cee6162d90ab00f6b14327a9b0d50e1",
+      "targetContentSha256": "545d823e226fb4337ef0d8d17a98ee601327e35f843c7556895a90918da4e5c4",
+      "targetGitBlobSha": "0ce0d0874cb1080a1455195af3d65276b77be0cc",
       "targetPath": "apps/web/src/server/alerts/alertService.test.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -861,19 +861,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "c8b79ee055b5dac599a47ee0bcebd2bd37e9a3210a71331d76d5d0a58193e408",
-          "gitBlobSha": "0074fe3aa06b3c38c4f117a393790221d5931b2c",
+          "contentSha256": "ab987fa211b0876ffb2edf754498ba781e5d52273a637f32c57dfcc6cffe2d82",
+          "gitBlobSha": "88062e3fce6f26ff36f94ea2955539be1c94c6b3",
           "path": "apps/web/src/server/alerts/alertService.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "c10d98ea36198379bc90d54b7f56273b34cb2a57",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/alerts/alertService.ts",
       "sourceSha256": "e2955be51f03f6dbf5087bb26841839982751f7f5b43293858781d79b3c82ca9",
-      "targetContentSha256": "c8b79ee055b5dac599a47ee0bcebd2bd37e9a3210a71331d76d5d0a58193e408",
-      "targetGitBlobSha": "0074fe3aa06b3c38c4f117a393790221d5931b2c",
+      "targetContentSha256": "ab987fa211b0876ffb2edf754498ba781e5d52273a637f32c57dfcc6cffe2d82",
+      "targetGitBlobSha": "88062e3fce6f26ff36f94ea2955539be1c94c6b3",
       "targetPath": "apps/web/src/server/alerts/alertService.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -957,19 +957,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "b865268ab2d6cf0003cbd9b3b3538691073b6fc786bd4c6166ad7255bbd53649",
-          "gitBlobSha": "74f2df6565d3ad36fa4e1c137695d87d371dd2a2",
+          "contentSha256": "c790ca5f83ed94b77b4bd1ce1a7293599af209d69ba4626aefc86b17c38c62b5",
+          "gitBlobSha": "87068739667be5eb6e29944051cf32ad29c8d1cf",
           "path": "apps/web/src/server/alerts/failsafe.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "fa0f452b4409b9b02cbbdbbf606fc54ee683edec",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/alerts/failsafe.ts",
       "sourceSha256": "e114b61d6561f064ee977b57d56e3b19dbf497087f3de6de1a8cff9d4b107a6d",
-      "targetContentSha256": "b865268ab2d6cf0003cbd9b3b3538691073b6fc786bd4c6166ad7255bbd53649",
-      "targetGitBlobSha": "74f2df6565d3ad36fa4e1c137695d87d371dd2a2",
+      "targetContentSha256": "c790ca5f83ed94b77b4bd1ce1a7293599af209d69ba4626aefc86b17c38c62b5",
+      "targetGitBlobSha": "87068739667be5eb6e29944051cf32ad29c8d1cf",
       "targetPath": "apps/web/src/server/alerts/failsafe.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -981,19 +981,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "b7af5b2e8b4129d16161afa7635039b963d3eeb5c021c6b5e75c65bb6360471b",
-          "gitBlobSha": "213132a217df2750359c5ff360a4819973893bf1",
+          "contentSha256": "81ae9bc369c28a18a1119547d83026361be29ee994bcb727ac09171db1c65768",
+          "gitBlobSha": "32c1f351f673c8967f517c14b6ff75ab64db05f7",
           "path": "apps/web/src/server/alerts/recipientResolver.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "5009374c24cae4d3d2df2f39754f7341118a0ef7",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/alerts/recipientResolver.ts",
       "sourceSha256": "6dd875a3f8b12d82f1c5d3c8478602914964fc1dd1c9b5e37eb2cba3ee9b3aa5",
-      "targetContentSha256": "b7af5b2e8b4129d16161afa7635039b963d3eeb5c021c6b5e75c65bb6360471b",
-      "targetGitBlobSha": "213132a217df2750359c5ff360a4819973893bf1",
+      "targetContentSha256": "81ae9bc369c28a18a1119547d83026361be29ee994bcb727ac09171db1c65768",
+      "targetGitBlobSha": "32c1f351f673c8967f517c14b6ff75ab64db05f7",
       "targetPath": "apps/web/src/server/alerts/recipientResolver.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -1413,19 +1413,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "b49dc908c870f84d2ee623cb80cb968932408f6d802e1d4aafffb7b96b2303f3",
-          "gitBlobSha": "5d36c79b4322273d8974aac711380c21351bbf89",
+          "contentSha256": "08c6bcfe30fbef27338b1befa42c464dde8701440a80b59c08adeac8fac96fb7",
+          "gitBlobSha": "94b81af768b1cb83c2a3c4b63f970d1b029af1c2",
           "path": "apps/web/src/server/collector/collector-main.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "1125327c690d9b31a8c5df93ab91a2c41b42c579",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/collector/collector-main.ts",
       "sourceSha256": "4a631e3e2a2dffd0c3b7a03e6274695fc160ff6010710ca9ba8d792d7f2f99bb",
-      "targetContentSha256": "b49dc908c870f84d2ee623cb80cb968932408f6d802e1d4aafffb7b96b2303f3",
-      "targetGitBlobSha": "5d36c79b4322273d8974aac711380c21351bbf89",
+      "targetContentSha256": "08c6bcfe30fbef27338b1befa42c464dde8701440a80b59c08adeac8fac96fb7",
+      "targetGitBlobSha": "94b81af768b1cb83c2a3c4b63f970d1b029af1c2",
       "targetPath": "apps/web/src/server/collector/collector-main.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -1437,19 +1437,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "1b67704f38a37b5004c9c7d76cf1b79bedee17edbf9cba5a87ab5cbb1f302d49",
-          "gitBlobSha": "2eed63604ab656ccc545bbaa95d2e289a8b981c6",
+          "contentSha256": "1e5fc8881c07bf180d96b26e68c937ade0f54c267bcd27fd24babc3a2f9b614c",
+          "gitBlobSha": "3843cc7a77f620da71bb91ecd75ea91c15a19675",
           "path": "apps/web/src/server/collector/collector.test.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "186201f650363306be6fc13c5ffc3ada68a5cff0",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/collector/collector.test.ts",
       "sourceSha256": "25ca8fd71f6316f733406b624e82206c5bc7361cfa8a469ff20551ecfa051ea8",
-      "targetContentSha256": "1b67704f38a37b5004c9c7d76cf1b79bedee17edbf9cba5a87ab5cbb1f302d49",
-      "targetGitBlobSha": "2eed63604ab656ccc545bbaa95d2e289a8b981c6",
+      "targetContentSha256": "1e5fc8881c07bf180d96b26e68c937ade0f54c267bcd27fd24babc3a2f9b614c",
+      "targetGitBlobSha": "3843cc7a77f620da71bb91ecd75ea91c15a19675",
       "targetPath": "apps/web/src/server/collector/collector.test.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -1629,19 +1629,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "f00e053ae6544cb7bd5d7c8c6b49e0914c498d01bf2a422fc1771cb462e82e13",
-          "gitBlobSha": "ac0cd9773c3873a9b136cd64329a70ca12a4c952",
+          "contentSha256": "387f01cb2889a2fce0fb516b1b18a38aa846893058147d6ee6fade1466e985a9",
+          "gitBlobSha": "98c4a56f6dcfe3159c1fe2374be992ea6bed8714",
           "path": "apps/web/src/server/collector/postgresProbe.contract.test.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "ca5df0493210ed035ebe5155d0b7abc6b7679364",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/collector/postgresProbe.contract.test.ts",
       "sourceSha256": "46f1447f1396364607df20695cf4512fa70b5136eb3b856d3f6778b365b1363e",
-      "targetContentSha256": "f00e053ae6544cb7bd5d7c8c6b49e0914c498d01bf2a422fc1771cb462e82e13",
-      "targetGitBlobSha": "ac0cd9773c3873a9b136cd64329a70ca12a4c952",
+      "targetContentSha256": "387f01cb2889a2fce0fb516b1b18a38aa846893058147d6ee6fade1466e985a9",
+      "targetGitBlobSha": "98c4a56f6dcfe3159c1fe2374be992ea6bed8714",
       "targetPath": "apps/web/src/server/collector/postgresProbe.contract.test.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -1749,19 +1749,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "f1ae5a2fdd8b3affc1d88a09d8d4b9babd2c93e4744b548c876f2ed02c1e40e5",
-          "gitBlobSha": "154f77b8f7ce193e69adf10755d936ce9130055b",
+          "contentSha256": "e4ea2d0d6b430b8408f33e96f1cebc7747872231b02a4128d8b5d54689473512",
+          "gitBlobSha": "1f59c29482fc9ceb76b11ace0714a1a681b31d5d",
           "path": "apps/web/src/server/collector/redactor.test.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "b417001b561aebfb7469513707dee8f8a4f71c56",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/collector/redactor.test.ts",
       "sourceSha256": "79a18c4ac9c700a7471d4e143a8fa5d1af21307dd809c7b161463afb16cf120e",
-      "targetContentSha256": "f1ae5a2fdd8b3affc1d88a09d8d4b9babd2c93e4744b548c876f2ed02c1e40e5",
-      "targetGitBlobSha": "154f77b8f7ce193e69adf10755d936ce9130055b",
+      "targetContentSha256": "e4ea2d0d6b430b8408f33e96f1cebc7747872231b02a4128d8b5d54689473512",
+      "targetGitBlobSha": "1f59c29482fc9ceb76b11ace0714a1a681b31d5d",
       "targetPath": "apps/web/src/server/collector/redactor.test.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -1773,19 +1773,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "96feb76860ad0aee1c2fb9f49a6c6489bec886119f4e7812e6723289171e09d9",
-          "gitBlobSha": "797fef029f64a38a27c023a487b7a626d2c71a6d",
+          "contentSha256": "43dc69789acf8bf10304388b9a013b90d5af3c93c568e3138b579c314aeb8462",
+          "gitBlobSha": "67d0e9393592c4c92ec650dd00912341969a24a8",
           "path": "apps/web/src/server/collector/redactor.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "50a6b919c56810f27ce7e5d03b4b8deefc6721ed",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/collector/redactor.ts",
       "sourceSha256": "b8c6d74cfd07169b99bd9bcbdd8657084e4ab8d7c527d921374332e639cf0373",
-      "targetContentSha256": "96feb76860ad0aee1c2fb9f49a6c6489bec886119f4e7812e6723289171e09d9",
-      "targetGitBlobSha": "797fef029f64a38a27c023a487b7a626d2c71a6d",
+      "targetContentSha256": "43dc69789acf8bf10304388b9a013b90d5af3c93c568e3138b579c314aeb8462",
+      "targetGitBlobSha": "67d0e9393592c4c92ec650dd00912341969a24a8",
       "targetPath": "apps/web/src/server/collector/redactor.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -2013,19 +2013,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "c7bab5e9d14830bc576a4c69518cd878cf0b6b2bf500e5142c6862cee530fc45",
-          "gitBlobSha": "072db4f52e4ddfdd290b74f80518a8f5821c325f",
+          "contentSha256": "8a665eba99992d66ef9f2421f8662cec5f407262803d82c2069e7b7932d17bfa",
+          "gitBlobSha": "e9e81fb223bdbc4433f20cac93d2878a4fc21510",
           "path": "apps/web/src/server/http/web-server.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "97c4548a9080dc96ad0f13b0ab1105861c8e71fa",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/http/web-server.ts",
       "sourceSha256": "2c3d004e7b82bb61ac13a8a02987eac527c2052f94210eb7d0270c424bec9ee3",
-      "targetContentSha256": "c7bab5e9d14830bc576a4c69518cd878cf0b6b2bf500e5142c6862cee530fc45",
-      "targetGitBlobSha": "072db4f52e4ddfdd290b74f80518a8f5821c325f",
+      "targetContentSha256": "8a665eba99992d66ef9f2421f8662cec5f407262803d82c2069e7b7932d17bfa",
+      "targetGitBlobSha": "e9e81fb223bdbc4433f20cac93d2878a4fc21510",
       "targetPath": "apps/web/src/server/http/web-server.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -2061,19 +2061,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "dd8ff712be642ebc792d7ac64e80c37cfd1593f713d7d33a3f2d39869a8677c1",
-          "gitBlobSha": "c70d92af880f758707b934c76eff406ce1ea8e10",
+          "contentSha256": "33b4351faa4e7a4ff370ec0fe90b67c776e83ff6c3854d2a5321116f5bf3146d",
+          "gitBlobSha": "5622bbba549a3c50fb84080a2e81063c356c97c8",
           "path": "apps/web/src/server/security/auth.test.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "a2fa50036689c94b6ab497dad1e70d6ce048d0c9",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/security/auth.test.ts",
       "sourceSha256": "28a76e2f2e21b058534108ef41acedcc193a1da62731fdc3515488ce6e755c52",
-      "targetContentSha256": "dd8ff712be642ebc792d7ac64e80c37cfd1593f713d7d33a3f2d39869a8677c1",
-      "targetGitBlobSha": "c70d92af880f758707b934c76eff406ce1ea8e10",
+      "targetContentSha256": "33b4351faa4e7a4ff370ec0fe90b67c776e83ff6c3854d2a5321116f5bf3146d",
+      "targetGitBlobSha": "5622bbba549a3c50fb84080a2e81063c356c97c8",
       "targetPath": "apps/web/src/server/security/auth.test.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -2085,19 +2085,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "71968e213d2c2cbb674108b73a084565f9900a9054fdba83f573cc60d408a79f",
-          "gitBlobSha": "838f92c8fea03079364453c39092691fc8577af0",
+          "contentSha256": "2b606c02c9ae3f9afb09dbc3c2c59982d3ff43caf1dc3ab3d3925083338c17b7",
+          "gitBlobSha": "ee581e06ee27cc78973f6d05b58be280933063c6",
           "path": "apps/web/src/server/security/auth.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "6e46a55c186d063286997baccb6ad883f53774ae",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/security/auth.ts",
       "sourceSha256": "6701bec3afd7d303b7ed883285c5d63edc7614486fd077f636d1c966c657e6e1",
-      "targetContentSha256": "71968e213d2c2cbb674108b73a084565f9900a9054fdba83f573cc60d408a79f",
-      "targetGitBlobSha": "838f92c8fea03079364453c39092691fc8577af0",
+      "targetContentSha256": "2b606c02c9ae3f9afb09dbc3c2c59982d3ff43caf1dc3ab3d3925083338c17b7",
+      "targetGitBlobSha": "ee581e06ee27cc78973f6d05b58be280933063c6",
       "targetPath": "apps/web/src/server/security/auth.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -2277,19 +2277,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "69be59c7a15a6ed29645c4679946ecb1b55fe573c8d8cb9ab249535f58164444",
-          "gitBlobSha": "e0a845cbcb9d4d0e1c39b412fca079618a9c5b19",
+          "contentSha256": "bf462134862eb8d53adaad0811a84a31977f6e39baf9f3c12cd86d644c95ef02",
+          "gitBlobSha": "fa8a115903f4c1e1058b2559934c828ef8f5c50c",
           "path": "apps/web/src/server/storage/schema.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "e0a845cbcb9d4d0e1c39b412fca079618a9c5b19",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/storage/schema.ts",
       "sourceSha256": "69be59c7a15a6ed29645c4679946ecb1b55fe573c8d8cb9ab249535f58164444",
-      "targetContentSha256": "69be59c7a15a6ed29645c4679946ecb1b55fe573c8d8cb9ab249535f58164444",
-      "targetGitBlobSha": "e0a845cbcb9d4d0e1c39b412fca079618a9c5b19",
+      "targetContentSha256": "bf462134862eb8d53adaad0811a84a31977f6e39baf9f3c12cd86d644c95ef02",
+      "targetGitBlobSha": "fa8a115903f4c1e1058b2559934c828ef8f5c50c",
       "targetPath": "apps/web/src/server/storage/schema.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -2301,19 +2301,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "d7b4489d203c2d21116e800117f66fef8e480b74b57d9bb8f054a865b8fe651c",
-          "gitBlobSha": "d94d6a68bcfbf4746188c0e7adae93a6cccda495",
+          "contentSha256": "968b2161c7bde3747b5b8243e9398d93334f16cbc71f9528c68d37282ae3ad2d",
+          "gitBlobSha": "ef35ccc2a6a91aed9edf75985d9b34a973759a69",
           "path": "apps/web/src/server/storage/store.test.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "37e267ae6074818190f6bc7662a874e08cee8587",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/storage/store.test.ts",
       "sourceSha256": "a8f9907fc762d453a652691855918ce4f467786f2e0de4d30c76a4ee2c2fc9af",
-      "targetContentSha256": "d7b4489d203c2d21116e800117f66fef8e480b74b57d9bb8f054a865b8fe651c",
-      "targetGitBlobSha": "d94d6a68bcfbf4746188c0e7adae93a6cccda495",
+      "targetContentSha256": "968b2161c7bde3747b5b8243e9398d93334f16cbc71f9528c68d37282ae3ad2d",
+      "targetGitBlobSha": "ef35ccc2a6a91aed9edf75985d9b34a973759a69",
       "targetPath": "apps/web/src/server/storage/store.test.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -2325,19 +2325,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "84873e2090df2ae5b49f7740b0a7498fb10626499af9a2b017d4011b0f876caa",
-          "gitBlobSha": "3799e2ba66198c716289e4f4858998affa6456bc",
+          "contentSha256": "5dc4d68ca1390b3bd72489109f8e7ef91df314850142e4bdb536d03fa3bbca94",
+          "gitBlobSha": "250cb7c382042c73ad78447582cca1ded558228a",
           "path": "apps/web/src/server/storage/store.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "11ca06bcf031e72c5f3a038cc5cee8203e3bf8d3",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/server/storage/store.ts",
       "sourceSha256": "ae74112a493e55706bcb354905a21b0fc1df450cc63ccc33a292413c018334d1",
-      "targetContentSha256": "84873e2090df2ae5b49f7740b0a7498fb10626499af9a2b017d4011b0f876caa",
-      "targetGitBlobSha": "3799e2ba66198c716289e4f4858998affa6456bc",
+      "targetContentSha256": "5dc4d68ca1390b3bd72489109f8e7ef91df314850142e4bdb536d03fa3bbca94",
+      "targetGitBlobSha": "250cb7c382042c73ad78447582cca1ded558228a",
       "targetPath": "apps/web/src/server/storage/store.ts",
       "targetRepository": "edutrack-ops"
     },
@@ -2397,19 +2397,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "75ee9abb4921cabfc5abeaee8e39b36a3411d64b0e13b3c8622fcf0502e9e473",
-          "gitBlobSha": "d8d248d85460a17cb3b6f6a91e3e4d9edb49d9fc",
+          "contentSha256": "f2d3caa27111af8fccdf907b5f4a2978f97c19c45a38ccca94df6be22ff1789d",
+          "gitBlobSha": "72c5b825f57db71ecfe103c523c4240af6a8e4d1",
           "path": "apps/web/src/shared/models.ts"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "6dae367e9e8a0ad44166d8ca660e27511033aca9",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "524d36a3fa64896e02ddacf1f72c7b6268e085dc",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/src/shared/models.ts",
       "sourceSha256": "4071da050d2595be417f61bfd526472038e69c3fcf0588bc4e11a7e878b9507d",
-      "targetContentSha256": "75ee9abb4921cabfc5abeaee8e39b36a3411d64b0e13b3c8622fcf0502e9e473",
-      "targetGitBlobSha": "d8d248d85460a17cb3b6f6a91e3e4d9edb49d9fc",
+      "targetContentSha256": "f2d3caa27111af8fccdf907b5f4a2978f97c19c45a38ccca94df6be22ff1789d",
+      "targetGitBlobSha": "72c5b825f57db71ecfe103c523c4240af6a8e4d1",
       "targetPath": "apps/web/src/shared/models.ts",
       "targetRepository": "edutrack-ops"
     },
