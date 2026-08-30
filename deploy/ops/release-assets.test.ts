@@ -200,6 +200,23 @@ describe('immutable Ops prepare and activate assets', () => {
     expect(readFileSync(log, 'utf8')).toBe(before);
   });
 
+  it('does not install any config assets when marker or manifest preflight is incomplete', () => {
+    const directory = root();
+    prepareRelease(directory);
+    const systemctl = stub(directory, 'systemctl', ':');
+    const nginx = stub(directory, 'nginx', ':');
+    writeFileSync(join(directory, 'releases', sha, '.release-source.json'), '{broken\n');
+
+    expect(() =>
+      run(activate, directory, [sha], {
+        EDUTRACK_OPS_TEST_SYSTEMCTL: systemctl,
+        EDUTRACK_OPS_TEST_NGINX: nginx
+      })
+    ).toThrow(/RELEASE_MARKER_INVALID/u);
+    expect(existsSync(join(directory, 'installed'))).toBe(false);
+    expect(existsSync(join(directory, 'current'))).toBe(false);
+  });
+
   it('uses a same-root temporary symlink for a successful pointer replacement and leaves no staging pointer behind', () => {
     const directory = root();
     prepareRelease(directory);
