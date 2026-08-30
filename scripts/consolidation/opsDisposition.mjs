@@ -103,7 +103,12 @@ const migrationBaseline = z.strictObject({
     legacyRuntime: z.literal('sqlite_web_collector_only'),
     postgresApiPlane: z.literal('not_deployed')
   }),
-  requiredBeforeCutover: z.array(z.string().min(1)).min(1)
+  requiredBeforeCutover: z.tuple([
+    z.literal('deploy a credential-resolved canonical Ops PostgreSQL endpoint'),
+    z.literal('capture sorted migration IDs through that resolver'),
+    z.literal('persist only the approved ID list, count, and SHA-256 digest'),
+    z.literal('reject cutover if capture is unavailable or migration history does not validate')
+  ])
 });
 const inputsSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -122,7 +127,7 @@ const inputsSchema = z.strictObject({
   generatedInventorySha256: sha64,
   generatedRoots: z.array(generatedRoot).length(3),
   frozenUniverseSha256: sha64,
-  migrationBaseline: migrationBaseline.optional()
+  migrationBaseline
 });
 
 function fail(code) {
@@ -696,6 +701,7 @@ export function buildFrozenOpsCapture({
   embeddedGitSha,
   embeddedWorktreeRoot,
   capturedAt,
+  migrationBaseline,
   runtimeIdentity
 }) {
   const canonicalTreeSha = requireFullCommit(canonicalRepositoryRoot, canonicalGitSha);
@@ -730,7 +736,8 @@ export function buildFrozenOpsCapture({
     generatedRootCount: generatedRoots.length,
     generatedInventorySha256: hash(JSON.stringify(generatedRoots)),
     generatedRoots,
-    frozenUniverseSha256: ''
+    frozenUniverseSha256: '',
+    migrationBaseline
   };
   inputs.frozenUniverseSha256 = hash(JSON.stringify(frozenUniverse(inputs)));
   const ledgerEntries = frozenUniverse(inputs).map((item) => ({
@@ -796,6 +803,12 @@ function writeExclusiveReplacement(filePath, bytes) {
 }
 
 function captureFromReviewedInputs(repositoryRoot) {
+  const existingInputs = readJson(
+    path.join(repositoryRoot, INPUT_EVIDENCE_PATH),
+    'OPS_INPUTS_JSON_INVALID'
+  );
+  const parsedMigrationBaseline = migrationBaseline.safeParse(existingInputs.migrationBaseline);
+  if (!parsedMigrationBaseline.success) fail('OPS_MIGRATION_BASELINE_INVALID');
   const embeddedWorktreeRoot = git(repositoryRoot, [
     'remote',
     'get-url',
@@ -811,6 +824,7 @@ function captureFromReviewedInputs(repositoryRoot) {
     embeddedGitSha: EMBEDDED_GIT_SHA,
     embeddedWorktreeRoot,
     capturedAt: CAPTURED_AT,
+    migrationBaseline: parsedMigrationBaseline.data,
     runtimeIdentity: RUNTIME_IDENTITY
   });
 }

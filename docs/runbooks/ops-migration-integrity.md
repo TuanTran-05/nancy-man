@@ -29,6 +29,14 @@ Before a canonical Ops PostgreSQL cutover, an operator must:
 
 Until those steps produce a real metadata capture, cutover is fail-closed.
 
+`scripts/consolidation/opsDisposition.mjs --capture` currently recaptures
+only the frozen source universe and preserves the exact existing
+`not_deployed` discriminator. It must not turn that state into empty or
+invented capture data. Once the endpoint exists, an approved follow-up must
+introduce a reviewed `captured` baseline state with the authenticated ID list,
+count, and digest before this capture command is allowed to transition the
+record.
+
 ## Runner behavior
 
 `migrateOpsDatabase` runs only under the explicit outer advisory lock held by

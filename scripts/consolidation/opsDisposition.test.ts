@@ -36,6 +36,20 @@ const REVIEWED_LEDGER_PATH = path.join(
   REPOSITORY_ROOT,
   'docs/architecture/baselines/2026-08-29-ops-disposition-ledger.json'
 );
+const notDeployedMigrationBaseline = {
+  evidence: {
+    credentialResolver: 'not_deployed',
+    legacyRuntime: 'sqlite_web_collector_only',
+    postgresApiPlane: 'not_deployed'
+  },
+  requiredBeforeCutover: [
+    'deploy a credential-resolved canonical Ops PostgreSQL endpoint',
+    'capture sorted migration IDs through that resolver',
+    'persist only the approved ID list, count, and SHA-256 digest',
+    'reject cutover if capture is unavailable or migration history does not validate'
+  ],
+  state: 'not_deployed'
+};
 
 function pendingEntry(sourcePath = 'ops-console/src/web/App.tsx') {
   return {
@@ -93,6 +107,7 @@ function frozenFixture() {
     embeddedGitSha: fixture.commitSha,
     embeddedWorktreeRoot: fixture.repositoryRoot,
     capturedAt,
+    migrationBaseline: notDeployedMigrationBaseline,
     runtimeIdentity: {
       currentReleaseName: 'fixture-release',
       services: [
@@ -122,6 +137,34 @@ function runValidationCli(
     cwd: repositoryRoot ?? directory,
     encoding: 'utf8'
   });
+}
+
+function captureCliFixture() {
+  const repositoryRoot = mkdtempSync(path.join(tmpdir(), 'ops-disposition-capture-'));
+  const embeddedWorktreeRoot = mkdtempSync(path.join(tmpdir(), 'ops-disposition-embedded-'));
+  git(repositoryRoot, 'init', '-b', 'main');
+  git(repositoryRoot, 'config', 'user.name', 'Ops Test');
+  git(repositoryRoot, 'config', 'user.email', 'ops-test@example.invalid');
+  git(
+    repositoryRoot,
+    'fetch',
+    REPOSITORY_ROOT,
+    '4313023f483b48d81cab45174db38fc893900444',
+    '5dff838be4f4b60232cf4a8c34b6292c35c489dc'
+  );
+  execFileSync('git', ['clone', '--no-checkout', REPOSITORY_ROOT, embeddedWorktreeRoot], {
+    encoding: 'utf8'
+  });
+  git(embeddedWorktreeRoot, 'checkout', '5dff838be4f4b60232cf4a8c34b6292c35c489dc');
+  generatedFixture(embeddedWorktreeRoot);
+  git(repositoryRoot, 'remote', 'add', 'embedded-console', embeddedWorktreeRoot);
+  const baselineDirectory = path.join(repositoryRoot, 'docs/architecture/baselines');
+  mkdirSync(baselineDirectory, { recursive: true });
+  writeFileSync(
+    path.join(baselineDirectory, '2026-08-29-ops-consolidation-inputs.json'),
+    deterministicJson({ migrationBaseline: notDeployedMigrationBaseline })
+  );
+  return repositoryRoot;
 }
 
 function gitBlobIdentity(repositoryRoot: string, commitSha: string, filePath: string) {
@@ -172,6 +215,7 @@ function finalMappingFixture() {
     embeddedGitSha,
     embeddedWorktreeRoot: fixture.repositoryRoot,
     capturedAt,
+    migrationBaseline: notDeployedMigrationBaseline,
     runtimeIdentity: {
       currentReleaseName: 'fixture-release',
       services: [
@@ -811,5 +855,40 @@ describe('Ops disposition ledger', () => {
         }
       })
     ).toThrow('OPS_INPUTS_SCHEMA_INVALID');
+  });
+
+  it('requires the exact not-deployed baseline and preserves it through real CLI recapture', () => {
+    const reviewedInputs = JSON.parse(readFileSync(REVIEWED_INPUT_PATH, 'utf8'));
+    const omitted = structuredClone(reviewedInputs);
+    delete omitted.migrationBaseline;
+    expect(() => validateOpsInputs(omitted)).toThrow('OPS_INPUTS_SCHEMA_INVALID');
+    expect(() =>
+      validateOpsInputs({
+        ...reviewedInputs,
+        migrationBaseline: { ...notDeployedMigrationBaseline, requiredBeforeCutover: ['x'] }
+      })
+    ).toThrow('OPS_INPUTS_SCHEMA_INVALID');
+
+    const repositoryRoot = captureCliFixture();
+    const result = spawnSync(process.execPath, [SCRIPT_PATH, '--capture'], {
+      cwd: repositoryRoot,
+      encoding: 'utf8'
+    });
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe('');
+    const recaptured = JSON.parse(
+      readFileSync(
+        path.join(
+          repositoryRoot,
+          'docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json'
+        ),
+        'utf8'
+      )
+    );
+    expect(recaptured.migrationBaseline).toEqual(notDeployedMigrationBaseline);
+    expect(recaptured.migrationBaseline).not.toHaveProperty('ids');
+    expect(recaptured.migrationBaseline).not.toHaveProperty('count');
+    expect(recaptured.migrationBaseline).not.toHaveProperty('sha256');
+    expect(validateOpsInputs(recaptured).migrationBaseline).toEqual(notDeployedMigrationBaseline);
   });
 });
