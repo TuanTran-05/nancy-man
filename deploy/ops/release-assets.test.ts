@@ -617,4 +617,68 @@ describe('immutable Ops prepare and activate assets', () => {
       )
     ).toEqual([]);
   });
+
+  it('keeps the committed candidate active and emits one bounded warning when only final snapshot cleanup fails', () => {
+    const directory = root();
+    prepareRelease(directory);
+    const calls = join(directory, 'calls.log');
+    const systemctl = stub(
+      directory,
+      'systemctl',
+      'root="$EDUTRACK_OPS_RELEASE_TEST_ROOT"\ncommand="${1:-}"\nshift || true\nprintf "%s %s\\n" "$command" "${1:-}" >> "$root/calls.log"\ncase "$command" in\n  verify|daemon-reload) exit 0;;\n  is-active) exit 1;;\n  restart|start) service="${1:-}"; mkdir -p "$root/state"; basename "$(readlink "$root/current")" > "$root/state/$service";;\n  stop) rm -f -- "$root/state/${1:-}";;\nesac'
+    );
+    const nginx = stub(
+      directory,
+      'nginx',
+      'case "$*" in *"-s reload") chmod 0500 "$EDUTRACK_OPS_RELEASE_TEST_ROOT/.activation-tmp";; esac'
+    );
+
+    const output = run(activate, directory, [sha], {
+      EDUTRACK_OPS_TEST_SYSTEMCTL: systemctl,
+      EDUTRACK_OPS_TEST_NGINX: nginx
+    });
+    execFileSync('chmod', ['0700', join(directory, '.activation-tmp')]);
+    const artifacts = readdirSync(join(directory, '.activation-tmp')).filter((name) =>
+      name.startsWith('edutrack-ops-activate.')
+    );
+
+    expect(output).toContain(`RELEASE_ACTIVATION_CLEANUP_WARNING artifact=${artifacts[0]}`);
+    expect(output).toContain('RELEASE_ACTIVATED');
+    expect(output).toContain('cleanup_warning=transaction_snapshot_retained');
+    expect(output.match(/RELEASE_ACTIVATION_CLEANUP_WARNING/g)).toHaveLength(1);
+    expect(output.match(/RELEASE_ACTIVATED/g)).toHaveLength(1);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]).toMatch(/^edutrack-ops-activate\.[A-Za-z0-9]+$/u);
+    expect(statSync(join(directory, '.activation-tmp', artifacts[0])).mode & 0o777).toBe(0o700);
+    expect(readlinkSync(join(directory, 'current'))).toBe(join(directory, 'releases', sha));
+    expect(readFileSync(join(directory, 'state', 'edutrack-ops-collector.service'), 'utf8')).toBe(
+      `${sha}\n`
+    );
+    expect(
+      readFileSync(join(directory, 'installed', 'systemd', 'edutrack-ops-api.service'), 'utf8')
+    ).toBe(
+      readFileSync(
+        join(directory, 'releases', sha, 'deploy', 'ops', 'systemd', 'edutrack-ops-api.service'),
+        'utf8'
+      )
+    );
+    expect(readFileSync(calls, 'utf8')).not.toMatch(
+      /^stop edutrack-ops-(?:migrate|api|sql-worker|processor|notifier)\.service$/mu
+    );
+
+    const normal = root();
+    prepareRelease(normal);
+    const normalSystemctl = stub(normal, 'systemctl', ':');
+    const normalNginx = stub(normal, 'nginx', ':');
+    const normalOutput = run(activate, normal, [sha], {
+      EDUTRACK_OPS_TEST_SYSTEMCTL: normalSystemctl,
+      EDUTRACK_OPS_TEST_NGINX: normalNginx
+    });
+    expect(normalOutput).not.toContain('RELEASE_ACTIVATION_CLEANUP_WARNING');
+    expect(
+      readdirSync(join(normal, '.activation-tmp')).filter((name) =>
+        name.startsWith('edutrack-ops-activate.')
+      )
+    ).toEqual([]);
+  });
 });

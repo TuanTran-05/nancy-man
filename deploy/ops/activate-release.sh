@@ -168,6 +168,7 @@ cleanup_transaction() {
   transaction_directory=''
 }
 trap cleanup_transaction EXIT
+chmod 0700 -- "$transaction_directory" || fail RELEASE_TRANSACTION_DIRECTORY_INVALID
 
 declare -a CONFIG_DESTINATIONS CONFIG_SOURCES CONFIG_STATE CONFIG_MODE SERVICE_ACTIVE CANDIDATE_ATTEMPTED
 for unit in "${UNITS[@]}"; do
@@ -255,6 +256,12 @@ for index in 5 6; do
   "$SYSTEMCTL" start "$service" || rollback RELEASE_ACTIVATION_SERVICE_FAILED
 done
 "$NGINX" -s reload || rollback RELEASE_NGINX_RELOAD_FAILED
-cleanup_transaction || fail RELEASE_TRANSACTION_CLEANUP_FAILED
+if ! cleanup_transaction 2>/dev/null; then
+  artifact_basename="${transaction_directory##*/}"
+  trap - EXIT
+  printf 'RELEASE_ACTIVATION_CLEANUP_WARNING artifact=%s\n' "$artifact_basename"
+  printf 'RELEASE_ACTIVATED release=%s sha=%s previous=%s cleanup_warning=transaction_snapshot_retained\n' "$SHA" "$SHA" "${previous##*/}"
+  exit 0
+fi
 trap - EXIT
 printf 'RELEASE_ACTIVATED release=%s sha=%s previous=%s\n' "$SHA" "$SHA" "${previous##*/}"
