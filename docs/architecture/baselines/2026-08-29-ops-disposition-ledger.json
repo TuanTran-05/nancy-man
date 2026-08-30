@@ -750,8 +750,8 @@
           "path": "apps/web/e2e/ops-console.spec.ts"
         },
         {
-          "contentSha256": "d7eeffe3cb02c338970973c770e01f10a8c2a348af8d76a94390408b23cb6e4e",
-          "gitBlobSha": "2152491bf4b8c0c4586edd194e9867e9e6999e47",
+          "contentSha256": "a6a233ece4ed502e52ca4f9e97ad3cb3dd168cb2e6d375197f5358a711a10ea8",
+          "gitBlobSha": "a46fd05ee7e283edc2dd995bf6c688c026ce4258",
           "path": "apps/web/e2e/production-parity.spec.ts"
         },
         {
@@ -760,17 +760,17 @@
           "path": "docs/architecture/baselines/2026-08-29-ops-public-contract.json"
         },
         {
-          "contentSha256": "1ab82f5ef1c90e264dbb0cf6f2e04c8cb0afe508c6f4f5c2d18d375a40a04569",
-          "gitBlobSha": "bd1dd4af62607dcf83e6472750d4574740c718e2",
+          "contentSha256": "fc02e81995133e1e0144a164ba5dfca602558df73022099eb7b8205674b3f6c9",
+          "gitBlobSha": "e4e2539f15e92f887cc4240842ce83a675d40cbe",
           "path": "scripts/ops/capture-public-contract.mjs"
         },
         {
-          "contentSha256": "7b46f380e68b6144a48bf5f7061c9ae9004dcbad3fb62553d1c343d6aa06b615",
-          "gitBlobSha": "6304350b30da98bcd3e163be52a65b0e5592d44e",
+          "contentSha256": "7050d2cd30ec3b93f864f3f8c9e839569f3ad155291c13e87b6bfeccb7c440b3",
+          "gitBlobSha": "99c9771a3bdc40752835f33aee0804b9a13794de",
           "path": "scripts/ops/capture-public-contract.test.ts"
         }
       ],
-      "replacementSha": "406eaa5ab7d09bd8546c2ced9e795a646f518d7e",
+      "replacementSha": "4ed3a187f86d112fd2333634d418ce3e203b481c",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "a3913c2e5f97a67be0a085c21a638f997c3604a9",
       "sourceKind": "git-blob",
@@ -3051,19 +3051,19 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "1cb160a1eaf94e798f2f67ef49931364ff6d1fe6163641ab8693d7fbeb679815",
-          "gitBlobSha": "57a18e1c4a1a3a681d42c5a813a214eaf1f1f6ca",
+          "contentSha256": "9f0fd69e44aa256f575b72472a72b8119bf4924150b44162c286b0cd3f75045c",
+          "gitBlobSha": "8185827e9acd23ebccff9568ea69aa78ac60df62",
           "path": "apps/web/tsconfig.json"
         }
       ],
-      "replacementSha": "b0fd26476cdf7355a8c80bb5bbe8a5895db79c9d",
+      "replacementSha": "4ed3a187f86d112fd2333634d418ce3e203b481c",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "5d719d7e8173ab45c9c1638f6331d5478c8fa5b5",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/tsconfig.json",
       "sourceSha256": "8b1ad29f7df0dc68f055c01cb0ee96f6ecd9f29a05d6186dbbd642d1d1502840",
-      "targetContentSha256": "1cb160a1eaf94e798f2f67ef49931364ff6d1fe6163641ab8693d7fbeb679815",
-      "targetGitBlobSha": "57a18e1c4a1a3a681d42c5a813a214eaf1f1f6ca",
+      "targetContentSha256": "9f0fd69e44aa256f575b72472a72b8119bf4924150b44162c286b0cd3f75045c",
+      "targetGitBlobSha": "8185827e9acd23ebccff9568ea69aa78ac60df62",
       "targetPath": "apps/web/tsconfig.json",
       "targetRepository": "edutrack-ops"
     },
