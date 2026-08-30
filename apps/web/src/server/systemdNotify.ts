@@ -17,9 +17,9 @@ function sendSystemdNotification(message: string, socketPath: string): void {
 export function startSystemdWatchdog(
   env: Environment = process.env,
   sender: NotifySender = sendSystemdNotification
-): { stop: () => void } {
+): { progress: () => void; stop: () => void } {
   const rawSocketPath = env.NOTIFY_SOCKET;
-  if (!rawSocketPath) return { stop: () => undefined };
+  if (!rawSocketPath) return { progress: () => undefined, stop: () => undefined };
 
   const socketPath = normalizeSocketPath(rawSocketPath);
   const safeSend = (message: string): void => {
@@ -32,12 +32,16 @@ export function startSystemdWatchdog(
   safeSend('READY=1');
 
   const watchdogUsec = Number(env.WATCHDOG_USEC ?? '');
-  if (!Number.isFinite(watchdogUsec) || watchdogUsec <= 0) return { stop: () => undefined };
+  if (!Number.isFinite(watchdogUsec) || watchdogUsec <= 0)
+    return { progress: () => undefined, stop: () => undefined };
 
-  const interval = setInterval(
-    () => safeSend('WATCHDOG=1'),
-    Math.max(1000, Math.floor(watchdogUsec / 2000))
-  );
-  interval.unref?.();
-  return { stop: () => clearInterval(interval) };
+  let stopped = false;
+  return {
+    progress: () => {
+      if (!stopped) safeSend('WATCHDOG=1');
+    },
+    stop: () => {
+      stopped = true;
+    }
+  };
 }

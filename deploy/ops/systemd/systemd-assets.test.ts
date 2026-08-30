@@ -39,7 +39,7 @@ const services = {
   'sql-worker': {
     executable: '/usr/bin/node apps/sql-worker/dist/apps/sql-worker/src/index.js',
     user: 'edutrack-ops-sql-worker',
-    group: 'edutrack-ops-sql-worker',
+    group: 'edutrack-ops-sql',
     writablePaths: ['/run/edutrack-ops']
   },
   migrate: {
@@ -59,6 +59,25 @@ function setting(contents: string, name: string): string[] {
     .split('\n')
     .filter((line) => line.startsWith(`${name}=`))
     .map((line) => line.slice(name.length + 1));
+}
+
+function groupHasPermission(mode: number, permission: number): boolean {
+  return (mode & permission) === permission;
+}
+
+function canConnectUnixSocket(input: {
+  directoryMode: number;
+  socketMode: number;
+  directoryGroup: string;
+  socketGroup: string;
+  identityGroups: string[];
+}): boolean {
+  const isSocketGroupMember = input.identityGroups.includes(input.socketGroup);
+  const canTraverseDirectory =
+    input.identityGroups.includes(input.directoryGroup) &&
+    groupHasPermission(input.directoryMode, 0o010);
+  const canReadAndWriteSocket = isSocketGroupMember && groupHasPermission(input.socketMode, 0o060);
+  return canTraverseDirectory && canReadAndWriteSocket;
 }
 
 describe('canonical Ops systemd assets', () => {
@@ -92,6 +111,28 @@ describe('canonical Ops systemd assets', () => {
     expect(setting(await unit('api'), 'ReadWritePaths')).toEqual([
       '/var/lib/edutrack-ops/object-store'
     ]);
+  });
+
+  it('gives only the API and SQL worker identities group-level access to the private socket', async () => {
+    const api = await unit('api');
+    const worker = await unit('sql-worker');
+    const socketGroup = 'edutrack-ops-sql';
+
+    expect(setting(api, 'SupplementaryGroups')).toEqual([socketGroup]);
+    expect(setting(worker, 'Group')).toEqual([socketGroup]);
+    expect(setting(worker, 'RuntimeDirectoryMode')).toEqual(['0750']);
+
+    const access = {
+      directoryMode: 0o750,
+      socketMode: 0o660,
+      directoryGroup: setting(worker, 'Group')[0],
+      socketGroup,
+      identityGroups: [socketGroup]
+    };
+    expect(canConnectUnixSocket(access)).toBe(true);
+    expect(canConnectUnixSocket({ ...access, identityGroups: ['edutrack-ops-unrelated'] })).toBe(
+      false
+    );
   });
 
   it('keeps collector watchdog and failure notification under the collector identity', async () => {

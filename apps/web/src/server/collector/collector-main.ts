@@ -7,6 +7,43 @@ import { startSystemdWatchdog } from '../systemdNotify.js';
 import { createBeszelClient } from '../beszel/client.js';
 import { createBeszelProbe } from '../beszel/probe.js';
 
+export async function startCollectorLoop(input: {
+  cycle: () => Promise<void>;
+  watchdog: { progress: () => void; stop: () => void };
+  schedule: (callback: () => void) => () => void;
+  onFailure: (error: unknown) => void;
+}): Promise<{ stop: () => void }> {
+  let stopped = false;
+  let running = false;
+  let cancelScheduledCycle: () => void = () => undefined;
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    cancelScheduledCycle();
+    input.watchdog.stop();
+  };
+  const runScheduledCycle = async () => {
+    if (stopped || running) return;
+    running = true;
+    try {
+      await input.cycle();
+      if (!stopped) input.watchdog.progress();
+    } catch (error) {
+      stop();
+      input.onFailure(error);
+    } finally {
+      running = false;
+    }
+  };
+
+  await input.cycle();
+  input.watchdog.progress();
+  cancelScheduledCycle = input.schedule(() => {
+    void runScheduledCycle();
+  });
+  return { stop };
+}
+
 export async function startCollector(): Promise<void> {
   const config = loadCollectorConfig(process.env);
   const beszelProbe = config.beszel.enabled
@@ -44,16 +81,23 @@ export async function startCollector(): Promise<void> {
     for (const transition of transitions) await alerts.queueTransitionDelivery(transition);
     await alerts.deliverDueAlerts(at);
   };
-  await cycle();
-  const timer = setInterval(() => {
-    cycle().catch(() => undefined);
-  }, 15_000);
-  const stop = () => {
-    clearInterval(timer);
-    watchdog.stop();
-  };
-  process.once('SIGTERM', stop);
-  process.once('SIGINT', stop);
+  const loop = await startCollectorLoop({
+    cycle,
+    watchdog,
+    schedule: (callback) => {
+      const timer = setInterval(callback, 15_000);
+      return () => clearInterval(timer);
+    },
+    onFailure: (error) => {
+      console.error(
+        'ops-collector cycle failed',
+        error instanceof Error ? error.message : 'unknown_error'
+      );
+      process.exitCode = 1;
+    }
+  });
+  process.once('SIGTERM', loop.stop);
+  process.once('SIGINT', loop.stop);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`)

@@ -6,7 +6,7 @@ describe('systemd watchdog', () => {
     vi.useRealTimers();
   });
 
-  it('announces readiness and sends heartbeats at half the watchdog interval', () => {
+  it('announces readiness but sends watchdog notifications only after collection progress', () => {
     vi.useFakeTimers();
     const send = vi.fn();
     const watchdog = startSystemdWatchdog(
@@ -16,6 +16,8 @@ describe('systemd watchdog', () => {
 
     expect(send).toHaveBeenCalledWith('READY=1', '\0/run/systemd/notify');
     vi.advanceTimersByTime(22_500);
+    expect(send).toHaveBeenCalledTimes(1);
+    watchdog.progress();
     expect(send).toHaveBeenCalledWith('WATCHDOG=1', '\0/run/systemd/notify');
 
     watchdog.stop();
