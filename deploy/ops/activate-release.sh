@@ -30,6 +30,36 @@ test_command() {
   printf '%s\n' "$resolved"
 }
 
+test_directory_path() {
+  local target="$1" relative current segment
+  local -a segments
+  [[ "$target" == "$RELEASE_ROOT/"* ]] || fail RELEASE_TEST_DIRECTORY_INVALID
+  relative="${target#"$RELEASE_ROOT"/}"
+  current="$RELEASE_ROOT"
+  IFS=/ read -r -a segments <<< "$relative"
+  for segment in "${segments[@]}"; do
+    [[ -n "$segment" && "$segment" != . && "$segment" != .. ]] || fail RELEASE_TEST_DIRECTORY_INVALID
+    current="$current/$segment"
+    [[ ! -L "$current" && ( ! -e "$current" || -d "$current" ) ]] || fail RELEASE_TEST_DIRECTORY_INVALID
+  done
+}
+
+ensure_test_directory() {
+  local target="$1" relative current segment resolved
+  local -a segments
+  test_directory_path "$target"
+  relative="${target#"$RELEASE_ROOT"/}"
+  current="$RELEASE_ROOT"
+  IFS=/ read -r -a segments <<< "$relative"
+  for segment in "${segments[@]}"; do
+    current="$current/$segment"
+    if [[ ! -e "$current" ]]; then mkdir -- "$current" || fail RELEASE_TEST_DIRECTORY_INVALID; fi
+    [[ -d "$current" && ! -L "$current" ]] || fail RELEASE_TEST_DIRECTORY_INVALID
+  done
+  resolved="$(unset CDPATH; cd -P -- "$target" && pwd)" || fail RELEASE_TEST_DIRECTORY_INVALID
+  [[ "$resolved" == "$RELEASE_ROOT/"* ]] || fail RELEASE_TEST_DIRECTORY_INVALID
+}
+
 if [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]]; then
   RELEASE_ROOT="$(test_root)" || exit 1
   readonly RELEASE_ROOT
@@ -66,6 +96,12 @@ node -e '
 const fs=require("node:fs"), crypto=require("node:crypto"); try { const marker=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const manifest=JSON.parse(fs.readFileSync(process.argv[2],"utf8")); const digest=crypto.createHash("sha256").update(`${JSON.stringify(manifest)}\n`).digest("hex"); if (marker.gitSha!==process.argv[3] || !/^[0-9a-f]{40}$/.test(marker.treeSha) || marker.manifestDigest!==digest || Object.keys(marker).some((key)=>!["gitSha","treeSha","manifestDigest"].includes(key))) process.exit(1); } catch { process.exit(1); }
 ' "$RELEASE/.release-source.json" "$RELEASE/.release-manifest.json" "$SHA" || fail RELEASE_MARKER_INVALID
 
+if [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]]; then
+  test_directory_path "$RELEASE_ROOT/.activation-tmp"
+  test_directory_path "$UNIT_DIRECTORY"
+  test_directory_path "$NGINX_DIRECTORY"
+fi
+
 readonly UNITS=(
   edutrack-ops-api.service
   edutrack-ops-web.service
@@ -94,7 +130,7 @@ done
 
 if [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]]; then
   TEMP_DIRECTORY="$RELEASE_ROOT/.activation-tmp"
-  mkdir -p -- "$TEMP_DIRECTORY"
+  ensure_test_directory "$TEMP_DIRECTORY"
 else
   TEMP_DIRECTORY=/tmp
 fi
@@ -124,7 +160,16 @@ readonly SERVICES=(
   edutrack-ops-collector.service
 )
 transaction_directory="$(mktemp -d "$TEMP_DIRECTORY/edutrack-ops-activate.XXXXXX")"
-declare -a CONFIG_DESTINATIONS CONFIG_SOURCES CONFIG_STATE SERVICE_ACTIVE CANDIDATE_STARTED
+cleanup_transaction() {
+  local target="${transaction_directory:-}"
+  [[ -n "$target" && "$target" == "$TEMP_DIRECTORY"/edutrack-ops-activate.* ]] || return 0
+  [[ ! -L "$target" && ( ! -e "$target" || -d "$target" ) ]] || return 1
+  rm -rf -- "$target" || return 1
+  transaction_directory=''
+}
+trap cleanup_transaction EXIT
+
+declare -a CONFIG_DESTINATIONS CONFIG_SOURCES CONFIG_STATE CONFIG_MODE SERVICE_ACTIVE CANDIDATE_ATTEMPTED
 for unit in "${UNITS[@]}"; do
   CONFIG_DESTINATIONS+=("$UNIT_DIRECTORY/$unit")
   CONFIG_SOURCES+=("$RELEASE/deploy/ops/systemd/$unit")
@@ -135,7 +180,8 @@ for index in "${!CONFIG_DESTINATIONS[@]}"; do
   if [[ -e "${CONFIG_DESTINATIONS[$index]}" || -L "${CONFIG_DESTINATIONS[$index]}" ]]; then
     [[ -f "${CONFIG_DESTINATIONS[$index]}" && ! -L "${CONFIG_DESTINATIONS[$index]}" ]] || fail RELEASE_PRIOR_CONFIG_INVALID
     CONFIG_STATE[index]=present
-    cp -p -- "${CONFIG_DESTINATIONS[$index]}" "$transaction_directory/config-$index"
+    CONFIG_MODE[index]="$(stat -c '%a' -- "${CONFIG_DESTINATIONS[$index]}")" || fail RELEASE_CONFIG_SNAPSHOT_FAILED
+    cp -p -- "${CONFIG_DESTINATIONS[$index]}" "$transaction_directory/config-$index" || fail RELEASE_CONFIG_SNAPSHOT_FAILED
   else
     CONFIG_STATE[index]=absent
   fi
@@ -147,11 +193,17 @@ done
 rollback() {
   local primary="$1" rollback_failed=0 index service state
   for index in "${!SERVICES[@]}"; do
-    if [[ "${CANDIDATE_STARTED[$index]:-0}" == 1 ]]; then "$SYSTEMCTL" stop "${SERVICES[$index]}" >/dev/null 2>&1 || true; fi
+    if [[ "${CANDIDATE_ATTEMPTED[$index]:-0}" == 1 ]]; then
+      "$SYSTEMCTL" stop "${SERVICES[$index]}" >/dev/null 2>&1 || rollback_failed=1
+    fi
   done
   if [[ -n "$previous" ]]; then swap_pointer "$previous" || rollback_failed=1; else rm -f -- "$RELEASE_ROOT/current" || rollback_failed=1; fi
   for index in "${!CONFIG_DESTINATIONS[@]}"; do
-    if [[ "${CONFIG_STATE[$index]}" == present ]]; then install -D -m 0644 -- "$transaction_directory/config-$index" "${CONFIG_DESTINATIONS[$index]}" || rollback_failed=1; else rm -f -- "${CONFIG_DESTINATIONS[$index]}" || rollback_failed=1; fi
+    if [[ "${CONFIG_STATE[$index]}" == present ]]; then
+      install -D -m "${CONFIG_MODE[$index]}" -- "$transaction_directory/config-$index" "${CONFIG_DESTINATIONS[$index]}" || rollback_failed=1
+    else
+      rm -f -- "${CONFIG_DESTINATIONS[$index]}" || rollback_failed=1
+    fi
   done
   "$SYSTEMCTL" daemon-reload >/dev/null 2>&1 || rollback_failed=1
   for index in "${!SERVICES[@]}"; do
@@ -160,7 +212,8 @@ rollback() {
     if [[ "$state" == active ]]; then "$SYSTEMCTL" start "$service" >/dev/null 2>&1 || rollback_failed=1; fi
   done
   "$NGINX" -s reload >/dev/null 2>&1 || rollback_failed=1
-  rm -rf -- "$transaction_directory"
+  cleanup_transaction || rollback_failed=1
+  trap - EXIT
   if [[ "$rollback_failed" == 1 ]]; then printf 'RELEASE_ROLLBACK_FAILED primary=%s\n' "$primary" >&2; fi
   printf '%s\n' "$primary" >&2
   exit 1
@@ -175,22 +228,33 @@ swap_pointer() {
 for service in edutrack-ops-web.service edutrack-ops-collector.service; do "$SYSTEMCTL" stop "$service" || rollback RELEASE_WRITER_COHORT_STOP_FAILED; done
 for service in edutrack-ops-web.service edutrack-ops-collector.service; do "$SYSTEMCTL" is-active --quiet "$service" && rollback RELEASE_WRITER_COHORT_ACTIVE; done
 
-mkdir -p -- "$UNIT_DIRECTORY" "$NGINX_DIRECTORY" || rollback RELEASE_CONFIG_DIRECTORY_FAILED
-for index in "${!CONFIG_DESTINATIONS[@]}"; do install -m 0644 -- "${CONFIG_SOURCES[$index]}" "${CONFIG_DESTINATIONS[$index]}" || rollback RELEASE_CONFIG_INSTALL_FAILED; done
+if [[ "${EDUTRACK_OPS_RELEASE_TEST_MODE:-}" == '1' ]]; then
+  ensure_test_directory "$UNIT_DIRECTORY"
+  ensure_test_directory "$NGINX_DIRECTORY"
+else
+  mkdir -p -- "$UNIT_DIRECTORY" "$NGINX_DIRECTORY" || rollback RELEASE_CONFIG_DIRECTORY_FAILED
+fi
+for index in "${!CONFIG_DESTINATIONS[@]}"; do
+  if [[ -e "${CONFIG_DESTINATIONS[$index]}" || -L "${CONFIG_DESTINATIONS[$index]}" ]]; then
+    [[ -f "${CONFIG_DESTINATIONS[$index]}" && ! -L "${CONFIG_DESTINATIONS[$index]}" ]] || rollback RELEASE_CONFIG_DESTINATION_INVALID
+  fi
+  install -m 0644 -- "${CONFIG_SOURCES[$index]}" "${CONFIG_DESTINATIONS[$index]}" || rollback RELEASE_CONFIG_INSTALL_FAILED
+done
 "$SYSTEMCTL" daemon-reload || rollback RELEASE_DAEMON_RELOAD_FAILED
 
 swap_pointer "$RELEASE" || rollback RELEASE_POINTER_SWAP_FAILED
 
 for index in 0 1 2 3 4; do
   service="${SERVICES[$index]}"
+  CANDIDATE_ATTEMPTED[index]=1
   "$SYSTEMCTL" restart "$service" || rollback RELEASE_ACTIVATION_SERVICE_FAILED
-  CANDIDATE_STARTED[index]=1
 done
 for index in 5 6; do
   service="${SERVICES[$index]}"
+  CANDIDATE_ATTEMPTED[index]=1
   "$SYSTEMCTL" start "$service" || rollback RELEASE_ACTIVATION_SERVICE_FAILED
-  CANDIDATE_STARTED[index]=1
 done
 "$NGINX" -s reload || rollback RELEASE_NGINX_RELOAD_FAILED
-rm -rf -- "$transaction_directory"
+cleanup_transaction || fail RELEASE_TRANSACTION_CLEANUP_FAILED
+trap - EXIT
 printf 'RELEASE_ACTIVATED release=%s sha=%s previous=%s\n' "$SHA" "$SHA" "${previous##*/}"

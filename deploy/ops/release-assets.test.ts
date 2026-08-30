@@ -8,6 +8,7 @@ import {
   readFileSync,
   readdirSync,
   readlinkSync,
+  statSync,
   symlinkSync,
   writeFileSync
 } from 'node:fs';
@@ -487,5 +488,125 @@ describe('immutable Ops prepare and activate assets', () => {
     expect(
       readFileSync(join(directory, 'installed', 'nginx', 'man.thienuy.edu.vn-api.conf'), 'utf8')
     ).toBe('previous-vhost\n');
+  });
+
+  it('keeps a stateful writer cohort on the previous generation after a failed collector start', () => {
+    const directory = root();
+    prepareRelease(directory);
+    const previous = join(directory, 'releases', 'previous');
+    mkdirSync(previous);
+    symlinkSync(previous, join(directory, 'current'));
+    mkdirSync(join(directory, 'installed', 'systemd'), { recursive: true });
+    mkdirSync(join(directory, 'installed', 'nginx'), { recursive: true });
+    writeFileSync(join(directory, 'installed', 'systemd', 'edutrack-ops-web.service'), 'old-web\n');
+    writeFileSync(join(directory, 'installed', 'nginx', 'man.thienuy.edu.vn-api.conf'), 'old-nginx\n');
+    execFileSync('chmod', ['0640', join(directory, 'installed', 'systemd', 'edutrack-ops-web.service')]);
+    mkdirSync(join(directory, 'state'), { recursive: true });
+    for (const service of [
+      'edutrack-ops-api.service',
+      'edutrack-ops-web.service',
+      'edutrack-ops-collector.service'
+    ]) {
+      writeFileSync(join(directory, 'state', service), 'previous\n');
+    }
+    const systemctl = stub(
+      directory,
+      'systemctl',
+      'root="$EDUTRACK_OPS_RELEASE_TEST_ROOT"\ncommand="${1:-}"\nshift || true\ncase "$command" in\n  verify|daemon-reload) exit 0;;\n  is-active) test -f "$root/state/${2:-}";;\n  stop) service="${1:-}"; rm -f -- "$root/state/$service";;\n  restart|start) service="${1:-}"; basename "$(readlink "$root/current")" > "$root/state/$service"; if [[ "$command" == start && "$service" == edutrack-ops-collector.service ]]; then exit 9; fi;;\nesac'
+    );
+    const nginx = stub(directory, 'nginx', ':');
+
+    expect(() =>
+      run(activate, directory, [sha], {
+        EDUTRACK_OPS_TEST_SYSTEMCTL: systemctl,
+        EDUTRACK_OPS_TEST_NGINX: nginx
+      })
+    ).toThrow(/RELEASE_ACTIVATION_SERVICE_FAILED/u);
+    expect(readlinkSync(join(directory, 'current'))).toBe(previous);
+    expect(readFileSync(join(directory, 'state', 'edutrack-ops-api.service'), 'utf8')).toBe(
+      'previous\n'
+    );
+    expect(readFileSync(join(directory, 'state', 'edutrack-ops-web.service'), 'utf8')).toBe(
+      'previous\n'
+    );
+    expect(readFileSync(join(directory, 'state', 'edutrack-ops-collector.service'), 'utf8')).toBe(
+      'previous\n'
+    );
+    expect(
+      readdirSync(join(directory, 'state')).some(
+        (service) => readFileSync(join(directory, 'state', service), 'utf8') === `${sha}\n`
+      )
+    ).toBe(false);
+    expect(readFileSync(join(directory, 'installed', 'systemd', 'edutrack-ops-web.service'), 'utf8')).toBe(
+      'old-web\n'
+    );
+    expect(statSync(join(directory, 'installed', 'systemd', 'edutrack-ops-web.service')).mode & 0o777).toBe(
+      0o640
+    );
+  });
+
+  it('reports the primary failure and rollback failure when an attempted candidate service cannot stop', () => {
+    const directory = root();
+    prepareRelease(directory);
+    const previous = join(directory, 'releases', 'previous');
+    mkdirSync(previous);
+    symlinkSync(previous, join(directory, 'current'));
+    mkdirSync(join(directory, 'state'), { recursive: true });
+    writeFileSync(join(directory, 'state', 'edutrack-ops-api.service'), 'previous\n');
+    const systemctl = stub(
+      directory,
+      'systemctl',
+      'root="$EDUTRACK_OPS_RELEASE_TEST_ROOT"\ncommand="${1:-}"\nshift || true\ncase "$command" in\n  verify|daemon-reload) exit 0;;\n  is-active) test -f "$root/state/${2:-}";;\n  stop) service="${1:-}"; if [[ "$service" == edutrack-ops-api.service && "$(cat "$root/state/$service" 2>/dev/null || true)" != previous ]]; then exit 23; fi; rm -f -- "$root/state/$service";;\n  restart|start) service="${1:-}"; if [[ "$command" == start && -f "$root/state/$service" ]]; then exit 24; fi; basename "$(readlink "$root/current")" > "$root/state/$service"; if [[ "$command" == start && "$service" == edutrack-ops-collector.service ]]; then exit 9; fi;;\nesac'
+    );
+    const nginx = stub(directory, 'nginx', ':');
+
+    expect(() =>
+      run(activate, directory, [sha], {
+        EDUTRACK_OPS_TEST_SYSTEMCTL: systemctl,
+        EDUTRACK_OPS_TEST_NGINX: nginx
+      })
+    ).toThrow(/RELEASE_ROLLBACK_FAILED primary=RELEASE_ACTIVATION_SERVICE_FAILED/u);
+    expect(readFileSync(join(directory, 'state', 'edutrack-ops-api.service'), 'utf8')).toBe(`${sha}\n`);
+  });
+
+  it('rejects symlinked test transaction and installed ancestors without escaping the fixture', () => {
+    for (const ancestor of ['.activation-tmp', 'installed'] as const) {
+      const directory = root();
+      const outside = mkdtempSync(join(tmpdir(), 'ops-release-escaped-'));
+      prepareRelease(directory);
+      symlinkSync(outside, join(directory, ancestor));
+      const systemctl = stub(directory, 'systemctl', ':');
+      const nginx = stub(directory, 'nginx', ':');
+
+      expect(() =>
+        run(activate, directory, [sha], {
+          EDUTRACK_OPS_TEST_SYSTEMCTL: systemctl,
+          EDUTRACK_OPS_TEST_NGINX: nginx
+        })
+      ).toThrow(/RELEASE_TEST_DIRECTORY_INVALID/u);
+      expect(readdirSync(outside)).toEqual([]);
+    }
+  });
+
+  it('cleans its exact transaction directory when prior config validation fails', () => {
+    const directory = root();
+    prepareRelease(directory);
+    mkdirSync(join(directory, 'installed', 'systemd'), { recursive: true });
+    const outside = mkdtempSync(join(tmpdir(), 'ops-release-escaped-'));
+    symlinkSync(outside, join(directory, 'installed', 'systemd', 'edutrack-ops-api.service'));
+    const systemctl = stub(directory, 'systemctl', ':');
+    const nginx = stub(directory, 'nginx', ':');
+
+    expect(() =>
+      run(activate, directory, [sha], {
+        EDUTRACK_OPS_TEST_SYSTEMCTL: systemctl,
+        EDUTRACK_OPS_TEST_NGINX: nginx
+      })
+    ).toThrow(/RELEASE_PRIOR_CONFIG_INVALID/u);
+    expect(
+      readdirSync(join(directory, '.activation-tmp')).filter((name) =>
+        name.startsWith('edutrack-ops-activate.')
+      )
+    ).toEqual([]);
   });
 });
