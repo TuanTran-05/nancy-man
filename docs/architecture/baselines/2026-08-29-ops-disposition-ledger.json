@@ -389,8 +389,8 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "6a44388944a47b17c7e6651e52df40466c3b32560467d79fd6ac13e011ca08fb",
-          "gitBlobSha": "ae8d0e7e6812dadba212ff2ff99930214eaca7fc",
+          "contentSha256": "6a957632e045972c16d004613961f0163e6a09a640696a5b815670da07bd198b",
+          "gitBlobSha": "6ab970b05ee66f7cec323cfc42dba27877af99db",
           "path": "docs/runbooks/ops-production-workflow.md"
         },
         {
@@ -404,14 +404,14 @@
           "path": "deploy/ops/release-manifest.test.ts"
         }
       ],
-      "replacementSha": "9df23a9cb4158943f2fc06554ea7fed6b3cd647d",
+      "replacementSha": "5ff472a72d192c29e94a936dcfb3dcd45541b647",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "992ea26aa08758120d7e290a21b7e7f0886db589",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/release-checklist.md",
       "sourceSha256": "db4729bea1b17c29bfbdce53823877bc3ad3edfe5857f7937c7f0a89bbb2b610",
-      "targetContentSha256": "6a44388944a47b17c7e6651e52df40466c3b32560467d79fd6ac13e011ca08fb",
-      "targetGitBlobSha": "ae8d0e7e6812dadba212ff2ff99930214eaca7fc",
+      "targetContentSha256": "6a957632e045972c16d004613961f0163e6a09a640696a5b815670da07bd198b",
+      "targetGitBlobSha": "6ab970b05ee66f7cec323cfc42dba27877af99db",
       "targetPath": "docs/runbooks/ops-production-workflow.md",
       "targetRepository": "edutrack-ops"
     },
