@@ -263,13 +263,13 @@
       ],
       "evidenceIdentities": [
         {
-          "contentSha256": "5ceae56d06d56f0ceb226060c1a70ad227f43c0418a58c597e1ff2c250866e01",
-          "gitBlobSha": "a375357c7754be9c8cebb5159bdb5a54bb75937b",
+          "contentSha256": "b74c5b418ce37768eddbfc536c572c95947927519eb782aef5011ed4713b8231",
+          "gitBlobSha": "2e4bae1be4b6f8814df2d9352551230f5d47e66c",
           "path": "deploy/ops/nginx/man.thienuy.edu.vn-api.conf"
         },
         {
-          "contentSha256": "77cadd0d9927d47644dfaf49c72f2accb9b27d2cdef5208f97b798d0d8683827",
-          "gitBlobSha": "8465d1f10be7e9a04a894e0253e1d64a54ae3f2f",
+          "contentSha256": "7a5f8df4499eb9d765f418acb06d0235374147453443d8462539202e40e66bf6",
+          "gitBlobSha": "01caedcb75014facb8a65c18e8135ef6a4632853",
           "path": "deploy/ops/nginx/man.thienuy.edu.vn.conf.test.ts"
         },
         {
@@ -278,14 +278,14 @@
           "path": "docs/architecture/ops-runtime-boundaries.md"
         }
       ],
-      "replacementSha": "58f0e5dfe28bf624c9ef18425633371a944b65c4",
+      "replacementSha": "d39e2b86d2b078059059776561b9ab65ff10a8a8",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "dd6f51e799b1d10c369c865b4b4006a49c39a8d7",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/nginx/man.thienuy.edu.vn.conf",
       "sourceSha256": "74e292354d202769b9ca32094abbdf5af360f7bff89ecd543d57f7536d764d6b",
-      "targetContentSha256": "5ceae56d06d56f0ceb226060c1a70ad227f43c0418a58c597e1ff2c250866e01",
-      "targetGitBlobSha": "a375357c7754be9c8cebb5159bdb5a54bb75937b",
+      "targetContentSha256": "b74c5b418ce37768eddbfc536c572c95947927519eb782aef5011ed4713b8231",
+      "targetGitBlobSha": "2e4bae1be4b6f8814df2d9352551230f5d47e66c",
       "targetPath": "deploy/ops/nginx/man.thienuy.edu.vn-api.conf",
       "targetRepository": "edutrack-ops"
     },
