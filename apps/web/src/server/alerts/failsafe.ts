@@ -1,14 +1,19 @@
 import type { FailsafeConfig } from '../config.js';
 import { sendCollectorFailureNotice } from './alertService.js';
 import { createOpsStore } from '../storage/store.js';
-import { resolveZaloRecipients } from './recipientResolver.js';
+import { resolveZaloRecipientCiphertexts } from './recipientResolver.js';
 
 export async function runFailsafe(config: FailsafeConfig, fetchImpl?: typeof fetch): Promise<void> {
-  const store = createOpsStore(config.dbPath);
+  const store = createOpsStore(config.dbPath, undefined, config.zaloRecipientKey);
   await sendCollectorFailureNotice(
     {
       botToken: config.zaloBotToken,
-      recipientIds: resolveZaloRecipients(store, config.zaloRecipientKey, config.recipientIds),
+      recipientCiphertexts: resolveZaloRecipientCiphertexts(
+        store,
+        config.zaloRecipientKey,
+        config.recipientIds
+      ),
+      recipientKey: config.zaloRecipientKey,
       timeoutMs: config.zaloTimeoutMs
     },
     fetchImpl

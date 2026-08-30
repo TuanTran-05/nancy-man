@@ -15,4 +15,21 @@ describe('log redactor', () => {
     expect(redactLogLine('error=one').fingerprint).toBe(redactLogLine('error=one').fingerprint);
     expect(redactLogLine('error=one').fingerprint).not.toBe(redactLogLine('error=two').fingerprint);
   });
+
+  it('fails closed for nested structured payloads before credential token matching', () => {
+    const sentinel = 'TOPSECRET-REVIEW-SENTINEL';
+    const result = redactLogLine(`error={"context":{"route":"/login"},"api_key":"${sentinel}"}`);
+
+    expect(result.safeText).toBe('error=[payload redacted]');
+    expect(result.safeText).not.toContain(sentinel);
+  });
+
+  it('treats quoted brackets as data and redacts an unterminated structure to end of line', () => {
+    expect(
+      redactLogLine('prefix={"message":"literal } [ value","nested":[1]} suffix').safeText
+    ).toBe('prefix=[payload redacted] suffix');
+    expect(redactLogLine('prefix={"nested":{"token":"secret"}').safeText).toBe(
+      'prefix=[payload redacted]'
+    );
+  });
 });

@@ -109,4 +109,80 @@ describe('Ops account and sessions', () => {
       f.cleanup();
     }
   });
+
+  it('does not let attempts rejected by an existing lock extend the original lock interval', async () => {
+    const f = fixture();
+    try {
+      const initialTime = f.current.getTime();
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await expect(
+          f.auth.authenticate({ username: 'ops-a', password: 'wrong password', totp: '000000' })
+        ).rejects.toThrow('Invalid credentials');
+      }
+
+      f.current.setTime(initialTime + 14 * 60 * 1000);
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await expect(
+          f.auth.authenticate({ username: 'ops-a', password: 'wrong password', totp: '000000' })
+        ).rejects.toThrow('Invalid credentials');
+      }
+
+      f.current.setTime(initialTime + 15 * 60 * 1000 + 1);
+      await expect(
+        f.auth.authenticate({
+          username: 'ops-a',
+          password: 'correct horse battery staple',
+          totp: totpCode(
+            'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
+            Math.floor(f.current.getTime() / 1000 / 30)
+          )
+        })
+      ).resolves.toMatchObject({ username: 'ops-a' });
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it('supports an offline recovery that rotates credentials and clears lockout state', async () => {
+    const f = fixture();
+    try {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await expect(
+          f.auth.authenticate({ username: 'ops-a', password: 'wrong password', totp: '000000' })
+        ).rejects.toThrow('Invalid credentials');
+      }
+      const authModule = (await import('./auth.js')) as Record<string, unknown>;
+      expect(authModule.recoverAccount).toBeTypeOf('function');
+      const recoverAccount = authModule.recoverAccount as (
+        store: typeof f.store,
+        input: { username: string; password: string; totpSeed: string },
+        dataKey: Buffer,
+        now: Date
+      ) => { enrollmentUri: string };
+      const recovered = recoverAccount(
+        f.store,
+        {
+          username: 'ops-a',
+          password: 'new correct horse battery staple',
+          totpSeed: 'JBSWY3DPEHPK3PXP'
+        },
+        Buffer.alloc(32, 7),
+        f.current
+      );
+
+      expect(recovered.enrollmentUri).toContain('otpauth://totp/');
+      await expect(
+        f.auth.authenticate({
+          username: 'ops-a',
+          password: 'new correct horse battery staple',
+          totp: totpCode('JBSWY3DPEHPK3PXP', Math.floor(f.current.getTime() / 1000 / 30))
+        })
+      ).resolves.toMatchObject({ username: 'ops-a' });
+      expect(f.store.listAuditEvents()).toContainEqual(
+        expect.objectContaining({ action: 'account_recovered' })
+      );
+    } finally {
+      f.cleanup();
+    }
+  });
 });

@@ -80,6 +80,36 @@ export function provisionAccount(
   };
 }
 
+export function recoverAccount(
+  store: OpsStore,
+  input: { username: string; password: string; totpSeed: string },
+  dataKey: Buffer,
+  now: Date = new Date()
+): ProvisionedAccount {
+  const username = input.username.trim();
+  const account = store.findAccountByUsername(username);
+  if (!account) throw new Error('Account not found');
+  const passwordHash = hashPassword(input.password);
+  const totpSecretEnc = encryptSecret(input.totpSeed, dataKey);
+  store.recoverAccountCredentials({
+    accountId: account.id,
+    username,
+    passwordHash,
+    totpSecretEnc
+  });
+  store.recordAuditEvent({
+    actorId: null,
+    action: 'account_recovered',
+    target: account.id,
+    details: { username },
+    occurredAt: now.toISOString()
+  });
+  return {
+    account: { ...account, passwordHash, totpSecretEnc, disabledAt: null },
+    enrollmentUri: enrollmentUri(username, input.totpSeed)
+  };
+}
+
 export function createAuthService(deps: AuthDependencies) {
   const now = deps.now ?? (() => new Date());
 
@@ -132,11 +162,12 @@ export function createAuthService(deps: AuthDependencies) {
         }
       }
     }
-    deps.store.recordLoginAttempt({
-      username,
-      attemptedAt: attemptedAt.toISOString(),
-      success: valid
-    });
+    if (!locked)
+      deps.store.recordLoginAttempt({
+        username,
+        attemptedAt: attemptedAt.toISOString(),
+        success: valid
+      });
     if (!valid || !account) {
       deps.store.recordAuditEvent({
         actorId: account?.id ?? null,

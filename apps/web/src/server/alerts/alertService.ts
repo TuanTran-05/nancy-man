@@ -2,12 +2,14 @@ import type { AlertDelivery, Incident } from '../../shared/models.js';
 import type { OpsStore } from '../storage/store.js';
 import { sendZaloText, type ZaloSendConfig, ZaloDeliveryError } from './zaloBotClient.js';
 import type { CollectorTransition } from '../collector/collector.js';
+import { decryptSecret } from '../security/crypto.js';
 
 export interface AlertServiceDeps {
   store: OpsStore;
   botToken: string;
-  recipientIds: string[];
+  recipientCiphertexts: string[];
   recipientProvider?: () => string[];
+  recipientKey: Buffer;
   timeoutMs: number;
   now?: () => Date;
   sender?: (config: ZaloSendConfig, text: string) => Promise<{ messageId: string }>;
@@ -78,11 +80,13 @@ export function createAlertService(deps: AlertServiceDeps) {
       kind !== 'recovered' && deps.store.hasDelivery({ incidentId: incident.id, kind: 'opened' })
         ? 'reminder'
         : kind;
-    const recipients = deps.recipientProvider ? deps.recipientProvider() : deps.recipientIds;
-    return recipients.map((recipientId) =>
+    const recipients = deps.recipientProvider
+      ? deps.recipientProvider()
+      : deps.recipientCiphertexts;
+    return recipients.map((recipientCiphertext) =>
       deps.store.enqueueDelivery({
         incidentId: incident.id,
-        recipientId,
+        recipientCiphertext,
         kind: deliveryKind,
         nextAttemptAt: now().toISOString(),
         lastErrorCode: null
@@ -107,10 +111,10 @@ export function createAlertService(deps: AlertServiceDeps) {
               recovered: delivery.kind === 'recovered'
             });
       try {
-        await sender(
-          { botToken: deps.botToken, recipientId: delivery.recipientId, timeoutMs: deps.timeoutMs },
-          text
-        );
+        const recipientId = decryptSecret(delivery.recipientCiphertext, deps.recipientKey);
+        if (!/^[A-Za-z0-9_.:-]{1,128}$/u.test(recipientId))
+          throw new ZaloDeliveryError('invalid_recipient', false, false);
+        await sender({ botToken: deps.botToken, recipientId, timeoutMs: deps.timeoutMs }, text);
         deps.store.completeDelivery(delivery.id);
       } catch (error) {
         const failure =
@@ -134,10 +138,16 @@ export function createAlertService(deps: AlertServiceDeps) {
 }
 
 export async function sendCollectorFailureNotice(
-  config: Omit<ZaloSendConfig, 'recipientId'> & { recipientIds: string[] },
+  config: Omit<ZaloSendConfig, 'recipientId'> & {
+    recipientCiphertexts: string[];
+    recipientKey: Buffer;
+  },
   fetchImpl?: typeof fetch
 ): Promise<void> {
   const text = 'CRITICAL: ops-collector stopped; open https://man.thienuy.edu.vn';
-  for (const recipientId of config.recipientIds)
+  for (const ciphertext of config.recipientCiphertexts) {
+    const recipientId = decryptSecret(ciphertext, config.recipientKey);
+    if (!/^[A-Za-z0-9_.:-]{1,128}$/u.test(recipientId)) continue;
     await sendZaloText({ ...config, recipientId, fetchImpl }, text);
+  }
 }

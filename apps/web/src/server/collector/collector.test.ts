@@ -3,12 +3,100 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import request from 'supertest';
 import type { MonitorName, MonitorSample } from '../../shared/models.js';
 import type { AppProbeConfig } from './healthProbe.js';
 import { createOpsStore } from '../storage/store.js';
 import { runCollectorCycle } from './collector.js';
+import { createAuthService, provisionAccount } from '../security/auth.js';
+import { createOpsApp } from '../http/app.js';
 
 describe('collector cron and backup monitors', () => {
+  it('removes a nested structured sentinel before SQLite persistence and authenticated API output', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ops-redaction-pipeline-'));
+    const now = new Date('2026-08-23T01:00:00.000Z');
+    const sentinel = 'TOPSECRET-REVIEW-SENTINEL';
+    const pidPath = join(directory, 'app.pid');
+    const errorLogPath = join(directory, 'app-error.log');
+    const cronLogPath = join(directory, 'cron.log');
+    writeFileSync(pidPath, String(process.pid));
+    writeFileSync(errorLogPath, `error={"context":{"route":"/login"},"api_key":"${sentinel}"}\n`);
+    writeFileSync(cronLogPath, 'ops-cron job=nightly status=success\n');
+    const store = createOpsStore(join(directory, 'ops.sqlite'), () => now);
+    const errorCursorStat = statSync(errorLogPath);
+    store.setCursor(errorLogPath, { inode: Number(errorCursorStat.ino), offset: 0 });
+    try {
+      await runCollectorCycle(
+        {
+          config: {
+            nodeEnv: 'test',
+            dbPath: join(directory, 'ops.sqlite'),
+            appUrl: 'http://127.0.0.1:3000',
+            postgresUrl: 'postgres://test',
+            pm2PidPath: pidPath,
+            pm2ErrorLogPath: errorLogPath,
+            cronLogPath,
+            backupDir: directory,
+            zaloBotToken: 'test',
+            recipientIds: [],
+            zaloRecipientKey: Buffer.alloc(32),
+            zaloTimeoutMs: 5000,
+            beszel: { enabled: false }
+          },
+          store,
+          histories: new Map(),
+          appProbe: async (_config, kind, observedAt = now) => ({
+            monitor: kind === 'liveness' ? 'app_liveness' : 'app_health',
+            level: 'healthy',
+            observedAt: observedAt.toISOString(),
+            latencyMs: 1,
+            details: { probeOk: true },
+            errorCode: null
+          }),
+          postgresProbe: async (_config, observedAt = now) => ({
+            monitor: 'postgres',
+            level: 'healthy',
+            observedAt: observedAt.toISOString(),
+            latencyMs: 1,
+            details: { probeOk: true },
+            errorCode: null
+          })
+        },
+        now
+      );
+
+      const database = store.getDatabaseForBackup();
+      const persisted = database
+        .prepare("SELECT details_json FROM monitor_samples WHERE monitor = 'errors'")
+        .get() as { details_json: string };
+      expect(persisted.details_json).not.toContain(sentinel);
+
+      const dataKey = Buffer.alloc(32, 7);
+      const provisioned = provisionAccount(
+        store,
+        {
+          username: 'ops-redaction',
+          password: 'correct horse battery staple',
+          totpSeed: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
+        },
+        dataKey,
+        now
+      );
+      const auth = createAuthService({ store, dataKey, now: () => now });
+      const session = auth.createSession(provisioned.account);
+      const response = await request(createOpsApp({ store, auth }))
+        .get('/api/overview')
+        .set('Cookie', `__Host-ops_session=${session.token}`)
+        .expect(200);
+      expect(JSON.stringify(response.body)).not.toContain(sentinel);
+      expect(response.body.latestByMonitor.errors.details.safeExcerpt).toBe(
+        'error=[payload redacted]'
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('records independent cron and backup levels from the deployed backup layout', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'ops-collector-'));
     const backupDirectory = join(directory, 'backups');

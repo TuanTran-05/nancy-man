@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { createOpsStore } from '../storage/store.js';
 import { createAlertService } from './alertService.js';
 import type { CollectorTransition } from '../collector/collector.js';
+import { encryptSecret } from '../security/crypto.js';
+
+const recipientKey = Buffer.alloc(32, 12);
 
 const transition = (overrides: Partial<CollectorTransition> = {}): CollectorTransition => ({
   monitor: 'app_liveness',
@@ -35,7 +38,8 @@ describe('alert outbox', () => {
     const service = createAlertService({
       store,
       botToken: 'secret',
-      recipientIds: ['ops-a'],
+      recipientCiphertexts: [encryptSecret('ops-a', recipientKey)],
+      recipientKey,
       timeoutMs: 5000,
       now: () => new Date('2026-08-23T00:00:00Z'),
       sender
@@ -71,7 +75,8 @@ describe('alert outbox', () => {
     const service = createAlertService({
       store,
       botToken: 'secret',
-      recipientIds: ['ops-a'],
+      recipientCiphertexts: [encryptSecret('ops-a', recipientKey)],
+      recipientKey,
       timeoutMs: 5000,
       now: () => new Date('2026-08-23T00:00:00Z'),
       sender
@@ -93,7 +98,8 @@ describe('alert outbox', () => {
     const service = createAlertService({
       store,
       botToken: 'secret',
-      recipientIds: ['ops-a'],
+      recipientCiphertexts: [encryptSecret('ops-a', recipientKey)],
+      recipientKey,
       timeoutMs: 5000,
       now: () => new Date('2026-08-23T00:00:00Z'),
       sender

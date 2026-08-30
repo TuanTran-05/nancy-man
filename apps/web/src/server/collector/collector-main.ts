@@ -2,7 +2,7 @@ import { loadCollectorConfig } from '../config.js';
 import { createOpsStore } from '../storage/store.js';
 import { runCollectorCycle, type CollectorDeps } from './collector.js';
 import { createAlertService } from '../alerts/alertService.js';
-import { resolveZaloRecipients } from '../alerts/recipientResolver.js';
+import { resolveZaloRecipientCiphertexts } from '../alerts/recipientResolver.js';
 import { startSystemdWatchdog } from '../systemdNotify.js';
 import { createBeszelClient } from '../beszel/client.js';
 import { createBeszelProbe } from '../beszel/probe.js';
@@ -14,16 +14,21 @@ export async function startCollector(): Promise<void> {
     : undefined;
   const deps: CollectorDeps = {
     config,
-    store: createOpsStore(config.dbPath),
+    store: createOpsStore(config.dbPath, undefined, config.zaloRecipientKey),
     histories: new Map(),
     beszelProbe
   };
   const alerts = createAlertService({
     store: deps.store,
     botToken: config.zaloBotToken,
-    recipientIds: config.recipientIds,
+    recipientCiphertexts: resolveZaloRecipientCiphertexts(
+      deps.store,
+      config.zaloRecipientKey,
+      config.recipientIds
+    ),
     recipientProvider: () =>
-      resolveZaloRecipients(deps.store, config.zaloRecipientKey, config.recipientIds),
+      resolveZaloRecipientCiphertexts(deps.store, config.zaloRecipientKey, config.recipientIds),
+    recipientKey: config.zaloRecipientKey,
     timeoutMs: config.zaloTimeoutMs
   });
   const watchdog = startSystemdWatchdog();

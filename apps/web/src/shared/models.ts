@@ -52,7 +52,6 @@ export interface Incident {
 export interface AlertDelivery {
   id: string;
   incidentId: string;
-  recipientId: string;
   kind: 'opened' | 'reminder' | 'recovered' | 'collector_failed';
   state: 'queued' | 'sending' | 'sent' | 'failed' | 'delivery_ambiguous';
   attemptCount: number;

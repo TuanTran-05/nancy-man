@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const schemaSql = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS incidents (
 CREATE TABLE IF NOT EXISTS alert_deliveries (
   id TEXT PRIMARY KEY,
   incident_id TEXT REFERENCES incidents(id) ON DELETE SET NULL,
-  recipient_id TEXT NOT NULL,
+  recipient_ciphertext TEXT NOT NULL,
   kind TEXT NOT NULL,
   state TEXT NOT NULL,
   attempt_count INTEGER NOT NULL,

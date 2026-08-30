@@ -6,7 +6,7 @@ import { createOpsApp } from './app.js';
 
 export function startWebServer() {
   const config = loadWebConfig(process.env);
-  const store = createOpsStore(config.dbPath);
+  const store = createOpsStore(config.dbPath, undefined, config.zaloRecipientKey);
   const auth = createAuthService({ store, dataKey: config.dataKey });
   const app = createOpsApp({
     store,

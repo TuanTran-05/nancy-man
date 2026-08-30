@@ -6,10 +6,15 @@ import { createOpsStore } from './store.js';
 import { encryptSecret } from '../security/crypto.js';
 
 const tempDirs: string[] = [];
+const recipientKey = Buffer.alloc(32, 10);
 const makeStore = () => {
   const dir = mkdtempSync(join(tmpdir(), 'ops-store-'));
   tempDirs.push(dir);
-  return createOpsStore(join(dir, 'ops.sqlite'), () => new Date('2026-08-23T00:00:00.000Z'));
+  return createOpsStore(
+    join(dir, 'ops.sqlite'),
+    () => new Date('2026-08-23T00:00:00.000Z'),
+    recipientKey
+  );
 };
 
 afterEach(() => {
@@ -83,7 +88,7 @@ describe('Ops SQLite store', () => {
     });
     const delivery = store.enqueueDelivery({
       incidentId: incident.id,
-      recipientId: 'ops-a',
+      recipientCiphertext: encryptSecret('ops-a', recipientKey),
       kind: 'opened',
       nextAttemptAt: '2026-08-23T00:00:00Z',
       lastErrorCode: null

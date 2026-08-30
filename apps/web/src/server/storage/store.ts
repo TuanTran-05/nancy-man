@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { schemaSql, SCHEMA_VERSION } from './schema.js';
+import { encryptSecret } from '../security/crypto.js';
 import type {
   AlertDelivery,
   DashboardOverview,
@@ -58,9 +59,13 @@ export interface OpsStore {
     id: string,
     input: { accountId: string; note: string; now: string }
   ): Incident;
-  enqueueDelivery(input: Omit<AlertDelivery, 'id' | 'attemptCount' | 'state'>): AlertDelivery;
+  enqueueDelivery(
+    input: Omit<AlertDelivery, 'id' | 'attemptCount' | 'state'> & {
+      recipientCiphertext: string;
+    }
+  ): AlertDelivery;
   hasDelivery(input: { incidentId: string; kind: AlertDelivery['kind']; since?: string }): boolean;
-  claimDueDeliveries(now: string, limit: number): AlertDelivery[];
+  claimDueDeliveries(now: string, limit: number): AlertDeliveryRecord[];
   completeDelivery(id: string): void;
   failDelivery(
     id: string,
@@ -98,6 +103,12 @@ export interface OpsStore {
   }): void;
   findAccountByUsername(username: string): AccountRecord | undefined;
   findAccountById(id: string): AccountRecord | undefined;
+  recoverAccountCredentials(input: {
+    accountId: string;
+    username: string;
+    passwordHash: string;
+    totpSecretEnc: string;
+  }): void;
   createSession(input: Omit<SessionRecord, 'username'>): void;
   findSession(tokenHash: string): SessionRecord | undefined;
   touchSession(tokenHash: string, lastSeenAt: string, expiresAt: string): void;
@@ -121,6 +132,10 @@ export interface OpsStore {
   disableZaloLink(accountId: string, disabledAt: string): void;
   listActiveZaloRecipientCiphertexts(): string[];
   getDatabaseForBackup(): SqliteDatabase;
+}
+
+export interface AlertDeliveryRecord extends AlertDelivery {
+  recipientCiphertext: string;
 }
 
 const cap = (value: string | null, max: number): string | null =>
@@ -158,7 +173,6 @@ const incidentFromRow = (row: Record<string, unknown>): Incident => ({
 const deliveryFromRow = (row: Record<string, unknown>): AlertDelivery => ({
   id: row.id as string,
   incidentId: row.incident_id as string,
-  recipientId: row.recipient_id as string,
   kind: row.kind as AlertDelivery['kind'],
   state: row.state as AlertDelivery['state'],
   attemptCount: row.attempt_count as number,
@@ -166,12 +180,81 @@ const deliveryFromRow = (row: Record<string, unknown>): AlertDelivery => ({
   lastErrorCode: (row.last_error_code as string | null) ?? null
 });
 
-export function createOpsStore(path: string, now: () => Date = () => new Date()): OpsStore {
+const deliveryRecordFromRow = (row: Record<string, unknown>): AlertDeliveryRecord => ({
+  ...deliveryFromRow(row),
+  recipientCiphertext: row.recipient_ciphertext as string
+});
+
+function migrateDeliveryRecipients(
+  db: SqliteDatabase,
+  fromVersion: number,
+  recipientKey?: Buffer
+): boolean {
+  if (fromVersion >= 3) return false;
+  const columns = db.prepare('PRAGMA table_info(alert_deliveries)').all() as Array<{
+    name: string;
+  }>;
+  if (!columns.some((column) => column.name === 'recipient_id')) {
+    if (columns.some((column) => column.name === 'recipient_ciphertext')) return true;
+    throw new Error('Unsupported legacy alert delivery schema');
+  }
+  const legacyRows = db.prepare('SELECT * FROM alert_deliveries').all() as Array<
+    Record<string, unknown>
+  >;
+  if (legacyRows.length > 0 && !recipientKey)
+    throw new Error('OPS_ZALO_RECIPIENT_KEY is required to migrate legacy alert deliveries');
+
+  db.exec('ALTER TABLE alert_deliveries RENAME TO alert_deliveries_v2');
+  db.exec(`
+    CREATE TABLE alert_deliveries (
+      id TEXT PRIMARY KEY,
+      incident_id TEXT REFERENCES incidents(id) ON DELETE SET NULL,
+      recipient_ciphertext TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      state TEXT NOT NULL,
+      attempt_count INTEGER NOT NULL,
+      next_attempt_at TEXT NOT NULL,
+      last_error_code TEXT,
+      created_at TEXT NOT NULL
+    )
+  `);
+  const insert = db.prepare(
+    `INSERT INTO alert_deliveries
+      (id, incident_id, recipient_ciphertext, kind, state, attempt_count, next_attempt_at,
+       last_error_code, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  for (const row of legacyRows)
+    insert.run(
+      row.id,
+      row.incident_id,
+      encryptSecret(row.recipient_id as string, recipientKey!),
+      row.kind,
+      row.state,
+      row.attempt_count,
+      row.next_attempt_at,
+      row.last_error_code,
+      row.created_at
+    );
+  db.exec('DROP TABLE alert_deliveries_v2');
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_deliveries_due ON alert_deliveries (state, next_attempt_at)'
+  );
+  return legacyRows.length > 0;
+}
+
+export function createOpsStore(
+  path: string,
+  now: () => Date = () => new Date(),
+  recipientKey?: Buffer
+): OpsStore {
   const db = new Database(path);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.pragma('synchronous = FULL');
+  db.pragma('secure_delete = ON');
+  let requiresLegacySanitization = false;
   db.exec('BEGIN');
   try {
     db.exec(schemaSql);
@@ -181,13 +264,26 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
     if (!version) db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
     else if (version.version > SCHEMA_VERSION)
       throw new Error(`Unsupported Ops schema version ${version.version}`);
-    else if (version.version < SCHEMA_VERSION)
-      db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
+    else if (version.version < SCHEMA_VERSION) {
+      requiresLegacySanitization = migrateDeliveryRecipients(db, version.version, recipientKey);
+      if (!requiresLegacySanitization)
+        db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
+    }
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
     db.close();
     throw error;
+  }
+  if (requiresLegacySanitization) {
+    try {
+      db.exec('VACUUM');
+      db.pragma('wal_checkpoint(TRUNCATE)');
+      db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
+    } catch (error) {
+      db.close();
+      throw error;
+    }
   }
 
   const store: OpsStore = {
@@ -298,9 +394,16 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
       const createdAt = now().toISOString();
       db.prepare(
         `INSERT INTO alert_deliveries
-          (id, incident_id, recipient_id, kind, state, attempt_count, next_attempt_at, last_error_code, created_at)
+          (id, incident_id, recipient_ciphertext, kind, state, attempt_count, next_attempt_at, last_error_code, created_at)
          VALUES (?, ?, ?, ?, 'queued', 0, ?, NULL, ?)`
-      ).run(id, input.incidentId, input.recipientId, input.kind, input.nextAttemptAt, createdAt);
+      ).run(
+        id,
+        input.incidentId,
+        input.recipientCiphertext,
+        input.kind,
+        input.nextAttemptAt,
+        createdAt
+      );
       return deliveryFromRow(
         db.prepare('SELECT * FROM alert_deliveries WHERE id = ?').get(id) as Record<string, unknown>
       );
@@ -329,13 +432,13 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
              ORDER BY next_attempt_at ASC LIMIT ?`
           )
           .all(nowIso, boundedLimit) as Array<Record<string, unknown>>;
-        const claimed: AlertDelivery[] = [];
+        const claimed: AlertDeliveryRecord[] = [];
         for (const row of rows) {
           db.prepare(
             "UPDATE alert_deliveries SET state = 'sending', attempt_count = attempt_count + 1 WHERE id = ?"
           ).run(row.id);
           claimed.push(
-            deliveryFromRow(
+            deliveryRecordFromRow(
               db.prepare('SELECT * FROM alert_deliveries WHERE id = ?').get(row.id) as Record<
                 string,
                 unknown
@@ -548,6 +651,16 @@ export function createOpsStore(path: string, now: () => Date = () => new Date())
             | undefined
         )?.username ?? ''
       );
+    },
+
+    recoverAccountCredentials(input) {
+      db.transaction(() => {
+        db.prepare(
+          'UPDATE accounts SET password_hash = ?, totp_secret_enc = ?, disabled_at = NULL WHERE id = ?'
+        ).run(input.passwordHash, input.totpSecretEnc, input.accountId);
+        db.prepare('DELETE FROM login_attempts WHERE username = ?').run(input.username);
+        db.prepare('DELETE FROM sessions WHERE account_id = ?').run(input.accountId);
+      })();
     },
 
     createSession(input) {
