@@ -30,9 +30,9 @@ After the approved candidate checks pass, run:
 deploy/ops/activate-release.sh <40-character-git-sha>
 ```
 
-Activation verifies the marker, complete manifest, required runtime files, exact systemd assets, and the candidate Nginx syntax before changing `current`. It installs only the checked unit and vhost filenames, reloads systemd metadata, and replaces `current` by renaming a temporary symlink created under the same release root. It then restarts migration, API, SQL worker, processor, notifier, web, and collector in that order before reloading Nginx.
+Activation completes marker, manifest, runtime, systemd, and Nginx syntax preflights before changing configuration or `current`. It snapshots the exact prior checked unit and vhost state, then stops and confirms the web/collector SQLite-writer cohort inactive before installing only the checked unit and vhost filenames. It reloads systemd metadata, replaces `current` by renaming a temporary symlink created under the same release root, restarts migration, API, SQL worker, processor, and notifier, then starts web and collector before reloading Nginx.
 
-If a service restart fails, the command atomically restores only the previously resolved release pointer and exits nonzero. A missing previous pointer is treated as no rollback target; a previous pointer outside `releases/` is rejected before any pointer change. Preserve both release directories for diagnosis and follow the approved rollback/cutover policy; this command does not delete releases or operational data.
+On any post-mutation failure, the command stops every candidate-attempted service, restores the prior pointer (or no pointer), exact prior configuration bytes/modes/absence, daemon metadata, prior active services, and prior Nginx configuration. A failed rollback action emits `RELEASE_ROLLBACK_FAILED` together with the primary failure and exits nonzero. A missing previous pointer is treated as no rollback target; a previous pointer outside `releases/` is rejected before any pointer change. Preserve both release directories for diagnosis and follow the approved rollback/cutover policy; this command does not delete releases or operational data.
 
 The scripts emit only release identifiers, safe status codes, and bounded paths. Never pass environment values, credentials, database URLs, or data through their arguments or logs.
 
