@@ -7,16 +7,20 @@ function normalizedHostname(target: URL): string {
   return hostname.endsWith('.') ? hostname.slice(0, -1) : hostname;
 }
 
+function decodedDatabaseName(target: URL): string | null {
+  try {
+    return decodeURIComponent(target.pathname.slice(1));
+  } catch {
+    return null;
+  }
+}
+
 function canonicalResourceIdentity(target: URL): string | null {
   if (target.protocol !== 'postgres:' && target.protocol !== 'postgresql:') return null;
   const hostname = normalizedHostname(target);
   const host = LOOPBACK_HOSTS.has(hostname) ? 'loopback' : hostname;
-  let databaseName: string;
-  try {
-    databaseName = decodeURIComponent(target.pathname.slice(1));
-  } catch {
-    return null;
-  }
+  const databaseName = decodedDatabaseName(target);
+  if (databaseName === null) return null;
   return JSON.stringify([host, target.port || '5432', databaseName]);
 }
 
@@ -37,12 +41,8 @@ function parseApprovedTarget(environment: PostgresContractEnvironment): string |
   if (target.search || target.hash)
     throw new Error('OPS_TEST_DATABASE_URL must not contain connection overrides');
 
-  let databaseName: string;
-  try {
-    databaseName = decodeURIComponent(target.pathname.slice(1));
-  } catch {
-    throw new Error('OPS_TEST_DATABASE_URL has an invalid database name');
-  }
+  const databaseName = decodedDatabaseName(target);
+  if (databaseName === null) throw new Error('OPS_TEST_DATABASE_URL has an invalid database name');
   if (
     databaseName.includes('/') ||
     !/(?:^|[_-])test(?:$|[_-])/iu.test(databaseName) ||
@@ -55,6 +55,7 @@ function parseApprovedTarget(environment: PostgresContractEnvironment): string |
     try {
       const runtimeTarget = new URL(runtimeRaw);
       if (runtimeTarget.search || runtimeTarget.hash) return null;
+      if (decodedDatabaseName(runtimeTarget) === databaseName) return null;
       if (canonicalResourceIdentity(runtimeTarget) === canonicalResourceIdentity(target))
         return null;
     } catch {

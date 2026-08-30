@@ -36,6 +36,12 @@ describe('collector cron and backup monitors', () => {
       sentinel: 'TOPSECRET-VALID-PREFIX-BYPASS-482901',
       line: (sentinel: string) => `error={"message":"literal }"},"private":"${sentinel}"}`,
       expected: 'error=[payload redacted]'
+    },
+    {
+      label: 'valid JSON prefix with the reviewer quoted-key suffix',
+      sentinel: 'TOPSECRET-POSTPREFIX-640177',
+      line: (sentinel: string) => `error={"message":"ok"} "api_key":"${sentinel}"`,
+      expected: 'error=[payload redacted]'
     }
   ])(
     'removes a $label sentinel before SQLite persistence and authenticated API output',

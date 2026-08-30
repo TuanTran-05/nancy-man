@@ -66,6 +66,31 @@ describe('isolated PostgreSQL contract target', () => {
       'trailing-dot loopback alias',
       'postgres://contract@localhost:5432/edutrack_ops_contract_test',
       'postgres://runtime@localhost./edutrack_ops_contract_test'
+    ],
+    [
+      'short IPv4 loopback alias',
+      'postgres://contract@127.0.0.1:5432/edutrack_ops_contract_test',
+      'postgres://runtime@127.1/edutrack_ops_contract_test'
+    ],
+    [
+      'integer IPv4 loopback alias',
+      'postgres://contract@127.0.0.1:5432/edutrack_ops_contract_test',
+      'postgres://runtime@2130706433/edutrack_ops_contract_test'
+    ],
+    [
+      'hexadecimal IPv4 loopback alias',
+      'postgres://contract@127.0.0.1:5432/edutrack_ops_contract_test',
+      'postgres://runtime@0x7f000001/edutrack_ops_contract_test'
+    ],
+    [
+      'octal-component IPv4 loopback alias',
+      'postgres://contract@127.0.0.1:5432/edutrack_ops_contract_test',
+      'postgres://runtime@0177.0.0.1/edutrack_ops_contract_test'
+    ],
+    [
+      'three-component IPv4 loopback alias',
+      'postgres://contract@127.0.0.1:5432/edutrack_ops_contract_test',
+      'postgres://runtime@127.0.1/edutrack_ops_contract_test'
     ]
   ])(
     'keeps an equivalent %s target disabled without constructing a client',
@@ -90,6 +115,21 @@ describe('isolated PostgreSQL contract target', () => {
     const connectionString = 'postgres://contract@127.0.0.1:55432/edutrack_ops_contract_test';
     expect(
       createPostgresContractClient({ OPS_TEST_DATABASE_URL: connectionString }, factory)
+    ).toEqual({ connectionString });
+    expect(factory).toHaveBeenCalledOnce();
+  });
+
+  it('constructs for a loopback test database with a separate decoded runtime database', () => {
+    const factory = vi.fn((connectionString: string) => ({ connectionString }));
+    const connectionString = 'postgres://contract@127.0.0.1:55432/edutrack_ops_contract%5Ftest';
+    expect(
+      createPostgresContractClient(
+        {
+          OPS_TEST_DATABASE_URL: connectionString,
+          OPS_MONITOR_DATABASE_URL: 'postgres://runtime@127.1/edutrack_ops_runtime'
+        },
+        factory
+      )
     ).toEqual({ connectionString });
     expect(factory).toHaveBeenCalledOnce();
   });

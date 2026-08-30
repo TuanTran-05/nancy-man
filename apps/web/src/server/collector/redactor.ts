@@ -9,59 +9,11 @@ export interface RedactedLogLine {
 const PAYLOAD_REDACTION = '[payload redacted]';
 
 const redactStructuredPayloads = (line: string): string => {
-  let safe = '';
-  let cursor = 0;
-
-  while (cursor < line.length) {
-    let start = cursor;
-    while (start < line.length && line[start] !== '{' && line[start] !== '[') start += 1;
-    safe += line.slice(cursor, start);
-    if (start === line.length) break;
-
-    const delimiters: string[] = [];
-    let quoted = false;
-    let escaped = false;
-    let end = -1;
-    for (let index = start; index < line.length; index += 1) {
-      const character = line[index];
-      if (quoted) {
-        if (escaped) escaped = false;
-        else if (character === '\\') escaped = true;
-        else if (character === '"') quoted = false;
-        continue;
-      }
-      if (character === '"') {
-        quoted = true;
-        continue;
-      }
-      if (character === "'") return safe + PAYLOAD_REDACTION;
-      if (character === '{' || character === '[') {
-        delimiters.push(character);
-        continue;
-      }
-      if (character === '}' || character === ']') {
-        const expected = character === '}' ? '{' : '[';
-        if (delimiters.at(-1) !== expected) break;
-        delimiters.pop();
-        if (delimiters.length === 0) {
-          end = index + 1;
-          break;
-        }
-      }
-    }
-
-    safe += PAYLOAD_REDACTION;
-    if (end < 0) return safe;
-    try {
-      JSON.parse(line.slice(start, end));
-    } catch {
-      return safe;
-    }
-    if (/^[\s]*[,}\]]/u.test(line.slice(end))) return safe;
-    cursor = end;
-  }
-
-  return safe;
+  const objectStart = line.indexOf('{');
+  const arrayStart = line.indexOf('[');
+  const starts = [objectStart, arrayStart].filter((index) => index >= 0);
+  if (starts.length === 0) return line;
+  return line.slice(0, Math.min(...starts)) + PAYLOAD_REDACTION;
 };
 
 const redact = (line: string): string => {

@@ -27,7 +27,7 @@ describe('log redactor', () => {
   it('treats quoted brackets as data and redacts an unterminated structure to end of line', () => {
     expect(
       redactLogLine('prefix={"message":"literal } [ value","nested":[1]} suffix').safeText
-    ).toBe('prefix=[payload redacted] suffix');
+    ).toBe('prefix=[payload redacted]');
     expect(redactLogLine('prefix={"nested":{"token":"secret"}').safeText).toBe(
       'prefix=[payload redacted]'
     );
@@ -54,9 +54,38 @@ describe('log redactor', () => {
     expect(result.safeText).not.toContain('TOPSECRET-MALFORMED-SINGLE-QUOTE-917406');
   });
 
-  it('preserves useful suffix text after an unambiguously supported structured payload', () => {
-    expect(redactLogLine('warning context={"ok":true} retrying in 5s').safeText).toBe(
-      'warning context=[payload redacted] retrying in 5s'
+  it.each([
+    {
+      label: 'the exact reviewer quoted-key suffix',
+      input: 'error={"message":"ok"} "api_key":"TOPSECRET-POSTPREFIX-640177"',
+      expected: 'error=[payload redacted]'
+    },
+    {
+      label: 'a whitespace and unquoted suffix',
+      input: 'error={"message":"ok"}    private=TOPSECRET-POSTPREFIX-640177',
+      expected: 'error=[payload redacted]'
+    },
+    {
+      label: 'multiple structured values',
+      input: 'prefix={"first":true} middle=[{"private":"TOPSECRET-POSTPREFIX-640177"}]',
+      expected: 'prefix=[payload redacted]'
+    },
+    {
+      label: 'ordinary prose after a supported payload',
+      input: 'warning context={"ok":true} retrying in 5s',
+      expected: 'warning context=[payload redacted]'
+    }
+  ])('redacts all trailing remainder after $label', ({ input, expected }) => {
+    const result = redactLogLine(input);
+
+    expect(result.safeText).toBe(expected);
+    expect(result.safeText).not.toContain('TOPSECRET-POSTPREFIX-640177');
+  });
+
+  it('preserves ordinary non-structured logs and supported scalar redaction', () => {
+    expect(redactLogLine('warning retrying in 5s').safeText).toBe('warning retrying in 5s');
+    expect(redactLogLine('password=hidden retrying in 5s').safeText).toBe(
+      'password=[redacted] retrying in 5s'
     );
   });
 
