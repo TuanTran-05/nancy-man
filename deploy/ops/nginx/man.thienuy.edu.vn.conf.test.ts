@@ -94,6 +94,7 @@ describe('man.thienuy.edu.vn canonical dual-plane vhost', () => {
     expect(config).toMatch(/location \/api\/[\s\S]*127\.0\.0\.1:3101/);
     expect(config).toMatch(/location \/[\s\S]*127\.0\.0\.1:3101/);
     expect(config).not.toContain('REPLACE_WITH_CERT_NAME');
+    expect(config).not.toMatch(/^\s*ssl_(?:protocols|session_timeout)\b/mu);
   });
 
   it('forwards each route namespace to only its designated loopback plane and canonicalizes HTTP redirects', async () => {
