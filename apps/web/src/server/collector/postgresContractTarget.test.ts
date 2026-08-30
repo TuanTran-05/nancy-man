@@ -26,11 +26,6 @@ describe('isolated PostgreSQL contract target', () => {
       'connection-parameter host override',
       'postgres://contract@127.0.0.1/edutrack_test?host=database.internal',
       undefined
-    ],
-    [
-      'runtime identity',
-      'postgres://contract@127.0.0.1/edutrack_ops_test',
-      'postgres://contract@127.0.0.1/edutrack_ops_test'
     ]
   ])('rejects %s before client construction', (_label, dedicatedUrl, runtimeUrl) => {
     const factory = vi.fn((connectionString: string) => ({ connectionString }));
@@ -45,6 +40,50 @@ describe('isolated PostgreSQL contract target', () => {
     ).toThrow(/OPS_TEST_DATABASE_URL/u);
     expect(factory).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [
+      'different userinfo and explicit default port',
+      'postgres://contract@127.0.0.1:5432/edutrack_ops_test',
+      'postgres://monitor@127.0.0.1/edutrack_ops_test'
+    ],
+    [
+      'localhost and IPv4 loopback aliases',
+      'postgres://contract@localhost:5432/edutrack_ops_test',
+      'postgres://runtime@127.0.0.1/edutrack_ops_test'
+    ],
+    [
+      'IPv6 loopback, protocol alias, and decoded database name',
+      'postgresql://contract@[::1]/edutrack%5Fops%5Ftest',
+      'postgres://runtime@localhost:5432/edutrack_ops_test'
+    ],
+    [
+      'runtime query port override',
+      'postgres://contract@localhost:55432/edutrack_ops_contract_test',
+      'postgres://runtime@127.0.0.1/edutrack_ops_contract_test?port=55432'
+    ],
+    [
+      'trailing-dot loopback alias',
+      'postgres://contract@localhost:5432/edutrack_ops_contract_test',
+      'postgres://runtime@localhost./edutrack_ops_contract_test'
+    ]
+  ])(
+    'keeps an equivalent %s target disabled without constructing a client',
+    (_label, dedicatedUrl, runtimeUrl) => {
+      const factory = vi.fn((connectionString: string) => ({ connectionString }));
+
+      expect(
+        createPostgresContractClient(
+          {
+            OPS_TEST_DATABASE_URL: dedicatedUrl,
+            OPS_MONITOR_DATABASE_URL: runtimeUrl
+          },
+          factory
+        )
+      ).toBeNull();
+      expect(factory).not.toHaveBeenCalled();
+    }
+  );
 
   it('constructs exactly one client for a loopback unmistakable test database', () => {
     const factory = vi.fn((connectionString: string) => ({ connectionString }));

@@ -48,6 +48,11 @@ export type ZaloLinkConsumeResult =
   | { outcome: 'invalid_code' }
   | { outcome: 'chat_already_linked' };
 
+export interface ZaloRecipientRecord {
+  recipientHash: string;
+  recipientCiphertext: string;
+}
+
 export interface OpsStore {
   recordSample(sample: MonitorSample): void;
   upsertIncident(
@@ -130,7 +135,7 @@ export interface OpsStore {
     now: string;
   }): ZaloLinkConsumeResult;
   disableZaloLink(accountId: string, disabledAt: string): void;
-  listActiveZaloRecipientCiphertexts(): string[];
+  listActiveZaloRecipients(): ZaloRecipientRecord[];
   getDatabaseForBackup(): SqliteDatabase;
 }
 
@@ -796,14 +801,18 @@ export function createOpsStore(
       ).run(disabledAt, disabledAt, accountId);
     },
 
-    listActiveZaloRecipientCiphertexts() {
+    listActiveZaloRecipients() {
       return (
         db
           .prepare(
-            'SELECT chat_id_ciphertext FROM zalo_links WHERE disabled_at IS NULL ORDER BY linked_at ASC'
+            `SELECT chat_id_hash, chat_id_ciphertext
+             FROM zalo_links WHERE disabled_at IS NULL ORDER BY linked_at ASC`
           )
-          .all() as Array<{ chat_id_ciphertext: string }>
-      ).map((row) => row.chat_id_ciphertext);
+          .all() as Array<{ chat_id_hash: string; chat_id_ciphertext: string }>
+      ).map((row) => ({
+        recipientHash: row.chat_id_hash,
+        recipientCiphertext: row.chat_id_ciphertext
+      }));
     },
 
     getDatabaseForBackup() {

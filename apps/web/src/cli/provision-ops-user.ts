@@ -17,11 +17,13 @@ export async function readHiddenPassword(
   let password = '';
   let cancelPrompt: ((error: Error) => void) | undefined;
   const onSignal = () => cancelPrompt?.(new Error('Provisioning cancelled'));
+  const cleanupSignals: NodeJS.Signals[] = ['SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGTERM'];
 
-  inputStream.setRawMode(true);
-  inputStream.resume();
-  outputStream.write('Password: ');
   try {
+    for (const signal of cleanupSignals) process.once(signal, onSignal);
+    inputStream.setRawMode(true);
+    inputStream.resume();
+    outputStream.write('Password: ');
     return await new Promise<string>((resolve, reject) => {
       let settled = false;
       const finish = (value?: string, error?: Error) => {
@@ -63,12 +65,9 @@ export async function readHiddenPassword(
       inputStream.on('data', onData);
       inputStream.once('end', onEnd);
       inputStream.once('error', onError);
-      process.once('SIGINT', onSignal);
-      process.once('SIGTERM', onSignal);
     });
   } finally {
-    process.off('SIGINT', onSignal);
-    process.off('SIGTERM', onSignal);
+    for (const signal of cleanupSignals) process.off(signal, onSignal);
     inputStream.setRawMode(wasRaw);
     inputStream.pause();
     outputStream.write('\n');

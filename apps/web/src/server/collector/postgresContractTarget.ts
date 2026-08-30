@@ -1,5 +1,25 @@
 export type PostgresContractEnvironment = Record<string, string | undefined>;
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+function normalizedHostname(target: URL): string {
+  const hostname = target.hostname.toLowerCase();
+  return hostname.endsWith('.') ? hostname.slice(0, -1) : hostname;
+}
+
+function canonicalResourceIdentity(target: URL): string | null {
+  if (target.protocol !== 'postgres:' && target.protocol !== 'postgresql:') return null;
+  const hostname = normalizedHostname(target);
+  const host = LOOPBACK_HOSTS.has(hostname) ? 'loopback' : hostname;
+  let databaseName: string;
+  try {
+    databaseName = decodeURIComponent(target.pathname.slice(1));
+  } catch {
+    return null;
+  }
+  return JSON.stringify([host, target.port || '5432', databaseName]);
+}
+
 function parseApprovedTarget(environment: PostgresContractEnvironment): string | null {
   const raw = environment.OPS_TEST_DATABASE_URL;
   if (!raw) return null;
@@ -12,7 +32,7 @@ function parseApprovedTarget(environment: PostgresContractEnvironment): string |
   }
   if (target.protocol !== 'postgres:' && target.protocol !== 'postgresql:')
     throw new Error('OPS_TEST_DATABASE_URL must use PostgreSQL');
-  if (!new Set(['127.0.0.1', 'localhost', '[::1]']).has(target.hostname))
+  if (!LOOPBACK_HOSTS.has(normalizedHostname(target)))
     throw new Error('OPS_TEST_DATABASE_URL must target a loopback host');
   if (target.search || target.hash)
     throw new Error('OPS_TEST_DATABASE_URL must not contain connection overrides');
@@ -32,14 +52,14 @@ function parseApprovedTarget(environment: PostgresContractEnvironment): string |
 
   const runtimeRaw = environment.OPS_MONITOR_DATABASE_URL;
   if (runtimeRaw) {
-    let matchesRuntime = runtimeRaw === raw;
     try {
-      matchesRuntime ||= new URL(runtimeRaw).href === target.href;
+      const runtimeTarget = new URL(runtimeRaw);
+      if (runtimeTarget.search || runtimeTarget.hash) return null;
+      if (canonicalResourceIdentity(runtimeTarget) === canonicalResourceIdentity(target))
+        return null;
     } catch {
       // An invalid runtime value cannot authorize or identify a contract target.
     }
-    if (matchesRuntime)
-      throw new Error('OPS_TEST_DATABASE_URL must not match OPS_MONITOR_DATABASE_URL');
   }
   return raw;
 }

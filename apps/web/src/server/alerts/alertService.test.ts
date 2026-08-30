@@ -8,6 +8,10 @@ import type { CollectorTransition } from '../collector/collector.js';
 import { encryptSecret } from '../security/crypto.js';
 
 const recipientKey = Buffer.alloc(32, 12);
+const recipient = (recipientId: string) => ({
+  recipientHash: `hash-${recipientId}`,
+  recipientCiphertext: encryptSecret(recipientId, recipientKey)
+});
 
 const transition = (overrides: Partial<CollectorTransition> = {}): CollectorTransition => ({
   monitor: 'app_liveness',
@@ -38,7 +42,7 @@ describe('alert outbox', () => {
     const service = createAlertService({
       store,
       botToken: 'secret',
-      recipientCiphertexts: [encryptSecret('ops-a', recipientKey)],
+      recipients: [recipient('ops-a')],
       recipientKey,
       timeoutMs: 5000,
       now: () => new Date('2026-08-23T00:00:00Z'),
@@ -75,7 +79,7 @@ describe('alert outbox', () => {
     const service = createAlertService({
       store,
       botToken: 'secret',
-      recipientCiphertexts: [encryptSecret('ops-a', recipientKey)],
+      recipients: [recipient('ops-a')],
       recipientKey,
       timeoutMs: 5000,
       now: () => new Date('2026-08-23T00:00:00Z'),
@@ -98,7 +102,7 @@ describe('alert outbox', () => {
     const service = createAlertService({
       store,
       botToken: 'secret',
-      recipientCiphertexts: [encryptSecret('ops-a', recipientKey)],
+      recipients: [recipient('ops-a')],
       recipientKey,
       timeoutMs: 5000,
       now: () => new Date('2026-08-23T00:00:00Z'),

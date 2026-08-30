@@ -1,5 +1,5 @@
 import type { AlertDelivery, Incident } from '../../shared/models.js';
-import type { OpsStore } from '../storage/store.js';
+import type { OpsStore, ZaloRecipientRecord } from '../storage/store.js';
 import { sendZaloText, type ZaloSendConfig, ZaloDeliveryError } from './zaloBotClient.js';
 import type { CollectorTransition } from '../collector/collector.js';
 import { decryptSecret } from '../security/crypto.js';
@@ -7,8 +7,8 @@ import { decryptSecret } from '../security/crypto.js';
 export interface AlertServiceDeps {
   store: OpsStore;
   botToken: string;
-  recipientCiphertexts: string[];
-  recipientProvider?: () => string[];
+  recipients: ZaloRecipientRecord[];
+  recipientProvider?: () => ZaloRecipientRecord[];
   recipientKey: Buffer;
   timeoutMs: number;
   now?: () => Date;
@@ -80,13 +80,11 @@ export function createAlertService(deps: AlertServiceDeps) {
       kind !== 'recovered' && deps.store.hasDelivery({ incidentId: incident.id, kind: 'opened' })
         ? 'reminder'
         : kind;
-    const recipients = deps.recipientProvider
-      ? deps.recipientProvider()
-      : deps.recipientCiphertexts;
-    return recipients.map((recipientCiphertext) =>
+    const recipients = deps.recipientProvider ? deps.recipientProvider() : deps.recipients;
+    return recipients.map((recipient) =>
       deps.store.enqueueDelivery({
         incidentId: incident.id,
-        recipientCiphertext,
+        recipientCiphertext: recipient.recipientCiphertext,
         kind: deliveryKind,
         nextAttemptAt: now().toISOString(),
         lastErrorCode: null
@@ -139,15 +137,19 @@ export function createAlertService(deps: AlertServiceDeps) {
 
 export async function sendCollectorFailureNotice(
   config: Omit<ZaloSendConfig, 'recipientId'> & {
-    recipientCiphertexts: string[];
+    recipients: ZaloRecipientRecord[];
     recipientKey: Buffer;
   },
   fetchImpl?: typeof fetch
 ): Promise<void> {
   const text = 'CRITICAL: ops-collector stopped; open https://man.thienuy.edu.vn';
-  for (const ciphertext of config.recipientCiphertexts) {
-    const recipientId = decryptSecret(ciphertext, config.recipientKey);
-    if (!/^[A-Za-z0-9_.:-]{1,128}$/u.test(recipientId)) continue;
-    await sendZaloText({ ...config, recipientId, fetchImpl }, text);
+  for (const recipient of config.recipients) {
+    try {
+      const recipientId = decryptSecret(recipient.recipientCiphertext, config.recipientKey);
+      if (!/^[A-Za-z0-9_.:-]{1,128}$/u.test(recipientId)) continue;
+      await sendZaloText({ ...config, recipientId, fetchImpl }, text);
+    } catch {
+      // The direct failsafe isolates malformed local state and provider failures per recipient.
+    }
   }
 }

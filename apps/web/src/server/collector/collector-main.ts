@@ -2,7 +2,7 @@ import { loadCollectorConfig } from '../config.js';
 import { createOpsStore } from '../storage/store.js';
 import { runCollectorCycle, type CollectorDeps } from './collector.js';
 import { createAlertService } from '../alerts/alertService.js';
-import { resolveZaloRecipientCiphertexts } from '../alerts/recipientResolver.js';
+import { resolveZaloRecipients } from '../alerts/recipientResolver.js';
 import { startSystemdWatchdog } from '../systemdNotify.js';
 import { createBeszelClient } from '../beszel/client.js';
 import { createBeszelProbe } from '../beszel/probe.js';
@@ -21,13 +21,19 @@ export async function startCollector(): Promise<void> {
   const alerts = createAlertService({
     store: deps.store,
     botToken: config.zaloBotToken,
-    recipientCiphertexts: resolveZaloRecipientCiphertexts(
+    recipients: resolveZaloRecipients(
       deps.store,
       config.zaloRecipientKey,
+      config.zaloChatHashSecret,
       config.recipientIds
     ),
     recipientProvider: () =>
-      resolveZaloRecipientCiphertexts(deps.store, config.zaloRecipientKey, config.recipientIds),
+      resolveZaloRecipients(
+        deps.store,
+        config.zaloRecipientKey,
+        config.zaloChatHashSecret,
+        config.recipientIds
+      ),
     recipientKey: config.zaloRecipientKey,
     timeoutMs: config.zaloTimeoutMs
   });

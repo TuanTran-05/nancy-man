@@ -147,8 +147,11 @@ describe('Ops SQLite store', () => {
       now: '2026-08-23T00:01:00.000Z'
     });
     expect(linked).toMatchObject({ outcome: 'linked', accountId: 'ops-a' });
-    expect(store.listActiveZaloRecipientCiphertexts()).toEqual([
-      expect.not.stringContaining('chat-123')
+    expect(store.listActiveZaloRecipients()).toEqual([
+      {
+        recipientHash: 'chat-hash',
+        recipientCiphertext: expect.not.stringContaining('chat-123')
+      }
     ]);
     expect(
       store.consumeZaloLink({

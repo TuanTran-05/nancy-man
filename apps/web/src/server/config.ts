@@ -28,6 +28,7 @@ export interface CollectorConfig {
   backupDir: string;
   zaloBotToken: string;
   recipientIds: string[];
+  zaloChatHashSecret: string;
   zaloRecipientKey: Buffer;
   zaloTimeoutMs: number;
   beszel: BeszelCollectorConfig;
@@ -48,6 +49,7 @@ export interface FailsafeConfig {
   dbPath: string;
   zaloBotToken: string;
   recipientIds: string[];
+  zaloChatHashSecret: string;
   zaloRecipientKey: Buffer;
   zaloTimeoutMs: number;
 }
@@ -191,6 +193,7 @@ export function loadCollectorConfig(env: Env = process.env): CollectorConfig {
     backupDir: required(env, 'OPS_BACKUP_DIR'),
     zaloBotToken: required(env, 'OPS_ALERT_ZALO_BOT_TOKEN'),
     recipientIds: parseRecipients(env),
+    zaloChatHashSecret: requiredSecret(env, 'OPS_ZALO_CHAT_HASH_SECRET'),
     zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
     zaloTimeoutMs: positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000),
     beszel: loadBeszelConfig(env)
@@ -209,6 +212,7 @@ export function loadFailsafeConfig(env: Env = process.env): FailsafeConfig {
     dbPath: required(env, 'OPS_DB_PATH'),
     zaloBotToken: required(env, 'OPS_ALERT_ZALO_BOT_TOKEN'),
     recipientIds: parseRecipients(env),
+    zaloChatHashSecret: requiredSecret(env, 'OPS_ZALO_CHAT_HASH_SECRET'),
     zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
     zaloTimeoutMs: timeout
   };

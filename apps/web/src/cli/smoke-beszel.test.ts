@@ -31,6 +31,7 @@ const config: CollectorConfig = {
   backupDir: '/tmp/backups',
   zaloBotToken: 'unused',
   recipientIds: [],
+  zaloChatHashSecret: 'test-chat-hash-secret-value-123456',
   zaloRecipientKey: Buffer.alloc(32),
   zaloTimeoutMs: 5000,
   beszel: {

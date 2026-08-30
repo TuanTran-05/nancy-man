@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { EventEmitter } from 'node:events';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createAuthService } from '../server/security/auth.js';
 import { totpCode } from '../server/security/totp.js';
 import { createOpsStore } from '../server/storage/store.js';
+import { readHiddenPassword } from './provision-ops-user.js';
 
 interface PtyResult {
   status: number | null;
@@ -93,12 +95,93 @@ function runPty(
   });
 }
 
+const shellQuote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
+
+function runPtyExternalSignal(
+  signal: NodeJS.Signals,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  pidPath: string
+): Promise<PtyResult> {
+  return new Promise((resolve, reject) => {
+    const innerCommand = [
+      `echo $$ > ${shellQuote(pidPath)}`,
+      `exec ${[process.execPath, bundlePath, ...args].map(shellQuote).join(' ')}`
+    ].join('; ');
+    const command = `sh -c ${shellQuote(innerCommand)}; status=$?; stty -a; exit $status`;
+    const child = spawn('script', ['-qfec', command, '/dev/null'], {
+      env,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    let transcript = '';
+    let signalled = false;
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`PTY signal command timed out: ${transcript}`));
+    }, 15_000);
+    const capture = (chunk: Buffer) => {
+      transcript += chunk.toString('utf8');
+      if (!signalled && transcript.includes('Password') && existsSync(pidPath)) {
+        signalled = true;
+        process.kill(Number(readFileSync(pidPath, 'utf8').trim()), signal);
+      }
+    };
+    child.stdout.on('data', capture);
+    child.stderr.on('data', capture);
+    child.once('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once('close', (status) => {
+      clearTimeout(timeout);
+      resolve({ status, transcript });
+    });
+  });
+}
+
 const expectEchoRestored = (transcript: string) => {
   expect(transcript).toMatch(/(?:^|[;\s])echo(?:[;\s]|$)/u);
   expect(transcript).not.toMatch(/(?:^|[;\s])-echo(?:[;\s]|$)/u);
 };
 
 describe('provision Ops user hidden TTY prompt', () => {
+  it('restores raw mode when writing the prompt fails during setup', async () => {
+    class SyntheticInput extends EventEmitter {
+      isTTY = true;
+      isRaw = false;
+      resumed = false;
+
+      setRawMode(value: boolean) {
+        this.isRaw = value;
+        return this;
+      }
+
+      resume() {
+        this.resumed = true;
+        return this;
+      }
+
+      pause() {
+        this.resumed = false;
+        return this;
+      }
+    }
+
+    const syntheticInput = new SyntheticInput();
+    const syntheticOutput = {
+      isTTY: true,
+      write() {
+        throw new Error('synthetic TTY write failure');
+      }
+    };
+
+    await expect(
+      readHiddenPassword(syntheticInput as never, syntheticOutput as never)
+    ).rejects.toThrow('synthetic TTY write failure');
+    expect(syntheticInput.isRaw).toBe(false);
+    expect(syntheticInput.resumed).toBe(false);
+  });
+
   it('does not echo the password and restores echo after success', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'ops-cli-success-'));
     const password = 'SUCCESS-PTY-PASSWORD-784215';
@@ -141,6 +224,42 @@ describe('provision Ops user hidden TTY prompt', () => {
         config(join(directory, 'ops.sqlite'))
       );
       expect(result.status).not.toBe(0);
+      expectEchoRestored(result.transcript);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it('restores echo when the process receives an external SIGTERM', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ops-cli-external-signal-'));
+    const pidPath = join(directory, 'cli.pid');
+    try {
+      const result = await runPtyExternalSignal(
+        'SIGTERM',
+        ['ops-pty-external-signal'],
+        config(join(directory, 'ops.sqlite')),
+        pidPath
+      );
+      expect(result.status).not.toBe(0);
+      expect(result.transcript).toContain('Provisioning cancelled');
+      expectEchoRestored(result.transcript);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it('restores echo when the terminal session sends SIGHUP', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ops-cli-external-hup-'));
+    const pidPath = join(directory, 'cli.pid');
+    try {
+      const result = await runPtyExternalSignal(
+        'SIGHUP',
+        ['ops-pty-external-hup'],
+        config(join(directory, 'ops.sqlite')),
+        pidPath
+      );
+      expect(result.status).not.toBe(0);
+      expect(result.transcript).toContain('Provisioning cancelled');
       expectEchoRestored(result.transcript);
     } finally {
       rmSync(directory, { recursive: true, force: true });

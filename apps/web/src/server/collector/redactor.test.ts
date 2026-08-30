@@ -32,4 +32,39 @@ describe('log redactor', () => {
       'prefix=[payload redacted]'
     );
   });
+
+  it.each([
+    {
+      input:
+        'error={\'message\':\'literal }\',"api_key":"TOPSECRET-MALFORMED-SINGLE-QUOTE-917406"}',
+      expected: 'error=[payload redacted]'
+    },
+    {
+      input: 'prefix=[\'literal ]\',"secret":"TOPSECRET-MALFORMED-SINGLE-QUOTE-917406"]',
+      expected: 'prefix=[payload redacted]'
+    },
+    {
+      input: 'error={message:literal },"api_key":"TOPSECRET-MALFORMED-SINGLE-QUOTE-917406"}',
+      expected: 'error=[payload redacted]'
+    }
+  ])('fails closed through end-of-line for unsupported quote syntax', ({ input, expected }) => {
+    const result = redactLogLine(input);
+
+    expect(result.safeText).toBe(expected);
+    expect(result.safeText).not.toContain('TOPSECRET-MALFORMED-SINGLE-QUOTE-917406');
+  });
+
+  it('preserves useful suffix text after an unambiguously supported structured payload', () => {
+    expect(redactLogLine('warning context={"ok":true} retrying in 5s').safeText).toBe(
+      'warning context=[payload redacted] retrying in 5s'
+    );
+  });
+
+  it('fails closed when a valid JSON prefix is followed by malformed JSON continuation', () => {
+    const sentinel = 'TOPSECRET-VALID-PREFIX-BYPASS-482901';
+    const result = redactLogLine(`error={"message":"literal }"},"private":"${sentinel}"}`);
+
+    expect(result.safeText).toBe('error=[payload redacted]');
+    expect(result.safeText).not.toContain(sentinel);
+  });
 });

@@ -47,7 +47,12 @@ describe('Zalo delivery recipient confidentiality', () => {
     const service = createAlertService({
       store,
       botToken: 'bot-secret',
-      recipientCiphertexts: [encryptSecret(rawRecipient, recipientKey)],
+      recipients: [
+        {
+          recipientHash: 'fresh-recipient-hash',
+          recipientCiphertext: encryptSecret(rawRecipient, recipientKey)
+        }
+      ],
       recipientKey,
       timeoutMs: 5000,
       now: () => now,
@@ -132,7 +137,7 @@ describe('Zalo delivery recipient confidentiality', () => {
     const service = createAlertService({
       store,
       botToken: 'bot-secret',
-      recipientCiphertexts: [],
+      recipients: [],
       recipientKey,
       timeoutMs: 5000,
       now: () => now,

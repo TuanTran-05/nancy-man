@@ -34,6 +34,7 @@ const redactStructuredPayloads = (line: string): string => {
         quoted = true;
         continue;
       }
+      if (character === "'") return safe + PAYLOAD_REDACTION;
       if (character === '{' || character === '[') {
         delimiters.push(character);
         continue;
@@ -51,6 +52,12 @@ const redactStructuredPayloads = (line: string): string => {
 
     safe += PAYLOAD_REDACTION;
     if (end < 0) return safe;
+    try {
+      JSON.parse(line.slice(start, end));
+    } catch {
+      return safe;
+    }
+    if (/^[\s]*[,}\]]/u.test(line.slice(end))) return safe;
     cursor = end;
   }
 
