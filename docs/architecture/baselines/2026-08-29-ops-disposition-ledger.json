@@ -165,38 +165,56 @@
     },
     {
       "capturedAt": "2026-08-30T05:17:12.000Z",
-      "disposition": "pending",
+      "disposition": "integrate",
       "evidence": [
-        "docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json"
+        "deploy/ops/env/collector.env.example",
+        "deploy/ops/systemd/systemd-assets.test.ts"
       ],
-      "evidenceIdentities": [],
-      "replacementSha": null,
+      "evidenceIdentities": [
+        {
+          "contentSha256": "8947c8da9e191db44a07c43392d29c17f62773028aae3412f2b1f3484cab4c34",
+          "gitBlobSha": "b4a0133da625468c8e2a76be0da74b9aa0762a5a",
+          "path": "deploy/ops/env/collector.env.example"
+        },
+        {
+          "contentSha256": "d57e1f0007c96dda97c8242153aaf55d5be328124cd6e2cd47b89c1bede636ac",
+          "gitBlobSha": "1f253ddccc2ca2bb55089da4012d5a96fc2400d3",
+          "path": "deploy/ops/systemd/systemd-assets.test.ts"
+        }
+      ],
+      "replacementSha": "ff2e5b2b1300df940e219877dce20f57caca0c7e",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "bfeb7fbd0b69dc7bb83c2e3fd3a0ef90dadde9a6",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/collector.env.example",
       "sourceSha256": "ddfabf5a9d58c4e7550fdb50b17f61af36a81c523fcf396fb0a489d190c8fa0c",
-      "targetContentSha256": null,
-      "targetGitBlobSha": null,
-      "targetPath": null,
+      "targetContentSha256": "8947c8da9e191db44a07c43392d29c17f62773028aae3412f2b1f3484cab4c34",
+      "targetGitBlobSha": "b4a0133da625468c8e2a76be0da74b9aa0762a5a",
+      "targetPath": "deploy/ops/env/collector.env.example",
       "targetRepository": "edutrack-ops"
     },
     {
       "capturedAt": "2026-08-30T05:17:12.000Z",
-      "disposition": "pending",
+      "disposition": "integrate",
       "evidence": [
-        "docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json"
+        "deploy/ops/systemd/systemd-assets.test.ts"
       ],
-      "evidenceIdentities": [],
-      "replacementSha": null,
+      "evidenceIdentities": [
+        {
+          "contentSha256": "d57e1f0007c96dda97c8242153aaf55d5be328124cd6e2cd47b89c1bede636ac",
+          "gitBlobSha": "1f253ddccc2ca2bb55089da4012d5a96fc2400d3",
+          "path": "deploy/ops/systemd/systemd-assets.test.ts"
+        }
+      ],
+      "replacementSha": "ff2e5b2b1300df940e219877dce20f57caca0c7e",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "f1791fa595ca66db6606166743e89ca806ecd21c",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/deployment-assets.test.ts",
       "sourceSha256": "c3cffc0c7e2d5fe51c980e6ba853a3fa83b0394314638859cb7753a3beb49980",
-      "targetContentSha256": null,
-      "targetGitBlobSha": null,
-      "targetPath": null,
+      "targetContentSha256": "d57e1f0007c96dda97c8242153aaf55d5be328124cd6e2cd47b89c1bede636ac",
+      "targetGitBlobSha": "1f253ddccc2ca2bb55089da4012d5a96fc2400d3",
+      "targetPath": "deploy/ops/systemd/systemd-assets.test.ts",
       "targetRepository": "edutrack-ops"
     },
     {
@@ -507,74 +525,122 @@
     },
     {
       "capturedAt": "2026-08-30T05:17:12.000Z",
-      "disposition": "pending",
+      "disposition": "integrate",
       "evidence": [
-        "docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json"
+        "deploy/ops/systemd/edutrack-ops-collector-failed@.service",
+        "deploy/ops/systemd/systemd-assets.test.ts"
       ],
-      "evidenceIdentities": [],
-      "replacementSha": null,
+      "evidenceIdentities": [
+        {
+          "contentSha256": "38cdeaae0b9c785313ed2f87db60263885066039e9149b165a45ebc93a824751",
+          "gitBlobSha": "6e564c19c61763dbff0b316f459d94de91664d3d",
+          "path": "deploy/ops/systemd/edutrack-ops-collector-failed@.service"
+        },
+        {
+          "contentSha256": "d57e1f0007c96dda97c8242153aaf55d5be328124cd6e2cd47b89c1bede636ac",
+          "gitBlobSha": "1f253ddccc2ca2bb55089da4012d5a96fc2400d3",
+          "path": "deploy/ops/systemd/systemd-assets.test.ts"
+        }
+      ],
+      "replacementSha": "ff2e5b2b1300df940e219877dce20f57caca0c7e",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "c82da75e8ef50adb453d0b42d8ec909fd4d7f718",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/systemd/edutrack-ops-collector-failed@.service",
       "sourceSha256": "34754fa41a0bd590a3e94411b236295c55b8bb45ab4627821ae1b7452042f22f",
-      "targetContentSha256": null,
-      "targetGitBlobSha": null,
-      "targetPath": null,
+      "targetContentSha256": "38cdeaae0b9c785313ed2f87db60263885066039e9149b165a45ebc93a824751",
+      "targetGitBlobSha": "6e564c19c61763dbff0b316f459d94de91664d3d",
+      "targetPath": "deploy/ops/systemd/edutrack-ops-collector-failed@.service",
       "targetRepository": "edutrack-ops"
     },
     {
       "capturedAt": "2026-08-30T05:17:12.000Z",
-      "disposition": "pending",
+      "disposition": "integrate",
       "evidence": [
-        "docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json"
+        "deploy/ops/systemd/edutrack-ops-collector.service",
+        "deploy/ops/systemd/systemd-assets.test.ts"
       ],
-      "evidenceIdentities": [],
-      "replacementSha": null,
+      "evidenceIdentities": [
+        {
+          "contentSha256": "3443dd904d63623ea06f9ee75eab8203acaeb03caa55b0576c711ed5a071f34a",
+          "gitBlobSha": "cc3df5d7044224764b1bd5ba5b3b11698f96b4fe",
+          "path": "deploy/ops/systemd/edutrack-ops-collector.service"
+        },
+        {
+          "contentSha256": "d57e1f0007c96dda97c8242153aaf55d5be328124cd6e2cd47b89c1bede636ac",
+          "gitBlobSha": "1f253ddccc2ca2bb55089da4012d5a96fc2400d3",
+          "path": "deploy/ops/systemd/systemd-assets.test.ts"
+        }
+      ],
+      "replacementSha": "ff2e5b2b1300df940e219877dce20f57caca0c7e",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "ae5fa52cf984e30f79c6437641264b531c7061c5",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/systemd/edutrack-ops-collector.service",
       "sourceSha256": "66388d3757b096bf468db75292666327a4772ddfe7627d0259642abc69a9700e",
-      "targetContentSha256": null,
-      "targetGitBlobSha": null,
-      "targetPath": null,
+      "targetContentSha256": "3443dd904d63623ea06f9ee75eab8203acaeb03caa55b0576c711ed5a071f34a",
+      "targetGitBlobSha": "cc3df5d7044224764b1bd5ba5b3b11698f96b4fe",
+      "targetPath": "deploy/ops/systemd/edutrack-ops-collector.service",
       "targetRepository": "edutrack-ops"
     },
     {
       "capturedAt": "2026-08-30T05:17:12.000Z",
-      "disposition": "pending",
+      "disposition": "integrate",
       "evidence": [
-        "docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json"
+        "deploy/ops/systemd/edutrack-ops-web.service",
+        "deploy/ops/systemd/systemd-assets.test.ts"
       ],
-      "evidenceIdentities": [],
-      "replacementSha": null,
+      "evidenceIdentities": [
+        {
+          "contentSha256": "8d6b3f43b3ff40cf4fbef9d0dda9c52bcce4163148088dcc9c8375202146c4a0",
+          "gitBlobSha": "bd989ee9cc03ac8647bed6a50bc43a62d21d3c8d",
+          "path": "deploy/ops/systemd/edutrack-ops-web.service"
+        },
+        {
+          "contentSha256": "d57e1f0007c96dda97c8242153aaf55d5be328124cd6e2cd47b89c1bede636ac",
+          "gitBlobSha": "1f253ddccc2ca2bb55089da4012d5a96fc2400d3",
+          "path": "deploy/ops/systemd/systemd-assets.test.ts"
+        }
+      ],
+      "replacementSha": "ff2e5b2b1300df940e219877dce20f57caca0c7e",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "9d9b9dbeb357048fe955797ddbde19bd60cbb09e",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/systemd/edutrack-ops-web.service",
       "sourceSha256": "0b8a431259b5d65e4031fa8a55b21479b7904a48e593946a710183a32f7c816f",
-      "targetContentSha256": null,
-      "targetGitBlobSha": null,
-      "targetPath": null,
+      "targetContentSha256": "8d6b3f43b3ff40cf4fbef9d0dda9c52bcce4163148088dcc9c8375202146c4a0",
+      "targetGitBlobSha": "bd989ee9cc03ac8647bed6a50bc43a62d21d3c8d",
+      "targetPath": "deploy/ops/systemd/edutrack-ops-web.service",
       "targetRepository": "edutrack-ops"
     },
     {
       "capturedAt": "2026-08-30T05:17:12.000Z",
-      "disposition": "pending",
+      "disposition": "integrate",
       "evidence": [
-        "docs/architecture/baselines/2026-08-29-ops-consolidation-inputs.json"
+        "deploy/ops/env/web.env.example",
+        "deploy/ops/systemd/systemd-assets.test.ts"
       ],
-      "evidenceIdentities": [],
-      "replacementSha": null,
+      "evidenceIdentities": [
+        {
+          "contentSha256": "d8285fc8aef127f5138e492319cda1cb88fad3854fde704ab74e7dd918b9447d",
+          "gitBlobSha": "bbf5038c8aa93831fc2a4e4dd8123e935f69ee41",
+          "path": "deploy/ops/env/web.env.example"
+        },
+        {
+          "contentSha256": "d57e1f0007c96dda97c8242153aaf55d5be328124cd6e2cd47b89c1bede636ac",
+          "gitBlobSha": "1f253ddccc2ca2bb55089da4012d5a96fc2400d3",
+          "path": "deploy/ops/systemd/systemd-assets.test.ts"
+        }
+      ],
+      "replacementSha": "ff2e5b2b1300df940e219877dce20f57caca0c7e",
       "sourceAlias": "embedded-console",
       "sourceGitBlobSha": "d88000f00c59c8c45c7db9dd5a96f6967a81812d",
       "sourceKind": "git-blob",
       "sourcePath": "ops-console/deploy/web.env.example",
       "sourceSha256": "620c9e74f6c416f88f0150d17072a395060f005e60c60996a7411f4955aa2f71",
-      "targetContentSha256": null,
-      "targetGitBlobSha": null,
-      "targetPath": null,
+      "targetContentSha256": "d8285fc8aef127f5138e492319cda1cb88fad3854fde704ab74e7dd918b9447d",
+      "targetGitBlobSha": "bbf5038c8aa93831fc2a4e4dd8123e935f69ee41",
+      "targetPath": "deploy/ops/env/web.env.example",
       "targetRepository": "edutrack-ops"
     },
     {
