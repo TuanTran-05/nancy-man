@@ -69,6 +69,15 @@ export type SourceAdapter = Readonly<{
   serialize(parsed: ParsedSource): Buffer;
 }>;
 
+export type SourceWriteOperation = Readonly<{
+  name: string;
+  duplicateOrdinal: number;
+  operation: 'set' | 'delete';
+  requirement: 'required' | 'optional';
+  value?: string;
+  valueEncoding?: 'text' | 'base64';
+}>;
+
 export function asBuffer(bytes: Uint8Array): Buffer {
   return Buffer.isBuffer(bytes) ? Buffer.from(bytes) : Buffer.from(bytes);
 }
@@ -316,4 +325,95 @@ export function parseTextAssignments(
 export function serializeUnchanged(parsed: ParsedSource): Buffer {
   if (!parsed.unchanged) throw new SourceAdapterError('SOURCE_MALFORMED');
   return Buffer.from(parsed.bytes);
+}
+
+function encodedValue(definition: ParsedDefinition, value: string): Buffer {
+  const valueToken = definition.tokens.find(
+    (candidate) => candidate.kind === 'value' || candidate.kind === 'literal'
+  );
+  const original = valueToken?.text ?? '';
+  const quote = original.startsWith("'") ? "'" : original.startsWith('"') ? '"' : null;
+  if (quote) {
+    const escaped = value
+      .replaceAll('\\', '\\\\')
+      .replaceAll(quote, `\\${quote}`);
+    return Buffer.from(`${quote}${escaped}${quote}`, 'utf8');
+  }
+  if (value.length === 0) return Buffer.alloc(0);
+  if (/^[^\s#\\'"=]+$/u.test(value)) return Buffer.from(value, 'utf8');
+  const escaped = value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+  return Buffer.from(`"${escaped}"`, 'utf8');
+}
+
+export function serializeUpdatedSource(
+  parsed: ParsedSource,
+  operations: readonly SourceWriteOperation[]
+): Buffer {
+  if (!parsed.unchanged) throw new SourceAdapterError('SOURCE_MALFORMED');
+  if (parsed.adapterId === 'pm2_ecosystem_static') {
+    throw new SourceAdapterError('PM2_STATIC_EXPRESSION_REJECTED');
+  }
+  if (parsed.adapterId === 'systemd_credential_file') {
+    if (operations.length !== 1 || operations[0]?.duplicateOrdinal !== 0) {
+      throw new SourceAdapterError('SOURCE_MALFORMED');
+    }
+    const operation = operations[0];
+    if (operation?.operation === 'delete') {
+      if (operation.requirement !== 'optional') throw new SourceAdapterError('SOURCE_MALFORMED');
+      return Buffer.alloc(0);
+    }
+    if (operation?.value === undefined) throw new SourceAdapterError('SOURCE_MALFORMED');
+    if (operation.valueEncoding === 'base64') {
+      if (!/^[A-Za-z0-9+/]*={0,2}$/u.test(operation.value)) {
+        throw new SourceAdapterError('SOURCE_MALFORMED');
+      }
+      const decoded = Buffer.from(operation.value, 'base64');
+      if (decoded.toString('base64') !== operation.value) {
+        throw new SourceAdapterError('SOURCE_MALFORMED');
+      }
+      return decoded;
+    }
+    return Buffer.from(operation.value, 'utf8');
+  }
+
+  const definitions = new Map(
+    parsed.definitions.map((definition) => [
+      `${definition.name}\u0000${definition.duplicateOrdinal}`,
+      definition
+    ])
+  );
+  const replacements: Array<{ start: number; end: number; bytes: Buffer }> = [];
+  for (const operation of operations) {
+    if (operation.operation === 'delete' && operation.requirement !== 'optional') {
+      throw new SourceAdapterError('SOURCE_MALFORMED');
+    }
+    if (operation.operation === 'set' && operation.value === undefined) {
+      throw new SourceAdapterError('SOURCE_MALFORMED');
+    }
+    const definition = definitions.get(`${operation.name}\u0000${operation.duplicateOrdinal}`);
+    if (!definition) throw new SourceAdapterError('SOURCE_MALFORMED');
+    if (operation.operation === 'delete') {
+      replacements.push({ start: definition.byteStart, end: definition.byteEnd, bytes: Buffer.alloc(0) });
+      continue;
+    }
+    const token = definition.tokens.find(
+      (candidate) => candidate.kind === 'value' || candidate.kind === 'literal'
+    );
+    if (!token) throw new SourceAdapterError('SOURCE_MALFORMED');
+    replacements.push({
+      start: token.byteStart,
+      end: token.byteEnd,
+      bytes: encodedValue(definition, operation.value ?? '')
+    });
+  }
+  replacements.sort((left, right) => right.start - left.start);
+  let result = Buffer.from(parsed.bytes);
+  for (const replacement of replacements) {
+    result = Buffer.concat([
+      result.subarray(0, replacement.start),
+      replacement.bytes,
+      result.subarray(replacement.end)
+    ]);
+  }
+  return result;
 }

@@ -7,6 +7,25 @@ import {
   AgentCapabilitiesResponseSchema,
   AgentRequestSchema,
   AgentResponseSchema,
+  ChangeApplyRequestSchema,
+  ChangeApplyStartedResponseSchema,
+  ChangeCancelRequestSchema,
+  ChangeCancelledResponseSchema,
+  ChangeSavedResponseSchema,
+  ChangeSaveRequestSchema,
+  ChangeStatusResponseSchema,
+  ChangeStatusRequestSchema,
+  ChangeValidationResponseSchema,
+  ChangeValidateRequestSchema,
+  ApplyBlockClearedResponseSchema,
+  ClearApplyBlockRequestSchema,
+  type AgentActor,
+  type ChangeApplyRequest,
+  type ChangeCancelRequest,
+  type ChangeSaveRequest,
+  type ChangeStatusRequest,
+  type ChangeValidateRequest,
+  type ClearApplyBlockRequest,
   encodeFrame,
   FrameDecoder,
   MAX_FRAME_BYTES,
@@ -31,6 +50,17 @@ export type AuthenticatedServerOptions = Readonly<{
   requestTtlMs?: number;
   allowedPeerUid?: number;
   allowedPeerGid?: number;
+  changeHandlers?: AgentMutationHandlers;
+}>;
+
+export type AgentMutationHandlers = Readonly<{
+  validate?: (request: ChangeValidateRequest, actor: AgentActor) => Promise<unknown>;
+  save?: (request: ChangeSaveRequest, actor: AgentActor) => Promise<unknown>;
+  apply?: (request: ChangeApplyRequest, actor: AgentActor) => Promise<unknown>;
+  cancel?: (request: ChangeCancelRequest, actor: AgentActor) => Promise<unknown>;
+  status?: (request: ChangeStatusRequest, actor: AgentActor) => Promise<unknown>;
+  clearApplyBlock?: (request: ClearApplyBlockRequest, actor: AgentActor) => Promise<unknown>;
+  supportedStrategies?: readonly string[];
 }>;
 
 export type AuthenticatedServer = Readonly<{
@@ -149,6 +179,75 @@ function protocolFailure(socket: net.Socket): void {
   socket.destroy();
 }
 
+function valueFreeRecord(operation: string, body: unknown): Record<string, unknown> {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    throw new ProtocolServerError('AGENT_PROTOCOL_REJECTED');
+  }
+  const forbidden = /^(?:value|oldValue|newValue|bytes|plaintext|command|args|argv|environment|stdout|stderr)$/iu;
+  const inspect = (candidate: unknown): void => {
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) inspect(item);
+      return;
+    }
+    if (!candidate || typeof candidate !== 'object') return;
+    for (const [key, nested] of Object.entries(candidate)) {
+      if (forbidden.test(key)) throw new ProtocolServerError('AGENT_PROTOCOL_REJECTED');
+      inspect(nested);
+    }
+  };
+  inspect(body);
+  void operation;
+  return body as Record<string, unknown>;
+}
+
+function validateMutationResponse(operation: AgentRequestEnvelope['operation'], body: unknown): Record<string, unknown> {
+  const safeBody = valueFreeRecord(operation, body);
+  switch (operation) {
+    case 'change.validate':
+      return ChangeValidationResponseSchema.parse(safeBody) as Record<string, unknown>;
+    case 'change.save':
+      return ChangeSavedResponseSchema.parse(safeBody) as Record<string, unknown>;
+    case 'change.apply':
+      return ChangeApplyStartedResponseSchema.parse(safeBody) as Record<string, unknown>;
+    case 'change.cancel':
+      return ChangeCancelledResponseSchema.parse(safeBody) as Record<string, unknown>;
+    case 'change.status':
+      return ChangeStatusResponseSchema.parse(safeBody) as Record<string, unknown>;
+    case 'application.clearApplyBlock':
+      return ApplyBlockClearedResponseSchema.parse(safeBody) as Record<string, unknown>;
+    default:
+      throw new ProtocolServerError('AGENT_PROTOCOL_REJECTED');
+  }
+}
+
+function mutationHandler(
+  options: AuthenticatedServerOptions,
+  operation: Exclude<AgentRequestEnvelope['operation'], 'agent.capabilities' | 'inventory.read'>
+): ((request: never, actor: AgentActor) => Promise<unknown>) | undefined {
+  const handlers = options.changeHandlers;
+  if (!handlers) return undefined;
+  switch (operation) {
+    case 'change.validate':
+      return handlers.validate as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+    case 'change.save':
+      return handlers.save as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+    case 'change.apply':
+      return handlers.apply as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+    case 'change.cancel':
+      return handlers.cancel as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+    case 'change.status':
+      return handlers.status as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+    case 'application.clearApplyBlock':
+      return handlers.clearApplyBlock as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+  }
+}
+
+function protocolErrorCode(operation: string, error: unknown): string {
+  const candidate = error instanceof Error && 'code' in error ? String(error.code) : '';
+  if (/^[a-z][a-z0-9_]*$/u.test(candidate)) return candidate;
+  return `${operation.replace(/[^a-z0-9]+/giu, '_').replace(/^_|_$/gu, '').toLowerCase()}_failed`;
+}
+
 export function createAuthenticatedServer(
   options: AuthenticatedServerOptions
 ): AuthenticatedServer {
@@ -227,10 +326,25 @@ export function createAuthenticatedServer(
       const responseIssuedAt = current.toISOString();
       const responseExpiresAt = new Date(current.getTime() + requestTtlMs).toISOString();
       if (request.operation === 'agent.capabilities') {
+        const mutationOperations = [
+          ['change.validate', options.changeHandlers?.validate],
+          ['change.save', options.changeHandlers?.save],
+          ['change.apply', options.changeHandlers?.apply],
+          ['change.cancel', options.changeHandlers?.cancel],
+          ['change.status', options.changeHandlers?.status],
+          ['application.clearApplyBlock', options.changeHandlers?.clearApplyBlock]
+        ] as const;
+        const supportedOperations = [
+          'inventory.read',
+          ...mutationOperations.filter(([, handler]) => handler).map(([operation]) => operation)
+        ];
         const body = AgentCapabilitiesResponseSchema.parse({
           protocolVersion: 1,
-          readOnly: true,
-          supportedOperations: ['inventory.read'],
+          readOnly: mutationOperations.every(([, handler]) => !handler),
+          supportedOperations,
+          ...(options.changeHandlers?.supportedStrategies
+            ? { supportedStrategies: [...options.changeHandlers.supportedStrategies] }
+            : {}),
           manifestVersion: options.loaded.manifest.manifestVersion,
           catalogVersion: options.loaded.catalog.catalogVersion,
           catalogDigest: options.loaded.catalogDigest,
@@ -253,7 +367,15 @@ export function createAuthenticatedServer(
       }
 
       try {
-        const body = await options.inventoryService.read(request.body);
+        let body: unknown;
+        if (request.operation === 'inventory.read') {
+          body = await options.inventoryService.read(request.body);
+        } else {
+          const handler = mutationHandler(options, request.operation);
+          if (!handler) throw new ProtocolServerError('AGENT_PROTOCOL_REJECTED');
+          body = await handler(request.body as never, request.actor);
+          body = validateMutationResponse(request.operation, body);
+        }
         const unsigned = {
           version: 1,
           requestId: request.requestId,
@@ -268,7 +390,7 @@ export function createAuthenticatedServer(
           ...unsigned,
           signature: signatureFor(protocolKey, unsigned)
         });
-      } catch {
+      } catch (error) {
         const unsigned = {
           version: 1,
           requestId: request.requestId,
@@ -277,8 +399,8 @@ export function createAuthenticatedServer(
           operation: request.operation,
           ok: false,
           error: {
-            code: 'inventory_read_failed',
-            safeMessage: 'Inventory read failed'
+            code: protocolErrorCode(request.operation, error),
+            safeMessage: 'Config Agent operation failed'
           },
           hmacKeyId: options.protocolKeyId
         };

@@ -11,6 +11,7 @@ import {
 } from './runtimeConfig.js';
 import {
   createAuthenticatedServer,
+  type AgentMutationHandlers,
   type AuthenticatedServer
 } from './protocol/authenticatedServer.js';
 
@@ -24,6 +25,10 @@ export type ConfigAgentStartupErrorCode =
   | 'CONFIG_AGENT_KEY_EMPTY'
   | 'CONFIG_AGENT_KEY_TOO_LARGE'
   | 'CONFIG_AGENT_START_FAILED';
+
+export type ConfigAgentStartDependencies = Readonly<{
+  changeHandlers?: AgentMutationHandlers;
+}>;
 
 export class ConfigAgentStartupError extends Error {
   readonly code: ConfigAgentStartupErrorCode;
@@ -48,7 +53,8 @@ function loadCredential(path: string): Buffer {
 }
 
 export async function startConfigAgent(
-  environment: Environment = process.env
+  environment: Environment = process.env,
+  dependencies: ConfigAgentStartDependencies = {}
 ): Promise<StartedConfigAgent> {
   const config = readConfigAgentRuntimeConfig(environment);
   const loaded = loadCatalogAndManifest({
@@ -73,6 +79,7 @@ export async function startConfigAgent(
     fingerprintKey,
     loaded,
     inventoryService,
+    ...(dependencies.changeHandlers ? { changeHandlers: dependencies.changeHandlers } : {}),
     clockSkewMs: config.clockSkewMs,
     requestTtlMs: config.requestTtlMs
   });
