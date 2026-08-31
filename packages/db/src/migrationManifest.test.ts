@@ -82,6 +82,11 @@ const expectedTrustRoot = [
     '0014_ops_account_administration',
     '0014_ops_account_administration.sql',
     '3ca78b98b51979767355df5d148222c28b6e9ba3fa75aeb7ead2574c87617cca'
+  ],
+  [
+    '0015_ops_secret_elevations',
+    '0015_ops_secret_elevations.sql',
+    'e6619cd336f43265cce3dca9b846fae2f03e5700f8f50581afe2eb68862dc020'
   ]
 ] as const;
 

@@ -1,4 +1,4 @@
-import { customType, index, jsonb, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, customType, index, jsonb, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 import { pgTable } from 'drizzle-orm/pg-core';
 
@@ -109,4 +109,26 @@ export const opsAccountEvents = pgTable(
     occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull()
   },
   (table) => [index('ops_account_events_user_occurred_idx').on(table.userId, table.occurredAt)]
+);
+
+export const opsSecretElevations = pgTable(
+  'ops_secret_elevations',
+  {
+    id: uuid('id').primaryKey(),
+    capability: text('capability')
+      .$type<'accounts_write' | 'variables_secret' | 'variables_apply'>()
+      .notNull(),
+    userId: uuid('user_id').notNull(),
+    sessionId: uuid('session_id').notNull(),
+    ipHash: text('ip_hash').notNull(),
+    userAgentHash: text('user_agent_hash').notNull(),
+    subjectDigest: text('subject_digest'),
+    grantedAt: timestamp('granted_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    reusable: boolean('reusable').default(false).notNull()
+  },
+  (table) => [index('ops_secret_elevations_active_idx').on(table.sessionId, table.capability)]
 );

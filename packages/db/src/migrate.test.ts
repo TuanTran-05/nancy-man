@@ -49,7 +49,8 @@ describe('Ops database migration runner', () => {
       '0011_ops_mfa_enrollment_tokens',
       '0012_sql_execution_audit',
       '0013_sql_session_elevations',
-      '0014_ops_account_administration'
+      '0014_ops_account_administration',
+      '0015_ops_secret_elevations'
     ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {
