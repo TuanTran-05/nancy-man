@@ -29,6 +29,14 @@ describe('FileSecretResolver', () => {
     await expect(resolver.resolve('ingest-edutrack-api')).resolves.toBe('signing-secret');
   });
 
+  it('accepts the root-owned group-read mode systemd uses for loaded credentials', async () => {
+    const root = await directory();
+    await writeFile(join(root, 'systemd-credential'), '  systemd-secret\n', { mode: 0o440 });
+    const resolver = new FileSecretResolver(root);
+
+    await expect(resolver.resolve('systemd-credential')).resolves.toBe('systemd-secret');
+  });
+
   it('fails closed for traversal, symbolic links, insecure modes and oversized credential files', async () => {
     const root = await directory();
     const target = join(root, 'target');

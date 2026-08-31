@@ -23,10 +23,11 @@ export class FileSecretResolver {
       const handle = await open(credentialPath, constants.O_RDONLY | constants.O_NOFOLLOW);
       try {
         const details = await handle.stat();
+        const mode = details.mode & 0o777;
         if (
           !details.isFile() ||
           details.size > maximumSecretBytes ||
-          (details.mode & 0o077) !== 0
+          ((mode & 0o077) !== 0 && mode !== 0o440)
         ) {
           return null;
         }
