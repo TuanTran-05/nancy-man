@@ -14,6 +14,7 @@ const stableIdPattern = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u;
 const variableNamePattern = /^[A-Z][A-Z0-9_]*$/u;
 const digestPattern = /^sha256:[a-f0-9]{64}$/u;
 const hmacDigestPattern = /^hmac-sha256:v[0-9]+:[a-f0-9]{64}$/u;
+const schemaVersionPattern = /^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[A-Za-z0-9._-]+)?$/u;
 const requestIdPattern = /^REQ_[A-Za-z0-9_]+$/u;
 const changeIdPattern = /^CHG_[A-Za-z0-9_]+$/u;
 
@@ -22,7 +23,7 @@ const isoTimestampSchema = z.string().datetime({ offset: true });
 const hashSchema = z
   .string()
   .regex(new RegExp(`(?:${digestPattern.source})|(?:${hmacDigestPattern.source})`, 'u'), 'Hash is invalid');
-const signatureSchema = hashSchema;
+const signatureSchema = z.string().regex(hmacDigestPattern, 'HMAC signature is invalid');
 
 export const AgentOperationSchema = z.enum(['agent.capabilities', 'inventory.read']);
 export type AgentOperation = z.infer<typeof AgentOperationSchema>;
@@ -103,8 +104,8 @@ export type InventoryReadRequest = z.infer<typeof InventoryReadRequestSchema>;
 
 export const InventoryReadResponseSchema = z
   .object({
-    catalogVersion: z.string().min(1).max(64),
-    manifestVersion: z.string().min(1).max(64),
+    catalogVersion: z.string().regex(schemaVersionPattern, 'Catalog version is invalid'),
+    manifestVersion: z.string().regex(schemaVersionPattern, 'Manifest version is invalid'),
     generatedAt: isoTimestampSchema,
     items: z.array(InventoryDefinitionSchema)
   })
@@ -116,11 +117,11 @@ export type AgentCapabilitiesRequest = z.infer<typeof AgentCapabilitiesRequestSc
 
 export const AgentCapabilitiesResponseSchema = z
   .object({
-    protocolVersion: z.literal(AGENT_PROTOCOL_VERSION).default(AGENT_PROTOCOL_VERSION),
+    protocolVersion: z.literal(AGENT_PROTOCOL_VERSION),
     readOnly: z.literal(true),
     supportedOperations: z.array(z.literal('inventory.read')).length(1),
-    manifestVersion: z.string().min(1).max(64),
-    catalogVersion: z.string().min(1).max(64),
+    manifestVersion: z.string().regex(schemaVersionPattern, 'Manifest version is invalid'),
+    catalogVersion: z.string().regex(schemaVersionPattern, 'Catalog version is invalid'),
     catalogDigest: z.string().regex(digestPattern, 'Catalog digest is invalid'),
     maximumFrameBytes: z.literal(1_048_576)
   })

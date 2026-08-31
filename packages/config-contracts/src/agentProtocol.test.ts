@@ -104,6 +104,7 @@ describe('agent protocol schemas', () => {
       AgentCapabilitiesResponseSchema.parse({
         readOnly: true,
         supportedOperations: ['inventory.read'],
+        protocolVersion: 1,
         manifestVersion: '2026-08-31',
         catalogVersion: '2026-08-31',
         catalogDigest: `sha256:${'b'.repeat(64)}`,
@@ -129,7 +130,7 @@ describe('agent protocol schemas', () => {
           limit: 25
         },
         hmacKeyId: 'config-agent-2026-08-31',
-        signature: `sha256:${'c'.repeat(64)}`
+        signature: `hmac-sha256:v1:${'c'.repeat(64)}`
       })
     ).toMatchObject({
       version: 1,
@@ -151,7 +152,7 @@ describe('agent protocol schemas', () => {
           items: [inventoryItem]
         },
         hmacKeyId: 'config-agent-2026-08-31',
-        signature: `sha256:${'d'.repeat(64)}`
+        signature: `hmac-sha256:v1:${'d'.repeat(64)}`
       })
     ).toMatchObject({
       ok: true,
@@ -177,7 +178,7 @@ describe('agent protocol schemas', () => {
           items: [inventoryItem]
         },
         hmacKeyId: 'config-agent-2026-08-31',
-        signature: `sha256:${'d'.repeat(64)}`
+        signature: `hmac-sha256:v1:${'d'.repeat(64)}`
       })
     ).toThrow();
   });

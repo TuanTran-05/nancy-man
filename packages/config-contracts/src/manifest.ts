@@ -141,6 +141,29 @@ export const AgentManifestSchema = z
     addUniqueIdIssue(context, manifest.sources, ['sources']);
     addUniqueIdIssue(context, manifest.actions, ['actions']);
     addUniqueIdIssue(context, manifest.checks, ['checks']);
+
+    const actionIds = new Set(manifest.actions.map((action) => action.id));
+    const checkIds = new Set(manifest.checks.map((check) => check.id));
+    manifest.sources.forEach((source, index) => {
+      for (const actionId of source.actionIds ?? []) {
+        if (!actionIds.has(actionId)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Unknown action "${actionId}"`,
+            path: ['sources', index, 'actionIds']
+          });
+        }
+      }
+      for (const checkId of source.checkIds ?? []) {
+        if (!checkIds.has(checkId)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Unknown check "${checkId}"`,
+            path: ['sources', index, 'checkIds']
+          });
+        }
+      }
+    });
   });
 export type AgentManifest = z.infer<typeof AgentManifestSchema>;
 

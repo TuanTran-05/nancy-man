@@ -73,4 +73,32 @@ describe('AgentManifestSchema', () => {
       expect(() => AgentManifestSchema.parse(invalidManifest)).toThrow();
     }
   });
+
+  it('rejects source action and check references that are not declared', () => {
+    expect(() =>
+      AgentManifestSchema.parse({
+        ...validManifest,
+        sources: [
+          {
+            ...validManifest.sources[0],
+            actionIds: ['systemd.restart_unit'],
+            checkIds: ['http.readiness_local']
+          }
+        ]
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      AgentManifestSchema.parse({
+        ...validManifest,
+        sources: [
+          {
+            ...validManifest.sources[0],
+            actionIds: ['systemd.reload_unit'],
+            checkIds: ['agent.healthy']
+          }
+        ]
+      })
+    ).toThrow();
+  });
 });

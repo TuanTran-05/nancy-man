@@ -36,6 +36,8 @@ export type Sensitivity = z.infer<typeof SensitivitySchema>;
 export const RequirementSchema = z.enum(['required', 'optional', 'unknown']);
 export type Requirement = z.infer<typeof RequirementSchema>;
 
+const CatalogRequirementSchema = z.enum(['required', 'optional']);
+
 export const MutabilitySchema = z.enum(['managed', 'observed']);
 export type Mutability = z.infer<typeof MutabilitySchema>;
 
@@ -147,7 +149,7 @@ export const CatalogEntrySchema = z
     description: nonEmptyTextSchema,
     displayName: nonEmptyTextSchema.optional(),
     sensitivity: SensitivitySchema,
-    requirement: RequirementSchema,
+    requirement: CatalogRequirementSchema,
     mutability: MutabilitySchema,
     applyStrategy: ApplyStrategySchema,
     validatorId: stableIdSchema.optional(),
