@@ -443,6 +443,8 @@ async function startOwnedPostgresApi(excludedPorts: Set<number>): Promise<void> 
     ['session-pepper', randomBytes(32).toString('base64url')],
     ['rate-limit-pepper', randomBytes(32).toString('base64url')],
     ['auth-session-pepper', randomBytes(32).toString('base64url')],
+    ['password-fingerprint-pepper', randomBytes(32).toString('base64url')],
+    ['legacy-monitoring-hmac', randomBytes(32).toString('base64url')],
     ['mfa-encryption-key', randomBytes(32).toString('base64url')],
     ['browser-context-key', 'task7-browser-key']
   ] as const)
@@ -460,6 +462,8 @@ async function startOwnedPostgresApi(excludedPorts: Set<number>): Promise<void> 
     OPS_SESSION_PEPPER_REFERENCE: 'session-pepper',
     OPS_RATE_LIMIT_PEPPER_REFERENCE: 'rate-limit-pepper',
     OPS_AUTH_SESSION_PEPPER_REFERENCE: 'auth-session-pepper',
+    OPS_PASSWORD_FINGERPRINT_PEPPER_REFERENCE: 'password-fingerprint-pepper',
+    OPS_LEGACY_MONITORING_HMAC_REFERENCE: 'legacy-monitoring-hmac',
     OPS_MFA_ENCRYPTION_KEY_REFERENCE: 'mfa-encryption-key',
     OPS_BROWSER_CONTEXT_KEY_ID: 'task7-browser-context',
     OPS_BROWSER_CONTEXT_KEY_REFERENCE: 'browser-context-key',

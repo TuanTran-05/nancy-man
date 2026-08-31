@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import console from 'node:console';
 import { createCipheriv, randomBytes, randomUUID, scryptSync } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -26,6 +26,8 @@ if (
 }
 const directory = mkdtempSync(join(tmpdir(), 'edutrack-ops-e2e-'));
 const dbPath = join(directory, 'ops.sqlite');
+const legacyMonitoringHmacPath = join(directory, 'legacy-monitoring-hmac');
+writeFileSync(legacyMonitoringHmacPath, 'e2e-legacy-monitoring-hmac\n', { mode: 0o400 });
 const dataKey = Buffer.alloc(32, 7);
 const seed = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
 const password = process.env.OPS_E2E_PASSWORD ?? 'correct horse battery staple';
@@ -34,6 +36,8 @@ process.env.OPS_DB_PATH = dbPath;
 process.env.OPS_DATA_KEY = dataKey.toString('base64');
 process.env.OPS_LISTEN_HOST = '127.0.0.1';
 process.env.OPS_PORT = String(port);
+process.env.OPS_LEGACY_MONITORING_HMAC_FILE = legacyMonitoringHmacPath;
+process.env.OPS_ENABLE_LEGACY_BROWSER_API = 'true';
 process.env.OPS_ALERT_ZALO_BOT_TOKEN = 'e2e-bot-token';
 process.env.OPS_ZALO_WEBHOOK_SECRET = 'e'.repeat(32);
 process.env.OPS_ZALO_LINK_CODE_PEPPER = 'p'.repeat(32);
