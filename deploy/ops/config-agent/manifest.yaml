@@ -115,7 +115,7 @@ sources:
     mode: "0640"
     maximumBytes: 4096
     precedenceRank: 200
-    consumerIds: [ops.sql_worker]
+    consumerIds: [ops.sql_worker, ops.api]
   - id: ops.credentials.ops_database_url
     appId: ops
     pathLabel: /etc/edutrack-ops/credentials/ops-database-url
