@@ -6,6 +6,19 @@ import type {
 } from '../shared/models.js';
 
 export type OpsRole = 'ops_owner' | 'ops_maintainer' | 'ops_readonly';
+export type OpsAccountStatus = 'pending_mfa' | 'active' | 'locked' | 'revoked';
+
+export interface OpsAccountSummary {
+  id: string;
+  username: string;
+  email: string;
+  displayName: string;
+  role: OpsRole;
+  status: OpsAccountStatus;
+  mfaEnrolled: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
 
 export interface SessionInfo {
   userId: string;
@@ -117,4 +130,44 @@ export const disableZaloLink = (csrfToken: string) =>
   request<void>('/api/v1/zalo/link', {
     method: 'DELETE',
     headers: { 'X-Ops-CSRF': csrfToken }
+  });
+
+export const getAccounts = () =>
+  request<{ accounts: OpsAccountSummary[] }>('/api/v1/users');
+
+export const createAccount = (
+  input: { username: string; email: string; displayName: string; role: OpsRole },
+  csrfToken: string
+) =>
+  request<{ userId: string; enrollmentUrl: string; expiresAt: string }>('/api/v1/users', {
+    method: 'POST',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify(input)
+  });
+
+export const changeAccountRole = (userId: string, role: OpsRole, csrfToken: string) =>
+  request<void>(`/api/v1/users/${encodeURIComponent(userId)}/role`, {
+    method: 'PATCH',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify({ role })
+  });
+
+export const lockAccount = (userId: string, reason: string, csrfToken: string) =>
+  request<void>(`/api/v1/users/${encodeURIComponent(userId)}/lock`, {
+    method: 'POST',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify({ reason })
+  });
+
+export const recoverAccount = (userId: string, csrfToken: string) =>
+  request<{ userId: string; enrollmentUrl: string; expiresAt: string }>(
+    `/api/v1/users/${encodeURIComponent(userId)}/recover`,
+    { method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: '{}' }
+  );
+
+export const revokeAccount = (userId: string, confirmationUsername: string, csrfToken: string) =>
+  request<void>(`/api/v1/users/${encodeURIComponent(userId)}/revoke`, {
+    method: 'POST',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify({ confirmationUsername })
   });

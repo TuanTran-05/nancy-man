@@ -3,6 +3,7 @@ import { beginLogin, completeLogin, getSession, logout, type SessionInfo } from 
 import { OpsShell } from './components/OpsShell.js';
 import { LoginForm } from './components/LoginForm.js';
 import { OverviewPage } from './pages/OverviewPage.js';
+import { UsersPage } from './pages/UsersPage.js';
 import { useOpsRoute } from './routing.js';
 
 function PlaceholderPage({ title, description }: { title: string; description: string }) {
@@ -73,7 +74,7 @@ export function App() {
       {route === '/' ? (
         <OverviewPage session={session} onUnauthorized={() => setSession(null)} />
       ) : route === '/users' ? (
-        <PlaceholderPage title="Người dùng" description="Quản trị tài khoản vận hành sẽ được tải ở đây." />
+        <UsersPage session={session} onUnauthorized={() => setSession(null)} />
       ) : route === '/variables' ? (
         <PlaceholderPage title="Variables" description="Catalog và giá trị variables sẽ được tải ở đây." />
       ) : (
