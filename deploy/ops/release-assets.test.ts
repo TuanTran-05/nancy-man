@@ -26,6 +26,13 @@ const sha = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: '
 const tree = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD^{tree}'], {
   encoding: 'utf8'
 }).trim();
+const committedCanonicalRouting = `server {
+  location ^~ /api/v1/ { proxy_pass http://127.0.0.1:3100; }
+  location = /api/zalo-bot/webhook { proxy_pass http://127.0.0.1:3101; }
+  location = /api/session { return 410; }
+  location / { proxy_pass http://127.0.0.1:3101; }
+}
+`;
 
 function root(): string {
   const directory = mkdtempSync(join(tmpdir(), 'edutrack-ops-release-test-assets-'));
@@ -90,7 +97,12 @@ function sourceRepository(): { directory: string; sha: string; tree: string } {
     'deploy/ops/systemd/edutrack-ops-migrate.service'
   ]) {
     mkdirSync(join(directory, path, '..'), { recursive: true });
-    writeFileSync(join(directory, path), `committed:${path}\n`);
+    writeFileSync(
+      join(directory, path),
+      path === 'deploy/ops/nginx/man.thienuy.edu.vn-api.conf'
+        ? committedCanonicalRouting
+        : `committed:${path}\n`
+    );
   }
   writeFileSync(join(directory, 'deploy', 'ops', 'release-manifest.mjs'), 'committed-manifest\n');
   execFileSync('git', ['-C', directory, 'add', '.']);
@@ -234,7 +246,7 @@ describe('immutable Ops prepare and activate assets', () => {
     const release = join(directory, 'releases', source.sha);
     expect(
       readFileSync(join(release, 'deploy', 'ops', 'nginx', 'man.thienuy.edu.vn-api.conf'), 'utf8')
-    ).toBe('committed:deploy/ops/nginx/man.thienuy.edu.vn-api.conf\n');
+    ).toBe(committedCanonicalRouting);
     expect(readFileSync(join(release, 'deploy', 'ops', 'release-manifest.mjs'), 'utf8')).toBe(
       'committed-manifest\n'
     );
