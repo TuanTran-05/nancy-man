@@ -52,10 +52,90 @@ export interface ApiError extends Error {
   status?: number;
 }
 
+export type VariableCategory =
+  | 'database'
+  | 'auth_security'
+  | 'payments'
+  | 'storage'
+  | 'integrations'
+  | 'telemetry'
+  | 'backup_jobs'
+  | 'feature_flags'
+  | 'email_notifications'
+  | 'runtime_networking'
+  | 'build_public_frontend';
+export type VariableSensitivity = 'public' | 'internal' | 'secret';
+export type VariableRequirement = 'required' | 'optional' | 'unknown';
+export type VariableMutability = 'managed' | 'observed';
+export type VariableApplyStrategy =
+  | 'no_runtime_action'
+  | 'next_job'
+  | 'runtime_restart'
+  | 'credential_restart'
+  | 'build_redeploy';
+
+export interface VariableInventoryItem {
+  catalogId?: string;
+  name: string;
+  value: string;
+  appId: string;
+  appName: string;
+  functionIds: string[];
+  sourceId: string;
+  sourcePathLabel: string;
+  sourceAdapter:
+    | 'node_env_file'
+    | 'systemd_environment_file'
+    | 'systemd_credential_file'
+    | 'dotenv'
+    | 'pm2_ecosystem_static'
+    | 'none';
+  consumerIds: string[];
+  category: VariableCategory;
+  description: string;
+  sensitivity: VariableSensitivity;
+  requirement: VariableRequirement;
+  mutability: VariableMutability;
+  applyStrategy: VariableApplyStrategy;
+  relatedDefinitionIds: string[];
+  precedence: {
+    precedenceId: string;
+    rank: number;
+    effective: boolean;
+  };
+  sourceFingerprint: string;
+  valueFingerprint: string;
+  sourceMtime?: string | null;
+  lastOpsChange?: {
+    actorUserId: string;
+    changeId: string;
+    changedAt: string;
+  };
+}
+
+export interface VariableInventoryResponse {
+  catalogVersion: string;
+  manifestVersion: string;
+  generatedAt: string;
+  items: VariableInventoryItem[];
+}
+
+export interface VariableCatalogApp {
+  id: string;
+  displayName: string;
+  runtimeVariableCount: number;
+}
+
+export interface VariableCatalog {
+  catalogVersion: string;
+  apps: VariableCatalogApp[];
+}
+
 export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     ...init,
     cache: 'no-store',
+    mode: 'same-origin',
     headers: {
       accept: 'application/json',
       ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -86,11 +166,7 @@ export const beginLogin = (credentials: { identifier: string; password: string }
     body: JSON.stringify(credentials)
   });
 
-export const completeLogin = (input: {
-  mfaChallenge: string;
-  factorId: string;
-  token: string;
-}) =>
+export const completeLogin = (input: { mfaChallenge: string; factorId: string; token: string }) =>
   request<SessionInfo>('/api/v1/auth/login/totp', {
     method: 'POST',
     body: JSON.stringify(input)
@@ -108,7 +184,9 @@ export const logout = (csrfToken: string) =>
 export const getOverview = () => request<DashboardOverview>('/api/v1/monitoring/overview');
 
 export const getInfrastructureHistory = (range: InfrastructureHistoryRange) =>
-  request<InfrastructureHistoryResponse>(`/api/v1/monitoring/infrastructure/history?range=${range}`);
+  request<InfrastructureHistoryResponse>(
+    `/api/v1/monitoring/infrastructure/history?range=${range}`
+  );
 
 export const acknowledgeIncident = (id: string, note: string, csrfToken: string) =>
   request<Incident>(`/api/v1/monitoring/incidents/${encodeURIComponent(id)}/ack`, {
@@ -132,8 +210,7 @@ export const disableZaloLink = (csrfToken: string) =>
     headers: { 'X-Ops-CSRF': csrfToken }
   });
 
-export const getAccounts = () =>
-  request<{ accounts: OpsAccountSummary[] }>('/api/v1/users');
+export const getAccounts = () => request<{ accounts: OpsAccountSummary[] }>('/api/v1/users');
 
 export const createAccount = (
   input: { username: string; email: string; displayName: string; role: OpsRole },
@@ -170,4 +247,21 @@ export const revokeAccount = (userId: string, confirmationUsername: string, csrf
     method: 'POST',
     headers: { 'X-Ops-CSRF': csrfToken },
     body: JSON.stringify({ confirmationUsername })
+  });
+
+export const unlockVariables = (input: { password: string; totpCode: string }, csrfToken: string) =>
+  request<{ unlockedUntil: string }>('/api/v1/auth/variables/unlock', {
+    method: 'POST',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify(input)
+  });
+
+export const getVariableCatalog = () => request<VariableCatalog>('/api/v1/variables/catalog');
+
+export const getVariableInventory = () => request<VariableInventoryResponse>('/api/v1/variables');
+
+export const lockVariables = (csrfToken: string) =>
+  request<void>('/api/v1/auth/variables/unlock', {
+    method: 'DELETE',
+    headers: { 'X-Ops-CSRF': csrfToken }
   });
