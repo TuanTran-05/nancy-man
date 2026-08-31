@@ -1,4 +1,4 @@
-import { isAbsolute, normalize } from 'node:path';
+import { isAbsolute, join, normalize } from 'node:path';
 
 import { MAX_FRAME_BYTES } from '../../../packages/config-contracts/src/framing.js';
 
@@ -14,6 +14,22 @@ export type ConfigAgentRuntimeConfig = Readonly<{
   protocolKeyId: string;
   fingerprintKeyPath: string;
   fingerprintKeyVersion: string;
+  stagingKeyPath: string;
+  stagingKeyId: string;
+  stagingKeyVersion: string;
+  stagingAcceptedOldKeyIds: readonly string[];
+  snapshotKeyPath: string;
+  snapshotKeyId: string;
+  snapshotKeyVersion: string;
+  snapshotAcceptedOldKeyIds: readonly string[];
+  stateDirectory: string;
+  draftsDirectory: string;
+  stagedDirectory: string;
+  snapshotsDirectory: string;
+  locksDirectory: string;
+  draftTtlMs: number;
+  stagedTtlMs: number;
+  snapshotRetentionMs: number;
   socketGroup: string;
   allowedPeerUid?: number;
   allowedPeerGid?: number;
@@ -27,8 +43,10 @@ export type RuntimeConfigErrorCode =
   | 'CONFIG_AGENT_PATH_INVALID'
   | 'CONFIG_AGENT_KEY_ID_INVALID'
   | 'CONFIG_AGENT_KEY_PATHS_MUST_DIFFER'
+  | 'CONFIG_AGENT_KEY_IDS_MUST_DIFFER'
   | 'CONFIG_AGENT_IDENTITY_INVALID'
-  | 'CONFIG_AGENT_DURATION_INVALID';
+  | 'CONFIG_AGENT_DURATION_INVALID'
+  | 'CONFIG_AGENT_RETENTION_INVALID';
 
 export class RuntimeConfigError extends Error {
   readonly code: RuntimeConfigErrorCode;
@@ -84,6 +102,25 @@ function fingerprintVersion(environment: Environment): string {
   return value;
 }
 
+function keyVersion(environment: Environment, names: readonly string[]): string {
+  const value = configured(environment, names, 'CONFIG_AGENT_ENV_REQUIRED');
+  if (!/^v[0-9]+$/u.test(value)) throw new RuntimeConfigError('CONFIG_AGENT_KEY_ID_INVALID');
+  return value;
+}
+
+function oldKeyIds(environment: Environment, names: readonly string[]): string[] {
+  const raw = names.map((name) => environment[name]?.trim()).find(Boolean);
+  if (!raw) return [];
+  const values = raw.split(',').map((value) => value.trim());
+  if (values.some((value) => !value || !/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u.test(value))) {
+    throw new RuntimeConfigError('CONFIG_AGENT_KEY_ID_INVALID');
+  }
+  if (new Set(values).size !== values.length) {
+    throw new RuntimeConfigError('CONFIG_AGENT_KEY_ID_INVALID');
+  }
+  return values;
+}
+
 function optionalIdentity(environment: Environment, names: readonly string[]): number | undefined {
   const value = names.map((name) => environment[name]?.trim()).find(Boolean);
   if (!value) return undefined;
@@ -110,6 +147,33 @@ function duration(
     throw new RuntimeConfigError('CONFIG_AGENT_DURATION_INVALID');
   }
   return value;
+}
+
+function retentionDuration(
+  environment: Environment,
+  names: readonly string[],
+  defaultValue: number,
+  maximum: number
+): number {
+  const raw = names.map((name) => environment[name]?.trim()).find(Boolean);
+  if (!raw) return defaultValue;
+  if (!/^[0-9]+$/u.test(raw)) throw new RuntimeConfigError('CONFIG_AGENT_RETENTION_INVALID');
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value <= 0 || value > maximum) {
+    throw new RuntimeConfigError('CONFIG_AGENT_RETENTION_INVALID');
+  }
+  return value;
+}
+
+function childDirectory(environment: Environment, stateDirectory: string, name: string): string {
+  const directory = pathValue(environment, [
+    `OPS_CONFIG_AGENT_${name.toUpperCase()}_DIRECTORY`,
+    `CONFIG_AGENT_${name.toUpperCase()}_DIRECTORY`
+  ]);
+  if (directory !== join(stateDirectory, name.toLowerCase())) {
+    throw new RuntimeConfigError('CONFIG_AGENT_PATH_INVALID');
+  }
+  return directory;
 }
 
 export function readConfigAgentRuntimeConfig(
@@ -139,22 +203,113 @@ export function readConfigAgentRuntimeConfig(
     'OPS_CONFIG_AGENT_FINGERPRINT_KEY_PATH',
     'CONFIG_AGENT_FINGERPRINT_KEY_PATH'
   ]);
-  if (protocolKeyPath === fingerprintKeyPath) {
+  const stagingKeyPath = pathValue(environment, [
+    'OPS_CONFIG_AGENT_STAGING_KEY_PATH',
+    'CONFIG_AGENT_STAGING_KEY_PATH'
+  ]);
+  const snapshotKeyPath = pathValue(environment, [
+    'OPS_CONFIG_AGENT_SNAPSHOT_KEY_PATH',
+    'CONFIG_AGENT_SNAPSHOT_KEY_PATH'
+  ]);
+  const keyPaths = [protocolKeyPath, fingerprintKeyPath, stagingKeyPath, snapshotKeyPath];
+  if (new Set(keyPaths).size !== keyPaths.length) {
     throw new RuntimeConfigError('CONFIG_AGENT_KEY_PATHS_MUST_DIFFER');
   }
+
+  const protocolKeyId = stableId(environment, [
+    'OPS_CONFIG_AGENT_PROTOCOL_KEY_ID',
+    'OPS_CONFIG_AGENT_PROTOCOL_HMAC_KEY_ID',
+    'CONFIG_AGENT_PROTOCOL_KEY_ID'
+  ]);
+  const stagingKeyId = stableId(environment, [
+    'OPS_CONFIG_AGENT_STAGING_KEY_ID',
+    'CONFIG_AGENT_STAGING_KEY_ID'
+  ]);
+  const snapshotKeyId = stableId(environment, [
+    'OPS_CONFIG_AGENT_SNAPSHOT_KEY_ID',
+    'CONFIG_AGENT_SNAPSHOT_KEY_ID'
+  ]);
+  const fingerprintKeyId = stableId(environment, [
+    'OPS_CONFIG_AGENT_FINGERPRINT_KEY_VERSION',
+    'OPS_CONFIG_AGENT_FINGERPRINT_KEY_ID',
+    'CONFIG_AGENT_FINGERPRINT_KEY_ID'
+  ]);
+  const keyIds = [protocolKeyId, fingerprintKeyId, stagingKeyId, snapshotKeyId];
+  if (new Set(keyIds).size !== keyIds.length) {
+    throw new RuntimeConfigError('CONFIG_AGENT_KEY_IDS_MUST_DIFFER');
+  }
+
+  const stagingAcceptedOldKeyIds = oldKeyIds(environment, [
+    'OPS_CONFIG_AGENT_STAGING_OLD_KEY_IDS',
+    'CONFIG_AGENT_STAGING_OLD_KEY_IDS'
+  ]);
+  const snapshotAcceptedOldKeyIds = oldKeyIds(environment, [
+    'OPS_CONFIG_AGENT_SNAPSHOT_OLD_KEY_IDS',
+    'CONFIG_AGENT_SNAPSHOT_OLD_KEY_IDS'
+  ]);
+  const allKeyIds = [
+    ...keyIds,
+    ...stagingAcceptedOldKeyIds,
+    ...snapshotAcceptedOldKeyIds
+  ];
+  if (new Set(allKeyIds).size !== allKeyIds.length) {
+    throw new RuntimeConfigError('CONFIG_AGENT_KEY_IDS_MUST_DIFFER');
+  }
+
+  const stateDirectory = pathValue(environment, [
+    'OPS_CONFIG_AGENT_STATE_DIRECTORY',
+    'CONFIG_AGENT_STATE_DIRECTORY'
+  ]);
+  const draftsDirectory = childDirectory(environment, stateDirectory, 'drafts');
+  const stagedDirectory = childDirectory(environment, stateDirectory, 'staged');
+  const snapshotsDirectory = childDirectory(environment, stateDirectory, 'snapshots');
+  const locksDirectory = childDirectory(environment, stateDirectory, 'locks');
 
   const result: ConfigAgentRuntimeConfig = {
     socketPath,
     catalogPath,
     manifestPath,
     protocolKeyPath,
-    protocolKeyId: stableId(environment, [
-      'OPS_CONFIG_AGENT_PROTOCOL_KEY_ID',
-      'OPS_CONFIG_AGENT_PROTOCOL_HMAC_KEY_ID',
-      'CONFIG_AGENT_PROTOCOL_KEY_ID'
-    ]),
+    protocolKeyId,
     fingerprintKeyPath,
     fingerprintKeyVersion: fingerprintVersion(environment),
+    stagingKeyPath,
+    stagingKeyId,
+    stagingKeyVersion: keyVersion(environment, [
+      'OPS_CONFIG_AGENT_STAGING_KEY_VERSION',
+      'CONFIG_AGENT_STAGING_KEY_VERSION'
+    ]),
+    stagingAcceptedOldKeyIds,
+    snapshotKeyPath,
+    snapshotKeyId,
+    snapshotKeyVersion: keyVersion(environment, [
+      'OPS_CONFIG_AGENT_SNAPSHOT_KEY_VERSION',
+      'CONFIG_AGENT_SNAPSHOT_KEY_VERSION'
+    ]),
+    snapshotAcceptedOldKeyIds,
+    stateDirectory,
+    draftsDirectory,
+    stagedDirectory,
+    snapshotsDirectory,
+    locksDirectory,
+    draftTtlMs: retentionDuration(
+      environment,
+      ['OPS_CONFIG_AGENT_DRAFT_TTL_MS', 'CONFIG_AGENT_DRAFT_TTL_MS'],
+      24 * 60 * 60 * 1_000,
+      24 * 60 * 60 * 1_000
+    ),
+    stagedTtlMs: retentionDuration(
+      environment,
+      ['OPS_CONFIG_AGENT_STAGED_TTL_MS', 'CONFIG_AGENT_STAGED_TTL_MS'],
+      24 * 60 * 60 * 1_000,
+      24 * 60 * 60 * 1_000
+    ),
+    snapshotRetentionMs: retentionDuration(
+      environment,
+      ['OPS_CONFIG_AGENT_SNAPSHOT_RETENTION_MS', 'CONFIG_AGENT_SNAPSHOT_RETENTION_MS'],
+      30 * 24 * 60 * 60 * 1_000,
+      30 * 24 * 60 * 60 * 1_000
+    ),
     socketGroup: configured(
       environment,
       ['OPS_CONFIG_AGENT_SOCKET_GROUP', 'CONFIG_AGENT_SOCKET_GROUP'],
