@@ -4,6 +4,7 @@ import { OpsShell } from './components/OpsShell.js';
 import { LoginForm } from './components/LoginForm.js';
 import { OverviewPage } from './pages/OverviewPage.js';
 import { UsersPage } from './pages/UsersPage.js';
+import { VariablesPage } from './pages/VariablesPage.js';
 import { useOpsRoute } from './routing.js';
 
 function PlaceholderPage({ title, description }: { title: string; description: string }) {
@@ -76,9 +77,12 @@ export function App() {
       ) : route === '/users' ? (
         <UsersPage session={session} onUnauthorized={() => setSession(null)} />
       ) : route === '/variables' ? (
-        <PlaceholderPage title="Variables" description="Catalog và giá trị variables sẽ được tải ở đây." />
+        <VariablesPage session={session} onUnauthorized={() => setSession(null)} />
       ) : (
-        <PlaceholderPage title="Thiết lập MFA" description="Thiết lập MFA bootstrap sẽ được tải ở đây." />
+        <PlaceholderPage
+          title="Thiết lập MFA"
+          description="Thiết lập MFA bootstrap sẽ được tải ở đây."
+        />
       )}
     </OpsShell>
   );

@@ -55,6 +55,36 @@ describe('dashboard shell', () => {
     expect(screen.queryByText(/Restart|Chạy SQL/i)).not.toBeInTheDocument();
   });
 
+  it('mounts the read-only Variables workspace on the canonical route without reading values', async () => {
+    const originalPath = window.location.pathname;
+    window.history.replaceState({}, '', '/variables');
+    const calls: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith('/api/v1/auth/session')) {
+        return new Response(
+          JSON.stringify({
+            userId: 'user-id',
+            username: 'ops',
+            role: 'ops_readonly',
+            csrfToken: 'csrf-token'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    try {
+      render(<App />);
+      expect(await screen.findByRole('heading', { name: 'Mở khóa Variables' })).toBeInTheDocument();
+      expect(calls).toEqual(['/api/v1/auth/session']);
+    } finally {
+      window.history.replaceState({}, '', originalPath);
+    }
+  });
+
   it('mounts infrastructure after overview and before monitor without destructive controls', async () => {
     const overview = {
       collectedAt: '2026-08-24T05:00:00.000Z',
