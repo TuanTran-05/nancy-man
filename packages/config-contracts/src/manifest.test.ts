@@ -137,6 +137,10 @@ describe('AgentManifestSchema', () => {
     expect(() =>
       AgentManifestSchema.parse({
         ...validManifest,
+        apps: validManifest.apps.map((app, index) => ({
+          ...app,
+          sourceIds: index === 0 ? ['edutrack.shared_env'] : []
+        })),
         sources: [
           {
             ...validManifest.sources[0],
