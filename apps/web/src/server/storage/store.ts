@@ -43,7 +43,7 @@ export interface ZaloLinkStatus {
 }
 
 export type ZaloLinkConsumeResult =
-  | { outcome: 'linked'; accountId: string; linkedAt: string }
+  | { outcome: 'linked'; principalId: string; accountId: string; linkedAt: string }
   | { outcome: 'already_processed' }
   | { outcome: 'invalid_code' }
   | { outcome: 'chat_already_linked' };
@@ -122,19 +122,22 @@ export interface OpsStore {
   recordLoginAttempt(input: { username: string; attemptedAt: string; success: boolean }): void;
   createZaloLinkCode(input: {
     codeHash: string;
-    accountId: string;
+    principalId?: string;
+    accountId?: string;
     expiresAt: string;
     createdAt: string;
   }): void;
-  getZaloLinkStatus(accountId: string): ZaloLinkStatus | undefined;
+  getZaloLinkStatus(principalId: string): ZaloLinkStatus | undefined;
   consumeZaloLink(input: {
     codeHash: string;
+    principalId?: string;
+    accountId?: string;
     chatIdHash: string;
     chatIdCiphertext: string;
     eventId: string;
     now: string;
   }): ZaloLinkConsumeResult;
-  disableZaloLink(accountId: string, disabledAt: string): void;
+  disableZaloLink(principalId: string, disabledAt: string): void;
   listActiveZaloRecipients(): ZaloRecipientRecord[];
   getDatabaseForBackup(): SqliteDatabase;
 }
@@ -248,6 +251,50 @@ function migrateDeliveryRecipients(
   return legacyRows.length > 0;
 }
 
+function migrateZaloPrincipals(db: SqliteDatabase, fromVersion: number): boolean {
+  if (fromVersion >= 4) return false;
+  const columns = db.prepare('PRAGMA table_info(zalo_links)').all() as Array<{ name: string }>;
+  if (columns.some((column) => column.name === 'principal_id')) return false;
+  db.exec('DROP INDEX IF EXISTS idx_zalo_link_codes_account_expiry');
+  db.exec('ALTER TABLE zalo_link_codes RENAME TO zalo_link_codes_legacy');
+  db.exec('ALTER TABLE zalo_links RENAME TO zalo_links_legacy');
+  db.exec('ALTER TABLE zalo_webhook_events RENAME TO zalo_webhook_events_legacy');
+  db.exec(`
+    CREATE TABLE zalo_link_codes (
+      code_hash TEXT PRIMARY KEY,
+      principal_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      consumed_at TEXT
+    );
+    CREATE TABLE zalo_links (
+      principal_id TEXT PRIMARY KEY,
+      chat_id_hash TEXT NOT NULL UNIQUE,
+      chat_id_ciphertext TEXT NOT NULL,
+      linked_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      disabled_at TEXT
+    );
+    CREATE TABLE zalo_webhook_events (
+      event_id TEXT PRIMARY KEY,
+      principal_id TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    INSERT INTO zalo_link_codes (code_hash, principal_id, expires_at, created_at, consumed_at)
+      SELECT code_hash, account_id, expires_at, created_at, consumed_at FROM zalo_link_codes_legacy;
+    INSERT INTO zalo_links (principal_id, chat_id_hash, chat_id_ciphertext, linked_at, last_seen_at, disabled_at)
+      SELECT account_id, chat_id_hash, chat_id_ciphertext, linked_at, last_seen_at, disabled_at FROM zalo_links_legacy;
+    INSERT INTO zalo_webhook_events (event_id, principal_id, created_at)
+      SELECT event_id, account_id, created_at FROM zalo_webhook_events_legacy;
+    DROP TABLE zalo_link_codes_legacy;
+    DROP TABLE zalo_links_legacy;
+    DROP TABLE zalo_webhook_events_legacy;
+    CREATE INDEX idx_zalo_link_codes_principal_expiry ON zalo_link_codes (principal_id, expires_at);
+    CREATE INDEX idx_zalo_links_active ON zalo_links (disabled_at, linked_at DESC);
+  `);
+  return true;
+}
+
 export function createOpsStore(
   path: string,
   now: () => Date = () => new Date(),
@@ -270,10 +317,15 @@ export function createOpsStore(
     else if (version.version > SCHEMA_VERSION)
       throw new Error(`Unsupported Ops schema version ${version.version}`);
     else if (version.version < SCHEMA_VERSION) {
-      requiresLegacySanitization = migrateDeliveryRecipients(db, version.version, recipientKey);
+      const migratedRecipients = migrateDeliveryRecipients(db, version.version, recipientKey);
+      const migratedZalo = migrateZaloPrincipals(db, version.version);
+      requiresLegacySanitization = migratedRecipients || migratedZalo;
       if (!requiresLegacySanitization)
         db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
     }
+    db.exec(
+      'CREATE INDEX IF NOT EXISTS idx_zalo_link_codes_principal_expiry ON zalo_link_codes (principal_id, expires_at)'
+    );
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -735,18 +787,20 @@ export function createOpsStore(
     },
 
     createZaloLinkCode(input) {
+      const principalId = input.principalId ?? input.accountId;
+      if (!principalId) throw new Error('Zalo principal is required');
       db.prepare(
-        `INSERT INTO zalo_link_codes (code_hash, account_id, expires_at, created_at, consumed_at)
+        `INSERT INTO zalo_link_codes (code_hash, principal_id, expires_at, created_at, consumed_at)
          VALUES (?, ?, ?, ?, NULL)`
-      ).run(input.codeHash, input.accountId, input.expiresAt, input.createdAt);
+      ).run(input.codeHash, principalId, input.expiresAt, input.createdAt);
     },
 
-    getZaloLinkStatus(accountId) {
+    getZaloLinkStatus(principalId) {
       const row = db
         .prepare(
-          'SELECT linked_at, last_seen_at FROM zalo_links WHERE account_id = ? AND disabled_at IS NULL'
+          'SELECT linked_at, last_seen_at FROM zalo_links WHERE principal_id = ? AND disabled_at IS NULL'
         )
-        .get(accountId) as { linked_at: string; last_seen_at: string } | undefined;
+        .get(principalId) as { linked_at: string; last_seen_at: string } | undefined;
       return row ? { linkedAt: row.linked_at, lastSeenAt: row.last_seen_at } : undefined;
     },
 
@@ -757,48 +811,53 @@ export function createOpsStore(
         }
         const code = db
           .prepare(
-            'SELECT account_id, expires_at, consumed_at FROM zalo_link_codes WHERE code_hash = ?'
+            'SELECT principal_id, expires_at, consumed_at FROM zalo_link_codes WHERE code_hash = ?'
           )
           .get(input.codeHash) as
-          | { account_id: string; expires_at: string; consumed_at: string | null }
+          | { principal_id: string; expires_at: string; consumed_at: string | null }
           | undefined;
         if (!code || code.consumed_at || Date.parse(code.expires_at) <= Date.parse(input.now)) {
           return { outcome: 'invalid_code' };
         }
         const existingClaim = db
           .prepare(
-            'SELECT account_id FROM zalo_links WHERE chat_id_hash = ? AND disabled_at IS NULL'
+            'SELECT principal_id FROM zalo_links WHERE chat_id_hash = ? AND disabled_at IS NULL'
           )
-          .get(input.chatIdHash) as { account_id: string } | undefined;
-        if (existingClaim && existingClaim.account_id !== code.account_id) {
+          .get(input.chatIdHash) as { principal_id: string } | undefined;
+        if (existingClaim && existingClaim.principal_id !== code.principal_id) {
           return { outcome: 'chat_already_linked' };
         }
         db.prepare(
-          `INSERT INTO zalo_links (account_id, chat_id_hash, chat_id_ciphertext, linked_at, last_seen_at, disabled_at)
+          `INSERT INTO zalo_links (principal_id, chat_id_hash, chat_id_ciphertext, linked_at, last_seen_at, disabled_at)
            VALUES (?, ?, ?, ?, ?, NULL)
-           ON CONFLICT(account_id) DO UPDATE SET
+           ON CONFLICT(principal_id) DO UPDATE SET
              chat_id_hash = excluded.chat_id_hash,
              chat_id_ciphertext = excluded.chat_id_ciphertext,
              linked_at = excluded.linked_at,
              last_seen_at = excluded.last_seen_at,
              disabled_at = NULL`
-        ).run(code.account_id, input.chatIdHash, input.chatIdCiphertext, input.now, input.now);
+        ).run(code.principal_id, input.chatIdHash, input.chatIdCiphertext, input.now, input.now);
         db.prepare('UPDATE zalo_link_codes SET consumed_at = ? WHERE code_hash = ?').run(
           input.now,
           input.codeHash
         );
         db.prepare(
-          'INSERT INTO zalo_webhook_events (event_id, account_id, created_at) VALUES (?, ?, ?)'
-        ).run(input.eventId, code.account_id, input.now);
-        return { outcome: 'linked', accountId: code.account_id, linkedAt: input.now };
+          'INSERT INTO zalo_webhook_events (event_id, principal_id, created_at) VALUES (?, ?, ?)'
+        ).run(input.eventId, code.principal_id, input.now);
+        return {
+          outcome: 'linked',
+          principalId: code.principal_id,
+          accountId: code.principal_id,
+          linkedAt: input.now
+        };
       });
       return transaction();
     },
 
-    disableZaloLink(accountId, disabledAt) {
+    disableZaloLink(principalId, disabledAt) {
       db.prepare(
-        'UPDATE zalo_links SET disabled_at = ?, last_seen_at = ? WHERE account_id = ? AND disabled_at IS NULL'
-      ).run(disabledAt, disabledAt, accountId);
+        'UPDATE zalo_links SET disabled_at = ?, last_seen_at = ? WHERE principal_id = ? AND disabled_at IS NULL'
+      ).run(disabledAt, disabledAt, principalId);
     },
 
     listActiveZaloRecipients() {

@@ -13,6 +13,7 @@ const validEnvironment = {
   OPS_AUTH_SESSION_PEPPER_REFERENCE: 'ops-auth-session-pepper',
   OPS_MFA_ENCRYPTION_KEY_REFERENCE: 'ops-mfa-encryption-key',
   OPS_PASSWORD_FINGERPRINT_PEPPER_REFERENCE: 'ops-password-fingerprint-pepper',
+  OPS_LEGACY_MONITORING_HMAC_REFERENCE: 'ops-legacy-monitoring-hmac',
   OPS_BROWSER_CONTEXT_KEY_ID: 'edutrack-browser-v1',
   OPS_BROWSER_CONTEXT_KEY_REFERENCE: 'browser-context-edutrack-v1',
   OPS_OBJECT_STORE_DIRECTORY: '/var/lib/edutrack-ops/object-store',
@@ -33,6 +34,7 @@ describe('readOpsRuntimeConfig', () => {
       authSessionPepperReference: 'ops-auth-session-pepper',
       mfaEncryptionKeyReference: 'ops-mfa-encryption-key',
       passwordFingerprintPepperReference: 'ops-password-fingerprint-pepper',
+      legacyMonitoringHmacReference: 'ops-legacy-monitoring-hmac',
       browserContextKey: {
         id: 'edutrack-browser-v1',
         secretReference: 'browser-context-edutrack-v1'

@@ -80,6 +80,7 @@ describe('createOpsApiRuntime', () => {
         authSessionPepperReference: 'ops-auth-session-pepper',
         mfaEncryptionKeyReference: 'ops-mfa-encryption-key',
         passwordFingerprintPepperReference: 'ops-password-fingerprint-pepper',
+        legacyMonitoringHmacReference: 'ops-legacy-monitoring-hmac',
         browserContextKey: {
           id: 'edutrack-browser-v1',
           secretReference: 'browser-context-edutrack-v1'
@@ -95,6 +96,7 @@ describe('createOpsApiRuntime', () => {
       authSessionPepper: 'auth-session-pepper',
       mfaEncryptionKey: Buffer.alloc(32, 7),
       passwordFingerprintPepper: 'password-fingerprint-pepper',
+      legacyMonitoringHmacSecret: 'legacy-monitoring-hmac-secret',
       resolveSecret: async (reference) =>
         reference === 'ingest-edutrack-api' ? 'server-ingest-key' : null
     });

@@ -159,7 +159,7 @@ describe('Zalo delivery recipient confidentiality', () => {
       const columns = database.prepare('PRAGMA table_info(alert_deliveries)').all() as Array<{
         name: string;
       }>;
-      expect(version.version).toBe(3);
+      expect(version.version).toBe(4);
       expect(columns.map((column) => column.name)).not.toContain('recipient_id');
       expect(
         JSON.stringify(database.prepare('SELECT * FROM alert_deliveries').all())

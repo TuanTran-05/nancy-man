@@ -14,7 +14,9 @@ const base = {
   OPS_ZALO_WEBHOOK_SECRET: 'w'.repeat(32),
   OPS_ZALO_LINK_CODE_PEPPER: 'p'.repeat(32),
   OPS_ZALO_CHAT_HASH_SECRET: 'h'.repeat(32),
-  OPS_ZALO_RECIPIENT_KEY: Buffer.alloc(32, 8).toString('base64')
+  OPS_ZALO_RECIPIENT_KEY: Buffer.alloc(32, 8).toString('base64'),
+  OPS_LEGACY_MONITORING_HMAC_FILE:
+    '/run/credentials/edutrack-ops-web.service/ops-legacy-monitoring-hmac'
 };
 
 const collectorBase = {
@@ -51,7 +53,8 @@ describe('ops configuration', () => {
       OPS_BACKUP_DIR: '/var/backups',
       OPS_ALERT_ZALO_BOT_TOKEN: 'secret',
       OPS_ALERT_ZALO_RECIPIENT_UIDS: 'ops-a',
-      OPS_ZALO_RECIPIENT_KEY: Buffer.alloc(32, 8).toString('base64'),
+  OPS_ZALO_RECIPIENT_KEY: Buffer.alloc(32, 8).toString('base64'),
+  OPS_LEGACY_MONITORING_HMAC_FILE: '/run/credentials/edutrack-ops-web.service/ops-legacy-monitoring-hmac',
       OPS_ALERT_ZALO_TIMEOUT_MS: '1000'
     };
     expect(() => loadCollectorConfig(env)).toThrow('127.0.0.1');

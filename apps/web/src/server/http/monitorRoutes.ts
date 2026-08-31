@@ -167,7 +167,7 @@ function publicSample(sample: MonitorSample): MonitorSample {
   return { ...sample, details };
 }
 
-function publicOverview(overview: DashboardOverview): DashboardOverview {
+export function publicOverview(overview: DashboardOverview): DashboardOverview {
   return {
     ...overview,
     latestByMonitor: Object.fromEntries(

@@ -16,6 +16,7 @@ type RuntimeCredentials = {
   browserContextKey: string;
   authSessionPepper: string;
   passwordFingerprintPepper: string;
+  legacyMonitoringHmacSecret: string;
   mfaEncryptionKey: Buffer;
   sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
 };
@@ -31,7 +32,8 @@ export async function resolveRuntimeCredentials(input: {
     browserContextKey,
     authSessionPepper,
     mfaKey,
-    passwordFingerprintPepper
+    passwordFingerprintPepper,
+    legacyMonitoringHmacSecret
   ] = await Promise.all([
     input.resolveSecret(input.config.databaseUrlReference),
     input.resolveSecret(input.config.sessionPepperReference),
@@ -39,7 +41,8 @@ export async function resolveRuntimeCredentials(input: {
     input.resolveSecret(input.config.browserContextKey.secretReference),
     input.resolveSecret(input.config.authSessionPepperReference),
     input.resolveSecret(input.config.mfaEncryptionKeyReference),
-    input.resolveSecret(input.config.passwordFingerprintPepperReference)
+    input.resolveSecret(input.config.passwordFingerprintPepperReference),
+    input.resolveSecret(input.config.legacyMonitoringHmacReference)
   ]);
   if (
     !databaseUrl ||
@@ -48,7 +51,8 @@ export async function resolveRuntimeCredentials(input: {
     !browserContextKey ||
     !authSessionPepper ||
     !mfaKey ||
-    !passwordFingerprintPepper
+    !passwordFingerprintPepper ||
+    !legacyMonitoringHmacSecret
   ) {
     throw new Error('Ops API runtime credentials are unavailable');
   }
@@ -63,6 +67,7 @@ export async function resolveRuntimeCredentials(input: {
       browserContextKey,
       authSessionPepper,
       passwordFingerprintPepper,
+      legacyMonitoringHmacSecret,
       mfaEncryptionKey
     };
   }
@@ -81,6 +86,7 @@ export async function resolveRuntimeCredentials(input: {
     browserContextKey,
     authSessionPepper,
     passwordFingerprintPepper,
+    legacyMonitoringHmacSecret,
     mfaEncryptionKey,
     sqlWorker: {
       socketPath: input.config.sqlWorker.socketPath,
@@ -129,6 +135,7 @@ export async function startOpsApi(environment: NodeJS.ProcessEnv = process.env):
       browserContextKey: credentials.browserContextKey,
       authSessionPepper: credentials.authSessionPepper,
       passwordFingerprintPepper: credentials.passwordFingerprintPepper,
+      legacyMonitoringHmacSecret: credentials.legacyMonitoringHmacSecret,
       mfaEncryptionKey: credentials.mfaEncryptionKey,
       ...(credentials.sqlWorker ? { sqlWorker: credentials.sqlWorker } : {}),
       resolveSecret: (ref) => resolver.resolve(ref)

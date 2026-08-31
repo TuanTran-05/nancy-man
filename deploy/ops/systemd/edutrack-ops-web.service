@@ -10,6 +10,8 @@ Group=edutrack-ops-shared
 UMask=0007
 WorkingDirectory=/srv/edutrack-ops/current/apps/web
 EnvironmentFile=/etc/edutrack-ops/web.env
+Environment=OPS_LEGACY_MONITORING_HMAC_FILE=%d/ops-legacy-monitoring-hmac
+LoadCredential=ops-legacy-monitoring-hmac:/etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac
 ExecStart=/usr/bin/node dist/server/web-server.js
 Restart=on-failure
 RestartSec=5s

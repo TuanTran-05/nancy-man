@@ -1,8 +1,10 @@
+import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, afterEach } from 'vitest';
 import { createOpsStore } from './store.js';
+import { schemaSql } from './schema.js';
 import { encryptSecret } from '../security/crypto.js';
 
 const tempDirs: string[] = [];
@@ -165,5 +167,42 @@ describe('Ops SQLite store', () => {
     expect(store.getZaloLinkStatus('ops-a')).toMatchObject({
       linkedAt: '2026-08-23T00:01:00.000Z'
     });
+  });
+
+  it('migrates legacy Zalo account foreign keys into canonical principal ids', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ops-zalo-principal-migration-'));
+    tempDirs.push(dir);
+    const databasePath = join(dir, 'ops.sqlite');
+    const legacy = new Database(databasePath);
+    legacy.exec(
+      schemaSql
+        .replaceAll('principal_id', 'account_id')
+        .replaceAll('idx_zalo_link_codes_principal_expiry', 'idx_zalo_link_codes_account_expiry')
+    );
+    legacy.prepare('INSERT INTO schema_version (version) VALUES (3)').run();
+    legacy
+      .prepare(
+        `INSERT INTO zalo_link_codes (code_hash, account_id, expires_at, created_at, consumed_at)
+         VALUES ('legacy-code', 'legacy-account', '2026-08-23T00:10:00.000Z', '2026-08-23T00:00:00.000Z', NULL)`
+      )
+      .run();
+    legacy.close();
+
+    const store = createOpsStore(databasePath, () => new Date('2026-08-23T00:01:00.000Z'));
+    const database = store.getDatabaseForBackup();
+    const columns = database.prepare('PRAGMA table_info(zalo_link_codes)').all() as Array<{ name: string }>;
+    expect(columns.map((column) => column.name)).toContain('principal_id');
+    expect(columns.map((column) => column.name)).not.toContain('account_id');
+    expect((database.prepare('SELECT version FROM schema_version').get() as { version: number }).version).toBe(4);
+    expect(
+      store.consumeZaloLink({
+        codeHash: 'legacy-code',
+        chatIdHash: 'chat-hash',
+        chatIdCiphertext: encryptSecret('chat', recipientKey),
+        eventId: 'event-legacy',
+        now: '2026-08-23T00:01:00.000Z'
+      })
+    ).toMatchObject({ outcome: 'linked', principalId: 'legacy-account' });
+    database.close();
   });
 });

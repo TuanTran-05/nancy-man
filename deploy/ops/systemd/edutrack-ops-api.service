@@ -17,6 +17,7 @@ LoadCredential=ops-rate-limit-pepper:/etc/edutrack-ops/credentials/ops-rate-limi
 LoadCredential=ops-auth-session-pepper:/etc/edutrack-ops/credentials/ops-auth-session-pepper
 LoadCredential=ops-mfa-encryption-key:/etc/edutrack-ops/credentials/ops-mfa-encryption-key
 LoadCredential=ops-password-fingerprint-pepper:/etc/edutrack-ops/credentials/ops-password-fingerprint-pepper
+LoadCredential=ops-legacy-monitoring-hmac:/etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac
 LoadCredential=browser-context-edutrack-v1:/etc/edutrack-ops/credentials/browser-context-edutrack-v1
 ExecStart=/usr/bin/node apps/api/dist/apps/api/src/runtime/main.js
 Restart=on-failure

@@ -13,6 +13,7 @@ const config = {
   authSessionPepperReference: 'ops-auth-session-pepper',
   mfaEncryptionKeyReference: 'ops-mfa-encryption-key',
   passwordFingerprintPepperReference: 'ops-password-fingerprint-pepper',
+  legacyMonitoringHmacReference: 'ops-legacy-monitoring-hmac',
   browserContextKey: {
     id: 'edutrack-browser-v1',
     secretReference: 'browser-context-edutrack-v1'
@@ -43,12 +44,14 @@ describe('resolveRuntimeCredentials', () => {
       browserContextKey: 'value-for-browser-context-edutrack-v1',
       authSessionPepper: 'value-for-ops-auth-session-pepper',
       passwordFingerprintPepper: 'value-for-ops-password-fingerprint-pepper',
+      legacyMonitoringHmacSecret: 'value-for-ops-legacy-monitoring-hmac',
       mfaEncryptionKey: expect.any(Buffer)
     });
     expect(requested.sort()).toEqual([
       'browser-context-edutrack-v1',
       'ops-auth-session-pepper',
       'ops-database-url',
+      'ops-legacy-monitoring-hmac',
       'ops-mfa-encryption-key',
       'ops-password-fingerprint-pepper',
       'ops-rate-limit-pepper',

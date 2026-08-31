@@ -5,3 +5,4 @@ export * from './recovery.js';
 export * from './sqlRisk.js';
 export * from './telemetry.js';
 export * from './workerProtocol.js';
+export * from './legacyMonitoringProtocol.js';

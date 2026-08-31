@@ -31,6 +31,7 @@ import { SqlWorkerClient } from '../modules/sql/workerClient.js';
 import { AccountService } from '../modules/accounts/accountService.js';
 import { PostgresAccountRepository } from '../modules/accounts/postgresAccountRepository.js';
 import { createHash } from 'node:crypto';
+import { LegacyMonitoringClient } from '../modules/monitoring/legacyMonitoringClient.js';
 
 import { type TransactionalQueryDatabase } from './poolDatabase.js';
 import { type OpsRuntimeConfig } from './runtimeConfig.js';
@@ -45,6 +46,7 @@ export function createOpsApiRuntime(input: {
   browserContextKey: string;
   authSessionPepper: string;
   passwordFingerprintPepper: string;
+  legacyMonitoringHmacSecret: string;
   mfaEncryptionKey: Buffer;
   sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
   resolveSecret: (reference: string) => Promise<string | null>;
@@ -65,6 +67,7 @@ export function createOpsApiRuntime(input: {
     stepUp: stepUpService,
     audit: new PostgresOpsAuditLedger({ database: input.database })
   });
+  const monitoringClient = new LegacyMonitoringClient({ secret: input.legacyMonitoringHmacSecret });
   const sqlElevationRepository = new PostgresSqlElevationRepository(input.database);
   const nonceStore = new PostgresNonceStore(input.database);
   const browser = createBrowserIngestService({
@@ -179,6 +182,17 @@ export function createOpsApiRuntime(input: {
               .digest('hex'),
             userAgentHash: createHash('sha256').update(userAgent, 'utf8').digest('hex')
           };
+        }
+      },
+      monitoring: {
+        client: monitoringClient,
+        session: {
+          authorize: (request) =>
+            authorizeOpsSession({
+              ...request,
+              sessionPepper: input.authSessionPepper,
+              repository: sessionRepository
+            })
         }
       },
       issues: {

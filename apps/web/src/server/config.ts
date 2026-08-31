@@ -15,6 +15,7 @@ export interface WebConfig {
   zaloRecipientKey: Buffer;
   zaloTimeoutMs: number;
   zaloLinkTtlSeconds: number;
+  legacyMonitoringHmacFile: string;
 }
 
 export interface CollectorConfig {
@@ -176,7 +177,8 @@ export function loadWebConfig(env: Env = process.env): WebConfig {
     zaloChatHashSecret: requiredSecret(env, 'OPS_ZALO_CHAT_HASH_SECRET'),
     zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
     zaloTimeoutMs: positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000),
-    zaloLinkTtlSeconds: positiveInteger(env, 'OPS_ZALO_LINK_TTL_SECONDS', 600)
+    zaloLinkTtlSeconds: positiveInteger(env, 'OPS_ZALO_LINK_TTL_SECONDS', 600),
+    legacyMonitoringHmacFile: required(env, 'OPS_LEGACY_MONITORING_HMAC_FILE')
   };
 }
 

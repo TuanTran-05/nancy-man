@@ -26,6 +26,7 @@ export type OpsRuntimeConfig = {
   authSessionPepperReference: string;
   mfaEncryptionKeyReference: string;
   passwordFingerprintPepperReference: string;
+  legacyMonitoringHmacReference: string;
   browserContextKey: BrowserContextKey;
   objectStoreDirectory: string;
   browserCorsOrigins: string[];
@@ -152,6 +153,10 @@ export function readOpsRuntimeConfig(environment: Environment): OpsRuntimeConfig
     passwordFingerprintPepperReference: requiredCredentialReference(
       environment,
       'OPS_PASSWORD_FINGERPRINT_PEPPER_REFERENCE'
+    ),
+    legacyMonitoringHmacReference: requiredCredentialReference(
+      environment,
+      'OPS_LEGACY_MONITORING_HMAC_REFERENCE'
     ),
     browserContextKey: {
       id: requiredCredentialReference(environment, 'OPS_BROWSER_CONTEXT_KEY_ID'),
