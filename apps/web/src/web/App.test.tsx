@@ -1,9 +1,53 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { App } from './App.js';
 
 describe('dashboard shell', () => {
+  it('uses canonical two-step login and never posts a legacy session request', async () => {
+    const calls: string[] = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      calls.push(`${init?.method ?? 'GET'} ${url}`);
+      if (url.endsWith('/api/v1/auth/session')) return new Response('{}', { status: 401 });
+      if (url.endsWith('/api/v1/auth/login')) {
+        return new Response(
+          JSON.stringify({
+            status: 'mfa_required',
+            mfaChallenge: 'c'.repeat(32),
+            factors: [{ id: 'f16f9426-010c-4e06-a459-9fd18c4a442d', type: 'totp', label: 'App' }]
+          }),
+          { status: 202, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.endsWith('/api/v1/auth/login/totp')) {
+        return new Response(
+          JSON.stringify({
+            userId: 'user-id',
+            username: 'tuan.dev',
+            displayName: 'Tuan Dev',
+            role: 'ops_owner',
+            csrfToken: 'csrf-token',
+            expiresAt: '2026-08-31T13:00:00.000Z'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response('{}', { status: 404 });
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(await screen.findByLabelText('Tên đăng nhập'), 'tuan.dev');
+    await user.type(screen.getByLabelText('Mật khẩu'), 'a-long-new-password');
+    await user.click(screen.getByRole('button', { name: 'Đăng nhập' }));
+    expect(await screen.findByLabelText('Mã xác thực')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Mã xác thực'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Hoàn tất đăng nhập' }));
+    expect(await screen.findByText('Tổng quan')).toBeInTheDocument();
+    expect(calls.some((call) => call.includes('/api/session'))).toBe(false);
+  });
+
   it('does not render destructive controls in the login shell', async () => {
     globalThis.fetch = async () => new Response('{}', { status: 401 });
     render(<App />);
@@ -89,26 +133,28 @@ describe('dashboard shell', () => {
     };
     globalThis.fetch = async (input) => {
       const url = String(input);
-      if (url.endsWith('/api/session'))
+      if (url.endsWith('/api/v1/auth/session'))
         return new Response(
           JSON.stringify({
+            userId: 'user-id',
             username: 'ops',
             csrfToken: 'csrf',
+            role: 'ops_owner',
             expiresAt: '2026-08-25T05:00:00.000Z'
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         );
-      if (url.endsWith('/api/overview'))
+      if (url.endsWith('/api/v1/monitoring/overview'))
         return new Response(JSON.stringify(overview), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         });
-      if (url.endsWith('/api/zalo/link'))
+      if (url.endsWith('/api/v1/zalo/link'))
         return new Response(JSON.stringify({ linked: false }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         });
-      if (url.includes('/api/infrastructure/history'))
+      if (url.includes('/api/v1/monitoring/infrastructure/history'))
         return new Response(JSON.stringify(history), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }

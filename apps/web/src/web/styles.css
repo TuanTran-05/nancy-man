@@ -70,6 +70,38 @@ p {
 .header-actions {
   flex-wrap: wrap;
 }
+.ops-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #263451;
+}
+.ops-nav button {
+  color: #cbd5e1;
+  background: #172033;
+}
+.ops-nav button.nav-active {
+  color: #07111f;
+  background: #67e8f9;
+}
+.loading-panel,
+.placeholder-page {
+  margin: 24px 0;
+  padding: 28px;
+}
+.placeholder-page {
+  min-height: 180px;
+}
+select {
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.7rem;
+  color: #eef2ff;
+  background: #111827;
+}
 .eyebrow {
   color: #67e8f9;
   font-size: 0.74rem;

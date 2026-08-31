@@ -5,20 +5,44 @@ import type {
   InfrastructureHistoryResponse
 } from '../shared/models.js';
 
+export type OpsRole = 'ops_owner' | 'ops_maintainer' | 'ops_readonly';
+
 export interface SessionInfo {
-  username: string;
-  csrfToken: string;
-  expiresAt: string;
+  userId: string;
+  username?: string;
+  displayName?: string;
+  role?: OpsRole;
+  csrfToken?: string;
+  expiresAt?: string;
 }
+
+export interface MfaFactor {
+  id: string;
+  type: 'totp';
+  label: string;
+}
+
+export interface MfaRequired {
+  status: 'mfa_required';
+  mfaChallenge: string;
+  factors: MfaFactor[];
+}
+
 export interface ZaloLinkInfo {
   linked: boolean;
   linkedAt?: string;
   lastSeenAt?: string;
 }
 
-async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+export interface ApiError extends Error {
+  code?: string;
+  status?: number;
+}
+
+export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     ...init,
+    cache: 'no-store',
     headers: {
       accept: 'application/json',
       ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -26,31 +50,71 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
     },
     credentials: 'same-origin'
   });
-  if (!response.ok) throw new Error(`HTTP_${response.status}`);
+  if (!response.ok) {
+    let code: string | undefined;
+    try {
+      const body = (await response.json()) as { code?: unknown };
+      if (typeof body.code === 'string') code = body.code;
+    } catch {
+      // The status remains the useful error when a proxy returns a non-JSON body.
+    }
+    const error = new Error(code ?? `HTTP_${response.status}`) as ApiError;
+    error.code = code;
+    error.status = response.status;
+    throw error;
+  }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
-export const getSession = () => request<SessionInfo>('/api/session');
-export const login = (credentials: { username: string; password: string; totp: string }) =>
-  request<SessionInfo>('/api/session', { method: 'POST', body: JSON.stringify(credentials) });
-export const logout = (csrfToken: string) =>
-  request<void>('/api/session', { method: 'DELETE', headers: { 'X-CSRF-Token': csrfToken } });
-export const getOverview = () => request<DashboardOverview>('/api/overview');
-export const getInfrastructureHistory = (range: InfrastructureHistoryRange) =>
-  request<InfrastructureHistoryResponse>(`/api/infrastructure/history?range=${range}`);
-export const acknowledgeIncident = (id: string, note: string, csrfToken: string) =>
-  request<Incident>(`/api/incidents/${encodeURIComponent(id)}/ack`, {
+export const beginLogin = (credentials: { identifier: string; password: string }) =>
+  request<MfaRequired>('/api/v1/auth/login', {
     method: 'POST',
-    headers: { 'X-CSRF-Token': csrfToken },
-    body: JSON.stringify({ note })
+    body: JSON.stringify(credentials)
   });
-export const getZaloLink = () => request<ZaloLinkInfo>('/api/zalo/link');
-export const createZaloLinkCode = (csrfToken: string) =>
-  request<{ code: string; command: string; expiresAt: string }>('/api/zalo/link-code', {
+
+export const completeLogin = (input: {
+  mfaChallenge: string;
+  factorId: string;
+  token: string;
+}) =>
+  request<SessionInfo>('/api/v1/auth/login/totp', {
     method: 'POST',
-    headers: { 'X-CSRF-Token': csrfToken },
+    body: JSON.stringify(input)
+  });
+
+export const getSession = () => request<SessionInfo>('/api/v1/auth/session');
+
+export const logout = (csrfToken: string) =>
+  request<void>('/api/v1/auth/logout', {
+    method: 'POST',
+    headers: { 'X-Ops-CSRF': csrfToken },
     body: '{}'
   });
+
+export const getOverview = () => request<DashboardOverview>('/api/v1/monitoring/overview');
+
+export const getInfrastructureHistory = (range: InfrastructureHistoryRange) =>
+  request<InfrastructureHistoryResponse>(`/api/v1/monitoring/infrastructure/history?range=${range}`);
+
+export const acknowledgeIncident = (id: string, note: string, csrfToken: string) =>
+  request<Incident>(`/api/v1/monitoring/incidents/${encodeURIComponent(id)}/ack`, {
+    method: 'POST',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify({ note })
+  });
+
+export const getZaloLink = () => request<ZaloLinkInfo>('/api/v1/zalo/link');
+
+export const createZaloLinkCode = (csrfToken: string) =>
+  request<{ code: string; command: string; expiresAt: string }>('/api/v1/zalo/link-code', {
+    method: 'POST',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: '{}'
+  });
+
 export const disableZaloLink = (csrfToken: string) =>
-  request<void>('/api/zalo/link', { method: 'DELETE', headers: { 'X-CSRF-Token': csrfToken } });
+  request<void>('/api/v1/zalo/link', {
+    method: 'DELETE',
+    headers: { 'X-Ops-CSRF': csrfToken }
+  });

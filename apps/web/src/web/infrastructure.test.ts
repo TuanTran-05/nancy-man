@@ -54,7 +54,7 @@ describe('infrastructure display helpers', () => {
     );
     await getInfrastructureHistory('24h');
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/infrastructure/history?range=24h',
+      '/api/v1/monitoring/infrastructure/history?range=24h',
       expect.objectContaining({ credentials: 'same-origin' })
     );
     expect(String(fetchMock.mock.calls[0][0])).not.toMatch(/8090|pocketbase|beszel/i);
