@@ -95,6 +95,11 @@ export const opsMigrationTrustRoot: readonly MigrationTrustRootEntry[] = [
     id: '0016_ops_secret_elevation_reuse',
     fileName: '0016_ops_secret_elevation_reuse.sql',
     checksum: '992c741ba83a9fa03028c475494c5c1b4e514ed945c939dcb8d94d1bf3bce98c'
+  },
+  {
+    id: '0017_ops_config_changes',
+    fileName: '0017_ops_config_changes.sql',
+    checksum: '494a2d02909e3c6b7bdf401d585f36057285e2ebaf4843893ef8faf0d270bcd9'
   }
 ];
 

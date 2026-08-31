@@ -92,6 +92,11 @@ const expectedTrustRoot = [
     '0016_ops_secret_elevation_reuse',
     '0016_ops_secret_elevation_reuse.sql',
     '992c741ba83a9fa03028c475494c5c1b4e514ed945c939dcb8d94d1bf3bce98c'
+  ],
+  [
+    '0017_ops_config_changes',
+    '0017_ops_config_changes.sql',
+    '494a2d02909e3c6b7bdf401d585f36057285e2ebaf4843893ef8faf0d270bcd9'
   ]
 ] as const;
 

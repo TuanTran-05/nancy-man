@@ -1,4 +1,14 @@
-import { boolean, customType, index, jsonb, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  boolean,
+  customType,
+  index,
+  jsonb,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid
+} from 'drizzle-orm/pg-core';
 
 import { pgTable } from 'drizzle-orm/pg-core';
 
@@ -132,3 +142,131 @@ export const opsSecretElevations = pgTable(
   },
   (table) => [index('ops_secret_elevations_active_idx').on(table.sessionId, table.capability)]
 );
+
+export type OpsConfigChangeState =
+  | 'DRAFT'
+  | 'VALIDATING'
+  | 'INVALID'
+  | 'READY'
+  | 'SAVED'
+  | 'APPLYING'
+  | 'SNAPSHOTTED'
+  | 'WRITTEN'
+  | 'ACTION_RUNNING'
+  | 'HEALTH_CHECKING'
+  | 'COMPLETED'
+  | 'ROLLING_BACK'
+  | 'ROLLED_BACK'
+  | 'ROLLBACK_FAILED'
+  | 'CANCELLED'
+  | 'EXPIRED';
+
+export type OpsConfigChangeOperation = 'set' | 'delete';
+export type OpsConfigChangeRequirement = 'required' | 'optional';
+export type OpsConfigChangeStrategy =
+  | 'no_runtime_action'
+  | 'next_job'
+  | 'runtime_restart'
+  | 'credential_restart'
+  | 'build_redeploy';
+
+export type OpsConfigImpactPlan = {
+  applicationId: string;
+  sourceIds: string[];
+  actionIds: string[];
+  checkIds: string[];
+  strategies: OpsConfigChangeStrategy[];
+  counts: { items: number; sets: number; deletes: number; sources: number };
+  warnings: string[];
+  expectedEffect: OpsConfigChangeStrategy;
+};
+
+export const opsConfigChanges = pgTable(
+  'ops_config_changes',
+  {
+    id: uuid('id').primaryKey(),
+    supersedesChangeId: uuid('supersedes_change_id'),
+    actorUserId: uuid('actor_user_id').notNull(),
+    actorSessionId: uuid('actor_session_id').notNull(),
+    applicationId: text('application_id').notNull(),
+    state: text('state').$type<OpsConfigChangeState>().notNull(),
+    reason: text('reason').notNull(),
+    changeDigest: text('change_digest'),
+    catalogVersion: text('catalog_version').notNull(),
+    manifestVersion: text('manifest_version').notNull(),
+    keyVersion: text('key_version').notNull(),
+    impactPlan: jsonb('impact_plan').$type<OpsConfigImpactPlan>().notNull(),
+    agentEnvelopeId: text('agent_envelope_id'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    version: bigint('version', { mode: 'number' }).default(0).notNull()
+  },
+  (table) => [
+    index('ops_config_changes_application_state_idx').on(table.applicationId, table.state)
+  ]
+);
+
+export const opsConfigChangeItems = pgTable(
+  'ops_config_change_items',
+  {
+    id: uuid('id').primaryKey(),
+    changeId: uuid('change_id').notNull(),
+    sourceId: text('source_id').notNull(),
+    catalogId: text('catalog_id').notNull(),
+    operation: text('operation').$type<OpsConfigChangeOperation>().notNull(),
+    requirement: text('requirement').$type<OpsConfigChangeRequirement>().notNull(),
+    strategy: text('strategy').$type<OpsConfigChangeStrategy>().notNull(),
+    oldValueFingerprint: text('old_value_fingerprint'),
+    newValueFingerprint: text('new_value_fingerprint'),
+    observedSourceFingerprint: text('observed_source_fingerprint').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+  },
+  (table) => [
+    uniqueIndex('ops_config_change_items_change_catalog_idx').on(table.changeId, table.catalogId),
+    index('ops_config_change_items_change_source_idx').on(table.changeId, table.sourceId)
+  ]
+);
+
+export const opsConfigRuns = pgTable(
+  'ops_config_runs',
+  {
+    id: uuid('id').primaryKey(),
+    changeId: uuid('change_id').notNull(),
+    runId: uuid('run_id').notNull(),
+    transitionId: uuid('transition_id').notNull(),
+    eventId: uuid('event_id').notNull(),
+    sequenceNumber: bigint('sequence_number', { mode: 'number' }).notNull(),
+    fromState: text('from_state').$type<OpsConfigChangeState>().notNull(),
+    state: text('state').$type<OpsConfigChangeState>().notNull(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    actorSessionId: uuid('actor_session_id').notNull(),
+    actionId: text('action_id'),
+    checkId: text('check_id'),
+    resultCode: text('result_code'),
+    resultSummary: text('result_summary'),
+    snapshotReference: text('snapshot_reference'),
+    rollbackResult: text('rollback_result'),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull()
+  },
+  (table) => [
+    uniqueIndex('ops_config_runs_change_transition_idx').on(table.changeId, table.transitionId),
+    uniqueIndex('ops_config_runs_change_event_idx').on(table.changeId, table.eventId),
+    uniqueIndex('ops_config_runs_change_sequence_idx').on(table.changeId, table.sequenceNumber),
+    index('ops_config_runs_change_occurred_idx').on(table.changeId, table.occurredAt)
+  ]
+);
+
+export const opsConfigApplicationBlocks = pgTable('ops_config_application_blocks', {
+  applicationId: text('application_id').primaryKey(),
+  failedRunId: uuid('failed_run_id').notNull(),
+  failedChangeId: uuid('failed_change_id').notNull(),
+  reasonCode: text('reason_code').notNull(),
+  blockedActorUserId: uuid('blocked_actor_user_id').notNull(),
+  blockedAt: timestamp('blocked_at', { withTimezone: true }).defaultNow().notNull(),
+  acknowledgedActorUserId: uuid('acknowledged_actor_user_id'),
+  acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+  clearedActorUserId: uuid('cleared_actor_user_id'),
+  clearedAt: timestamp('cleared_at', { withTimezone: true }),
+  clearRemediationSummary: text('clear_remediation_summary')
+});

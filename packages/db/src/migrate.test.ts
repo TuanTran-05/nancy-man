@@ -50,7 +50,9 @@ describe('Ops database migration runner', () => {
       '0012_sql_execution_audit',
       '0013_sql_session_elevations',
       '0014_ops_account_administration',
-      '0015_ops_secret_elevations'
+      '0015_ops_secret_elevations',
+      '0016_ops_secret_elevation_reuse',
+      '0017_ops_config_changes'
     ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {
