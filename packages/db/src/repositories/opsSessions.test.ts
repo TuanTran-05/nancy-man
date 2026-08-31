@@ -21,6 +21,8 @@ describe('OpsSessionRepository', () => {
                   sessionHash,
                   csrfSecretHash: 'b'.repeat(64),
                   role: 'ops_owner',
+                  username: 'tuan.dev',
+                  displayName: 'Tuan Dev',
                   lastActivityAt: '2026-08-22T03:00:00.000Z',
                   idleExpiresAt: '2026-08-22T03:30:00.000Z',
                   absoluteExpiresAt: '2026-08-22T15:00:00.000Z'

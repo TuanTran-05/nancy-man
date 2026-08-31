@@ -3,6 +3,8 @@ import { OpsAuthService } from '../modules/auth/authService.js';
 import { PostgresOpsAuthRepository } from '../modules/auth/postgresAuthRepository.js';
 import { PostgresSqlElevationRepository } from '../modules/auth/postgresSqlElevationRepository.js';
 import { PostgresTotpEnrollmentRepository } from '../modules/auth/postgresTotpEnrollmentRepository.js';
+import { PostgresStepUpRepository } from '../modules/auth/postgresStepUpRepository.js';
+import { StepUpService } from '../modules/auth/stepUpService.js';
 import { SqlElevationService } from '../modules/auth/sqlElevation.js';
 import { TotpEnrollmentService } from '../modules/auth/totpEnrollment.js';
 import { PostgresIssueInbox } from '../modules/issues/postgresIssueInbox.js';
@@ -26,6 +28,9 @@ import { PostgresOpsAuditLedger } from '../modules/audit/postgresAuditLedger.js'
 import { PostgresSqlExecutionStore } from '../modules/sql/postgresSqlExecutionStore.js';
 import { SqlReadPreviewService } from '../modules/sql/readPreviewService.js';
 import { SqlWorkerClient } from '../modules/sql/workerClient.js';
+import { AccountService } from '../modules/accounts/accountService.js';
+import { PostgresAccountRepository } from '../modules/accounts/postgresAccountRepository.js';
+import { createHash } from 'node:crypto';
 
 import { type TransactionalQueryDatabase } from './poolDatabase.js';
 import { type OpsRuntimeConfig } from './runtimeConfig.js';
@@ -46,6 +51,20 @@ export function createOpsApiRuntime(input: {
 }): { app: ReturnType<typeof createOpsApi> } {
   const ingestStore = new PostgresIngestStore(input.database);
   const sessionRepository = new OpsSessionRepository(input.database, input.authSessionPepper);
+  const stepUpRepository = new PostgresStepUpRepository(input.database);
+  const stepUpService = new StepUpService({
+    repository: stepUpRepository,
+    encryptionKey: input.mfaEncryptionKey
+  });
+  const accountAuthorization = new Map<
+    string,
+    { grantId: string; userId: string; sessionId: string; ipHash: string; userAgentHash: string; capability: 'accounts_write' }
+  >();
+  const accountService = new AccountService({
+    repository: new PostgresAccountRepository(input.database),
+    stepUp: stepUpService,
+    audit: new PostgresOpsAuditLedger({ database: input.database })
+  });
   const sqlElevationRepository = new PostgresSqlElevationRepository(input.database);
   const nonceStore = new PostgresNonceStore(input.database);
   const browser = createBrowserIngestService({
@@ -123,7 +142,44 @@ export function createOpsApiRuntime(input: {
           encryptionKey: input.mfaEncryptionKey,
           passwordFingerprintPepper: input.passwordFingerprintPepper,
           repository: new PostgresTotpEnrollmentRepository(input.database)
-        })
+        }),
+        stepUp: {
+          grant: async (proof) => {
+            const grant = await stepUpService.grant(proof);
+            accountAuthorization.set(grant.sessionId, {
+              grantId: grant.id,
+              userId: grant.userId,
+              sessionId: grant.sessionId,
+              ipHash: grant.ipHash,
+              userAgentHash: grant.userAgentHash,
+              capability: 'accounts_write'
+            });
+            return { id: grant.id, expiresAt: grant.expiresAt };
+          }
+        }
+      },
+      accounts: {
+        service: accountService,
+        session: {
+          authorize: (request) =>
+            authorizeOpsSession({
+              ...request,
+              sessionPepper: input.authSessionPepper,
+              repository: sessionRepository
+            })
+        },
+        resolveAuthorization: (principal, request) => {
+          const stored = accountAuthorization.get(principal.sessionId);
+          if (!stored) return null;
+          const userAgent = request.get('user-agent') ?? 'unknown';
+          return {
+            ...stored,
+            ipHash: createHash('sha256')
+              .update(`${request.ip || request.socket.remoteAddress || 'unknown'}${input.rateLimitPepper}`)
+              .digest('hex'),
+            userAgentHash: createHash('sha256').update(userAgent, 'utf8').digest('hex')
+          };
+        }
       },
       issues: {
         authorize: (request) =>
@@ -172,4 +228,3 @@ export function createOpsApiRuntime(input: {
     })
   };
 }
-import { createHash } from 'node:crypto';

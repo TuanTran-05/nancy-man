@@ -7,6 +7,7 @@ import { createReleaseRouter } from './modules/releases/releaseRoutes.js';
 import { createSqlRouter } from './modules/sql/sqlRoutes.js';
 import { createSchemaRouter } from './modules/database/schemaRoutes.js';
 import { createIncidentRouter } from './modules/incidents/incidentRoutes.js';
+import { createAccountRouter } from './modules/accounts/accountRoutes.js';
 
 export function createOpsApi(input: {
   ingest: Parameters<typeof createIngestRouter>[0];
@@ -16,6 +17,7 @@ export function createOpsApi(input: {
   incidents?: Parameters<typeof createIncidentRouter>[0];
   database?: Parameters<typeof createSchemaRouter>[0];
   sql?: Parameters<typeof createSqlRouter>[0];
+  accounts?: Parameters<typeof createAccountRouter>[0];
   trustedProxy?: string | readonly string[];
 }) {
   const app = express();
@@ -33,6 +35,7 @@ export function createOpsApi(input: {
   });
   app.use('/api/v1/ingest', createIngestRouter(input.ingest));
   if (input.auth) app.use('/api/v1/auth', createAuthRouter(input.auth));
+  if (input.accounts) app.use('/api/v1/users', createAccountRouter(input.accounts));
   if (input.issues) app.use('/api/v1/issues', createIssueRouter(input.issues));
   if (input.incidents) app.use('/api/v1/incidents', createIncidentRouter(input.incidents));
   if (input.database) app.use('/api/v1/database', createSchemaRouter(input.database));

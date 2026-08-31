@@ -13,6 +13,8 @@ describe('authorizeOpsSession', () => {
         deriveCsrfSecret({ sessionToken: 'token'.repeat(8), csrfPepper: 'pepper' })
       ),
       role: 'ops_owner' as const,
+      username: 'tuan.dev',
+      displayName: 'Tuan Dev',
       lastActivityAt: '2026-08-22T03:00:00.000Z',
       idleExpiresAt: '2026-08-22T03:30:00.000Z',
       absoluteExpiresAt: '2026-08-22T15:00:00.000Z'
@@ -34,6 +36,11 @@ describe('authorizeOpsSession', () => {
         sessionPepper: 'pepper',
         repository: { findActiveByToken: async () => session }
       })
-    ).resolves.toMatchObject({ role: 'ops_owner', sessionId: 'session-id' });
+    ).resolves.toMatchObject({
+      role: 'ops_owner',
+      sessionId: 'session-id',
+      username: 'tuan.dev',
+      displayName: 'Tuan Dev'
+    });
   });
 });

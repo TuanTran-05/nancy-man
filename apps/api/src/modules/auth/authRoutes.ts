@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import express, { type Request, type Router } from 'express';
 import { z } from 'zod';
 
@@ -42,6 +44,13 @@ const enrollmentVerifyBody = enrollmentStartBody.extend({
   otp: z.string().regex(/^\d{6}$/),
   password: z.string().min(14).max(1_024)
 }).strict();
+const accountAuthorizationBody = z
+  .object({
+    password: z.string().min(14).max(1_024),
+    factorId: z.string().uuid(),
+    token: z.string().regex(/^\d{6}$/)
+  })
+  .strict();
 const sqlElevationBody = z.object({
   factorId: z.string().uuid(),
   token: z.string().regex(/^\d{6}$/),
@@ -81,7 +90,14 @@ export function createAuthRouter(input: {
       cookieHeader?: string;
       csrfToken?: string;
       mutation: boolean;
-    }) => Promise<{ sessionId: string; userId: string; role: OpsRole } | null>;
+    }) => Promise<{
+      sessionId: string;
+      userId: string;
+      role: OpsRole;
+      username?: string;
+      displayName?: string;
+      csrfToken?: string;
+    } | null>;
     revoke: (sessionId: string) => Promise<void>;
   };
   bootstrap?: {
@@ -97,11 +113,24 @@ export function createAuthRouter(input: {
       password: string;
     }) => Promise<boolean>;
   };
+  stepUp?: {
+    grant: (input: {
+      capability: 'accounts_write';
+      userId: string;
+      sessionId: string;
+      password: string;
+      factorId: string;
+      token: string;
+      ipHash: string;
+      userAgentHash: string;
+    }) => Promise<{ id: string; expiresAt: string }>;
+  };
 }): Router {
   const router = express.Router();
   router.use(express.json({ limit: '8kb' }));
   router.post('/login', async (request, response, next) => {
     try {
+      response.setHeader('Cache-Control', 'no-store');
       const parsed = loginBody.safeParse(request.body);
       if (!parsed.success) return response.status(400).json({ code: 'INVALID_LOGIN_REQUEST' });
       const result = await input.service.beginLogin({
@@ -120,6 +149,7 @@ export function createAuthRouter(input: {
   });
   router.post('/bootstrap/totp/start', async (request, response, next) => {
     try {
+      response.setHeader('Cache-Control', 'no-store');
       const parsed = enrollmentStartBody.safeParse(request.body);
       if (!parsed.success || !input.bootstrap)
         return response.status(400).json({ code: 'INVALID_ENROLLMENT_REQUEST' });
@@ -133,6 +163,7 @@ export function createAuthRouter(input: {
   });
   router.post('/bootstrap/totp/verify', async (request, response, next) => {
     try {
+      response.setHeader('Cache-Control', 'no-store');
       const parsed = enrollmentVerifyBody.safeParse(request.body);
       if (!parsed.success || !input.bootstrap)
         return response.status(400).json({ code: 'INVALID_ENROLLMENT_REQUEST' });
@@ -145,6 +176,7 @@ export function createAuthRouter(input: {
   });
   router.post('/login/totp', async (request, response, next) => {
     try {
+      response.setHeader('Cache-Control', 'no-store');
       const parsed = totpBody.safeParse(request.body);
       if (!parsed.success) return response.status(400).json({ code: 'INVALID_MFA_REQUEST' });
       const result = await input.service.completeTotpLogin({
@@ -204,13 +236,20 @@ export function createAuthRouter(input: {
   });
   router.get('/session', async (request, response, next) => {
     try {
+      response.setHeader('Cache-Control', 'no-store');
       const cookieHeader = request.get('cookie');
       const principal = await input.session?.authorize({
         ...(cookieHeader ? { cookieHeader } : {}),
         mutation: false
       });
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
-      return response.status(200).json({ userId: principal.userId, role: principal.role });
+      return response.status(200).json({
+        userId: principal.userId,
+        ...(principal.username ? { username: principal.username } : {}),
+        ...(principal.displayName ? { displayName: principal.displayName } : {}),
+        role: principal.role,
+        ...(principal.csrfToken ? { csrfToken: principal.csrfToken } : {})
+      });
     } catch (error) {
       next(error);
     }
@@ -233,6 +272,43 @@ export function createAuthRouter(input: {
         path: '/'
       });
       return response.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post('/accounts/authorization', async (request, response, next) => {
+    try {
+      response.setHeader('Cache-Control', 'no-store');
+      const parsed = accountAuthorizationBody.safeParse(request.body);
+      if (!parsed.success || !input.stepUp) {
+        return response.status(400).json({ code: 'INVALID_AUTHORIZATION_REQUEST' });
+      }
+      if (request.get('origin') !== 'https://man.thienuy.edu.vn') {
+        return response.status(403).json({ code: 'ORIGIN_DENIED' });
+      }
+      const cookieHeader = request.get('cookie');
+      const csrfToken = request.get('X-Ops-CSRF');
+      const principal = await input.session?.authorize({
+        ...(cookieHeader ? { cookieHeader } : {}),
+        ...(csrfToken ? { csrfToken } : {}),
+        mutation: true
+      });
+      if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
+      try {
+        assertPermission(principal.role, 'accounts:write');
+      } catch {
+        return response.status(403).json({ code: 'PERMISSION_DENIED' });
+      }
+      const metadata = requestMetadata(request, input.hashClientIp);
+      const result = await input.stepUp.grant({
+        capability: 'accounts_write',
+        userId: principal.userId,
+        sessionId: principal.sessionId,
+        ...parsed.data,
+        ipHash: metadata.ipHash,
+        userAgentHash: createHash('sha256').update(metadata.userAgent, 'utf8').digest('hex')
+      });
+      return response.status(200).json({ authorizedUntil: result.expiresAt });
     } catch (error) {
       next(error);
     }

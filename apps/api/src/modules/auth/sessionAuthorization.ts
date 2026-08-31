@@ -11,6 +11,8 @@ type SessionRecord = {
   userId: string;
   csrfSecretHash: string;
   role: OpsRole;
+  username?: string;
+  displayName?: string;
 };
 
 function sessionToken(cookieHeader: string | undefined): string | null {
@@ -29,7 +31,13 @@ export async function authorizeOpsSession(input: {
   mutation: boolean;
   sessionPepper: string;
   repository: { findActiveByToken: (token: string) => Promise<SessionRecord | null> };
-}): Promise<{ sessionId: string; userId: string; role: OpsRole } | null> {
+}): Promise<{
+  sessionId: string;
+  userId: string;
+  role: OpsRole;
+  username?: string;
+  displayName?: string;
+} | null> {
   const token = sessionToken(input.cookieHeader);
   if (!token) return null;
   const session = await input.repository.findActiveByToken(token);
@@ -43,5 +51,11 @@ export async function authorizeOpsSession(input: {
       !verifyCsrfToken({ sessionId: session.id, csrfSecret, csrfToken: input.csrfToken }))
   )
     return null;
-  return { sessionId: session.id, userId: session.userId, role: session.role };
+  return {
+    sessionId: session.id,
+    userId: session.userId,
+    role: session.role,
+    ...(session.username ? { username: session.username } : {}),
+    ...(session.displayName ? { displayName: session.displayName } : {})
+  };
 }

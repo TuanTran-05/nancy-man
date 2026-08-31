@@ -190,4 +190,65 @@ describe('createAuthRouter', () => {
       );
     }
   });
+
+  it('returns only an expiry for an owner account step-up authorization', async () => {
+    const grants: unknown[] = [];
+    const app = express();
+    app.use(
+      '/auth',
+      createAuthRouter({
+        service: {
+          beginLogin: async () => ({ status: 'denied' as const }),
+          completeTotpLogin: async () => ({ status: 'denied' as const })
+        },
+        hashClientIp: () => 'a'.repeat(64),
+        session: {
+          authorize: async ({ mutation, csrfToken }) =>
+            mutation && csrfToken === 'csrf-token'
+              ? { sessionId: 'session-id', userId: 'owner-id', role: 'ops_owner' as const }
+              : null,
+          revoke: async () => undefined
+        },
+        stepUp: {
+          grant: async (input) => {
+            grants.push(input);
+            return { id: 'internal-grant-id', expiresAt: '2026-08-31T12:05:00.000Z' };
+          }
+        }
+      })
+    );
+    await withTestServer(app, async (origin) => {
+      const response = await fetch(`${origin}/auth/accounts/authorization`, {
+        method: 'POST',
+        headers: {
+          Origin: 'https://man.thienuy.edu.vn',
+          Cookie: '__Host-ops-session=session-token',
+          'X-Ops-CSRF': 'csrf-token',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          password: 'a-long-new-password',
+          factorId: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
+          token: '123456'
+        })
+      });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        authorizedUntil: '2026-08-31T12:05:00.000Z'
+      });
+      expect(JSON.stringify(grants)).not.toContain('internal-grant-id');
+    });
+  });
 });
+
+async function withTestServer(app: express.Express, action: (origin: string) => Promise<void>) {
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('address');
+  try {
+    await action(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+}

@@ -58,6 +58,11 @@ describe('Ops sessions and authorization', () => {
   it('enforces RBAC and a separate 15-minute SQL elevation', () => {
     expect(() => assertPermission('ops_viewer', 'sql:read')).not.toThrow();
     expect(() => assertPermission('ops_maintainer', 'sql:workspace')).not.toThrow();
+    for (const role of ['ops_viewer', 'ops_maintainer', 'ops_owner'] as const) {
+      expect(() => assertPermission(role, 'variables:read')).not.toThrow();
+      expect(() => assertPermission(role, 'variables:write')).not.toThrow();
+      expect(() => assertPermission(role, 'variables:apply')).not.toThrow();
+    }
     expect(
       isSqlElevationActive(
         { grantedAt: '2026-08-22T03:00:00.000Z', expiresAt: '2026-08-22T03:15:00.000Z' },

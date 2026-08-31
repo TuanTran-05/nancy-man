@@ -13,6 +13,8 @@ export type OpsSessionRecord = {
   absoluteExpiresAt: string;
   csrfSecretHash: string;
   role: OpsRole;
+  username?: string;
+  displayName?: string;
 };
 
 export class OpsSessionRepository {
@@ -33,6 +35,8 @@ export class OpsSessionRepository {
           session.user_id AS "userId",
           session.session_hash AS "sessionHash",
           session.csrf_secret_hash AS "csrfSecretHash",
+          user_record.username,
+          user_record.display_name AS "displayName",
           user_record.role,
           session.last_activity_at AS "lastActivityAt",
           session.idle_expires_at AS "idleExpiresAt",
