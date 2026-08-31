@@ -18,7 +18,8 @@ const validEnvironment = {
   OPS_BROWSER_CONTEXT_KEY_REFERENCE: 'browser-context-edutrack-v1',
   OPS_OBJECT_STORE_DIRECTORY: '/var/lib/edutrack-ops/object-store',
   OPS_BROWSER_CORS_ORIGINS: 'https://thienuy.edu.vn',
-  OPS_SQL_WORKER_ENABLED: 'false'
+  OPS_SQL_WORKER_ENABLED: 'false',
+  OPS_VARIABLES_READ_ONLY_ENABLED: 'false'
 };
 
 describe('readOpsRuntimeConfig', () => {
@@ -41,7 +42,8 @@ describe('readOpsRuntimeConfig', () => {
       },
       objectStoreDirectory: '/var/lib/edutrack-ops/object-store',
       browserCorsOrigins: ['https://thienuy.edu.vn'],
-      sqlWorker: { enabled: false }
+      sqlWorker: { enabled: false },
+      configAgent: { enabled: false }
     });
   });
 
@@ -99,5 +101,50 @@ describe('readOpsRuntimeConfig', () => {
       'OPS_PASSWORD_FINGERPRINT_PEPPER_REFERENCE'
     ];
     expect(() => readOpsRuntimeConfig(environment)).toThrow(/PASSWORD_FINGERPRINT/);
+  });
+
+  it('requires a bounded authenticated Config Agent contract before enabling read-only Variables', () => {
+    expect(
+      readOpsRuntimeConfig({
+        ...validEnvironment,
+        OPS_VARIABLES_READ_ONLY_ENABLED: 'true',
+        OPS_CONFIG_AGENT_SOCKET_PATH: '/run/edutrack-config-agent/agent.sock',
+        OPS_CONFIG_AGENT_HMAC_REFERENCE: 'ops-config-agent-hmac',
+        OPS_CONFIG_AGENT_HMAC_KEY_ID: 'config-agent-2026-08-31',
+        OPS_CONFIG_AGENT_MANIFEST_VERSION: '2026-08-31',
+        OPS_CONFIG_AGENT_CATALOG_VERSION: '2026-08-31',
+        OPS_CONFIG_AGENT_CATALOG_DIGEST: `sha256:${'b'.repeat(64)}`,
+        OPS_CONFIG_AGENT_CONNECT_TIMEOUT_MS: '1000',
+        OPS_CONFIG_AGENT_READ_TIMEOUT_MS: '2000',
+        OPS_CONFIG_AGENT_TOTAL_TIMEOUT_MS: '5000',
+        OPS_CONFIG_AGENT_MAX_RESPONSE_BYTES: '1048576'
+      })
+    ).toMatchObject({
+      configAgent: {
+        enabled: true,
+        socketPath: '/run/edutrack-config-agent/agent.sock',
+        protocolHmacKeyReference: 'ops-config-agent-hmac',
+        protocolHmacKeyId: 'config-agent-2026-08-31',
+        maximumResponseBytes: 1_048_576
+      }
+    });
+  });
+
+  it('fails closed when Variables is enabled with an invalid response limit or raw protocol key', () => {
+    expect(() => readOpsRuntimeConfig({
+      ...validEnvironment,
+      OPS_VARIABLES_READ_ONLY_ENABLED: 'true',
+      OPS_CONFIG_AGENT_SOCKET_PATH: '/run/edutrack-config-agent/agent.sock',
+      OPS_CONFIG_AGENT_HMAC_REFERENCE: 'ops-config-agent-hmac',
+      OPS_CONFIG_AGENT_HMAC: 'raw-secret',
+      OPS_CONFIG_AGENT_HMAC_KEY_ID: 'config-agent-2026-08-31',
+      OPS_CONFIG_AGENT_MANIFEST_VERSION: '2026-08-31',
+      OPS_CONFIG_AGENT_CATALOG_VERSION: '2026-08-31',
+      OPS_CONFIG_AGENT_CATALOG_DIGEST: `sha256:${'b'.repeat(64)}`,
+      OPS_CONFIG_AGENT_CONNECT_TIMEOUT_MS: '1000',
+      OPS_CONFIG_AGENT_READ_TIMEOUT_MS: '2000',
+      OPS_CONFIG_AGENT_TOTAL_TIMEOUT_MS: '5000',
+      OPS_CONFIG_AGENT_MAX_RESPONSE_BYTES: '1048577'
+    })).toThrow(/response bytes|forbidden/i);
   });
 });

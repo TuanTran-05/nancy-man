@@ -32,6 +32,10 @@ import { AccountService } from '../modules/accounts/accountService.js';
 import { PostgresAccountRepository } from '../modules/accounts/postgresAccountRepository.js';
 import { createHash } from 'node:crypto';
 import { LegacyMonitoringClient } from '../modules/monitoring/legacyMonitoringClient.js';
+import { ConfigAgentClient } from '../infrastructure/configAgentClient.js';
+import { StepUpError, type StepUpBinding } from '../modules/auth/stepUpService.js';
+import type { Catalog } from '../../../../packages/config-contracts/src/catalog.js';
+import { VariablesService } from '../modules/variables/variablesService.js';
 
 import { type TransactionalQueryDatabase } from './poolDatabase.js';
 import { type OpsRuntimeConfig } from './runtimeConfig.js';
@@ -49,6 +53,7 @@ export function createOpsApiRuntime(input: {
   legacyMonitoringHmacSecret: string;
   mfaEncryptionKey: Buffer;
   sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
+  configAgent?: { client: ConfigAgentClient; catalog: Catalog };
   resolveSecret: (reference: string) => Promise<string | null>;
 }): { app: ReturnType<typeof createOpsApi> } {
   const ingestStore = new PostgresIngestStore(input.database);
@@ -68,6 +73,63 @@ export function createOpsApiRuntime(input: {
     audit: new PostgresOpsAuditLedger({ database: input.database })
   });
   const monitoringClient = new LegacyMonitoringClient({ secret: input.legacyMonitoringHmacSecret });
+  const variablesAuthorization = new Map<string, StepUpBinding>();
+  const variableUnlockWindows = new Map<string, { startedAt: number; count: number }>();
+  const variableUnlockRateLimiter = {
+    allow: async (value: { userId: string; sessionId: string; ipHash: string }): Promise<boolean> => {
+      const now = Date.now();
+      const key = `${value.userId}:${value.sessionId}:${value.ipHash}`;
+      const current = variableUnlockWindows.get(key);
+      if (!current || current.startedAt + 15 * 60 * 1_000 <= now) {
+        variableUnlockWindows.set(key, { startedAt: now, count: 1 });
+        return true;
+      }
+      if (current.count >= 5) return false;
+      current.count += 1;
+      return true;
+    }
+  };
+  const variableStepUp = {
+    grant: async (proof: {
+      capability: 'variables_secret';
+      userId: string;
+      sessionId: string;
+      password: string;
+      totpCode: string;
+      ipHash: string;
+      userAgentHash: string;
+    }) => {
+      const { rows } = await input.database.query<{ id: string }>(
+        `SELECT id FROM ops_mfa_factors
+         WHERE user_id = $1 AND factor_type = 'totp' AND revoked_at IS NULL
+         ORDER BY created_at DESC LIMIT 1`,
+        [proof.userId]
+      );
+      const factorId = rows[0]?.id;
+      if (!factorId) throw new StepUpError('STEP_UP_INVALID');
+      const grant = await stepUpService.grant({
+        capability: proof.capability,
+        userId: proof.userId,
+        sessionId: proof.sessionId,
+        password: proof.password,
+        factorId,
+        token: proof.totpCode,
+        ipHash: proof.ipHash,
+        userAgentHash: proof.userAgentHash
+      });
+      variablesAuthorization.set(proof.sessionId, {
+        grantId: grant.id,
+        capability: grant.capability,
+        userId: grant.userId,
+        sessionId: grant.sessionId,
+        ipHash: grant.ipHash,
+        userAgentHash: grant.userAgentHash
+      });
+      return { id: grant.id, expiresAt: grant.expiresAt };
+    },
+    authorize: (binding: StepUpBinding) => stepUpService.authorize(binding),
+    revoke: (binding: StepUpBinding) => stepUpService.revoke(binding)
+  };
   const sqlElevationRepository = new PostgresSqlElevationRepository(input.database);
   const nonceStore = new PostgresNonceStore(input.database);
   const browser = createBrowserIngestService({
@@ -195,6 +257,33 @@ export function createOpsApiRuntime(input: {
             })
         }
       },
+      ...(input.configAgent
+        ? {
+            variables: {
+              service: new VariablesService({
+                client: input.configAgent.client,
+                catalog: input.configAgent.catalog,
+                audit: new PostgresOpsAuditLedger({ database: input.database })
+              }),
+              session: {
+                authorize: (request: {
+                  cookieHeader?: string;
+                  csrfToken?: string;
+                  mutation: boolean;
+                }) =>
+                  authorizeOpsSession({
+                    ...request,
+                    sessionPepper: input.authSessionPepper,
+                    repository: sessionRepository
+                  })
+              },
+              stepUp: variableStepUp,
+              hashClientIp: (ip: string) =>
+                createHash('sha256').update(`${ip}${input.rateLimitPepper}`).digest('hex'),
+              rateLimiter: variableUnlockRateLimiter
+            }
+          }
+        : {}),
       issues: {
         authorize: (request) =>
           authorizeOpsSession({
