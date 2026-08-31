@@ -25,16 +25,25 @@ function accountQuery() {
   `;
 }
 
-async function appendAccountEvent(database: QueryDatabase, input: {
-  userId: string;
-  actorUserId: string | null;
-  eventType: string;
-  metadata?: Record<string, unknown>;
-}) {
+async function appendAccountEvent(
+  database: QueryDatabase,
+  input: {
+    userId: string;
+    actorUserId: string | null;
+    eventType: string;
+    metadata?: Record<string, unknown>;
+  }
+) {
   await database.query(
     `INSERT INTO ops_account_events (id, user_id, actor_user_id, event_type, metadata)
      VALUES ($1, $2, $3, $4, $5::jsonb)`,
-    [randomUUID(), input.userId, input.actorUserId, input.eventType, JSON.stringify(input.metadata ?? {})]
+    [
+      randomUUID(),
+      input.userId,
+      input.actorUserId,
+      input.eventType,
+      JSON.stringify(input.metadata ?? {})
+    ]
   );
 }
 
@@ -42,12 +51,17 @@ export class PostgresAccountRepository implements AccountRepository {
   constructor(private readonly database: TransactionalDatabase) {}
 
   async list(): Promise<readonly OpsAccountSummary[]> {
-    const { rows } = await this.database.query<AccountRow>(`${accountQuery()} ORDER BY user_record.created_at, user_record.id`);
+    const { rows } = await this.database.query<AccountRow>(
+      `${accountQuery()} ORDER BY user_record.created_at, user_record.id`
+    );
     return rows;
   }
 
   async findById(id: string): Promise<OpsAccountSummary | null> {
-    const { rows } = await this.database.query<AccountRow>(`${accountQuery()} WHERE user_record.id = $1 LIMIT 1`, [id]);
+    const { rows } = await this.database.query<AccountRow>(
+      `${accountQuery()} WHERE user_record.id = $1 LIMIT 1`,
+      [id]
+    );
     return rows[0] ?? null;
   }
 
@@ -85,25 +99,49 @@ export class PostgresAccountRepository implements AccountRepository {
 
   async changeRole(input: Parameters<AccountRepository['changeRole']>[0]): Promise<boolean> {
     return this.database.transaction(async (database) => {
-      const account = await this.lockActorAndTarget(database, input.actorUserId, input.targetUserId);
+      const account = await this.lockActorAndTarget(
+        database,
+        input.actorUserId,
+        input.targetUserId
+      );
       if (!account || input.actorUserId === input.targetUserId) return false;
       const owners = await this.lockActiveOwnerCount(database);
-      if (account.role === 'ops_owner' && account.status === 'active' && input.role !== 'ops_owner' && owners <= 1) return false;
+      if (
+        account.role === 'ops_owner' &&
+        account.status === 'active' &&
+        input.role !== 'ops_owner' &&
+        owners <= 1
+      )
+        return false;
       const { rows } = await database.query<{ id: string }>(
         `UPDATE ops_users SET role = $3 WHERE id = $2 AND $1 <> $2 AND status <> 'revoked' RETURNING id`,
         [input.actorUserId, input.targetUserId, input.role]
       );
       if (rows.length !== 1) return false;
-      await appendAccountEvent(database, { userId: input.targetUserId, actorUserId: input.actorUserId, eventType: 'role_changed', metadata: { role: input.role } });
+      await appendAccountEvent(database, {
+        userId: input.targetUserId,
+        actorUserId: input.actorUserId,
+        eventType: 'role_changed',
+        metadata: { role: input.role }
+      });
       return true;
     });
   }
 
   async lock(input: Parameters<AccountRepository['lock']>[0]): Promise<boolean> {
     return this.database.transaction(async (database) => {
-      const account = await this.lockActorAndTarget(database, input.actorUserId, input.targetUserId);
+      const account = await this.lockActorAndTarget(
+        database,
+        input.actorUserId,
+        input.targetUserId
+      );
       if (!account || input.actorUserId === input.targetUserId) return false;
-      if (account.role === 'ops_owner' && account.status === 'active' && (await this.lockActiveOwnerCount(database)) <= 1) return false;
+      if (
+        account.role === 'ops_owner' &&
+        account.status === 'active' &&
+        (await this.lockActiveOwnerCount(database)) <= 1
+      )
+        return false;
       const { rows } = await database.query<{ id: string }>(
         `UPDATE ops_users
          SET status = 'locked', administratively_locked_at = now(), administratively_locked_by = $1,
@@ -113,14 +151,23 @@ export class PostgresAccountRepository implements AccountRepository {
       );
       if (rows.length !== 1) return false;
       await this.revokeAccess(database, input.targetUserId, 'ACCOUNT_LOCKED');
-      await appendAccountEvent(database, { userId: input.targetUserId, actorUserId: input.actorUserId, eventType: 'administratively_locked', metadata: { reason: input.reason } });
+      await appendAccountEvent(database, {
+        userId: input.targetUserId,
+        actorUserId: input.actorUserId,
+        eventType: 'administratively_locked',
+        metadata: { reason: input.reason }
+      });
       return true;
     });
   }
 
   async recover(input: Parameters<AccountRepository['recover']>[0]): Promise<boolean> {
     return this.database.transaction(async (database) => {
-      const account = await this.lockActorAndTarget(database, input.actorUserId, input.targetUserId);
+      const account = await this.lockActorAndTarget(
+        database,
+        input.actorUserId,
+        input.targetUserId
+      );
       if (!account || account.status !== 'locked') return false;
       const { rows } = await database.query<{ id: string }>(
         `UPDATE ops_users
@@ -136,30 +183,59 @@ export class PostgresAccountRepository implements AccountRepository {
          VALUES ($1, $2, $3, 'recovery', $4, $5)`,
         [randomUUID(), input.targetUserId, input.tokenHash, input.expiresAt, input.actorUserId]
       );
-      await appendAccountEvent(database, { userId: input.targetUserId, actorUserId: input.actorUserId, eventType: 'recovery_issued', metadata: { status: 'pending_mfa' } });
+      await appendAccountEvent(database, {
+        userId: input.targetUserId,
+        actorUserId: input.actorUserId,
+        eventType: 'recovery_issued',
+        metadata: { status: 'pending_mfa' }
+      });
       return true;
     });
   }
 
   async revoke(input: Parameters<AccountRepository['revoke']>[0]): Promise<boolean> {
     return this.database.transaction(async (database) => {
-      const account = await this.lockActorAndTarget(database, input.actorUserId, input.targetUserId);
+      const account = await this.lockActorAndTarget(
+        database,
+        input.actorUserId,
+        input.targetUserId
+      );
       if (!account || input.actorUserId === input.targetUserId) return false;
-      if (account.role === 'ops_owner' && account.status === 'active' && (await this.lockActiveOwnerCount(database)) <= 1) return false;
+      if (
+        account.role === 'ops_owner' &&
+        account.status === 'active' &&
+        (await this.lockActiveOwnerCount(database)) <= 1
+      )
+        return false;
       const { rows } = await database.query<{ id: string }>(
         `UPDATE ops_users SET status = 'revoked', revoked_at = now(), revoked_by = $1 WHERE id = $2 AND status <> 'revoked' RETURNING id`,
         [input.actorUserId, input.targetUserId]
       );
       if (rows.length !== 1) return false;
       await this.revokeAccess(database, input.targetUserId, 'ACCOUNT_REVOKED');
-      await appendAccountEvent(database, { userId: input.targetUserId, actorUserId: input.actorUserId, eventType: 'revoked', metadata: { status: 'revoked' } });
+      await appendAccountEvent(database, {
+        userId: input.targetUserId,
+        actorUserId: input.actorUserId,
+        eventType: 'revoked',
+        metadata: { status: 'revoked' }
+      });
       return true;
     });
   }
 
-  private async lockActorAndTarget(database: QueryDatabase, actorUserId: string, targetUserId: string): Promise<OpsAccountSummary | null> {
-    await database.query<AccountRow>(`${accountQuery()} WHERE user_record.id IN ($1, $2) FOR UPDATE`, [actorUserId, targetUserId]);
-    const { rows } = await database.query<AccountRow>(`${accountQuery()} WHERE user_record.id = $1 LIMIT 1 FOR UPDATE`, [targetUserId]);
+  private async lockActorAndTarget(
+    database: QueryDatabase,
+    actorUserId: string,
+    targetUserId: string
+  ): Promise<OpsAccountSummary | null> {
+    await database.query<AccountRow>(
+      `${accountQuery()} WHERE user_record.id IN ($1, $2) FOR UPDATE`,
+      [actorUserId, targetUserId]
+    );
+    const { rows } = await database.query<AccountRow>(
+      `${accountQuery()} WHERE user_record.id = $1 LIMIT 1 FOR UPDATE`,
+      [targetUserId]
+    );
     return rows[0] ?? null;
   }
 
@@ -170,10 +246,26 @@ export class PostgresAccountRepository implements AccountRepository {
     return rows.length;
   }
 
-  private async revokeAccess(database: QueryDatabase, userId: string, reason: string): Promise<void> {
-    await database.query(`UPDATE ops_sessions SET revoked_at = now(), revoked_reason = $2 WHERE user_id = $1 AND revoked_at IS NULL`, [userId, reason]);
-    await database.query(`UPDATE ops_mfa_login_challenges SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [userId]);
-    await database.query(`UPDATE ops_secret_elevations SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [userId]);
-    await database.query(`UPDATE ops_mfa_enrollment_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [userId]);
+  private async revokeAccess(
+    database: QueryDatabase,
+    userId: string,
+    reason: string
+  ): Promise<void> {
+    await database.query(
+      `UPDATE ops_sessions SET revoked_at = now(), revoked_reason = $2 WHERE user_id = $1 AND revoked_at IS NULL`,
+      [userId, reason]
+    );
+    await database.query(
+      `UPDATE ops_mfa_login_challenges SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`,
+      [userId]
+    );
+    await database.query(
+      `UPDATE ops_secret_elevations SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`,
+      [userId]
+    );
+    await database.query(
+      `UPDATE ops_mfa_enrollment_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`,
+      [userId]
+    );
   }
 }

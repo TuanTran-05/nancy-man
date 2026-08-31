@@ -49,12 +49,14 @@ describe('SnapshotStore', () => {
       value: snapshot,
       now: new Date('2026-08-31T00:00:00.000Z')
     });
-    expect(
-      await store.readSnapshot('snapshot-1', new Date('2026-08-31T01:00:00.000Z'))
-    ).toEqual(snapshot);
+    expect(await store.readSnapshot('snapshot-1', new Date('2026-08-31T01:00:00.000Z'))).toEqual(
+      snapshot
+    );
     const artifact = await readFile(join(stateDirectory, 'snapshots', 'snapshot-1.enc'));
     expect(artifact.toString('utf8')).not.toContain('snapshot-secret-sentinel');
-    expect((await lstat(join(stateDirectory, 'snapshots', 'snapshot-1.enc'))).mode & 0o777).toBe(0o600);
+    expect((await lstat(join(stateDirectory, 'snapshots', 'snapshot-1.enc'))).mode & 0o777).toBe(
+      0o600
+    );
   });
 
   test('marks rollback-failed evidence so retention may not delete it', async () => {

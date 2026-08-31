@@ -50,10 +50,12 @@ describe('DraftStore', () => {
     expect(await store.readDraft('change-1', new Date('2026-08-31T02:00:00.000Z'))).toBeNull();
     expect(await store.readStaged('change-1', new Date('2026-08-31T03:00:00.000Z'))).toEqual(draft);
 
-    const files = await Promise.all([
-      readFile(join(stateDirectory, 'drafts', 'change-1.enc')),
-      readFile(join(stateDirectory, 'staged', 'change-1.enc'))
-    ].map((promise) => promise.catch(() => Buffer.alloc(0))));
+    const files = await Promise.all(
+      [
+        readFile(join(stateDirectory, 'drafts', 'change-1.enc')),
+        readFile(join(stateDirectory, 'staged', 'change-1.enc'))
+      ].map((promise) => promise.catch(() => Buffer.alloc(0)))
+    );
     expect(Buffer.concat(files).toString('utf8')).not.toContain('draft-secret-sentinel');
   });
 
@@ -95,7 +97,9 @@ describe('DraftStore', () => {
     await expect(store.readDraft('link', new Date('2026-08-31T01:00:00.000Z'))).rejects.toThrow(
       /symlink|metadata|artifact/i
     );
-    await expect(store.readDraft('change-3', new Date('2026-09-01T00:00:00.001Z'))).resolves.toBeNull();
+    await expect(
+      store.readDraft('change-3', new Date('2026-09-01T00:00:00.001Z'))
+    ).resolves.toBeNull();
 
     await chmod(join(stateDirectory, 'drafts', 'index.json'), 0o644);
     await expect(

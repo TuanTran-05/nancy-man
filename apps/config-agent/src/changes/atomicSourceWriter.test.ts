@@ -1,9 +1,12 @@
-import { chmodSync, linkSync, lstatSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { linkSync, lstatSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-import type { AgentManifest, ManifestSource } from '../../../../packages/config-contracts/src/index.js';
+import type {
+  AgentManifest,
+  ManifestSource
+} from '../../../../packages/config-contracts/src/index.js';
 import { createFingerprintKey, fingerprintSource } from '../inventory/fingerprint.js';
 import {
   createAtomicSourceWriter,
@@ -113,8 +116,20 @@ describe('descriptor-safe atomic source writer', () => {
     await expect(
       writer.write({
         sourceId: item.source.id,
-        expectedSourceFingerprint: fingerprintSource(key, item.source.id, Buffer.from('PORT=2999\n')),
-        operations: [{ name: 'PORT', duplicateOrdinal: 0, operation: 'set', requirement: 'required', value: '3001' }]
+        expectedSourceFingerprint: fingerprintSource(
+          key,
+          item.source.id,
+          Buffer.from('PORT=2999\n')
+        ),
+        operations: [
+          {
+            name: 'PORT',
+            duplicateOrdinal: 0,
+            operation: 'set',
+            requirement: 'required',
+            value: '3001'
+          }
+        ]
       })
     ).rejects.toMatchObject({ code: 'CONFIG_SOURCE_CHANGED' });
     expect(readFileSync(item.path)).toEqual(original);
@@ -124,20 +139,28 @@ describe('descriptor-safe atomic source writer', () => {
     const item = fixture();
     const original = Buffer.from('PORT=3000\nOPTIONAL=old\n');
     writeFileSync(item.path, original, { mode: 0o640 });
-    const writer = createAtomicSourceWriter({ manifest: item.manifest, fingerprintKey: key, readSource: item.readSource });
+    const writer = createAtomicSourceWriter({
+      manifest: item.manifest,
+      fingerprintKey: key,
+      readSource: item.readSource
+    });
 
     await expect(
       writer.write({
         sourceId: item.source.id,
         expectedSourceFingerprint: fingerprintSource(key, item.source.id, original),
-        operations: [{ name: 'PORT', duplicateOrdinal: 0, operation: 'delete', requirement: 'required' }]
+        operations: [
+          { name: 'PORT', duplicateOrdinal: 0, operation: 'delete', requirement: 'required' }
+        ]
       })
     ).rejects.toMatchObject({ code: 'REQUIRED_DELETE' });
 
     await writer.write({
       sourceId: item.source.id,
       expectedSourceFingerprint: fingerprintSource(key, item.source.id, original),
-      operations: [{ name: 'OPTIONAL', duplicateOrdinal: 0, operation: 'delete', requirement: 'optional' }]
+      operations: [
+        { name: 'OPTIONAL', duplicateOrdinal: 0, operation: 'delete', requirement: 'optional' }
+      ]
     });
     expect(readFileSync(item.path).toString('utf8')).toBe('PORT=3000\n');
 
@@ -146,14 +169,26 @@ describe('descriptor-safe atomic source writer', () => {
       writer.write({
         sourceId: item.source.id,
         expectedSourceFingerprint: fingerprintSource(key, item.source.id, readFileSync(item.path)),
-        operations: [{ name: 'PORT', duplicateOrdinal: 0, operation: 'set', requirement: 'required', value: '3001' }]
+        operations: [
+          {
+            name: 'PORT',
+            duplicateOrdinal: 0,
+            operation: 'set',
+            requirement: 'required',
+            value: '3001'
+          }
+        ]
       })
     ).rejects.toMatchObject({ code: 'SOURCE_HARD_LINK_REJECTED' });
   });
 
   test('fails closed when the source adapter is observation-only', async () => {
     const item = fixture();
-    const observed = { ...item.source, adapterId: 'pm2_ecosystem_static' as const, mutability: 'observed' as const };
+    const observed = {
+      ...item.source,
+      adapterId: 'pm2_ecosystem_static' as const,
+      mutability: 'observed' as const
+    };
     const writer = createAtomicSourceWriter({
       manifest: { ...item.manifest, sources: [observed] },
       fingerprintKey: key,
@@ -164,7 +199,15 @@ describe('descriptor-safe atomic source writer', () => {
       writer.write({
         sourceId: observed.id,
         expectedSourceFingerprint: fingerprintSource(key, observed.id, readFileSync(item.path)),
-        operations: [{ name: 'PORT', duplicateOrdinal: 0, operation: 'set', requirement: 'required', value: '3001' }]
+        operations: [
+          {
+            name: 'PORT',
+            duplicateOrdinal: 0,
+            operation: 'set',
+            requirement: 'required',
+            value: '3001'
+          }
+        ]
       })
     ).rejects.toBeInstanceOf(AtomicSourceWriterError);
   });

@@ -13,8 +13,20 @@ describe('config-agent apply restart recovery', () => {
     };
     const recovery = createChangeRecovery({
       readJournal: async () => [
-        { changeId: 'CHG_RECOVERY_1', runId: 'RUN_RECOVERY_1', appId: 'edutrack', state: 'WRITTEN', hasWrites: true },
-        { changeId: 'CHG_RECOVERY_1', runId: 'RUN_RECOVERY_1', appId: 'edutrack', state: 'WRITTEN', hasWrites: true }
+        {
+          changeId: 'CHG_RECOVERY_1',
+          runId: 'RUN_RECOVERY_1',
+          appId: 'edutrack',
+          state: 'WRITTEN',
+          hasWrites: true
+        },
+        {
+          changeId: 'CHG_RECOVERY_1',
+          runId: 'RUN_RECOVERY_1',
+          appId: 'edutrack',
+          state: 'WRITTEN',
+          hasWrites: true
+        }
       ],
       coordinator
     });
@@ -22,14 +34,22 @@ describe('config-agent apply restart recovery', () => {
     const result = await recovery.reconcile();
 
     expect(calls).toEqual(['CHG_RECOVERY_1:RUN_RECOVERY_1']);
-    expect(result).toEqual([{ changeId: 'CHG_RECOVERY_1', runId: 'RUN_RECOVERY_1', state: 'COMPLETED' }]);
+    expect(result).toEqual([
+      { changeId: 'CHG_RECOVERY_1', runId: 'RUN_RECOVERY_1', state: 'COMPLETED' }
+    ]);
   });
 
   test('asks the coordinator to enter rollback for a journal that crossed the write boundary', async () => {
     let recordState: string | undefined;
     const recovery = createChangeRecovery({
       readJournal: async () => [
-        { changeId: 'CHG_RECOVERY_2', runId: 'RUN_RECOVERY_2', appId: 'edutrack', state: 'ACTION_RUNNING', hasWrites: true }
+        {
+          changeId: 'CHG_RECOVERY_2',
+          runId: 'RUN_RECOVERY_2',
+          appId: 'edutrack',
+          state: 'ACTION_RUNNING',
+          hasWrites: true
+        }
       ],
       coordinator: {
         resume: async (record) => {

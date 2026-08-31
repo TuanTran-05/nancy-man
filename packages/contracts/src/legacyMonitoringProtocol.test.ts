@@ -93,8 +93,18 @@ describe('legacy monitoring protocol', () => {
   it('fails closed when the bounded replay cache is full until entries expire', async () => {
     const cache = new BoundedNonceReplayCache(1);
     const now = new Date('2026-08-31T12:00:00.000Z');
-    await expect(cache.consume('nonce-0123456789abcdef', new Date(now.getTime() + 30_000), now)).resolves.toBe(true);
-    await expect(cache.consume('nonce-fedcba9876543210', new Date(now.getTime() + 30_000), now)).resolves.toBe(false);
-    await expect(cache.consume('nonce-fedcba9876543210', new Date(now.getTime() + 30_000), new Date(now.getTime() + 30_001))).resolves.toBe(true);
+    await expect(
+      cache.consume('nonce-0123456789abcdef', new Date(now.getTime() + 30_000), now)
+    ).resolves.toBe(true);
+    await expect(
+      cache.consume('nonce-fedcba9876543210', new Date(now.getTime() + 30_000), now)
+    ).resolves.toBe(false);
+    await expect(
+      cache.consume(
+        'nonce-fedcba9876543210',
+        new Date(now.getTime() + 30_000),
+        new Date(now.getTime() + 30_001)
+      )
+    ).resolves.toBe(true);
   });
 });

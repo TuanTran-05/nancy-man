@@ -24,7 +24,12 @@ export type LegacyMonitoringVerification =
   | { ok: true }
   | {
       ok: false;
-      code: 'EXPIRED_TIMESTAMP' | 'INVALID_SIGNATURE' | 'REPLAYED_NONCE' | 'PATH_NOT_ALLOWED' | 'BODY_TOO_LARGE';
+      code:
+        | 'EXPIRED_TIMESTAMP'
+        | 'INVALID_SIGNATURE'
+        | 'REPLAYED_NONCE'
+        | 'PATH_NOT_ALLOWED'
+        | 'BODY_TOO_LARGE';
     };
 
 function canonicalRequest(input: LegacyMonitoringRequest): string {
@@ -41,7 +46,9 @@ function canonicalRequest(input: LegacyMonitoringRequest): string {
   ].join('\n');
 }
 
-export function signLegacyMonitoringRequest(input: LegacyMonitoringRequest & { secret: string }): string {
+export function signLegacyMonitoringRequest(
+  input: LegacyMonitoringRequest & { secret: string }
+): string {
   return `v1=${createHmac('sha256', input.secret).update(canonicalRequest(input), 'utf8').digest('hex')}`;
 }
 
@@ -49,7 +56,8 @@ export class BoundedNonceReplayCache {
   private readonly expiries = new Map<string, number>();
 
   constructor(private readonly capacity: number) {
-    if (!Number.isSafeInteger(capacity) || capacity < 1) throw new Error('Invalid nonce cache capacity');
+    if (!Number.isSafeInteger(capacity) || capacity < 1)
+      throw new Error('Invalid nonce cache capacity');
   }
 
   async consume(nonce: string, expiresAt: Date, now: Date): Promise<boolean> {

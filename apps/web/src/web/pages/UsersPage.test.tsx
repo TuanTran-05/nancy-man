@@ -77,10 +77,16 @@ describe('UsersPage', () => {
     render(<UsersPage session={owner} onUnauthorized={vi.fn()} />);
 
     expect(await screen.findByRole('heading', { name: 'Người dùng' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Vai trò tài khoản mới' })).toHaveValue('ops_maintainer');
-    expect(screen.getByText('Không thể tự khóa hoặc tự thu hồi tài khoản owner đang đăng nhập.')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Vai trò tài khoản mới' })).toHaveValue(
+      'ops_maintainer'
+    );
+    expect(
+      screen.getByText('Không thể tự khóa hoặc tự thu hồi tài khoản owner đang đăng nhập.')
+    ).toBeInTheDocument();
     expect(screen.getByText('Không thể xóa owner cuối cùng.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cấp lại liên kết MFA cho locked.user' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Cấp lại liên kết MFA cho locked.user' })
+    ).toBeInTheDocument();
     expect(screen.getByText('Đã thu hồi — trạng thái kết thúc')).toBeInTheDocument();
   });
 
@@ -91,11 +97,14 @@ describe('UsersPage', () => {
         return jsonResponse({ accounts: [accounts[0]] });
       }
       expect(init?.method).toBe('POST');
-      return jsonResponse({
-        userId: 'new-id',
-        enrollmentUrl: 'https://man.thienuy.edu.vn/bootstrap/mfa?token=one-time-secret',
-        expiresAt: '2026-09-01T12:00:00.000Z'
-      }, 201);
+      return jsonResponse(
+        {
+          userId: 'new-id',
+          enrollmentUrl: 'https://man.thienuy.edu.vn/bootstrap/mfa?token=one-time-secret',
+          expiresAt: '2026-09-01T12:00:00.000Z'
+        },
+        201
+      );
     });
     render(<UsersPage session={owner} onUnauthorized={vi.fn()} />);
     await screen.findByRole('heading', { name: 'Người dùng' });
@@ -103,7 +112,9 @@ describe('UsersPage', () => {
     await user.type(screen.getByLabelText('Email mới'), 'new@example.test');
     await user.type(screen.getByLabelText('Tên hiển thị mới'), 'New Operator');
     await user.click(screen.getByRole('button', { name: 'Tạo liên kết enrollment' }));
-    const link = await screen.findByDisplayValue('https://man.thienuy.edu.vn/bootstrap/mfa?token=one-time-secret');
+    const link = await screen.findByDisplayValue(
+      'https://man.thienuy.edu.vn/bootstrap/mfa?token=one-time-secret'
+    );
     expect(link).toHaveAttribute('autocomplete', 'off');
     expect(screen.getByText(/hết hạn sau 24 giờ/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Ẩn liên kết enrollment' }));

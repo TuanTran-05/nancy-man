@@ -33,7 +33,11 @@ export type AccountRepository = {
     createdAt: string;
     issuedByUserId: string;
   }) => Promise<boolean>;
-  changeRole: (input: { actorUserId: string; targetUserId: string; role: OpsRole }) => Promise<boolean>;
+  changeRole: (input: {
+    actorUserId: string;
+    targetUserId: string;
+    role: OpsRole;
+  }) => Promise<boolean>;
   lock: (input: { actorUserId: string; targetUserId: string; reason: string }) => Promise<boolean>;
   recover: (input: {
     actorUserId: string;
@@ -98,7 +102,10 @@ export class AccountService {
     this.now = input.now ?? (() => new Date());
     this.issueId = input.issueId ?? randomUUID;
     this.createToken = input.enrollmentToken ?? issueEnrollmentToken;
-    this.enrollmentBaseUrl = (input.enrollmentBaseUrl ?? 'https://ops.example.test').replace(/\/$/u, '');
+    this.enrollmentBaseUrl = (input.enrollmentBaseUrl ?? 'https://ops.example.test').replace(
+      /\/$/u,
+      ''
+    );
   }
 
   async list(): Promise<readonly OpsAccountSummary[]> {
@@ -153,12 +160,19 @@ export class AccountService {
     authorization: Authorization;
   }): Promise<void> {
     const target = await this.requireProtectedTarget(input.actorUserId, input.targetUserId);
-    if (target.role === 'ops_owner' && input.role !== 'ops_owner' && (await this.input.repository.countActiveOwners()) <= 1) {
+    if (
+      target.role === 'ops_owner' &&
+      input.role !== 'ops_owner' &&
+      (await this.input.repository.countActiveOwners()) <= 1
+    ) {
       throw new AccountServiceError('ACCOUNT_FINAL_OWNER_PROTECTED');
     }
     await this.consume(input.authorization);
-    if (!(await this.input.repository.changeRole(input))) throw new AccountServiceError('ACCOUNT_MUTATION_DENIED');
-    await this.audit(input.actorUserId, 'account.role_changed', input.targetUserId, { role: input.role });
+    if (!(await this.input.repository.changeRole(input)))
+      throw new AccountServiceError('ACCOUNT_MUTATION_DENIED');
+    await this.audit(input.actorUserId, 'account.role_changed', input.targetUserId, {
+      role: input.role
+    });
   }
 
   async lock(input: {
@@ -173,7 +187,13 @@ export class AccountService {
     }
     await this.consume(input.authorization);
     const reason = input.reason?.trim() || 'OWNER_LOCK';
-    if (!(await this.input.repository.lock({ actorUserId: input.actorUserId, targetUserId: input.targetUserId, reason }))) {
+    if (
+      !(await this.input.repository.lock({
+        actorUserId: input.actorUserId,
+        targetUserId: input.targetUserId,
+        reason
+      }))
+    ) {
       throw new AccountServiceError('ACCOUNT_MUTATION_DENIED');
     }
     await this.audit(input.actorUserId, 'account.lock', input.targetUserId, { reason });
@@ -190,12 +210,15 @@ export class AccountService {
     if (target.status !== 'locked') throw new AccountServiceError('ACCOUNT_MUTATION_DENIED');
     const expiresAt = new Date(this.now().getTime() + 24 * 60 * 60 * 1_000).toISOString();
     const token = this.createToken();
-    if (!(await this.input.repository.recover({
-      actorUserId: input.actorUserId,
-      targetUserId: input.targetUserId,
-      tokenHash: token.tokenHash,
-      expiresAt
-    }))) throw new AccountServiceError('ACCOUNT_MUTATION_DENIED');
+    if (
+      !(await this.input.repository.recover({
+        actorUserId: input.actorUserId,
+        targetUserId: input.targetUserId,
+        tokenHash: token.tokenHash,
+        expiresAt
+      }))
+    )
+      throw new AccountServiceError('ACCOUNT_MUTATION_DENIED');
     await this.audit(input.actorUserId, 'account.recovery_issued', input.targetUserId, {
       status: 'pending_mfa',
       expiresAt
@@ -221,8 +244,11 @@ export class AccountService {
       throw new AccountServiceError('ACCOUNT_FINAL_OWNER_PROTECTED');
     }
     await this.consume(input.authorization);
-    if (!(await this.input.repository.revoke(input))) throw new AccountServiceError('ACCOUNT_MUTATION_DENIED');
-    await this.audit(input.actorUserId, 'account.revoke', input.targetUserId, { status: 'revoked' });
+    if (!(await this.input.repository.revoke(input)))
+      throw new AccountServiceError('ACCOUNT_MUTATION_DENIED');
+    await this.audit(input.actorUserId, 'account.revoke', input.targetUserId, {
+      status: 'revoked'
+    });
   }
 
   private async authorizeOwner(actorUserId: string, authorization: Authorization): Promise<void> {
@@ -233,7 +259,10 @@ export class AccountService {
     await this.consume(authorization);
   }
 
-  private async requireProtectedTarget(actorUserId: string, targetUserId: string): Promise<OpsAccountSummary> {
+  private async requireProtectedTarget(
+    actorUserId: string,
+    targetUserId: string
+  ): Promise<OpsAccountSummary> {
     if (actorUserId === targetUserId) throw new AccountServiceError('ACCOUNT_SELF_PROTECTED');
     const target = await this.input.repository.findById(targetUserId);
     if (!target) throw new AccountServiceError('ACCOUNT_NOT_FOUND');
@@ -241,10 +270,22 @@ export class AccountService {
   }
 
   private async consume(authorization: Authorization): Promise<void> {
-    if (!(await this.input.stepUp.consume(authorization))) throw new AccountServiceError('STEP_UP_REQUIRED');
+    if (!(await this.input.stepUp.consume(authorization)))
+      throw new AccountServiceError('STEP_UP_REQUIRED');
   }
 
-  private async audit(actorUserId: string, action: string, subjectId: string, metadata: Record<string, unknown>) {
-    await this.input.audit.append({ actorUserId, action, subjectType: 'ops_account', subjectId, metadata });
+  private async audit(
+    actorUserId: string,
+    action: string,
+    subjectId: string,
+    metadata: Record<string, unknown>
+  ) {
+    await this.input.audit.append({
+      actorUserId,
+      action,
+      subjectType: 'ops_account',
+      subjectId,
+      metadata
+    });
   }
 }

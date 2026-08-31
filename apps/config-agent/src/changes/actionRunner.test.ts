@@ -62,7 +62,9 @@ describe('fixed config-agent action runner', () => {
       }
     });
 
-    await expect(runner.run({ runId: 'RUN_ACTION_2', actionId: 'job.next_run' })).resolves.toMatchObject({
+    await expect(
+      runner.run({ runId: 'RUN_ACTION_2', actionId: 'job.next_run' })
+    ).resolves.toMatchObject({
       actionId: 'job.next_run',
       outcome: 'takes_effect_next_run'
     });
@@ -79,10 +81,14 @@ describe('fixed config-agent action runner', () => {
       }
     });
 
-    await expect(runner.run({ runId: 'RUN_ACTION_3', actionId: 'pm2.reload_app' })).rejects.toMatchObject({
+    await expect(
+      runner.run({ runId: 'RUN_ACTION_3', actionId: 'pm2.reload_app' })
+    ).rejects.toMatchObject({
       code: 'ACTION_FAILED'
     });
-    await expect(runner.run({ runId: 'RUN_ACTION_3', actionId: 'pm2.reload_app' })).rejects.toMatchObject({
+    await expect(
+      runner.run({ runId: 'RUN_ACTION_3', actionId: 'pm2.reload_app' })
+    ).rejects.toMatchObject({
       code: 'ACTION_FAILED'
     });
     expect(attempts).toBe(1);
@@ -91,7 +97,13 @@ describe('fixed config-agent action runner', () => {
   test('rejects caller-selected action settings and unknown actions', async () => {
     const runner = createActionRunner({
       definitions,
-      executor: async () => ({ exitCode: 0, signal: null, stdoutBytes: 0, stderrBytes: 0, timedOut: false })
+      executor: async () => ({
+        exitCode: 0,
+        signal: null,
+        stdoutBytes: 0,
+        stderrBytes: 0,
+        timedOut: false
+      })
     });
 
     await expect(
@@ -103,7 +115,9 @@ describe('fixed config-agent action runner', () => {
         timeoutMs: 99_999
       } as never)
     ).rejects.toBeInstanceOf(ActionRunnerError);
-    await expect(runner.run({ runId: 'RUN_ACTION_5', actionId: 'release.build_redeploy' })).rejects.toMatchObject({
+    await expect(
+      runner.run({ runId: 'RUN_ACTION_5', actionId: 'release.build_redeploy' })
+    ).rejects.toMatchObject({
       code: 'ACTION_NOT_ALLOWED'
     });
   });

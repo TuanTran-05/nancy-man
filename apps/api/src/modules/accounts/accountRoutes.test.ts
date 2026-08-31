@@ -27,7 +27,9 @@ async function withServer(app: express.Express, action: (origin: string) => Prom
   try {
     await action(`http://127.0.0.1:${address.port}`);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve()))
+    );
   }
 }
 
@@ -43,7 +45,9 @@ describe('createAccountRouter', () => {
       })
     );
     await withServer(app, async (origin) => {
-      const response = await fetch(`${origin}/users`, { headers: { Origin: 'https://man.thienuy.edu.vn' } });
+      const response = await fetch(`${origin}/users`, {
+        headers: { Origin: 'https://man.thienuy.edu.vn' }
+      });
       expect(response.status).toBe(401);
       await expect(response.json()).resolves.toEqual({ code: 'AUTH_DENIED' });
     });
@@ -96,7 +100,11 @@ describe('createAccountRouter', () => {
     app.use(
       '/users',
       createAccountRouter({
-        service: { create: async () => { throw new Error('UNEXPECTED'); } } as never,
+        service: {
+          create: async () => {
+            throw new Error('UNEXPECTED');
+          }
+        } as never,
         session: { authorize: async () => principal },
         resolveAuthorization: () => authorization
       })
@@ -109,7 +117,12 @@ describe('createAccountRouter', () => {
           'X-Ops-CSRF': 'csrf-token',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ username: 'ops-new', email: 'new@example.test', displayName: 'New', extra: 'nope' })
+        body: JSON.stringify({
+          username: 'ops-new',
+          email: 'new@example.test',
+          displayName: 'New',
+          extra: 'nope'
+        })
       });
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toEqual({ code: 'INVALID_ACCOUNT_REQUEST' });

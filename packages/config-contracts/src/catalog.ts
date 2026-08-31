@@ -5,7 +5,9 @@ const schemaVersionPattern = /^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[A-Za-z0-9._-]+)?$/u
 const stableIdPattern = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u;
 const variableNamePattern = /^[A-Z][A-Z0-9_]*$/u;
 
-const stableIdSchema = z.string().regex(stableIdPattern, 'Stable IDs must be lowercase dotted identifiers');
+const stableIdSchema = z
+  .string()
+  .regex(stableIdPattern, 'Stable IDs must be lowercase dotted identifiers');
 const variableNameSchema = z
   .string()
   .regex(variableNamePattern, 'Variable names must use uppercase underscore syntax');
@@ -101,7 +103,10 @@ const regexValidatorSchema = z
     id: stableIdSchema,
     type: z.literal('regex'),
     pattern: z.string().min(1),
-    flags: z.string().regex(/^[dgimsuvy]*$/u).optional()
+    flags: z
+      .string()
+      .regex(/^[dgimsuvy]*$/u)
+      .optional()
   })
   .strict();
 const nonEmptyValidatorSchema = z

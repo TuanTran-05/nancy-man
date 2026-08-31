@@ -107,9 +107,11 @@ describe('Ops public-contract capture', () => {
       canonicalApiPrefix: '/api/v1/',
       retiredStatus: 410
     });
-    expect(() => validatePublicRouteOwnership(`${config}\nlocation /api/ { proxy_pass http://127.0.0.1:3101; }`)).toThrow(
-      'PUBLIC_CONTRACT_ROUTING_INVALID'
-    );
+    expect(() =>
+      validatePublicRouteOwnership(
+        `${config}\nlocation /api/ { proxy_pass http://127.0.0.1:3101; }`
+      )
+    ).toThrow('PUBLIC_CONTRACT_ROUTING_INVALID');
   });
 
   it('reduces shuffled fixtures to a deterministic route/status/shape/header/landmark allowlist', () => {

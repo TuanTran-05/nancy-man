@@ -17,7 +17,8 @@ export function RevokeUserDialog({
       <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="revoke-title">
         <h2 id="revoke-title">Thu hồi vĩnh viễn tài khoản</h2>
         <p className="muted">
-          Tài khoản <strong>{username}</strong> sẽ mất toàn bộ phiên, MFA và quyền truy cập. Hành động này không thể hoàn tác.
+          Tài khoản <strong>{username}</strong> sẽ mất toàn bộ phiên, MFA và quyền truy cập. Hành
+          động này không thể hoàn tác.
         </p>
         <label>
           Nhập lại username để thu hồi

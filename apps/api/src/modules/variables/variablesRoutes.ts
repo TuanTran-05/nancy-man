@@ -42,10 +42,12 @@ type VariablesAudit = {
   }) => Promise<unknown>;
 };
 
-const unlockBody = z.object({
-  password: z.string().min(1).max(1_024),
-  totpCode: z.string().regex(/^\d{6}$/u)
-}).strict();
+const unlockBody = z
+  .object({
+    password: z.string().min(1).max(1_024),
+    totpCode: z.string().regex(/^\d{6}$/u)
+  })
+  .strict();
 
 function noStore(response: Response): void {
   response.setHeader('Cache-Control', 'no-store, private');
@@ -69,7 +71,11 @@ function requestHashes(request: Request, hashClientIp: (ip: string) => string) {
   };
 }
 
-function actor(principal: Principal, request: Request, hashClientIp: (ip: string) => string): AgentActor {
+function actor(
+  principal: Principal,
+  request: Request,
+  hashClientIp: (ip: string) => string
+): AgentActor {
   const hashes = requestHashes(request, hashClientIp);
   return {
     userId: principal.userId,
@@ -81,9 +87,7 @@ function actor(principal: Principal, request: Request, hashClientIp: (ip: string
 }
 
 function stableError(error: unknown): 'CONFIG_AGENT_UNAVAILABLE' | 'CONFIG_AGENT_PROTOCOL_ERROR' {
-  return error instanceof VariablesServiceError
-    ? error.code
-    : 'CONFIG_AGENT_UNAVAILABLE';
+  return error instanceof VariablesServiceError ? error.code : 'CONFIG_AGENT_UNAVAILABLE';
 }
 
 export function createVariablesRouter(input: {
@@ -107,7 +111,11 @@ export function createVariablesRouter(input: {
   const allowedOrigin = input.allowedOrigin ?? 'https://man.thienuy.edu.vn';
   const grants = new Map<string, StepUpBinding>();
 
-  async function principal(request: Request, response: Response, mutation: boolean): Promise<Principal | null> {
+  async function principal(
+    request: Request,
+    response: Response,
+    mutation: boolean
+  ): Promise<Principal | null> {
     noStore(response);
     if (mutation && request.get('origin') !== allowedOrigin) {
       response.status(403).json({ code: 'ORIGIN_DENIED' });
@@ -173,11 +181,13 @@ export function createVariablesRouter(input: {
       const value = await principal(request, response, true);
       if (!value) return;
       const hashes = requestHashes(request, input.hashClientIp);
-      if (!await input.rateLimiter.allow({
-        userId: value.userId,
-        sessionId: value.sessionId,
-        ipHash: hashes.ipHash
-      })) {
+      if (
+        !(await input.rateLimiter.allow({
+          userId: value.userId,
+          sessionId: value.sessionId,
+          ipHash: hashes.ipHash
+        }))
+      ) {
         return response.status(429).json({ code: 'RATE_LIMITED' });
       }
       try {
@@ -273,7 +283,9 @@ export function createVariablesRouter(input: {
         return response.status(401).json({ code: 'STEP_UP_REQUIRED' });
       }
       try {
-        return response.status(200).json(await input.service.read({ actor: actor(value, request, input.hashClientIp) }));
+        return response
+          .status(200)
+          .json(await input.service.read({ actor: actor(value, request, input.hashClientIp) }));
       } catch (error) {
         return response.status(503).json({ code: stableError(error) });
       }

@@ -51,16 +51,16 @@ export type StepUpRepository = {
   revoke: (input: StepUpBinding) => Promise<void>;
 };
 
-const policies: Readonly<
-  Record<StepUpCapability, { lifetimeMs: number; reusable: boolean }>
-> = {
+const policies: Readonly<Record<StepUpCapability, { lifetimeMs: number; reusable: boolean }>> = {
   accounts_write: { lifetimeMs: 5 * 60 * 1_000, reusable: false },
   variables_secret: { lifetimeMs: 10 * 60 * 1_000, reusable: true },
   variables_apply: { lifetimeMs: 5 * 60 * 1_000, reusable: false }
 };
 
 export class StepUpError extends Error {
-  constructor(readonly code: 'STEP_UP_REQUIRED' | 'STEP_UP_EXPIRED' | 'STEP_UP_REVOKED' | 'STEP_UP_INVALID') {
+  constructor(
+    readonly code: 'STEP_UP_REQUIRED' | 'STEP_UP_EXPIRED' | 'STEP_UP_REVOKED' | 'STEP_UP_INVALID'
+  ) {
     super(code);
     this.name = 'StepUpError';
   }

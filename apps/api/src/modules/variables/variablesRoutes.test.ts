@@ -15,7 +15,13 @@ const inventory = {
   generatedAt: '2026-08-31T13:12:00.000Z',
   items: []
 };
-const catalog = { catalogVersion: '2026-08-31', entries: [], validators: [], consumers: [], precedences: [] };
+const catalog = {
+  catalogVersion: '2026-08-31',
+  entries: [],
+  validators: [],
+  consumers: [],
+  precedences: []
+};
 
 function appFor(overrides: Record<string, unknown> = {}) {
   const client = { readInventory: vi.fn(async () => inventory) };
@@ -37,15 +43,18 @@ function appFor(overrides: Record<string, unknown> = {}) {
     ...(overrides.session as Record<string, unknown> | undefined)
   };
   const app = express();
-  app.use('/api/v1', createVariablesRouter({
-    service: service as never,
-    session: session as never,
-    stepUp: stepUp as never,
-    client: client as never,
-    hashClientIp: () => 'a'.repeat(64),
-    rateLimiter: { allow: vi.fn(async () => true) },
-    ...(overrides as never)
-  }));
+  app.use(
+    '/api/v1',
+    createVariablesRouter({
+      service: service as never,
+      session: session as never,
+      stepUp: stepUp as never,
+      client: client as never,
+      hashClientIp: () => 'a'.repeat(64),
+      rateLimiter: { allow: vi.fn(async () => true) },
+      ...(overrides as never)
+    })
+  );
   return { app, client, service, stepUp, session };
 }
 
@@ -67,13 +76,15 @@ describe('variables routes', () => {
       expect(response.headers.pragma).toBe('no-cache');
       expect(response.headers.vary).toBe('Cookie');
       expect(response.headers['set-cookie']).toBeUndefined();
-      expect(value.stepUp.grant).toHaveBeenCalledWith(expect.objectContaining({
-        capability: 'variables_secret',
-        userId: principal.userId,
-        sessionId: principal.sessionId,
-        password: 'current-password',
-        totpCode: '123456'
-      }));
+      expect(value.stepUp.grant).toHaveBeenCalledWith(
+        expect.objectContaining({
+          capability: 'variables_secret',
+          userId: principal.userId,
+          sessionId: principal.sessionId,
+          password: 'current-password',
+          totpCode: '123456'
+        })
+      );
     }
   });
 
@@ -118,9 +129,11 @@ describe('variables routes', () => {
     expect(response.headers.pragma).toBe('no-cache');
     expect(response.headers.vary).toBe('Cookie');
     expect(response.body).toEqual(inventory);
-    expect(value.service.read).toHaveBeenCalledWith(expect.objectContaining({
-      actor: expect.objectContaining({ userId: principal.userId, sessionId: principal.sessionId })
-    }));
+    expect(value.service.read).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: expect.objectContaining({ userId: principal.userId, sessionId: principal.sessionId })
+      })
+    );
 
     await request(value.app)
       .delete('/api/v1/auth/variables/unlock')
@@ -138,7 +151,11 @@ describe('variables routes', () => {
 
   it('maps agent failures to stable value-free errors', async () => {
     const value = appFor({
-      service: { read: vi.fn(async () => { throw new Error('AGENT_RESPONSE_SECRET_VALUE'); }) }
+      service: {
+        read: vi.fn(async () => {
+          throw new Error('AGENT_RESPONSE_SECRET_VALUE');
+        })
+      }
     });
     await request(value.app)
       .post('/api/v1/auth/variables/unlock')

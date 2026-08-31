@@ -56,7 +56,10 @@ function EnrollmentNotice({
           Ẩn liên kết enrollment
         </button>
       </div>
-      <p className="muted">Chỉ hiển thị một lần. Link hết hạn sau 24 giờ ({new Date(expiresAt).toLocaleString('vi-VN')}).</p>
+      <p className="muted">
+        Chỉ hiển thị một lần. Link hết hạn sau 24 giờ ({new Date(expiresAt).toLocaleString('vi-VN')}
+        ).
+      </p>
       <input aria-label="Liên kết enrollment" value={value} readOnly autoComplete="off" />
       <button
         type="button"
@@ -108,7 +111,9 @@ export function UsersPage({
   }, [session.role]);
 
   const activeOwners = useMemo(
-    () => accounts.filter((account) => account.role === 'ops_owner' && account.status === 'active').length,
+    () =>
+      accounts.filter((account) => account.role === 'ops_owner' && account.status === 'active')
+        .length,
     [accounts]
   );
   const csrfToken = session.csrfToken ?? '';
@@ -160,7 +165,9 @@ export function UsersPage({
       <section className="panel users-heading">
         <p className="eyebrow">ACCESS / ACCOUNTS</p>
         <h2>Người dùng</h2>
-        <p className="muted">Chỉ owner có thể tạo, khóa, khôi phục hoặc thu hồi tài khoản vận hành.</p>
+        <p className="muted">
+          Chỉ owner có thể tạo, khóa, khôi phục hoặc thu hồi tài khoản vận hành.
+        </p>
       </section>
       {enrollment ? (
         <EnrollmentNotice
@@ -178,19 +185,39 @@ export function UsersPage({
           <div className="account-form-grid">
             <label>
               Tên đăng nhập mới
-              <input value={username} onChange={(event) => setUsername(event.target.value)} required autoComplete="off" />
+              <input
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                required
+                autoComplete="off"
+              />
             </label>
             <label>
               Email mới
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="off" />
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                autoComplete="off"
+              />
             </label>
             <label>
               Tên hiển thị mới
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required autoComplete="off" />
+              <input
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                required
+                autoComplete="off"
+              />
             </label>
             <label>
               Vai trò tài khoản mới
-              <select aria-label="Vai trò tài khoản mới" value={role} onChange={(event) => setRole(event.target.value as OpsRole)}>
+              <select
+                aria-label="Vai trò tài khoản mới"
+                value={role}
+                onChange={(event) => setRole(event.target.value as OpsRole)}
+              >
                 <option value="ops_maintainer">Maintainer</option>
                 <option value="ops_readonly">Read-only</option>
                 <option value="ops_owner">Owner</option>
@@ -202,26 +229,44 @@ export function UsersPage({
           </button>
         </form>
       </section>
-      {error ? <p className="alert-text" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="alert-text" role="alert">
+          {error}
+        </p>
+      ) : null}
       <section className="accounts-list" aria-label="Danh sách tài khoản">
         {accounts.map((account) => {
           const self = account.id === session.userId;
-          const finalOwner = account.role === 'ops_owner' && account.status === 'active' && activeOwners <= 1;
+          const finalOwner =
+            account.role === 'ops_owner' && account.status === 'active' && activeOwners <= 1;
           const protectedRow = self || finalOwner;
           return (
             <article className="panel account-row" key={account.id}>
               <div className="account-row-header">
                 <div>
                   <h3>{account.displayName}</h3>
-                  <p className="muted">{account.username} · {account.email}</p>
+                  <p className="muted">
+                    {account.username} · {account.email}
+                  </p>
                 </div>
-                <span className={`level level-${account.status === 'active' ? 'healthy' : account.status === 'revoked' ? 'critical' : 'warning'}`}>
+                <span
+                  className={`level level-${account.status === 'active' ? 'healthy' : account.status === 'revoked' ? 'critical' : 'warning'}`}
+                >
                   {statusLabels[account.status]}
                 </span>
               </div>
-              <p className="muted">Vai trò: {roleLabels[account.role]} · MFA: {account.mfaEnrolled ? 'đã thiết lập' : 'chưa thiết lập'}</p>
-              {self ? <p className="account-protection">Không thể tự khóa hoặc tự thu hồi tài khoản owner đang đăng nhập.</p> : null}
-              {finalOwner ? <p className="account-protection">Không thể xóa owner cuối cùng.</p> : null}
+              <p className="muted">
+                Vai trò: {roleLabels[account.role]} · MFA:{' '}
+                {account.mfaEnrolled ? 'đã thiết lập' : 'chưa thiết lập'}
+              </p>
+              {self ? (
+                <p className="account-protection">
+                  Không thể tự khóa hoặc tự thu hồi tài khoản owner đang đăng nhập.
+                </p>
+              ) : null}
+              {finalOwner ? (
+                <p className="account-protection">Không thể xóa owner cuối cùng.</p>
+              ) : null}
               {account.status !== 'revoked' ? (
                 <div className="account-actions">
                   <label>
@@ -232,7 +277,9 @@ export function UsersPage({
                       disabled={protectedRow || busyId === account.id}
                       onChange={(event) => {
                         const nextRole = event.target.value as OpsRole;
-                        void run(account.id, () => changeAccountRole(account.id, nextRole, csrfToken));
+                        void run(account.id, () =>
+                          changeAccountRole(account.id, nextRole, csrfToken)
+                        );
                       }}
                     >
                       <option value="ops_maintainer">Maintainer</option>
@@ -241,15 +288,38 @@ export function UsersPage({
                     </select>
                   </label>
                   {account.status === 'locked' ? (
-                    <button type="button" disabled={protectedRow || busyId === account.id} onClick={() => void run(account.id, () => recoverAccount(account.id, csrfToken).then((result) => setEnrollment({ url: result.enrollmentUrl, expiresAt: result.expiresAt })))}>
+                    <button
+                      type="button"
+                      disabled={protectedRow || busyId === account.id}
+                      onClick={() =>
+                        void run(account.id, () =>
+                          recoverAccount(account.id, csrfToken).then((result) =>
+                            setEnrollment({
+                              url: result.enrollmentUrl,
+                              expiresAt: result.expiresAt
+                            })
+                          )
+                        )
+                      }
+                    >
                       Cấp lại liên kết MFA cho {account.username}
                     </button>
                   ) : (
-                    <button type="button" disabled={protectedRow || busyId === account.id} onClick={() => void run(account.id, () => lockAccount(account.id, 'OWNER_LOCK', csrfToken))}>
+                    <button
+                      type="button"
+                      disabled={protectedRow || busyId === account.id}
+                      onClick={() =>
+                        void run(account.id, () => lockAccount(account.id, 'OWNER_LOCK', csrfToken))
+                      }
+                    >
                       Khóa tài khoản {account.username}
                     </button>
                   )}
-                  <button type="button" disabled={protectedRow || busyId === account.id} onClick={() => setRevokeTarget(account)}>
+                  <button
+                    type="button"
+                    disabled={protectedRow || busyId === account.id}
+                    onClick={() => setRevokeTarget(account)}
+                  >
                     Thu hồi {account.username}
                   </button>
                 </div>

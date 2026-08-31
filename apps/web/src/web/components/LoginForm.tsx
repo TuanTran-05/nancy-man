@@ -74,7 +74,11 @@ export function LoginForm({
             {factors.length > 1 ? (
               <label>
                 Phương thức xác thực
-                <select aria-label="Phương thức xác thực" value={factorId} onChange={(event) => setFactorId(event.target.value)}>
+                <select
+                  aria-label="Phương thức xác thực"
+                  value={factorId}
+                  onChange={(event) => setFactorId(event.target.value)}
+                >
                   {factors.map((factor) => (
                     <option key={factor.id} value={factor.id}>
                       {factor.label}

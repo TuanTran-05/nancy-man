@@ -118,10 +118,7 @@ describe('internal canonical monitoring adapter', () => {
         .set('Cookie', '__Host-ops_session=legacy-cookie')
         .expect(401);
       const signed = signedRequest({ method: 'GET', path: '/internal/v1/monitoring/overview' });
-      await request(app)
-        .get('/internal/v1/monitoring/not-allowed')
-        .set(signed.headers)
-        .expect(404);
+      await request(app).get('/internal/v1/monitoring/not-allowed').set(signed.headers).expect(404);
     } finally {
       value.store.getDatabaseForBackup().close();
       rmSync(value.directory, { recursive: true, force: true });

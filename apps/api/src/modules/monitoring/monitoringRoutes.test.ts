@@ -11,13 +11,32 @@ const principal = {
   role: 'ops_owner' as const
 };
 
-function appFor(input: { principal?: typeof principal | null; client?: Record<string, unknown> } = {}) {
+function appFor(
+  input: { principal?: typeof principal | null; client?: Record<string, unknown> } = {}
+) {
   const client = {
-    getOverview: vi.fn(async () => ({ collectedAt: null, latestByMonitor: {}, openIncidents: [], recentDeliveries: [] })),
-    getInfrastructureHistory: vi.fn(async () => ({ range: '24h', resolutionSeconds: 300, collectedAt: '2026-08-31T12:00:00.000Z', points: [] })),
-    acknowledgeIncident: vi.fn(async (value) => ({ id: value.incidentId, acknowledgedBy: value.userId })),
+    getOverview: vi.fn(async () => ({
+      collectedAt: null,
+      latestByMonitor: {},
+      openIncidents: [],
+      recentDeliveries: []
+    })),
+    getInfrastructureHistory: vi.fn(async () => ({
+      range: '24h',
+      resolutionSeconds: 300,
+      collectedAt: '2026-08-31T12:00:00.000Z',
+      points: []
+    })),
+    acknowledgeIncident: vi.fn(async (value) => ({
+      id: value.incidentId,
+      acknowledgedBy: value.userId
+    })),
     getZaloLink: vi.fn(async () => ({ linked: false })),
-    createZaloLinkCode: vi.fn(async () => ({ code: '123456', command: '/link 123456', expiresAt: '2026-08-31T12:10:00.000Z' })),
+    createZaloLinkCode: vi.fn(async () => ({
+      code: '123456',
+      command: '/link 123456',
+      expiresAt: '2026-08-31T12:10:00.000Z'
+    })),
     disableZaloLink: vi.fn(async () => undefined),
     ...input.client
   };
@@ -26,7 +45,9 @@ function appFor(input: { principal?: typeof principal | null; client?: Record<st
     '/api/v1',
     createMonitoringRouter({
       client: client as never,
-      session: { authorize: async () => input.principal === undefined ? principal : input.principal },
+      session: {
+        authorize: async () => (input.principal === undefined ? principal : input.principal)
+      },
       allowedOrigin: 'https://man.thienuy.edu.vn'
     })
   );
@@ -41,10 +62,11 @@ describe('canonical monitoring routes', () => {
 
     const value = appFor();
     await request(value.app).get('/api/v1/monitoring/overview').expect(200);
-    await request(value.app)
-      .get('/api/v1/monitoring/infrastructure/history?range=24h')
-      .expect(200);
-    expect(value.client.getOverview).toHaveBeenCalledWith({ userId: principal.userId, role: principal.role });
+    await request(value.app).get('/api/v1/monitoring/infrastructure/history?range=24h').expect(200);
+    expect(value.client.getOverview).toHaveBeenCalledWith({
+      userId: principal.userId,
+      role: principal.role
+    });
     expect(value.client.getInfrastructureHistory).toHaveBeenCalledWith({
       userId: principal.userId,
       role: principal.role,
@@ -93,8 +115,17 @@ describe('canonical monitoring routes', () => {
       .set('Origin', 'https://man.thienuy.edu.vn')
       .set('X-Ops-CSRF', 'csrf')
       .expect(204);
-    expect(value.client.getZaloLink).toHaveBeenCalledWith({ userId: principal.userId, role: principal.role });
-    expect(value.client.createZaloLinkCode).toHaveBeenCalledWith({ userId: principal.userId, role: principal.role });
-    expect(value.client.disableZaloLink).toHaveBeenCalledWith({ userId: principal.userId, role: principal.role });
+    expect(value.client.getZaloLink).toHaveBeenCalledWith({
+      userId: principal.userId,
+      role: principal.role
+    });
+    expect(value.client.createZaloLinkCode).toHaveBeenCalledWith({
+      userId: principal.userId,
+      role: principal.role
+    });
+    expect(value.client.disableZaloLink).toHaveBeenCalledWith({
+      userId: principal.userId,
+      role: principal.role
+    });
   });
 });

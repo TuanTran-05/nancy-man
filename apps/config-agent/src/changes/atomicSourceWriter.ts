@@ -9,7 +9,6 @@ import {
   openSync,
   readFileSync,
   renameSync,
-  statSync,
   utimesSync,
   unlinkSync,
   writeSync,
@@ -46,7 +45,9 @@ export type AtomicSourceRead = Readonly<{
   metadata: SafeSourceMetadata;
 }>;
 
-export type AtomicSourceReader = (source: ManifestSource) => AtomicSourceRead | Promise<AtomicSourceRead>;
+export type AtomicSourceReader = (
+  source: ManifestSource
+) => AtomicSourceRead | Promise<AtomicSourceRead>;
 
 export type AtomicWriteOperation = SourceWriteOperation;
 
@@ -173,16 +174,23 @@ function parseSource(source: ManifestSource, bytes: Buffer, name: string): Parse
   }
 }
 
-function metadataExpectation(metadata: SafeSourceMetadata, maximumBytes: number): SourceFileExpectation {
+function metadataExpectation(
+  metadata: SafeSourceMetadata,
+  maximumBytes: number
+): SourceFileExpectation {
   return { uid: metadata.uid, gid: metadata.gid, mode: metadata.mode, maximumBytes, nlink: 1 };
 }
 
-function assertWritableSource(source: ManifestSource, operations: readonly AtomicWriteOperation[]): void {
+function assertWritableSource(
+  source: ManifestSource,
+  operations: readonly AtomicWriteOperation[]
+): void {
   if (source.mutability !== 'catalog_controlled' || source.adapterId === 'pm2_ecosystem_static') {
     fail('SOURCE_NOT_WRITABLE');
   }
   for (const operation of operations) {
-    if (operation.operation === 'delete' && operation.requirement !== 'optional') fail('REQUIRED_DELETE');
+    if (operation.operation === 'delete' && operation.requirement !== 'optional')
+      fail('REQUIRED_DELETE');
     if (operation.operation === 'set' && operation.value === undefined) fail('SOURCE_PARSE_FAILED');
   }
 }
@@ -241,7 +249,10 @@ function writeFileAtomically(
   try {
     descriptor = openSync(
       temporary,
-      fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | (fsConstants.O_NOFOLLOW ?? 0),
+      fsConstants.O_WRONLY |
+        fsConstants.O_CREAT |
+        fsConstants.O_EXCL |
+        (fsConstants.O_NOFOLLOW ?? 0),
       0o600
     );
     let offset = 0;
@@ -263,7 +274,10 @@ function writeFileAtomically(
     descriptor = -1;
     renameSync(temporary, path);
     afterRename?.();
-    const parentDescriptor = openSync(parent, fsConstants.O_RDONLY | (fsConstants.O_DIRECTORY ?? 0));
+    const parentDescriptor = openSync(
+      parent,
+      fsConstants.O_RDONLY | (fsConstants.O_DIRECTORY ?? 0)
+    );
     try {
       fsyncSync(parentDescriptor);
     } finally {
@@ -293,7 +307,8 @@ export function createAtomicSourceWriter(options: AtomicSourceWriterOptions) {
     if (!source) fail('SOURCE_NOT_FOUND');
     try {
       const read = await readSource(source);
-      if (read.sourceId !== source.id || read.metadata.nlink !== 1) fail('SOURCE_HARD_LINK_REJECTED');
+      if (read.sourceId !== source.id || read.metadata.nlink !== 1)
+        fail('SOURCE_HARD_LINK_REJECTED');
       return read;
     } catch (error) {
       if (error instanceof AtomicSourceWriterError) throw error;
@@ -318,11 +333,22 @@ export function createAtomicSourceWriter(options: AtomicSourceWriterOptions) {
     const name = input.operations[0]?.name;
     if (!name) fail('SOURCE_PARSE_FAILED');
     const parsed = parseSource(source, current.bytes, name);
-    if (input.operations.some((operation) => parsed.definitions.filter((item) => item.name === operation.name).length !== 1)) {
+    if (
+      input.operations.some(
+        (operation) =>
+          parsed.definitions.filter((item) => item.name === operation.name).length !== 1
+      )
+    ) {
       fail('SOURCE_PARSE_FAILED');
     }
     const nextBytes = serializeUpdatedSource(parsed, input.operations);
-    writeFileAtomically(current.path, nextBytes, current.metadata, source.maximumBytes, options.afterRename);
+    writeFileAtomically(
+      current.path,
+      nextBytes,
+      current.metadata,
+      source.maximumBytes,
+      options.afterRename
+    );
     try {
       const after = await readCurrent(input.sourceId);
       const expected = metadataExpectation(current.metadata, source.maximumBytes);
@@ -338,7 +364,9 @@ export function createAtomicSourceWriter(options: AtomicSourceWriterOptions) {
       if (reparsed.definitions.some((definition) => definition.value.includes('\u0000'))) {
         fail('SOURCE_POST_WRITE_VERIFY_FAILED');
       }
-      return { sourceFingerprint: fingerprintSource(options.fingerprintKey, source.id, after.bytes) };
+      return {
+        sourceFingerprint: fingerprintSource(options.fingerprintKey, source.id, after.bytes)
+      };
     } catch (error) {
       if (error instanceof AtomicSourceWriterError) throw error;
       fail('SOURCE_POST_WRITE_VERIFY_FAILED');
@@ -351,9 +379,19 @@ export function createAtomicSourceWriter(options: AtomicSourceWriterOptions) {
     if (source.mutability !== 'catalog_controlled') fail('SOURCE_NOT_WRITABLE');
     const current = await readCurrent(input.sourceId);
     assertTarget(current.path, source.id, source.maximumBytes);
-    writeFileAtomically(current.path, input.bytes, input.metadata, source.maximumBytes, options.afterRename);
+    writeFileAtomically(
+      current.path,
+      input.bytes,
+      input.metadata,
+      source.maximumBytes,
+      options.afterRename
+    );
     const after = await readCurrent(input.sourceId);
-    if (after.metadata.uid !== input.metadata.uid || after.metadata.gid !== input.metadata.gid || after.metadata.mode !== input.metadata.mode) {
+    if (
+      after.metadata.uid !== input.metadata.uid ||
+      after.metadata.gid !== input.metadata.gid ||
+      after.metadata.mode !== input.metadata.mode
+    ) {
       fail('SOURCE_POST_WRITE_VERIFY_FAILED');
     }
     return { sourceFingerprint: fingerprintSource(options.fingerprintKey, source.id, after.bytes) };

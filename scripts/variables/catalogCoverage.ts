@@ -4,10 +4,13 @@ import { basename, extname, join, resolve } from 'node:path';
 
 import ts from 'typescript';
 
-import { parseCatalog, type Catalog, type CatalogEntry } from '../../packages/config-contracts/src/catalog.ts';
+import {
+  parseCatalog,
+  type Catalog,
+  type CatalogEntry
+} from '../../packages/config-contracts/src/catalog.ts';
 import {
   parseAgentManifest,
-  type AgentManifest,
   type ManifestSource,
   type SourceLocator
 } from '../../packages/config-contracts/src/manifest.ts';
@@ -55,8 +58,7 @@ const skippedPathSegments = new Set([
   'docs',
   'node_modules'
 ]);
-const skippedFilePattern =
-  /\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/u;
+const skippedFilePattern = /\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/u;
 
 function fail(code: string): never {
   throw new Error(code);
@@ -131,7 +133,11 @@ function findEnvReadsInNode(node: ts.Node, parameterName: string): boolean {
 function findHelperReaders(sourceFile: ts.SourceFile): Set<string> {
   const readers = new Set<string>();
 
-  const inspect = (name: string, parameters: readonly ts.ParameterDeclaration[], body: ts.Node | undefined) => {
+  const inspect = (
+    name: string,
+    parameters: readonly ts.ParameterDeclaration[],
+    body: ts.Node | undefined
+  ) => {
     const first = parameters[0];
     if (!body || !first || !ts.isIdentifier(first.name)) return;
     if (findEnvReadsInNode(body, first.name.text)) readers.add(name);
@@ -141,15 +147,13 @@ function findHelperReaders(sourceFile: ts.SourceFile): Set<string> {
     if (ts.isFunctionDeclaration(node) && node.name) {
       inspect(node.name.text, node.parameters, node.body);
     }
-    if (
-      ts.isVariableStatement(node) &&
-      node.declarationList.flags & ts.NodeFlags.Const
-    ) {
+    if (ts.isVariableStatement(node) && node.declarationList.flags & ts.NodeFlags.Const) {
       for (const declaration of node.declarationList.declarations) {
         if (
           ts.isIdentifier(declaration.name) &&
           declaration.initializer &&
-          (ts.isArrowFunction(declaration.initializer) || ts.isFunctionExpression(declaration.initializer))
+          (ts.isArrowFunction(declaration.initializer) ||
+            ts.isFunctionExpression(declaration.initializer))
         ) {
           inspect(
             declaration.name.text,
@@ -187,7 +191,13 @@ function fileLine(sourceFile: ts.SourceFile, position: number): string {
 }
 
 function parseCodeReferences(text: string, filePath: string): RepositoryReferenceReport {
-  const sourceFile = ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  );
   const helperReaders = findHelperReaders(sourceFile);
   const findings: ReferenceFinding[] = [];
   const manualReview = new Set<string>();
@@ -199,10 +209,7 @@ function parseCodeReferences(text: string, filePath: string): RepositoryReferenc
   };
 
   const visit = (node: ts.Node) => {
-    if (
-      ts.isVariableStatement(node) &&
-      node.declarationList.flags & ts.NodeFlags.Const
-    ) {
+    if (ts.isVariableStatement(node) && node.declarationList.flags & ts.NodeFlags.Const) {
       for (const declaration of node.declarationList.declarations) {
         if (ts.isIdentifier(declaration.name)) {
           const values = collectStringArray(declaration.initializer);
@@ -224,7 +231,10 @@ function parseCodeReferences(text: string, filePath: string): RepositoryReferenc
       isProcessEnv(node.expression) &&
       node.argumentExpression
     ) {
-      if (ts.isStringLiteralLike(node.argumentExpression) && envNamePattern.test(node.argumentExpression.text)) {
+      if (
+        ts.isStringLiteralLike(node.argumentExpression) &&
+        envNamePattern.test(node.argumentExpression.text)
+      ) {
         addFinding(node.argumentExpression.text, 'observed');
       } else if (!ts.isIdentifier(node.argumentExpression)) {
         manualReview.add(fileLine(sourceFile, node.getStart(sourceFile)));
@@ -250,9 +260,15 @@ function parseCodeReferences(text: string, filePath: string): RepositoryReferenc
         node.arguments.length > 0
       ) {
         const callback = node.arguments[0];
-        if ((ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) && callback.parameters[0]) {
+        if (
+          (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) &&
+          callback.parameters[0]
+        ) {
           const parameter = callback.parameters[0];
-          if (ts.isIdentifier(parameter.name) && findEnvReadsInNode(callback.body, parameter.name.text)) {
+          if (
+            ts.isIdentifier(parameter.name) &&
+            findEnvReadsInNode(callback.body, parameter.name.text)
+          ) {
             const severity: ReferenceSeverity =
               /required|missing/iu.test(objectName) || node.expression.name.text === 'every'
                 ? 'required'
@@ -282,13 +298,16 @@ function parseCodeReferences(text: string, filePath: string): RepositoryReferenc
 
     if (ts.isCallExpression(node)) {
       const expression = node.expression;
-      const callName =
-        ts.isIdentifier(expression)
-          ? expression.text
-          : ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.name)
-            ? expression.name.text
-            : null;
-      if (callName && (helperReaders.has(callName) || looksRequired(callName)) && node.arguments.length > 0) {
+      const callName = ts.isIdentifier(expression)
+        ? expression.text
+        : ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.name)
+          ? expression.name.text
+          : null;
+      if (
+        callName &&
+        (helperReaders.has(callName) || looksRequired(callName)) &&
+        node.arguments.length > 0
+      ) {
         for (const argument of node.arguments) {
           if (ts.isStringLiteralLike(argument) && envNamePattern.test(argument.text)) {
             addFinding(argument.text, 'required');
@@ -297,7 +316,11 @@ function parseCodeReferences(text: string, filePath: string): RepositoryReferenc
       }
     }
 
-    if (ts.isPropertyAssignment(node) && node.name.getText() === 'env' && ts.isObjectLiteralExpression(node.initializer)) {
+    if (
+      ts.isPropertyAssignment(node) &&
+      node.name.getText() === 'env' &&
+      ts.isObjectLiteralExpression(node.initializer)
+    ) {
       for (const name of collectEnvObjectNames(node.initializer)) addFinding(name, 'observed');
     }
 
@@ -331,12 +354,11 @@ async function walkFiles(root: string): Promise<string[]> {
   const queue = [root];
   const files: string[] = [];
   const repoName = basename(root).toLowerCase();
-  const scopedTopLevel =
-    repoName.includes('edutrack-platform')
-      ? new Set(['server', 'src', 'deploy'])
-      : repoName.includes('edutrack-ops')
-        ? new Set(['apps', 'packages', 'deploy', 'scripts'])
-        : null;
+  const scopedTopLevel = repoName.includes('edutrack-platform')
+    ? new Set(['server', 'src', 'deploy'])
+    : repoName.includes('edutrack-ops')
+      ? new Set(['apps', 'packages', 'deploy', 'scripts'])
+      : null;
 
   while (queue.length > 0) {
     const directory = queue.pop();
@@ -351,10 +373,7 @@ async function walkFiles(root: string): Promise<string[]> {
         continue;
       }
       if (skippedFilePattern.test(entry.name)) continue;
-      if (
-        repoName.includes('edutrack-platform') &&
-        absolute.includes('/scripts/')
-      ) {
+      if (repoName.includes('edutrack-platform') && absolute.includes('/scripts/')) {
         continue;
       }
       if (
@@ -457,7 +476,8 @@ async function readSourceNames(source: ManifestSource): Promise<string[]> {
   if (!resolved) fail(`VARIABLES_COVERAGE_SOURCE_MISSING:${source.id}`);
   const sourceStat = await stat(resolved).catch(() => null);
   if (!sourceStat?.isFile()) fail(`VARIABLES_COVERAGE_SOURCE_INVALID:${source.id}`);
-  if (sourceStat.size > source.maximumBytes) fail(`VARIABLES_COVERAGE_SOURCE_OVERSIZE:${source.id}`);
+  if (sourceStat.size > source.maximumBytes)
+    fail(`VARIABLES_COVERAGE_SOURCE_OVERSIZE:${source.id}`);
   const text = await readFile(resolved, 'utf8');
   if (
     source.adapterId === 'node_env_file' ||
@@ -515,7 +535,9 @@ export async function runCatalogCoverage(input: CliOptions): Promise<CatalogCove
     }
   }
 
-  const repoReports = await Promise.all(input.repoRoots.map((repoRoot) => scanRepositoryReferences({ repoRoot })));
+  const repoReports = await Promise.all(
+    input.repoRoots.map((repoRoot) => scanRepositoryReferences({ repoRoot }))
+  );
   const repoReport = mergeRepositoryReports(repoReports);
   if (repoReport.manualReview.length > 0) {
     fail(`VARIABLES_COVERAGE_MANUAL_REVIEW_REQUIRED:${repoReport.manualReview.join(',')}`);
@@ -606,7 +628,9 @@ async function main(argv: readonly string[]): Promise<void> {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   await main(process.argv.slice(2)).catch((error) => {
-    process.stderr.write(`${error instanceof Error ? error.message : 'VARIABLES_COVERAGE_FAILED'}\n`);
+    process.stderr.write(
+      `${error instanceof Error ? error.message : 'VARIABLES_COVERAGE_FAILED'}\n`
+    );
     process.exitCode = 1;
   });
 }

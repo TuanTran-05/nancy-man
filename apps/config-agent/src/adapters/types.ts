@@ -334,9 +334,7 @@ function encodedValue(definition: ParsedDefinition, value: string): Buffer {
   const original = valueToken?.text ?? '';
   const quote = original.startsWith("'") ? "'" : original.startsWith('"') ? '"' : null;
   if (quote) {
-    const escaped = value
-      .replaceAll('\\', '\\\\')
-      .replaceAll(quote, `\\${quote}`);
+    const escaped = value.replaceAll('\\', '\\\\').replaceAll(quote, `\\${quote}`);
     return Buffer.from(`${quote}${escaped}${quote}`, 'utf8');
   }
   if (value.length === 0) return Buffer.alloc(0);
@@ -393,7 +391,11 @@ export function serializeUpdatedSource(
     const definition = definitions.get(`${operation.name}\u0000${operation.duplicateOrdinal}`);
     if (!definition) throw new SourceAdapterError('SOURCE_MALFORMED');
     if (operation.operation === 'delete') {
-      replacements.push({ start: definition.byteStart, end: definition.byteEnd, bytes: Buffer.alloc(0) });
+      replacements.push({
+        start: definition.byteStart,
+        end: definition.byteEnd,
+        bytes: Buffer.alloc(0)
+      });
       continue;
     }
     const token = definition.tokens.find(

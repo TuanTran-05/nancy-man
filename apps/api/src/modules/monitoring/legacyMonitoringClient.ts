@@ -43,7 +43,9 @@ export class LegacyMonitoringClient {
     return this.request('/internal/v1/monitoring/overview', 'GET', undefined, principal);
   }
 
-  async getInfrastructureHistory(input: Principal & { range: '1h' | '24h' | '7d' | '30d' }): Promise<unknown> {
+  async getInfrastructureHistory(
+    input: Principal & { range: '1h' | '24h' | '7d' | '30d' }
+  ): Promise<unknown> {
     return this.request(
       `/internal/v1/monitoring/infrastructure/history?range=${input.range}`,
       'GET',
@@ -52,7 +54,9 @@ export class LegacyMonitoringClient {
     );
   }
 
-  async acknowledgeIncident(input: Principal & { incidentId: string; note: string }): Promise<unknown> {
+  async acknowledgeIncident(
+    input: Principal & { incidentId: string; note: string }
+  ): Promise<unknown> {
     return this.request(
       '/internal/v1/monitoring/incidents/ack',
       'POST',

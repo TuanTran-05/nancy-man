@@ -3,10 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-import {
-  createEnvelopeKey,
-  type EnvelopeKey
-} from '../crypto/encryptedEnvelope.js';
+import { createEnvelopeKey, type EnvelopeKey } from '../crypto/encryptedEnvelope.js';
 import { DraftStore } from './draftStore.js';
 import { createFingerprintKey, fingerprintSource } from '../inventory/fingerprint.js';
 import {
@@ -61,9 +58,7 @@ const catalog: Catalog = {
       buildAllowed: false
     }
   ],
-  validators: [
-    { id: 'port', type: 'integer', minimum: 1, maximum: 65535 }
-  ],
+  validators: [{ id: 'port', type: 'integer', minimum: 1, maximum: 65535 }],
   consumers: [{ id: 'edutrack.web', appId: 'edutrack', kind: 'service', displayName: 'Web' }],
   precedences: [
     {
@@ -130,7 +125,19 @@ function request(overrides: Record<string, unknown> = {}) {
 }
 
 function sourceRead(): ValidationSourceRead {
-  return { bytes: Buffer.from(sourceBytes), metadata: { uid: 1, gid: 1, mode: 0o640, nlink: 1, dev: 1, ino: 1, size: sourceBytes.length, mtimeMs: 0 } };
+  return {
+    bytes: Buffer.from(sourceBytes),
+    metadata: {
+      uid: 1,
+      gid: 1,
+      mode: 0o640,
+      nlink: 1,
+      dev: 1,
+      ino: 1,
+      size: sourceBytes.length,
+      mtimeMs: 0
+    }
+  };
 }
 
 function service(overrides: Partial<Parameters<typeof createValidationService>[0]> = {}) {
@@ -205,7 +212,13 @@ describe('config-agent validation service', () => {
     await expect(
       service({ readSource: async () => ({ ...sourceRead(), bytes: duplicate }) }).validate(
         request({
-          items: [{ ...request().items[0], value: '3002', sourceFingerprint: fingerprintSource(fingerprintKey, 'edutrack.shared_env', duplicate) }]
+          items: [
+            {
+              ...request().items[0],
+              value: '3002',
+              sourceFingerprint: fingerprintSource(fingerprintKey, 'edutrack.shared_env', duplicate)
+            }
+          ]
         })
       )
     ).rejects.toMatchObject({ code: 'DUPLICATE_DEFINITION' });

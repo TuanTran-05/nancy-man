@@ -40,9 +40,7 @@ export class ArtifactStorageError extends Error {
     | 'ARTIFACT_CORRUPT_INDEX'
     | 'ARTIFACT_WRITE_FAILED';
 
-  constructor(
-    code: ArtifactStorageError['code']
-  ) {
+  constructor(code: ArtifactStorageError['code']) {
     super(code);
     this.name = 'ArtifactStorageError';
     this.code = code;
@@ -140,7 +138,10 @@ export function artifactFilePath(
   return join(directoryPath(options, directory), `${id}.enc`);
 }
 
-function indexPath(options: SecureStorageOptions, directory: Exclude<ArtifactDirectory, 'locks'>): string {
+function indexPath(
+  options: SecureStorageOptions,
+  directory: Exclude<ArtifactDirectory, 'locks'>
+): string {
   return join(directoryPath(options, directory), INDEX_NAME);
 }
 
@@ -166,7 +167,13 @@ function validateIndexEntry(value: unknown): ArtifactIndexEntry {
   ) {
     fail('ARTIFACT_CORRUPT_INDEX');
   }
-  for (const id of [entry.id, entry.changeId, entry.appId, entry.catalogVersion, entry.manifestVersion]) {
+  for (const id of [
+    entry.id,
+    entry.changeId,
+    entry.appId,
+    entry.catalogVersion,
+    entry.manifestVersion
+  ]) {
     if (!ID_PATTERN.test(id as string)) fail('ARTIFACT_CORRUPT_INDEX');
   }
   validateDate(entry.createdAt as string);
@@ -184,7 +191,10 @@ function validateIndexEntry(value: unknown): ArtifactIndexEntry {
   } as ArtifactIndexEntry;
 }
 
-async function assertArtifactFile(path: string, owner: { uid?: number; gid?: number }): Promise<void> {
+async function assertArtifactFile(
+  path: string,
+  owner: { uid?: number; gid?: number }
+): Promise<void> {
   let details: Awaited<ReturnType<typeof lstat>>;
   try {
     details = await lstat(path);
@@ -193,7 +203,11 @@ async function assertArtifactFile(path: string, owner: { uid?: number; gid?: num
     fail('ARTIFACT_METADATA_INVALID');
   }
   if (details.isSymbolicLink()) fail('ARTIFACT_SYMLINK_REJECTED');
-  if (!details.isFile() || details.nlink !== 1 || (Number(details.mode) & 0o7777) !== ARTIFACT_MODE) {
+  if (
+    !details.isFile() ||
+    details.nlink !== 1 ||
+    (Number(details.mode) & 0o7777) !== ARTIFACT_MODE
+  ) {
     fail('ARTIFACT_METADATA_INVALID');
   }
   if (owner.uid !== undefined && details.uid !== owner.uid) fail('ARTIFACT_METADATA_INVALID');
@@ -213,7 +227,11 @@ export async function readSecureArtifact(
   try {
     handle = await open(path, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
     const before = await handle.stat();
-    if (!before.isFile() || before.nlink !== 1 || (Number(before.mode) & 0o7777) !== ARTIFACT_MODE) {
+    if (
+      !before.isFile() ||
+      before.nlink !== 1 ||
+      (Number(before.mode) & 0o7777) !== ARTIFACT_MODE
+    ) {
       fail('ARTIFACT_METADATA_INVALID');
     }
     if (owner.uid !== undefined && before.uid !== owner.uid) fail('ARTIFACT_METADATA_INVALID');
@@ -267,7 +285,8 @@ export async function writeAtomicSecureArtifact(
   try {
     await assertArtifactFile(target, owner);
   } catch (error) {
-    if (!(error instanceof ArtifactStorageError) || error.code !== 'ARTIFACT_NOT_FOUND') throw error;
+    if (!(error instanceof ArtifactStorageError) || error.code !== 'ARTIFACT_NOT_FOUND')
+      throw error;
   }
 
   const temporary = join(parent, `.${parse(target).base}.${process.pid}.${randomUUID()}.tmp`);
@@ -338,12 +357,19 @@ export async function readArtifactIndex(
   return parsed.map(validateIndexEntry);
 }
 
-async function readSecureIndexBytes(path: string, owner: { uid?: number; gid?: number }): Promise<Buffer> {
+async function readSecureIndexBytes(
+  path: string,
+  owner: { uid?: number; gid?: number }
+): Promise<Buffer> {
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {
     handle = await open(path, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
     const before = await handle.stat();
-    if (!before.isFile() || before.nlink !== 1 || (Number(before.mode) & 0o7777) !== ARTIFACT_MODE) {
+    if (
+      !before.isFile() ||
+      before.nlink !== 1 ||
+      (Number(before.mode) & 0o7777) !== ARTIFACT_MODE
+    ) {
       fail('ARTIFACT_METADATA_INVALID');
     }
     if (owner.uid !== undefined && before.uid !== owner.uid) fail('ARTIFACT_METADATA_INVALID');
@@ -392,7 +418,8 @@ async function writeAtomicIndex(
   try {
     await assertArtifactFile(path, owner);
   } catch (error) {
-    if (!(error instanceof ArtifactStorageError) || error.code !== 'ARTIFACT_NOT_FOUND') throw error;
+    if (!(error instanceof ArtifactStorageError) || error.code !== 'ARTIFACT_NOT_FOUND')
+      throw error;
   }
   const temporary = join(parent, `.${INDEX_NAME}.${process.pid}.${randomUUID()}.tmp`);
   let handle: Awaited<ReturnType<typeof open>> | undefined;
@@ -442,4 +469,7 @@ export async function listArtifactIds(
     .filter((id) => ID_PATTERN.test(id));
 }
 
-export const SECURE_STORAGE_MODES = Object.freeze({ directory: DIRECTORY_MODE, artifact: ARTIFACT_MODE });
+export const SECURE_STORAGE_MODES = Object.freeze({
+  directory: DIRECTORY_MODE,
+  artifact: ARTIFACT_MODE
+});

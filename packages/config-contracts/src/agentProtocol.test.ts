@@ -70,7 +70,9 @@ describe('agent protocol schemas', () => {
 
   it('validates inventory.read request limits and rejects unknown fields', () => {
     expect(() => InventoryReadRequestSchema.parse({ includeValues: true, limit: -1 })).toThrow();
-    expect(() => InventoryReadRequestSchema.parse({ includeValues: true, limit: 1, unknown: true })).toThrow();
+    expect(() =>
+      InventoryReadRequestSchema.parse({ includeValues: true, limit: 1, unknown: true })
+    ).toThrow();
 
     expect(
       InventoryReadRequestSchema.parse({

@@ -190,10 +190,14 @@ describe('Ops SQLite store', () => {
 
     const store = createOpsStore(databasePath, () => new Date('2026-08-23T00:01:00.000Z'));
     const database = store.getDatabaseForBackup();
-    const columns = database.prepare('PRAGMA table_info(zalo_link_codes)').all() as Array<{ name: string }>;
+    const columns = database.prepare('PRAGMA table_info(zalo_link_codes)').all() as Array<{
+      name: string;
+    }>;
     expect(columns.map((column) => column.name)).toContain('principal_id');
     expect(columns.map((column) => column.name)).not.toContain('account_id');
-    expect((database.prepare('SELECT version FROM schema_version').get() as { version: number }).version).toBe(4);
+    expect(
+      (database.prepare('SELECT version FROM schema_version').get() as { version: number }).version
+    ).toBe(4);
     expect(
       store.consumeZaloLink({
         codeHash: 'legacy-code',

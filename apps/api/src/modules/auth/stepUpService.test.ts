@@ -115,7 +115,9 @@ describe('StepUpService', () => {
       issueId: () => 'rejected-grant'
     });
 
-    await expect(service.grant({ capability: 'variables_secret', ...baseProof })).rejects.toMatchObject({
+    await expect(
+      service.grant({ capability: 'variables_secret', ...baseProof })
+    ).rejects.toMatchObject({
       code: 'STEP_UP_INVALID'
     });
     const accepted = new StepUpService({

@@ -31,7 +31,9 @@ function repository(): AccountRepository & { accounts: Map<string, typeof owner>
     accounts,
     list: async () => [...accounts.values()],
     findById: async (id) => accounts.get(id) ?? null,
-    countActiveOwners: async () => [...accounts.values()].filter((item) => item.role === 'ops_owner' && item.status === 'active').length,
+    countActiveOwners: async () =>
+      [...accounts.values()].filter((item) => item.role === 'ops_owner' && item.status === 'active')
+        .length,
     createPending: async (input) => {
       const account = {
         id: input.id,
@@ -86,7 +88,9 @@ function serviceWith(repositoryValue: AccountRepository) {
     service: new AccountService({
       repository: repositoryValue,
       stepUp: { consume: async (input) => (consumed.push(input), true) },
-      audit: { append: async (input) => (audited.push(input), { id: 'audit-id', entryHash: 'hash' }) },
+      audit: {
+        append: async (input) => (audited.push(input), { id: 'audit-id', entryHash: 'hash' })
+      },
       now: () => new Date('2026-08-31T12:00:00.000Z'),
       issueId: () => 'new-user-id',
       enrollmentToken: () => ({ plainToken: 'plain-enrollment-token', tokenHash: 'token-hash' })
@@ -97,19 +101,22 @@ function serviceWith(repositoryValue: AccountRepository) {
 }
 
 describe('AccountService', () => {
-  it.each(['changeRole', 'lock', 'revoke'] as const)('rejects %s against the acting owner', async (operation) => {
-    const value = serviceWith(repository());
-    await expect(
-      value.service[operation]({
-        actorUserId: owner.id,
-        targetUserId: owner.id,
-        ...(operation === 'changeRole' ? { role: 'ops_viewer' as const } : {}),
-        ...(operation === 'revoke' ? { confirmationUsername: owner.username } : {}),
-        authorization: grant
-      } as never)
-    ).rejects.toThrow('ACCOUNT_SELF_PROTECTED');
-    expect(value.consumed).toHaveLength(0);
-  });
+  it.each(['changeRole', 'lock', 'revoke'] as const)(
+    'rejects %s against the acting owner',
+    async (operation) => {
+      const value = serviceWith(repository());
+      await expect(
+        value.service[operation]({
+          actorUserId: owner.id,
+          targetUserId: owner.id,
+          ...(operation === 'changeRole' ? { role: 'ops_viewer' as const } : {}),
+          ...(operation === 'revoke' ? { confirmationUsername: owner.username } : {}),
+          authorization: grant
+        } as never)
+      ).rejects.toThrow('ACCOUNT_SELF_PROTECTED');
+      expect(value.consumed).toHaveLength(0);
+    }
+  );
 
   it('creates a maintainer by default and returns a one-time 24-hour enrollment link', async () => {
     const value = serviceWith(repository());

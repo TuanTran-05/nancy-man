@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -102,7 +102,9 @@ async function withSocket(
 }
 
 function closeServer(server: Server): Promise<void> {
-  return new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  return new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve()))
+  );
 }
 
 function responseFor(
@@ -125,124 +127,170 @@ function responseFor(
 
 describe('ConfigAgentClient', () => {
   it('signs framed inventory requests and validates the correlated HMAC response', async () => {
-    await withSocket((request, socket) => {
-      expect(request.operation).toBe('inventory.read');
-      expect(request.body).toEqual({ includeValues: true });
-      expect(request.signature).toMatch(/^hmac-sha256:v1:[a-f0-9]{64}$/u);
-      socket.end(encodeFrame(responseFor(request, inventory)));
-    }, async (socketPath) => {
-      const client = new ConfigAgentClient(options(socketPath));
-      await expect(client.readInventory(actor)).resolves.toMatchObject({ items: inventory.items });
-    });
+    await withSocket(
+      (request, socket) => {
+        expect(request.operation).toBe('inventory.read');
+        expect(request.body).toEqual({ includeValues: true });
+        expect(request.signature).toMatch(/^hmac-sha256:v1:[a-f0-9]{64}$/u);
+        socket.end(encodeFrame(responseFor(request, inventory)));
+      },
+      async (socketPath) => {
+        const client = new ConfigAgentClient(options(socketPath));
+        await expect(client.readInventory(actor)).resolves.toMatchObject({
+          items: inventory.items
+        });
+      }
+    );
   });
 
   it('negotiates read-only capabilities against the expected deployment contract', async () => {
-    await withSocket((request, socket) => {
-      socket.end(encodeFrame(responseFor(request, capabilities)));
-    }, async (socketPath) => {
-      const client = new ConfigAgentClient(options(socketPath));
-      await expect(
-        client.negotiate({
-          manifestVersion: '2026-08-31',
-          catalogVersion: '2026-08-31',
-          catalogDigest: `sha256:${'b'.repeat(64)}`
-        })
-      ).resolves.toEqual(capabilities);
-    });
+    await withSocket(
+      (request, socket) => {
+        socket.end(encodeFrame(responseFor(request, capabilities)));
+      },
+      async (socketPath) => {
+        const client = new ConfigAgentClient(options(socketPath));
+        await expect(
+          client.negotiate({
+            manifestVersion: '2026-08-31',
+            catalogVersion: '2026-08-31',
+            catalogDigest: `sha256:${'b'.repeat(64)}`
+          })
+        ).resolves.toEqual(capabilities);
+      }
+    );
   });
 
   it('binds subsequent inventory responses to the negotiated versions and rejects future timestamps', async () => {
     let capabilitiesRequest = true;
-    await withSocket((request, socket) => {
-      if (capabilitiesRequest) {
-        capabilitiesRequest = false;
-        socket.end(encodeFrame(responseFor(request, capabilities)));
-        return;
+    await withSocket(
+      (request, socket) => {
+        if (capabilitiesRequest) {
+          capabilitiesRequest = false;
+          socket.end(encodeFrame(responseFor(request, capabilities)));
+          return;
+        }
+        socket.end(
+          encodeFrame(
+            responseFor(request, {
+              ...inventory,
+              catalogVersion: '2026-09-01'
+            })
+          )
+        );
+      },
+      async (socketPath) => {
+        const client = new ConfigAgentClient(options(socketPath));
+        await client.negotiate({
+          manifestVersion: '2026-08-31',
+          catalogVersion: '2026-08-31',
+          catalogDigest: `sha256:${'b'.repeat(64)}`
+        });
+        await expect(client.readInventory(actor)).rejects.toMatchObject({
+          code: 'AGENT_RESPONSE_MISMATCH'
+        });
       }
-      socket.end(encodeFrame(responseFor(request, {
-        ...inventory,
-        catalogVersion: '2026-09-01'
-      })));
-    }, async (socketPath) => {
-      const client = new ConfigAgentClient(options(socketPath));
-      await client.negotiate({
-        manifestVersion: '2026-08-31',
-        catalogVersion: '2026-08-31',
-        catalogDigest: `sha256:${'b'.repeat(64)}`
-      });
-      await expect(client.readInventory(actor)).rejects.toMatchObject({
-        code: 'AGENT_RESPONSE_MISMATCH'
-      });
-    });
+    );
 
-    await withSocket((request, socket) => {
-      const response = responseFor(request, inventory);
-      const future = {
-        ...response,
-        issuedAt: '2026-09-01T13:10:01.000Z',
-        expiresAt: '2026-09-01T13:10:31.000Z'
-      };
-      socket.end(encodeFrame({ ...future, signature: signAgentEnvelope(future, 'agent-protocol-secret') }));
-    }, async (socketPath) => {
-      const client = new ConfigAgentClient(options(socketPath));
-      await expect(client.readInventory(actor)).rejects.toMatchObject({
-        code: 'AGENT_RESPONSE_EXPIRED'
-      });
-    });
+    await withSocket(
+      (request, socket) => {
+        const response = responseFor(request, inventory);
+        const future = {
+          ...response,
+          issuedAt: '2026-09-01T13:10:01.000Z',
+          expiresAt: '2026-09-01T13:10:31.000Z'
+        };
+        socket.end(
+          encodeFrame({ ...future, signature: signAgentEnvelope(future, 'agent-protocol-secret') })
+        );
+      },
+      async (socketPath) => {
+        const client = new ConfigAgentClient(options(socketPath));
+        await expect(client.readInventory(actor)).rejects.toMatchObject({
+          code: 'AGENT_RESPONSE_EXPIRED'
+        });
+      }
+    );
   });
 
   it('rejects a bad response signature, request mismatch, schema drift, and trailing frames without exposing body data', async () => {
-    const cases: Array<{ name: string; response: (request: Record<string, unknown>) => unknown }> = [
-      {
-        name: 'bad signature',
-        response: (request) => ({ ...responseFor(request, inventory), signature: `hmac-sha256:v1:${'0'.repeat(64)}` })
-      },
-      {
-        name: 'request mismatch',
-        response: (request) => responseFor({ ...request, requestId: 'REQ_other' }, inventory)
-      },
-      {
-        name: 'schema drift',
-        response: (request) => responseFor(request, { ...inventory, leaked: 'test-secret-value' })
-      }
-    ];
+    const cases: Array<{ name: string; response: (request: Record<string, unknown>) => unknown }> =
+      [
+        {
+          name: 'bad signature',
+          response: (request) => ({
+            ...responseFor(request, inventory),
+            signature: `hmac-sha256:v1:${'0'.repeat(64)}`
+          })
+        },
+        {
+          name: 'request mismatch',
+          response: (request) => responseFor({ ...request, requestId: 'REQ_other' }, inventory)
+        },
+        {
+          name: 'schema drift',
+          response: (request) => responseFor(request, { ...inventory, leaked: 'test-secret-value' })
+        }
+      ];
     for (const testCase of cases) {
-      await withSocket((request, socket) => {
-        socket.end(encodeFrame(testCase.response(request)));
-      }, async (socketPath) => {
-        const client = new ConfigAgentClient(options(socketPath));
-        await expect(client.readInventory(actor)).rejects.toSatisfy((error: unknown) => {
-          expect(error).toBeInstanceOf(ConfigAgentError);
-          expect(String(error)).not.toContain('test-secret-value');
-          return (error as ConfigAgentError).code !== '';
-        });
-      });
+      await withSocket(
+        (request, socket) => {
+          socket.end(encodeFrame(testCase.response(request)));
+        },
+        async (socketPath) => {
+          const client = new ConfigAgentClient(options(socketPath));
+          await expect(client.readInventory(actor)).rejects.toSatisfy((error: unknown) => {
+            expect(error).toBeInstanceOf(ConfigAgentError);
+            expect(String(error)).not.toContain('test-secret-value');
+            return (error as ConfigAgentError).code !== '';
+          });
+        }
+      );
     }
 
-    await withSocket((request, socket) => {
-      const response = responseFor(request, inventory);
-      socket.end(Buffer.concat([encodeFrame(response), encodeFrame(response)]));
-    }, async (socketPath) => {
-      const client = new ConfigAgentClient(options(socketPath));
-      await expect(client.readInventory(actor)).rejects.toMatchObject({ code: 'AGENT_TRAILING_FRAME' });
-    });
+    await withSocket(
+      (request, socket) => {
+        const response = responseFor(request, inventory);
+        socket.end(Buffer.concat([encodeFrame(response), encodeFrame(response)]));
+      },
+      async (socketPath) => {
+        const client = new ConfigAgentClient(options(socketPath));
+        await expect(client.readInventory(actor)).rejects.toMatchObject({
+          code: 'AGENT_TRAILING_FRAME'
+        });
+      }
+    );
   });
 
   it('enforces read and total deadlines and a response byte limit', async () => {
-    await withSocket((_request, _socket) => undefined, async (socketPath) => {
-      const client = new ConfigAgentClient(options(socketPath, { readTimeoutMs: 20, totalTimeoutMs: 200 }));
-      await expect(client.readInventory(actor)).rejects.toMatchObject({ code: 'AGENT_READ_TIMEOUT' });
-    });
+    await withSocket(
+      () => undefined,
+      async (socketPath) => {
+        const client = new ConfigAgentClient(
+          options(socketPath, { readTimeoutMs: 20, totalTimeoutMs: 200 })
+        );
+        await expect(client.readInventory(actor)).rejects.toMatchObject({
+          code: 'AGENT_READ_TIMEOUT'
+        });
+      }
+    );
 
-    await withSocket((_request, socket) => {
-      const header = Buffer.alloc(4);
-      header.writeUInt32BE(1_048_576);
-      socket.write(header);
-      socket.write(Buffer.alloc(32));
-    }, async (socketPath) => {
-      const client = new ConfigAgentClient(options(socketPath, { maximumResponseBytes: 32, totalTimeoutMs: 200 }));
-      await expect(client.readInventory(actor)).rejects.toMatchObject({ code: 'AGENT_RESPONSE_TOO_LARGE' });
-    });
+    await withSocket(
+      (_request, socket) => {
+        const header = Buffer.alloc(4);
+        header.writeUInt32BE(1_048_576);
+        socket.write(header);
+        socket.write(Buffer.alloc(32));
+      },
+      async (socketPath) => {
+        const client = new ConfigAgentClient(
+          options(socketPath, { maximumResponseBytes: 32, totalTimeoutMs: 200 })
+        );
+        await expect(client.readInventory(actor)).rejects.toMatchObject({
+          code: 'AGENT_RESPONSE_TOO_LARGE'
+        });
+      }
+    );
   });
 
   it('uses the public signature helper with the versioned HMAC format', () => {

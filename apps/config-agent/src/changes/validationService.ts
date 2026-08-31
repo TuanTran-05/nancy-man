@@ -7,14 +7,11 @@ import {
   type CatalogEntry,
   type ChangeImpactPlan,
   type ChangeValidateRequest,
-  type ManifestSource,
+  type ManifestSource
 } from '../../../../packages/config-contracts/src/index.js';
 import { DraftStore } from './draftStore.js';
 import type { SafeSourceMetadata } from '../security/safeSourceFile.js';
-import {
-  readSafeSourceFile,
-  resolveActiveReleaseLink
-} from '../security/safeSourceFile.js';
+import { readSafeSourceFile, resolveActiveReleaseLink } from '../security/safeSourceFile.js';
 import {
   parseSystemdCredentialFile,
   type CredentialDisplayEncoding
@@ -63,10 +60,12 @@ export type ValidationServiceOptions = Readonly<{
   readSource?: ValidationSourceReader;
   credentialDisplayEncodings?: Readonly<Record<string, CredentialDisplayEncoding>>;
   applicationValidator?: (context: ValidationApplicationContext) => Promise<void>;
-  crossVariableValidators?: readonly ((context: Readonly<{
-    appId: string;
-    items: readonly ChangeValidateRequest['items'][number][];
-  }>) => void)[];
+  crossVariableValidators?: readonly ((
+    context: Readonly<{
+      appId: string;
+      items: readonly ChangeValidateRequest['items'][number][];
+    }>
+  ) => void)[];
   now?: () => Date;
 }>;
 
@@ -147,8 +146,10 @@ function classifyRequestFailure(rawRequest: unknown): ValidationErrorCode {
   for (const item of items) {
     if (typeof item !== 'object' || item === null) continue;
     const candidate = item as Record<string, unknown>;
-    if (candidate.operation === 'delete' && candidate.requirement === 'required') return 'REQUIRED_DELETE';
-    if (candidate.mutability === 'observed' || candidate.requirement === 'unknown') return 'OBSERVED_VARIABLE';
+    if (candidate.operation === 'delete' && candidate.requirement === 'required')
+      return 'REQUIRED_DELETE';
+    if (candidate.mutability === 'observed' || candidate.requirement === 'unknown')
+      return 'OBSERVED_VARIABLE';
   }
   return 'VALIDATION_REQUEST_INVALID';
 }
@@ -276,15 +277,18 @@ function validateValue(entry: CatalogEntry, value: string, catalog: Catalog): st
         if (!/^-?[0-9]+$/u.test(value)) fail('VARIABLE_RULE_FAILED');
         const numeric = Number(value);
         if (!Number.isSafeInteger(numeric)) fail('VARIABLE_RULE_FAILED');
-        if (validator.minimum !== undefined && numeric < validator.minimum) fail('VARIABLE_RULE_FAILED');
-        if (validator.maximum !== undefined && numeric > validator.maximum) fail('VARIABLE_RULE_FAILED');
+        if (validator.minimum !== undefined && numeric < validator.minimum)
+          fail('VARIABLE_RULE_FAILED');
+        if (validator.maximum !== undefined && numeric > validator.maximum)
+          fail('VARIABLE_RULE_FAILED');
         break;
       }
       case 'enum':
         if (!validator.allowedValues.includes(value)) fail('VARIABLE_RULE_FAILED');
         break;
       case 'regex':
-        if (!new RegExp(validator.pattern, validator.flags).test(value)) fail('VARIABLE_RULE_FAILED');
+        if (!new RegExp(validator.pattern, validator.flags).test(value))
+          fail('VARIABLE_RULE_FAILED');
         break;
       case 'non_empty':
         if (value.trim().length === 0) fail('VARIABLE_RULE_FAILED');
@@ -323,10 +327,10 @@ function digest(key: FingerprintKey, items: readonly PersistedChangeItem[]): str
   return hmacFingerprint(key, 'change_digest', canonicalPatch(items));
 }
 
-function actionAndCheckIds(
-  sources: readonly ManifestSource[],
-  ids: readonly string[]
-): { actionIds: string[]; checkIds: string[] } {
+function actionAndCheckIds(sources: readonly ManifestSource[]): {
+  actionIds: string[];
+  checkIds: string[];
+} {
   const actionIds = new Set<string>();
   const checkIds = new Set<string>();
   for (const source of sources) {
@@ -347,7 +351,7 @@ function impactPlan(
 ): ChangeImpactPlan {
   const strategies = [...new Set(entries.map((entry) => entry.applyStrategy))].sort();
   const sourceIds = [...new Set(sources.map((source) => source.id))].sort();
-  const { actionIds, checkIds } = actionAndCheckIds(sources, sourceIds);
+  const { actionIds, checkIds } = actionAndCheckIds(sources);
   return {
     applicationId: appId,
     strategies,
@@ -447,7 +451,10 @@ export function createValidationService(options: ValidationServiceOptions) {
       } else {
         deleteCount += 1;
         const lower = options.manifest.sources.find(
-          (candidate) => candidate.id !== source.id && candidate.appId === source.appId && candidate.precedenceRank < source.precedenceRank
+          (candidate) =>
+            candidate.id !== source.id &&
+            candidate.appId === source.appId &&
+            candidate.precedenceRank < source.precedenceRank
         );
         if (lower) warnings.push('DELETE_EXPOSES_LOWER_PRECEDENCE');
       }
@@ -460,7 +467,7 @@ export function createValidationService(options: ValidationServiceOptions) {
       const newValueFingerprint = fingerprintValue(
         options.fingerprintKey,
         entry.id,
-        Buffer.from(item.operation === 'delete' ? '' : item.value ?? '', 'utf8')
+        Buffer.from(item.operation === 'delete' ? '' : (item.value ?? ''), 'utf8')
       );
       itemFingerprints.push({
         catalogId: entry.id,
@@ -523,13 +530,19 @@ export function createValidationService(options: ValidationServiceOptions) {
         fail('APPLICATION_VALIDATOR_FAILED');
       }
     }
-    const plan = impactPlan(request.appId, request.items.map((item) => catalogById.get(item.catalogId) as CatalogEntry), sourceList, warnings);
+    const plan = impactPlan(
+      request.appId,
+      request.items.map((item) => catalogById.get(item.catalogId) as CatalogEntry),
+      sourceList,
+      warnings
+    );
     plan.counts.sets = setCount;
     plan.counts.deletes = deleteCount;
     if (plan.strategies.includes('build_redeploy')) {
       for (const item of request.items) {
         const entry = catalogById.get(item.catalogId);
-        if (!entry || entry.sensitivity !== 'public' || !entry.buildAllowed) fail('PUBLIC_BUILD_NOT_ALLOWED');
+        if (!entry || entry.sensitivity !== 'public' || !entry.buildAllowed)
+          fail('PUBLIC_BUILD_NOT_ALLOWED');
       }
     }
     const changeDigest = digest(options.fingerprintKey, persistedItems);

@@ -20,7 +20,11 @@ const actor = {
 
 describe('VariablesService', () => {
   it('returns value-free catalog metadata without calling the agent', async () => {
-    const client = { readInventory: async () => { throw new Error('must not call'); } };
+    const client = {
+      readInventory: async () => {
+        throw new Error('must not call');
+      }
+    };
     const service = new VariablesService({ client, catalog });
 
     await expect(service.getCatalog()).resolves.toEqual(catalog);
@@ -29,7 +33,7 @@ describe('VariablesService', () => {
   it('passes API-created actor context to the agent and audits counts and source IDs only', async () => {
     const audit: unknown[] = [];
     const client = {
-      readInventory: async (value: typeof actor) => ({
+      readInventory: async () => ({
         catalogVersion: '2026-08-31',
         manifestVersion: '2026-08-31',
         generatedAt: '2026-08-31T13:12:00.000Z',
@@ -62,7 +66,11 @@ describe('VariablesService', () => {
     const service = new VariablesService({
       client,
       catalog,
-      audit: { append: async (value) => { audit.push(value); } }
+      audit: {
+        append: async (value) => {
+          audit.push(value);
+        }
+      }
     });
 
     const result = await service.read({ actor });
@@ -84,12 +92,14 @@ describe('VariablesService', () => {
   });
 
   it('redacts nested variable-bearing metadata recursively', () => {
-    expect(redactVariablesMetadata({
-      value: 'secret',
-      nested: { currentValue: 'secret-2', credential: { token: 'secret-3' } },
-      agentResponse: { items: [{ value: 'secret-4' }] },
-      count: 2
-    })).toEqual({
+    expect(
+      redactVariablesMetadata({
+        value: 'secret',
+        nested: { currentValue: 'secret-2', credential: { token: 'secret-3' } },
+        agentResponse: { items: [{ value: 'secret-4' }] },
+        count: 2
+      })
+    ).toEqual({
       value: '[redacted]',
       nested: { currentValue: '[redacted]', credential: '[redacted]' },
       agentResponse: '[redacted]',

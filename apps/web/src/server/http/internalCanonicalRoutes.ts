@@ -6,10 +6,7 @@ import {
   type LegacyMonitoringRole
 } from '../../../../../packages/contracts/src/legacyMonitoringProtocol.js';
 import type { OpsStore } from '../storage/store.js';
-import {
-  createOpsZaloLinkCode,
-  hashZaloLinkCode
-} from '../security/zaloLink.js';
+import { createOpsZaloLinkCode, hashZaloLinkCode } from '../security/zaloLink.js';
 import type { OpsZaloRouteDependencies } from './zaloRoutes.js';
 import { publicOverview } from './monitorRoutes.js';
 
@@ -17,10 +14,20 @@ type InternalRequest = Request & { rawBody?: string };
 type InternalPrincipal = { userId: string; role: LegacyMonitoringRole };
 
 const roleSchema = z.enum(['ops_viewer', 'ops_maintainer', 'ops_owner']);
-const ackSchema = z.object({ incidentId: z.string().min(1).max(128), note: z.string().min(1).max(500) }).strict();
+const ackSchema = z
+  .object({ incidentId: z.string().min(1).max(128), note: z.string().min(1).max(500) })
+  .strict();
 
 function noStore(response: Response): void {
   response.setHeader('Cache-Control', 'no-store');
+}
+
+function isPrintableAscii(value: string): boolean {
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code < 0x20 || code > 0x7e) return false;
+  }
+  return true;
 }
 
 function loopback(request: Request): boolean {
@@ -52,7 +59,10 @@ export function attachInternalCanonicalRoutes(
   const nonceStore = new BoundedNonceReplayCache(input.nonceCapacity ?? 4_096);
   const now = input.now ?? (() => new Date());
 
-  async function authenticate(request: InternalRequest, response: Response): Promise<InternalPrincipal | null> {
+  async function authenticate(
+    request: InternalRequest,
+    response: Response
+  ): Promise<InternalPrincipal | null> {
     noStore(response);
     if (!loopback(request)) {
       response.status(403).json({ code: 'LOOPBACK_REQUIRED' });
@@ -128,7 +138,7 @@ export function attachInternalCanonicalRoutes(
     const principal = await authenticate(request as InternalRequest, response);
     if (!principal) return;
     const parsed = ackSchema.safeParse(request.body);
-    if (!parsed.success || /[^\u0000-\u007F]/u.test(parsed.data?.incidentId ?? '')) {
+    if (!parsed.success || !isPrintableAscii(parsed.data?.incidentId ?? '')) {
       response.status(400).json({ code: 'INVALID_ACK_REQUEST' });
       return;
     }
@@ -172,7 +182,9 @@ export function attachInternalCanonicalRoutes(
       details: { expiresAt: expiresAt.toISOString() },
       occurredAt: createdAt.toISOString()
     });
-    response.status(201).json({ code, expiresAt: expiresAt.toISOString(), command: `/link ${code}` });
+    response
+      .status(201)
+      .json({ code, expiresAt: expiresAt.toISOString(), command: `/link ${code}` });
   });
   router.post('/internal/v1/monitoring/zalo/unlink', async (request, response) => {
     const principal = await authenticate(request as InternalRequest, response);

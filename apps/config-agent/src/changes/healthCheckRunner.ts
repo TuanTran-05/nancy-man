@@ -94,7 +94,12 @@ async function readBoundedBody(response: Response, maximumBytes: number): Promis
 function validateDefinition(definition: HealthCheckDefinition): void {
   if (!/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u.test(definition.id)) fail('HEALTH_INPUT_INVALID');
   if (definition.kind !== 'http' && !definition.target) fail('HEALTH_INPUT_INVALID');
-  if (!Number.isSafeInteger(definition.timeoutMs) || definition.timeoutMs <= 0 || definition.timeoutMs > 300_000) fail('HEALTH_INPUT_INVALID');
+  if (
+    !Number.isSafeInteger(definition.timeoutMs) ||
+    definition.timeoutMs <= 0 ||
+    definition.timeoutMs > 300_000
+  )
+    fail('HEALTH_INPUT_INVALID');
   if (definition.kind === 'http') {
     if (
       (definition.protocol !== 'http' && definition.protocol !== 'https') ||
@@ -123,10 +128,12 @@ function result(
   return { runId, checkId, outcome, reasonCode, durationMs: Date.now() - startedAt, attempts: 1 };
 }
 
-export function createHealthCheckRunner(options: Readonly<{
-  definitions: readonly HealthCheckDefinition[];
-  dependencies: HealthProbeDependencies;
-}>) {
+export function createHealthCheckRunner(
+  options: Readonly<{
+    definitions: readonly HealthCheckDefinition[];
+    dependencies: HealthProbeDependencies;
+  }>
+) {
   const definitions = new Map<string, HealthCheckDefinition>();
   for (const definition of options.definitions) {
     validateDefinition(definition);
@@ -143,28 +150,45 @@ export function createHealthCheckRunner(options: Readonly<{
     try {
       switch (definition.kind) {
         case 'process_stable': {
-          const process = await timeout(options.dependencies.processProbe(definition.target ?? ''), definition.timeoutMs);
-          if (!process.active) return result(runId, definition.id, 'failed', 'PROCESS_INACTIVE', startedAt);
-          if (!process.stable) return result(runId, definition.id, 'failed', 'PROCESS_UNSTABLE', startedAt);
+          const process = await timeout(
+            options.dependencies.processProbe(definition.target ?? ''),
+            definition.timeoutMs
+          );
+          if (!process.active)
+            return result(runId, definition.id, 'failed', 'PROCESS_INACTIVE', startedAt);
+          if (!process.stable)
+            return result(runId, definition.id, 'failed', 'PROCESS_UNSTABLE', startedAt);
           return result(runId, definition.id, 'passed', 'OK', startedAt);
         }
         case 'http': {
           const url = `${definition.protocol}://${definition.host}:${definition.port}${definition.path}`;
           const response = await timeout(
-            options.dependencies.fetch(url, { redirect: definition.allowRedirects ? 'follow' : 'manual' }),
+            options.dependencies.fetch(url, {
+              redirect: definition.allowRedirects ? 'follow' : 'manual'
+            }),
             definition.timeoutMs
           );
-          if (!definition.allowRedirects && (response.redirected || (response.status >= 300 && response.status < 400))) {
+          if (
+            !definition.allowRedirects &&
+            (response.redirected || (response.status >= 300 && response.status < 400))
+          ) {
             return result(runId, definition.id, 'failed', 'HTTP_REDIRECT_REJECTED', startedAt);
           }
           if (definition.allowRedirects && response.redirected && response.url) {
             const finalUrl = new URL(response.url);
-            if (finalUrl.hostname !== definition.host || finalUrl.protocol !== `${definition.protocol}:`) {
+            if (
+              finalUrl.hostname !== definition.host ||
+              finalUrl.protocol !== `${definition.protocol}:`
+            ) {
               return result(runId, definition.id, 'failed', 'HTTP_TARGET_REJECTED', startedAt);
             }
           }
-          if (!response.ok) return result(runId, definition.id, 'failed', 'HTTP_STATUS_UNEXPECTED', startedAt);
-          const bodyAllowed = await timeout(readBoundedBody(response, definition.maxBodyBytes ?? 0), definition.timeoutMs);
+          if (!response.ok)
+            return result(runId, definition.id, 'failed', 'HTTP_STATUS_UNEXPECTED', startedAt);
+          const bodyAllowed = await timeout(
+            readBoundedBody(response, definition.maxBodyBytes ?? 0),
+            definition.timeoutMs
+          );
           if (!bodyAllowed) {
             return result(runId, definition.id, 'failed', 'HTTP_BODY_TOO_LARGE', startedAt);
           }
@@ -174,30 +198,72 @@ export function createHealthCheckRunner(options: Readonly<{
           if (!input.expectedReleaseId || !input.expectedConfigDigest) {
             return result(runId, definition.id, 'failed', 'RELEASE_IDENTITY_MISSING', startedAt);
           }
-          const identity = await timeout(options.dependencies.identityProbe(definition.target ?? ''), definition.timeoutMs);
-          if (identity.releaseId !== input.expectedReleaseId || identity.configDigest !== input.expectedConfigDigest) {
+          const identity = await timeout(
+            options.dependencies.identityProbe(definition.target ?? ''),
+            definition.timeoutMs
+          );
+          if (
+            identity.releaseId !== input.expectedReleaseId ||
+            identity.configDigest !== input.expectedConfigDigest
+          ) {
             return result(runId, definition.id, 'failed', 'RELEASE_IDENTITY_MISMATCH', startedAt);
           }
           return result(runId, definition.id, 'passed', 'OK', startedAt);
         }
         case 'dependency': {
-          if (!options.dependencies.dependencyProbe) return result(runId, definition.id, 'failed', 'CHECK_UNAVAILABLE', startedAt);
-          const dependencyPassed = await timeout(options.dependencies.dependencyProbe(definition.target ?? ''), definition.timeoutMs);
-          return result(runId, definition.id, dependencyPassed ? 'passed' : 'failed', dependencyPassed ? 'OK' : 'DEPENDENCY_FAILED', startedAt);
+          if (!options.dependencies.dependencyProbe)
+            return result(runId, definition.id, 'failed', 'CHECK_UNAVAILABLE', startedAt);
+          const dependencyPassed = await timeout(
+            options.dependencies.dependencyProbe(definition.target ?? ''),
+            definition.timeoutMs
+          );
+          return result(
+            runId,
+            definition.id,
+            dependencyPassed ? 'passed' : 'failed',
+            dependencyPassed ? 'OK' : 'DEPENDENCY_FAILED',
+            startedAt
+          );
         }
         case 'agent_self': {
-          if (!options.dependencies.agentProbe) return result(runId, definition.id, 'failed', 'CHECK_UNAVAILABLE', startedAt);
-          const agentPassed = await timeout(options.dependencies.agentProbe(), definition.timeoutMs);
-          return result(runId, definition.id, agentPassed ? 'passed' : 'failed', agentPassed ? 'OK' : 'AGENT_UNHEALTHY', startedAt);
+          if (!options.dependencies.agentProbe)
+            return result(runId, definition.id, 'failed', 'CHECK_UNAVAILABLE', startedAt);
+          const agentPassed = await timeout(
+            options.dependencies.agentProbe(),
+            definition.timeoutMs
+          );
+          return result(
+            runId,
+            definition.id,
+            agentPassed ? 'passed' : 'failed',
+            agentPassed ? 'OK' : 'AGENT_UNHEALTHY',
+            startedAt
+          );
         }
         case 'api_health': {
-          if (!options.dependencies.apiProbe) return result(runId, definition.id, 'failed', 'CHECK_UNAVAILABLE', startedAt);
-          const apiPassed = await timeout(options.dependencies.apiProbe(definition.target ?? ''), definition.timeoutMs);
-          return result(runId, definition.id, apiPassed ? 'passed' : 'failed', apiPassed ? 'OK' : 'API_UNHEALTHY', startedAt);
+          if (!options.dependencies.apiProbe)
+            return result(runId, definition.id, 'failed', 'CHECK_UNAVAILABLE', startedAt);
+          const apiPassed = await timeout(
+            options.dependencies.apiProbe(definition.target ?? ''),
+            definition.timeoutMs
+          );
+          return result(
+            runId,
+            definition.id,
+            apiPassed ? 'passed' : 'failed',
+            apiPassed ? 'OK' : 'API_UNHEALTHY',
+            startedAt
+          );
         }
       }
     } catch {
-      return result(runId, definition.id, 'failed', definition.kind === 'http' ? 'HTTP_TIMEOUT' : 'CHECK_TIMEOUT', startedAt);
+      return result(
+        runId,
+        definition.id,
+        'failed',
+        definition.kind === 'http' ? 'HTTP_TIMEOUT' : 'CHECK_TIMEOUT',
+        startedAt
+      );
     }
   }
 
@@ -206,7 +272,9 @@ export function createHealthCheckRunner(options: Readonly<{
       !input ||
       typeof input.runId !== 'string' ||
       !Array.isArray(input.checkIds) ||
-      Object.keys(input).some((key) => !['runId', 'checkIds', 'expectedReleaseId', 'expectedConfigDigest'].includes(key))
+      Object.keys(input).some(
+        (key) => !['runId', 'checkIds', 'expectedReleaseId', 'expectedConfigDigest'].includes(key)
+      )
     ) {
       fail('HEALTH_INPUT_INVALID');
     }

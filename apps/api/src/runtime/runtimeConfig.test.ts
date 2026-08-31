@@ -131,21 +131,23 @@ describe('readOpsRuntimeConfig', () => {
   });
 
   it('fails closed when Variables is enabled with an invalid response limit or raw protocol key', () => {
-    expect(() => readOpsRuntimeConfig({
-      ...validEnvironment,
-      OPS_VARIABLES_READ_ONLY_ENABLED: 'true',
-      OPS_CONFIG_AGENT_SOCKET_PATH: '/run/edutrack-config-agent/agent.sock',
-      OPS_CONFIG_AGENT_HMAC_REFERENCE: 'ops-config-agent-hmac',
-      OPS_CONFIG_AGENT_HMAC: 'raw-secret',
-      OPS_CONFIG_AGENT_HMAC_KEY_ID: 'config-agent-2026-08-31',
-      OPS_CONFIG_AGENT_MANIFEST_VERSION: '2026-08-31',
-      OPS_CONFIG_AGENT_CATALOG_VERSION: '2026-08-31',
-      OPS_CONFIG_AGENT_CATALOG_DIGEST: `sha256:${'b'.repeat(64)}`,
-      OPS_CONFIG_AGENT_CONNECT_TIMEOUT_MS: '1000',
-      OPS_CONFIG_AGENT_READ_TIMEOUT_MS: '2000',
-      OPS_CONFIG_AGENT_TOTAL_TIMEOUT_MS: '5000',
-      OPS_CONFIG_AGENT_MAX_RESPONSE_BYTES: '1048577'
-    })).toThrow(/response bytes|forbidden/i);
+    expect(() =>
+      readOpsRuntimeConfig({
+        ...validEnvironment,
+        OPS_VARIABLES_READ_ONLY_ENABLED: 'true',
+        OPS_CONFIG_AGENT_SOCKET_PATH: '/run/edutrack-config-agent/agent.sock',
+        OPS_CONFIG_AGENT_HMAC_REFERENCE: 'ops-config-agent-hmac',
+        OPS_CONFIG_AGENT_HMAC: 'raw-secret',
+        OPS_CONFIG_AGENT_HMAC_KEY_ID: 'config-agent-2026-08-31',
+        OPS_CONFIG_AGENT_MANIFEST_VERSION: '2026-08-31',
+        OPS_CONFIG_AGENT_CATALOG_VERSION: '2026-08-31',
+        OPS_CONFIG_AGENT_CATALOG_DIGEST: `sha256:${'b'.repeat(64)}`,
+        OPS_CONFIG_AGENT_CONNECT_TIMEOUT_MS: '1000',
+        OPS_CONFIG_AGENT_READ_TIMEOUT_MS: '2000',
+        OPS_CONFIG_AGENT_TOTAL_TIMEOUT_MS: '5000',
+        OPS_CONFIG_AGENT_MAX_RESPONSE_BYTES: '1048577'
+      })
+    ).toThrow(/response bytes|forbidden/i);
   });
 
   it('keeps draft, runtime, and build rollout gates independent', () => {

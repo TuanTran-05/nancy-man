@@ -6,7 +6,11 @@ describe('PostgresAccountRepository', () => {
   it('locks owner rows before counting them instead of applying FOR UPDATE to an aggregate', async () => {
     const calls: string[] = [];
     const repository = new PostgresAccountRepository({
-      transaction: async <T>(operation: (database: { query: <R>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: R[] }> }) => Promise<T>) =>
+      transaction: async <T>(
+        operation: (database: {
+          query: <R>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: R[] }>;
+        }) => Promise<T>
+      ) =>
         operation({
           query: async <R>(sql: string) => {
             calls.push(sql);
@@ -39,7 +43,11 @@ describe('PostgresAccountRepository', () => {
   it('locks actor and target and revokes access state in account transactions', async () => {
     const calls: string[] = [];
     const repository = new PostgresAccountRepository({
-      transaction: async <T>(operation: (database: { query: <R>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: R[] }> }) => Promise<T>) =>
+      transaction: async <T>(
+        operation: (database: {
+          query: <R>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: R[] }>;
+        }) => Promise<T>
+      ) =>
         operation({
           query: async <R>(sql: string) => {
             calls.push(sql);
@@ -48,7 +56,9 @@ describe('PostgresAccountRepository', () => {
         })
     });
 
-    await expect(repository.lock({ actorUserId: 'actor-id', targetUserId: 'target-id', reason: 'OWNER_LOCK' })).resolves.toBe(true);
+    await expect(
+      repository.lock({ actorUserId: 'actor-id', targetUserId: 'target-id', reason: 'OWNER_LOCK' })
+    ).resolves.toBe(true);
     const sql = calls.join('\n');
     expect(sql).toContain('FOR UPDATE');
     expect(sql).toContain('ops_sessions');

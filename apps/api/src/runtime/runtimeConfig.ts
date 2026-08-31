@@ -138,7 +138,11 @@ function configAgent(environment: Environment): ConfigAgentRuntimeConfig {
     throw new Error('OPS_CONFIG_AGENT_TOTAL_TIMEOUT_MS must cover connect and read timeouts');
   }
   const maximumResponseBytes = Number(required(environment, 'OPS_CONFIG_AGENT_MAX_RESPONSE_BYTES'));
-  if (!Number.isSafeInteger(maximumResponseBytes) || maximumResponseBytes < 1 || maximumResponseBytes > 1_048_576) {
+  if (
+    !Number.isSafeInteger(maximumResponseBytes) ||
+    maximumResponseBytes < 1 ||
+    maximumResponseBytes > 1_048_576
+  ) {
     throw new Error('OPS_CONFIG_AGENT_MAX_RESPONSE_BYTES is invalid');
   }
   return {

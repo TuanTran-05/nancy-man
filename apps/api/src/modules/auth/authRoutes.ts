@@ -35,15 +35,19 @@ const totpBody = z.object({
   factorId: z.string().uuid(),
   token: z.string().regex(/^\d{6}$/)
 });
-const enrollmentStartBody = z.object({
-  userId: z.string().uuid(),
-  token: z.string().min(32).max(256)
-}).strict();
-const enrollmentVerifyBody = enrollmentStartBody.extend({
-  factorId: z.string().uuid(),
-  otp: z.string().regex(/^\d{6}$/),
-  password: z.string().min(14).max(1_024)
-}).strict();
+const enrollmentStartBody = z
+  .object({
+    userId: z.string().uuid(),
+    token: z.string().min(32).max(256)
+  })
+  .strict();
+const enrollmentVerifyBody = enrollmentStartBody
+  .extend({
+    factorId: z.string().uuid(),
+    otp: z.string().regex(/^\d{6}$/),
+    password: z.string().min(14).max(1_024)
+  })
+  .strict();
 const accountAuthorizationBody = z
   .object({
     password: z.string().min(14).max(1_024),

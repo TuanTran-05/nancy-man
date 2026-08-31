@@ -53,8 +53,9 @@ describe('ops configuration', () => {
       OPS_BACKUP_DIR: '/var/backups',
       OPS_ALERT_ZALO_BOT_TOKEN: 'secret',
       OPS_ALERT_ZALO_RECIPIENT_UIDS: 'ops-a',
-  OPS_ZALO_RECIPIENT_KEY: Buffer.alloc(32, 8).toString('base64'),
-  OPS_LEGACY_MONITORING_HMAC_FILE: '/run/credentials/edutrack-ops-web.service/ops-legacy-monitoring-hmac',
+      OPS_ZALO_RECIPIENT_KEY: Buffer.alloc(32, 8).toString('base64'),
+      OPS_LEGACY_MONITORING_HMAC_FILE:
+        '/run/credentials/edutrack-ops-web.service/ops-legacy-monitoring-hmac',
       OPS_ALERT_ZALO_TIMEOUT_MS: '1000'
     };
     expect(() => loadCollectorConfig(env)).toThrow('127.0.0.1');

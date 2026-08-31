@@ -69,7 +69,11 @@ export function createApplyStateMachine(
   }
 
   function assertApplicationAvailable(applicationId: string): void {
-    if (options.applicationId && options.applicationId === applicationId && !terminal.has(current)) {
+    if (
+      options.applicationId &&
+      options.applicationId === applicationId &&
+      !terminal.has(current)
+    ) {
       fail('APPLY_ALREADY_RUNNING');
     }
   }

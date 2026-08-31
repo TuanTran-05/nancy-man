@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import process from 'node:process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -28,8 +29,7 @@ function normalizeMappings(mappings) {
   if (REQUIRED_USERNAMES.some((username) => !byUsername.has(username)))
     fail('OPS_ZALO_CUTOVER_MAPPING_INVALID');
   const principalIds = [...byUsername.values()];
-  if (new Set(principalIds).size !== principalIds.length)
-    fail('OPS_ZALO_CUTOVER_MAPPING_INVALID');
+  if (new Set(principalIds).size !== principalIds.length) fail('OPS_ZALO_CUTOVER_MAPPING_INVALID');
   return byUsername;
 }
 
@@ -149,7 +149,9 @@ if (entrypoint && import.meta.url === pathToFileURL(resolve(entrypoint)).href) {
     );
   } catch (error) {
     const code = error instanceof Error ? error.message : 'OPS_ZALO_CUTOVER_FAILED';
-    process.stderr.write(`${/^OPS_ZALO_CUTOVER_[A-Z_]+$/u.test(code) ? code : 'OPS_ZALO_CUTOVER_FAILED'}\n`);
+    process.stderr.write(
+      `${/^OPS_ZALO_CUTOVER_[A-Z_]+$/u.test(code) ? code : 'OPS_ZALO_CUTOVER_FAILED'}\n`
+    );
     process.exitCode = 1;
   }
 }

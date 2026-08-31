@@ -85,62 +85,62 @@ export function attachZaloRoutes(
 
   if (options.legacyBrowserApi !== false)
     router.get('/api/zalo/link', guard, (request: SessionRequest, response) => {
-    noStore(response);
-    const status = deps.store.getZaloLinkStatus(request.opsSession!.accountId);
-    response.json(
-      status
-        ? { linked: true, linkedAt: status.linkedAt, lastSeenAt: status.lastSeenAt }
-        : { linked: false }
-    );
+      noStore(response);
+      const status = deps.store.getZaloLinkStatus(request.opsSession!.accountId);
+      response.json(
+        status
+          ? { linked: true, linkedAt: status.linkedAt, lastSeenAt: status.lastSeenAt }
+          : { linked: false }
+      );
     });
 
   if (options.legacyBrowserApi !== false)
     router.post('/api/zalo/link-code', guard, (request: SessionRequest, response) => {
-    noStore(response);
-    const csrf = request.header('X-CSRF-Token');
-    if (!csrf || !deps.auth.verifySessionCsrf(request.opsSession!, csrf)) {
-      response.status(403).json({ error: 'csrf_required' });
-      return;
-    }
-    const createdAt = now();
-    const expiresAt = new Date(createdAt.getTime() + deps.config.linkTtlSeconds * 1000);
-    const code = createOpsZaloLinkCode();
-    deps.store.createZaloLinkCode({
-      codeHash: hashZaloLinkCode(code, deps.config.linkCodePepper),
-      accountId: request.opsSession!.accountId,
-      expiresAt: expiresAt.toISOString(),
-      createdAt: createdAt.toISOString()
-    });
-    deps.store.recordAuditEvent({
-      actorId: request.opsSession!.accountId,
-      action: 'zalo_link_code_created',
-      target: request.opsSession!.accountId,
-      details: { expiresAt: expiresAt.toISOString() },
-      occurredAt: createdAt.toISOString()
-    });
-    response
-      .status(201)
-      .json({ code, expiresAt: expiresAt.toISOString(), command: `/link ${code}` });
+      noStore(response);
+      const csrf = request.header('X-CSRF-Token');
+      if (!csrf || !deps.auth.verifySessionCsrf(request.opsSession!, csrf)) {
+        response.status(403).json({ error: 'csrf_required' });
+        return;
+      }
+      const createdAt = now();
+      const expiresAt = new Date(createdAt.getTime() + deps.config.linkTtlSeconds * 1000);
+      const code = createOpsZaloLinkCode();
+      deps.store.createZaloLinkCode({
+        codeHash: hashZaloLinkCode(code, deps.config.linkCodePepper),
+        accountId: request.opsSession!.accountId,
+        expiresAt: expiresAt.toISOString(),
+        createdAt: createdAt.toISOString()
+      });
+      deps.store.recordAuditEvent({
+        actorId: request.opsSession!.accountId,
+        action: 'zalo_link_code_created',
+        target: request.opsSession!.accountId,
+        details: { expiresAt: expiresAt.toISOString() },
+        occurredAt: createdAt.toISOString()
+      });
+      response
+        .status(201)
+        .json({ code, expiresAt: expiresAt.toISOString(), command: `/link ${code}` });
     });
 
   if (options.legacyBrowserApi !== false)
     router.delete('/api/zalo/link', guard, (request: SessionRequest, response) => {
-    noStore(response);
-    const csrf = request.header('X-CSRF-Token');
-    if (!csrf || !deps.auth.verifySessionCsrf(request.opsSession!, csrf)) {
-      response.status(403).json({ error: 'csrf_required' });
-      return;
-    }
-    const at = now().toISOString();
-    deps.store.disableZaloLink(request.opsSession!.accountId, at);
-    deps.store.recordAuditEvent({
-      actorId: request.opsSession!.accountId,
-      action: 'zalo_link_disabled',
-      target: request.opsSession!.accountId,
-      details: {},
-      occurredAt: at
-    });
-    response.status(204).end();
+      noStore(response);
+      const csrf = request.header('X-CSRF-Token');
+      if (!csrf || !deps.auth.verifySessionCsrf(request.opsSession!, csrf)) {
+        response.status(403).json({ error: 'csrf_required' });
+        return;
+      }
+      const at = now().toISOString();
+      deps.store.disableZaloLink(request.opsSession!.accountId, at);
+      deps.store.recordAuditEvent({
+        actorId: request.opsSession!.accountId,
+        action: 'zalo_link_disabled',
+        target: request.opsSession!.accountId,
+        details: {},
+        occurredAt: at
+      });
+      response.status(204).end();
     });
 
   router.post('/api/zalo-bot/webhook', async (request, response) => {

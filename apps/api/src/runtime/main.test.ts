@@ -120,7 +120,8 @@ describe('resolveRuntimeCredentials', () => {
           }
         },
         resolveSecret: async (reference) => {
-          if (reference === 'ops-mfa-encryption-key') return Buffer.alloc(32, 7).toString('base64url');
+          if (reference === 'ops-mfa-encryption-key')
+            return Buffer.alloc(32, 7).toString('base64url');
           return `value-for-${reference}`;
         }
       })

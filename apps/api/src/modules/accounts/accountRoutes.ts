@@ -62,7 +62,11 @@ export function createAccountRouter(input: {
   router.use(express.json({ limit: '16kb' }));
   const allowedOrigin = input.allowedOrigin ?? 'https://man.thienuy.edu.vn';
 
-  async function principal(request: Request, response: Response, mutation: boolean): Promise<Principal | null> {
+  async function principal(
+    request: Request,
+    response: Response,
+    mutation: boolean
+  ): Promise<Principal | null> {
     noStore(response);
     if (mutation && request.get('origin') !== allowedOrigin) {
       response.status(403).json({ code: 'ORIGIN_DENIED' });
@@ -88,7 +92,11 @@ export function createAccountRouter(input: {
     return value;
   }
 
-  function authorization(value: Principal, request: Request, response: Response): StepUpBinding | null {
+  function authorization(
+    value: Principal,
+    request: Request,
+    response: Response
+  ): StepUpBinding | null {
     const resolved = input.resolveAuthorization?.(value, request) ?? null;
     if (!resolved) {
       response.status(401).json({ code: 'STEP_UP_REQUIRED' });

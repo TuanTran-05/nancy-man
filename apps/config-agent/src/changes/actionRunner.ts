@@ -22,7 +22,12 @@ export type ProcessExecutor = (spec: ProcessSpec) => Promise<ProcessResult>;
 
 export type FixedActionDefinition = Readonly<{
   id: string;
-  strategy: 'no_runtime_action' | 'next_job' | 'runtime_restart' | 'credential_restart' | 'build_redeploy';
+  strategy:
+    | 'no_runtime_action'
+    | 'next_job'
+    | 'runtime_restart'
+    | 'credential_restart'
+    | 'build_redeploy';
   executable: string | null;
   args: readonly string[];
   cwd?: string;
@@ -37,11 +42,13 @@ export type BuildIdentity = Readonly<{
   releaseId: string;
 }>;
 
-export type BuildRedeployHandler = (input: Readonly<{
-  runId: string;
-  actionId: 'release.build_redeploy';
-  identity: BuildIdentity;
-}>) => Promise<ProcessResult>;
+export type BuildRedeployHandler = (
+  input: Readonly<{
+    runId: string;
+    actionId: 'release.build_redeploy';
+    identity: BuildIdentity;
+  }>
+) => Promise<ProcessResult>;
 
 export type ActionRunnerOptions = Readonly<{
   definitions: readonly FixedActionDefinition[];
@@ -141,7 +148,14 @@ export const executeFixedProcess: ProcessExecutor = (spec) =>
       killProcessGroup(child.pid);
     }, spec.timeoutMs);
     child.once('error', () => {
-      finish({ exitCode: null, signal: null, stdoutBytes, stderrBytes, timedOut, outputLimitExceeded });
+      finish({
+        exitCode: null,
+        signal: null,
+        stdoutBytes,
+        stderrBytes,
+        timedOut,
+        outputLimitExceeded
+      });
     });
     child.once('close', (exitCode, signal) => {
       finish({ exitCode, signal, stdoutBytes, stderrBytes, timedOut, outputLimitExceeded });
@@ -150,19 +164,35 @@ export const executeFixedProcess: ProcessExecutor = (spec) =>
 
 function validateDefinition(definition: FixedActionDefinition): void {
   if (!/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u.test(definition.id)) fail('ACTION_INPUT_INVALID');
-  if (!Number.isSafeInteger(definition.timeoutMs) || definition.timeoutMs <= 0 || definition.timeoutMs > 300_000) {
+  if (
+    !Number.isSafeInteger(definition.timeoutMs) ||
+    definition.timeoutMs <= 0 ||
+    definition.timeoutMs > 300_000
+  ) {
     fail('ACTION_INPUT_INVALID');
   }
-  if (!Number.isSafeInteger(definition.maxOutputBytes) || definition.maxOutputBytes <= 0 || definition.maxOutputBytes > 1_048_576) {
+  if (
+    !Number.isSafeInteger(definition.maxOutputBytes) ||
+    definition.maxOutputBytes <= 0 ||
+    definition.maxOutputBytes > 1_048_576
+  ) {
     fail('ACTION_INPUT_INVALID');
   }
-  if (definition.executable !== null && (!definition.executable.startsWith('/') || definition.executable.includes('\u0000'))) {
+  if (
+    definition.executable !== null &&
+    (!definition.executable.startsWith('/') || definition.executable.includes('\u0000'))
+  ) {
     fail('ACTION_INPUT_INVALID');
   }
 }
 
 function isSuccess(result: ProcessResult): boolean {
-  return result.exitCode === 0 && result.signal === null && !result.timedOut && !result.outputLimitExceeded;
+  return (
+    result.exitCode === 0 &&
+    result.signal === null &&
+    !result.timedOut &&
+    !result.outputLimitExceeded
+  );
 }
 
 export function createActionRunner(options: ActionRunnerOptions) {
@@ -200,15 +230,29 @@ export function createActionRunner(options: ActionRunnerOptions) {
         };
       }
       if (definition.strategy === 'no_runtime_action') {
-        return { runId: input.runId, actionId: input.actionId, outcome: 'completed', durationMs: Date.now() - startedAt };
+        return {
+          runId: input.runId,
+          actionId: input.actionId,
+          outcome: 'completed',
+          durationMs: Date.now() - startedAt
+        };
       }
       let result: ProcessResult;
       if (definition.id === 'release.build_redeploy') {
-        if (!input.buildIdentity || !validBuildIdentity(input.buildIdentity) || !options.buildRedeploy) {
-          if (!input.buildIdentity || !validBuildIdentity(input.buildIdentity)) fail('BUILD_IDENTITY_INVALID');
+        if (
+          !input.buildIdentity ||
+          !validBuildIdentity(input.buildIdentity) ||
+          !options.buildRedeploy
+        ) {
+          if (!input.buildIdentity || !validBuildIdentity(input.buildIdentity))
+            fail('BUILD_IDENTITY_INVALID');
           fail('ACTION_NOT_ALLOWED');
         }
-        result = await options.buildRedeploy({ runId: input.runId, actionId: 'release.build_redeploy', identity: input.buildIdentity });
+        result = await options.buildRedeploy({
+          runId: input.runId,
+          actionId: 'release.build_redeploy',
+          identity: input.buildIdentity
+        });
       } else {
         if (!definition.executable) fail('ACTION_NOT_ALLOWED');
         result = await execute({
@@ -223,20 +267,39 @@ export function createActionRunner(options: ActionRunnerOptions) {
       if (result.timedOut) fail('ACTION_TIMED_OUT');
       if (result.outputLimitExceeded) fail('ACTION_OUTPUT_LIMIT');
       if (!isSuccess(result)) fail('ACTION_FAILED');
-      return { runId: input.runId, actionId: input.actionId, outcome: 'completed', durationMs: Date.now() - startedAt };
+      return {
+        runId: input.runId,
+        actionId: input.actionId,
+        outcome: 'completed',
+        durationMs: Date.now() - startedAt
+      };
     })();
     replay.set(replayKey, operation);
     return operation;
   }
 
   async function rollback(input: ActionRunInput): Promise<ActionResult> {
-    if (input.actionId !== 'release.build_redeploy' || !input.buildIdentity || !validBuildIdentity(input.buildIdentity) || !options.rollbackBuildRedeploy) {
+    if (
+      input.actionId !== 'release.build_redeploy' ||
+      !input.buildIdentity ||
+      !validBuildIdentity(input.buildIdentity) ||
+      !options.rollbackBuildRedeploy
+    ) {
       fail('ACTION_NOT_ALLOWED');
     }
     const startedAt = Date.now();
-    const result = await options.rollbackBuildRedeploy({ runId: input.runId, actionId: 'release.build_redeploy', identity: input.buildIdentity });
+    const result = await options.rollbackBuildRedeploy({
+      runId: input.runId,
+      actionId: 'release.build_redeploy',
+      identity: input.buildIdentity
+    });
     if (!isSuccess(result)) fail(result.timedOut ? 'ACTION_TIMED_OUT' : 'ACTION_FAILED');
-    return { runId: input.runId, actionId: input.actionId, outcome: 'completed', durationMs: Date.now() - startedAt };
+    return {
+      runId: input.runId,
+      actionId: input.actionId,
+      outcome: 'completed',
+      durationMs: Date.now() - startedAt
+    };
   }
 
   return { run, rollback };

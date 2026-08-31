@@ -72,7 +72,11 @@ export function OverviewPage({
         <h2>Monitor</h2>
         <div className="monitor-grid">
           {monitorOrder.map((monitor) => (
-            <MonitorPanel key={monitor} monitor={monitor} sample={overview.latestByMonitor[monitor]} />
+            <MonitorPanel
+              key={monitor}
+              monitor={monitor}
+              sample={overview.latestByMonitor[monitor]}
+            />
           ))}
         </div>
       </section>

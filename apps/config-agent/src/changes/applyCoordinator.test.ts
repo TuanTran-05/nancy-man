@@ -37,7 +37,15 @@ function dependencies(overrides: Partial<ApplyCoordinatorDependencies> = {}) {
     readStaged: async () => staged,
     captureSnapshot: async () => {
       calls.push('snapshot');
-      return { sources: [{ sourceId: 'edutrack.shared_env', bytes: Buffer.from('PORT=3000\n'), metadata: { mode: 0o640, uid: 1, gid: 1 } }] };
+      return {
+        sources: [
+          {
+            sourceId: 'edutrack.shared_env',
+            bytes: Buffer.from('PORT=3000\n'),
+            metadata: { mode: 0o640, uid: 1, gid: 1 }
+          }
+        ]
+      };
     },
     persistSnapshot: async () => undefined,
     writeSource: async () => calls.push('write'),
@@ -83,7 +91,11 @@ describe('config-agent apply coordinator', () => {
     const coordinator = createApplyCoordinator(deps);
 
     await expect(
-      coordinator.apply({ changeId: staged.changeId, runId: 'RUN_APPLY_2', changeDigest: staged.changeDigest })
+      coordinator.apply({
+        changeId: staged.changeId,
+        runId: 'RUN_APPLY_2',
+        changeDigest: staged.changeDigest
+      })
     ).resolves.toMatchObject({ state: 'ROLLED_BACK', outcome: 'rolled_back' });
     expect(calls).toContain('restore');
 

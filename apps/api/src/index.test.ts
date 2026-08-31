@@ -140,11 +140,26 @@ describe('createOpsApi', () => {
       },
       variables: {
         service: {
-          getCatalog: async () => ({ catalogVersion: '2026-08-31', entries: [], validators: [], consumers: [], precedences: [] }),
-          read: async () => ({ catalogVersion: '2026-08-31', manifestVersion: '2026-08-31', generatedAt: '2026-08-31T00:00:00.000Z', items: [] })
+          getCatalog: async () => ({
+            catalogVersion: '2026-08-31',
+            entries: [],
+            validators: [],
+            consumers: [],
+            precedences: []
+          }),
+          read: async () => ({
+            catalogVersion: '2026-08-31',
+            manifestVersion: '2026-08-31',
+            generatedAt: '2026-08-31T00:00:00.000Z',
+            items: []
+          })
         },
         session: { authorize: async () => null },
-        stepUp: { grant: async () => ({ id: 'grant', expiresAt: '2026-08-31T00:00:00.000Z' }), authorize: async () => undefined, revoke: async () => undefined },
+        stepUp: {
+          grant: async () => ({ id: 'grant', expiresAt: '2026-08-31T00:00:00.000Z' }),
+          authorize: async () => undefined,
+          revoke: async () => undefined
+        },
         hashClientIp: () => 'a'.repeat(64),
         rateLimiter: { allow: async () => true }
       }
@@ -157,7 +172,9 @@ describe('createOpsApi', () => {
       const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/variables/catalog`);
       expect(response.status).toBe(401);
     } finally {
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      );
     }
   });
 });

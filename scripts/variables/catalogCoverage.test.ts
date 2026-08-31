@@ -4,8 +4,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { parse as parseYaml } from 'yaml';
-
 import { parseCatalog } from '../../packages/config-contracts/src/catalog.js';
 import { runCatalogCoverage, scanRepositoryReferences } from './catalogCoverage.js';
 
@@ -86,10 +84,7 @@ describe('scanRepositoryReferences', () => {
     const repoRoot = await createFixtureRoot('edutrack-ops-fixture-');
     await writeText(
       join(repoRoot, 'apps/api/runtime.ts'),
-      [
-        'const value = process.env[runtimeName()];',
-        'export { value };'
-      ].join('\n')
+      ['const value = process.env[runtimeName()];', 'export { value };'].join('\n')
     );
 
     const report = await scanRepositoryReferences({ repoRoot });

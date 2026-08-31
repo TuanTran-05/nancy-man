@@ -8,9 +8,7 @@ describe('RevokeUserDialog', () => {
   it('requires the exact username before allowing permanent revoke', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
-    render(
-      <RevokeUserDialog username="ops-target" onCancel={vi.fn()} onConfirm={onConfirm} />
-    );
+    render(<RevokeUserDialog username="ops-target" onCancel={vi.fn()} onConfirm={onConfirm} />);
     const input = screen.getByLabelText('Nhập lại username để thu hồi');
     const revoke = screen.getByRole('button', { name: 'Thu hồi vĩnh viễn' });
     expect(revoke).toBeDisabled();

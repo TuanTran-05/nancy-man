@@ -64,7 +64,8 @@ describe('fixed config-agent health checks', () => {
       definitions,
       dependencies: deps({
         processProbe: async () => ({ active: true, stable: false }),
-        fetch: async () => new Response('', { status: 302, headers: { location: 'https://evil.test' } }),
+        fetch: async () =>
+          new Response('', { status: 302, headers: { location: 'https://evil.test' } }),
         identityProbe: async () => ({ releaseId: 'other', configDigest: 'other' })
       })
     });

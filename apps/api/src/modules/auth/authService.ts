@@ -139,7 +139,8 @@ export class OpsAuthService {
     if (
       !principal ||
       principal.status !== 'active' ||
-      (principal.loginBlockedUntil !== null && Date.parse(principal.loginBlockedUntil) > this.now().getTime()) ||
+      (principal.loginBlockedUntil !== null &&
+        Date.parse(principal.loginBlockedUntil) > this.now().getTime()) ||
       !(await this.verifyPassword(principal.passwordHash, input.password)) ||
       principal.mfaFactors.length === 0
     ) {
