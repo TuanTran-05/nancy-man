@@ -14,6 +14,7 @@ export interface OpsAppDependencies {
   auth: AuthService;
   staticDir?: string;
   legacyBrowserApi?: boolean;
+  canonicalApi?: Express;
   zalo?: OpsZaloRouteDependencies;
   internalMonitoring?: {
     secret: string;
@@ -70,6 +71,7 @@ export function createOpsApp(deps: OpsAppDependencies): Express {
     });
   }
   app.use(router);
+  if (deps.canonicalApi) app.use(deps.canonicalApi);
   if (deps.staticDir) {
     app.use(
       express.static(resolve(deps.staticDir), { index: 'index.html', etag: true, maxAge: '1h' })

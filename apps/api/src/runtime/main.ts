@@ -114,6 +114,7 @@ function closeServer(server: Server): Promise<void> {
 }
 
 export async function startOpsApi(environment: NodeJS.ProcessEnv = process.env): Promise<{
+  app: ReturnType<typeof createOpsApiRuntime>['app'];
   close: () => Promise<void>;
 }> {
   const config = readOpsRuntimeConfig(environment);
@@ -143,6 +144,7 @@ export async function startOpsApi(environment: NodeJS.ProcessEnv = process.env):
     const server = await listen(runtime.app, config.apiHost, config.apiPort);
     let closing: Promise<void> | undefined;
     return {
+      app: runtime.app,
       close: () => {
         closing ??= closeServer(server).finally(() => pool.end());
         return closing;

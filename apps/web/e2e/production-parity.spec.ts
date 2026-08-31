@@ -50,6 +50,7 @@ const password = 'correct horse battery staple';
 const syntheticNow = '2030-08-30T01:02:03.000Z';
 const syntheticAccountId = '10000000-0000-4000-8000-000000000007';
 const syntheticIncidentId = '20000000-0000-4000-8000-000000000007';
+const legacyMonitoringHmac = 'e2e-legacy-monitoring-hmac';
 const forbiddenCandidateText =
   /(?:\/srv\/edutrack-ops|\.sqlite|select\s+.+\s+from|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/iu;
 const sqliteDataTables = [
@@ -94,6 +95,7 @@ const forbiddenDatabaseEnvironment = [
 let candidateOrigin: string;
 let apiOrigin: string;
 let candidateServer: Server | undefined;
+let internalCandidateServer: Server | undefined;
 let candidateStore: OpsStore | undefined;
 let candidateDirectory: string | undefined;
 let browserContacts: string[] = [];
@@ -444,7 +446,7 @@ async function startOwnedPostgresApi(excludedPorts: Set<number>): Promise<void> 
     ['rate-limit-pepper', randomBytes(32).toString('base64url')],
     ['auth-session-pepper', randomBytes(32).toString('base64url')],
     ['password-fingerprint-pepper', randomBytes(32).toString('base64url')],
-    ['legacy-monitoring-hmac', randomBytes(32).toString('base64url')],
+    ['legacy-monitoring-hmac', legacyMonitoringHmac],
     ['mfa-encryption-key', randomBytes(32).toString('base64url')],
     ['browser-context-key', 'task7-browser-key']
   ] as const)
@@ -689,6 +691,7 @@ async function startSnapshotCandidate(snapshotPath: string, port: number): Promi
     auth,
     staticDir: join(repositoryRoot, 'apps/web/dist/web'),
     legacyBrowserApi: false,
+    canonicalApi: apiHandle?.app,
     zalo: {
       store: candidateStore,
       auth,
@@ -702,9 +705,11 @@ async function startSnapshotCandidate(snapshotPath: string, port: number): Promi
         linkTtlSeconds: 600
       },
       confirmationSender: async () => safeFail('OPS_PARITY_EXTERNAL_DELIVERY_BLOCKED')
-    }
+    },
+    internalMonitoring: { secret: legacyMonitoringHmac }
   });
   candidateServer = await listen(app, port);
+  internalCandidateServer = await listen(app, 3101);
 }
 
 async function candidateContract(
@@ -817,6 +822,13 @@ async function cleanupOwnedResources(): Promise<unknown[]> {
     candidateServer = undefined;
   }
   try {
+    await closeServer(internalCandidateServer);
+  } catch (error) {
+    failures.push(error);
+  } finally {
+    internalCandidateServer = undefined;
+  }
+  try {
     const database = candidateStore?.getDatabaseForBackup();
     if (database?.open) database.close();
   } catch {
@@ -897,8 +909,8 @@ test.beforeAll(async () => {
     if (snapshotPath && candidate.origin === configured.origin)
       safeFail('OPS_PARITY_SNAPSHOT_REQUIRES_DISTINCT_CANDIDATE_PORT');
     candidateOrigin = candidate.origin;
-    if (snapshotPath) await startSnapshotCandidate(snapshotPath, candidate.port);
     await startOwnedPostgresApi(new Set([configured.port, candidate.port]));
+    if (snapshotPath) await startSnapshotCandidate(snapshotPath, candidate.port);
   } catch (error) {
     const primary =
       error instanceof Error && /^OPS_PARITY_[A-Z_]+$/u.test(error.message)
