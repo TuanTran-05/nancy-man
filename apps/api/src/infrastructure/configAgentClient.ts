@@ -15,6 +15,24 @@ import {
   type InventoryReadResponse
 } from '../../../../packages/config-contracts/src/agentProtocol.js';
 import {
+  ChangeApplyStartedResponseSchema,
+  ChangeCancelledResponseSchema,
+  ChangeSavedResponseSchema,
+  ChangeStatusResponseSchema,
+  ChangeValidationResponseSchema,
+  ApplyBlockClearedResponseSchema
+} from '../../../../packages/config-contracts/src/changeProtocol.js';
+import type {
+  ChangeApplyRequest,
+  ChangeCancelRequest,
+  ChangeSaveRequest,
+  ChangeStatusRequest,
+  ChangeValidateRequest,
+  ClearApplyBlockRequest,
+  ChangeValidationResponse,
+  ChangeStatusResponse
+} from '../../../../packages/config-contracts/src/changeProtocol.js';
+import {
   encodeFrame,
   FrameDecoder,
   MAX_FRAME_BYTES
@@ -209,6 +227,66 @@ export class ConfigAgentClient {
       throw new ConfigAgentError('AGENT_RESPONSE_MISMATCH');
     }
     return response.body;
+  }
+
+  async validateChange(actor: AgentActor, input: ChangeValidateRequest): Promise<ChangeValidationResponse> {
+    const response = await this.request({ operation: 'change.validate', body: input, actor });
+    if (!response.ok || response.operation !== 'change.validate') {
+      throw new ConfigAgentError('CONFIG_AGENT_REJECTED');
+    }
+    const parsed = ChangeValidationResponseSchema.safeParse(response.body);
+    if (!parsed.success) throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
+    return parsed.data;
+  }
+
+  async saveChange(actor: AgentActor, input: ChangeSaveRequest) {
+    const response = await this.request({ operation: 'change.save', body: input, actor });
+    if (!response.ok || response.operation !== 'change.save') {
+      throw new ConfigAgentError('CONFIG_AGENT_REJECTED');
+    }
+    const parsed = ChangeSavedResponseSchema.safeParse(response.body);
+    if (!parsed.success) throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
+    return parsed.data;
+  }
+
+  async applyChange(actor: AgentActor, input: ChangeApplyRequest) {
+    const response = await this.request({ operation: 'change.apply', body: input, actor });
+    if (!response.ok || response.operation !== 'change.apply') {
+      throw new ConfigAgentError('CONFIG_AGENT_REJECTED');
+    }
+    const parsed = ChangeApplyStartedResponseSchema.safeParse(response.body);
+    if (!parsed.success) throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
+    return parsed.data;
+  }
+
+  async cancelChange(actor: AgentActor, input: ChangeCancelRequest) {
+    const response = await this.request({ operation: 'change.cancel', body: input, actor });
+    if (!response.ok || response.operation !== 'change.cancel') {
+      throw new ConfigAgentError('CONFIG_AGENT_REJECTED');
+    }
+    const parsed = ChangeCancelledResponseSchema.safeParse(response.body);
+    if (!parsed.success) throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
+    return parsed.data;
+  }
+
+  async getChangeStatus(actor: AgentActor, input: ChangeStatusRequest): Promise<ChangeStatusResponse> {
+    const response = await this.request({ operation: 'change.status', body: input, actor });
+    if (!response.ok || response.operation !== 'change.status') {
+      throw new ConfigAgentError('CONFIG_AGENT_REJECTED');
+    }
+    const parsed = ChangeStatusResponseSchema.safeParse(response.body);
+    if (!parsed.success) throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
+    return parsed.data;
+  }
+
+  async clearApplyBlock(actor: AgentActor, input: ClearApplyBlockRequest) {
+    const response = await this.request({ operation: 'application.clearApplyBlock', body: input, actor });
+    if (!response.ok || response.operation !== 'application.clearApplyBlock') {
+      throw new ConfigAgentError('CONFIG_AGENT_REJECTED');
+    }
+    const parsed = ApplyBlockClearedResponseSchema.safeParse(response.body);
+    if (!parsed.success) throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
+    return parsed.data;
   }
 
   private async request(input: {

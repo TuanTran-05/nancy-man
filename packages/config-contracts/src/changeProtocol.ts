@@ -132,7 +132,9 @@ export const ChangeApplyRequestSchema = z.object({
 export type ChangeApplyRequest = z.infer<typeof ChangeApplyRequestSchema>;
 
 export const ChangeCancelRequestSchema = z.object({ changeId, eventId }).strict();
+export type ChangeCancelRequest = z.infer<typeof ChangeCancelRequestSchema>;
 export const ChangeStatusRequestSchema = z.object({ changeId, afterEventId: eventId.optional() }).strict();
+export type ChangeStatusRequest = z.infer<typeof ChangeStatusRequestSchema>;
 export const ClearApplyBlockRequestSchema = z.object({
   appId: stableId,
   confirmationAppId: stableId,
@@ -142,6 +144,7 @@ export const ClearApplyBlockRequestSchema = z.object({
 }).strict().refine((body) => body.appId === body.confirmationAppId, {
   path: ['confirmationAppId'], message: 'Application confirmation does not match'
 });
+export type ClearApplyBlockRequest = z.infer<typeof ClearApplyBlockRequestSchema>;
 
 export const ChangeImpactPlanSchema = z.object({
   appId: stableId,
@@ -153,6 +156,7 @@ export const ChangeImpactPlanSchema = z.object({
   warnings: z.array(z.string().min(1).max(512)),
   expectedEffect: z.enum(['immediate', 'takes_effect_next_run', 'restart_required', 'redeploy_required'])
 }).strict();
+export type ChangeValidationResponse = z.infer<typeof ChangeValidationResponseSchema>;
 export type ChangeImpactPlan = z.infer<typeof ChangeImpactPlanSchema>;
 
 export const ChangeValidationResponseSchema = z.object({
@@ -163,6 +167,26 @@ export const ChangeValidationResponseSchema = z.object({
   impactPlan: ChangeImpactPlanSchema,
   ruleIds: z.array(stableId),
   warnings: z.array(z.string().min(1).max(512))
+}).strict();
+
+export const ChangeSavedResponseSchema = z.object({
+  changeId,
+  state: z.literal('SAVED'),
+  changeDigest,
+  expiresAt: z.string().datetime({ offset: true })
+}).strict();
+export const ChangeApplyStartedResponseSchema = z.object({
+  changeId,
+  runId,
+  state: z.literal('APPLYING')
+}).strict();
+export const ChangeCancelledResponseSchema = z.object({
+  changeId,
+  state: z.literal('CANCELLED')
+}).strict();
+export const ApplyBlockClearedResponseSchema = z.object({
+  appId: stableId,
+  state: z.literal('CLEARED')
 }).strict();
 
 export const ChangeStatusEventSchema = z.object({

@@ -19,6 +19,9 @@ export type ConfigAgentRuntimeConfig =
   | { enabled: false }
   | {
       enabled: true;
+      draftEnabled: boolean;
+      runtimeApplyEnabled: boolean;
+      buildApplyEnabled: boolean;
       socketPath: string;
       protocolHmacKeyReference: string;
       protocolHmacKeyId: string;
@@ -107,6 +110,17 @@ function configAgent(environment: Environment): ConfigAgentRuntimeConfig {
     throw new Error('OPS_CONFIG_AGENT_HMAC is forbidden; use a credential reference instead');
   }
   const socket = required(environment, 'OPS_CONFIG_AGENT_SOCKET_PATH');
+  const draftEnabled = optionalBoolean(environment, 'OPS_VARIABLES_DRAFT_ENABLED', false);
+  const runtimeApplyEnabled = optionalBoolean(
+    environment,
+    'OPS_VARIABLES_RUNTIME_APPLY_ENABLED',
+    false
+  );
+  const buildApplyEnabled = optionalBoolean(
+    environment,
+    'OPS_VARIABLES_BUILD_APPLY_ENABLED',
+    false
+  );
   if (!isAbsolute(socket) || normalize(socket) !== socket || !socket.endsWith('.sock')) {
     throw new Error('OPS_CONFIG_AGENT_SOCKET_PATH must be an absolute socket path');
   }
@@ -129,6 +143,9 @@ function configAgent(environment: Environment): ConfigAgentRuntimeConfig {
   }
   return {
     enabled: true,
+    draftEnabled,
+    runtimeApplyEnabled,
+    buildApplyEnabled,
     socketPath: socket,
     protocolHmacKeyReference: requiredCredentialReference(
       environment,

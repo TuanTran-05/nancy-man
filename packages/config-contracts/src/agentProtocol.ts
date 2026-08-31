@@ -134,7 +134,7 @@ export const AgentCapabilitiesResponseSchema = z
     protocolVersion: z.literal(AGENT_PROTOCOL_VERSION),
     readOnly: z.boolean(),
     supportedOperations: z.array(AgentOperationSchema).min(1),
-    supportedStrategies: z.array(ApplyStrategySchema).default([]),
+    supportedStrategies: z.array(ApplyStrategySchema).optional(),
     manifestVersion: z.string().regex(schemaVersionPattern, 'Manifest version is invalid'),
     catalogVersion: z.string().regex(schemaVersionPattern, 'Catalog version is invalid'),
     catalogDigest: z.string().regex(digestPattern, 'Catalog digest is invalid'),
