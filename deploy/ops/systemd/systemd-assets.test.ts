@@ -92,7 +92,7 @@ describe('canonical Ops systemd assets', () => {
     expect(setting(agent, 'RuntimeDirectory')).toEqual(['edutrack-config-agent']);
     expect(setting(agent, 'RuntimeDirectoryMode')).toEqual(['0750']);
     expect(setting(agent, 'ExecStart')).toEqual([
-      '/usr/bin/node /srv/edutrack-ops/config-agent/current/apps/config-agent/dist/apps/config-agent/src/runtime/main.js'
+      '/usr/bin/node /srv/edutrack-ops/config-agent/current/apps/config-agent/dist/apps/config-agent/src/index.js'
     ]);
     expect(setting(agent, 'ReadWritePaths')).toEqual([]);
     expect(setting(agent, 'ReadOnlyPaths')).toEqual([

@@ -15,15 +15,17 @@ EnvironmentFile=/etc/edutrack-ops/config-agent.env
 Environment=OPS_CONFIG_AGENT_SOCKET_PATH=/run/edutrack-config-agent/agent.sock
 Environment=OPS_CONFIG_AGENT_SOCKET_MODE=0660
 Environment=OPS_CONFIG_AGENT_SOCKET_GROUP=edutrack-config-api
-Environment=OPS_CONFIG_AGENT_PROTOCOL_HMAC_FILE=%d/config-agent-protocol-hmac
-Environment=OPS_CONFIG_AGENT_FINGERPRINT_HMAC_FILE=%d/config-agent-fingerprint-hmac
+Environment=OPS_CONFIG_AGENT_PROTOCOL_KEY_PATH=%d/config-agent-protocol-hmac
+Environment=OPS_CONFIG_AGENT_PROTOCOL_KEY_ID=config-agent-2026-08-31
+Environment=OPS_CONFIG_AGENT_FINGERPRINT_KEY_PATH=%d/config-agent-fingerprint-hmac
+Environment=OPS_CONFIG_AGENT_FINGERPRINT_KEY_VERSION=v1
 Environment=OPS_CONFIG_AGENT_MANIFEST_PATH=/srv/edutrack-ops/config-agent/current/deploy/ops/config-agent/manifest.yaml
 Environment=OPS_CONFIG_AGENT_CATALOG_PATH=/srv/edutrack-ops/config-agent/current/config/variables/catalog.yaml
 LoadCredential=config-agent-protocol-hmac:/etc/edutrack-ops/credentials/config-agent-protocol-hmac
 LoadCredential=config-agent-fingerprint-hmac:/etc/edutrack-ops/credentials/config-agent-fingerprint-hmac
 RuntimeDirectory=edutrack-config-agent
 RuntimeDirectoryMode=0750
-ExecStart=/usr/bin/node /srv/edutrack-ops/config-agent/current/apps/config-agent/dist/apps/config-agent/src/runtime/main.js
+ExecStart=/usr/bin/node /srv/edutrack-ops/config-agent/current/apps/config-agent/dist/apps/config-agent/src/index.js
 Restart=on-failure
 RestartSec=5s
 TimeoutStartSec=15s

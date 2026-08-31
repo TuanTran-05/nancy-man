@@ -76,7 +76,6 @@ function canonicalValue(value: unknown): unknown {
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value)
-        .filter(([key]) => key !== 'signature')
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([key, item]) => [key, canonicalValue(item)])
     );
@@ -88,7 +87,8 @@ function canonicalEnvelope(value: unknown): string {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
   }
-  return JSON.stringify(canonicalValue(value));
+  const { signature: _signature, ...unsigned } = value as Record<string, unknown>;
+  return `${JSON.stringify(canonicalValue(unsigned))}\n`;
 }
 
 export function signAgentEnvelope(value: unknown, key: string | Buffer): string {
