@@ -7,6 +7,16 @@ import {
   RequirementSchema,
   SensitivitySchema
 } from './catalog.js';
+import {
+  AgentChangeOperationSchema,
+  ChangeApplyRequestSchema,
+  ChangeCancelRequestSchema,
+  ChangeSaveRequestSchema,
+  ChangeStatusRequestSchema,
+  ChangeValidateRequestSchema,
+  ClearApplyBlockRequestSchema,
+  type AgentChangeOperation
+} from './changeProtocol.js';
 
 export const AGENT_PROTOCOL_VERSION = 1 as const;
 
@@ -25,7 +35,11 @@ const hashSchema = z
   .regex(new RegExp(`(?:${digestPattern.source})|(?:${hmacDigestPattern.source})`, 'u'), 'Hash is invalid');
 const signatureSchema = z.string().regex(hmacDigestPattern, 'HMAC signature is invalid');
 
-export const AgentOperationSchema = z.enum(['agent.capabilities', 'inventory.read']);
+export const AgentOperationSchema = z.enum([
+  'agent.capabilities',
+  'inventory.read',
+  ...AgentChangeOperationSchema.options
+]);
 export type AgentOperation = z.infer<typeof AgentOperationSchema>;
 
 export const AgentActorSchema = z
@@ -118,8 +132,9 @@ export type AgentCapabilitiesRequest = z.infer<typeof AgentCapabilitiesRequestSc
 export const AgentCapabilitiesResponseSchema = z
   .object({
     protocolVersion: z.literal(AGENT_PROTOCOL_VERSION),
-    readOnly: z.literal(true),
-    supportedOperations: z.array(z.literal('inventory.read')).length(1),
+    readOnly: z.boolean(),
+    supportedOperations: z.array(AgentOperationSchema).min(1),
+    supportedStrategies: z.array(ApplyStrategySchema).default([]),
     manifestVersion: z.string().regex(schemaVersionPattern, 'Manifest version is invalid'),
     catalogVersion: z.string().regex(schemaVersionPattern, 'Catalog version is invalid'),
     catalogDigest: z.string().regex(digestPattern, 'Catalog digest is invalid'),
@@ -149,9 +164,40 @@ const inventoryReadRequestEnvelopeSchema = requestEnvelopeBaseSchema.extend({
   body: InventoryReadRequestSchema
 });
 
+const changeValidateRequestEnvelopeSchema = requestEnvelopeBaseSchema.extend({
+  operation: z.literal('change.validate'),
+  body: ChangeValidateRequestSchema
+});
+const changeSaveRequestEnvelopeSchema = requestEnvelopeBaseSchema.extend({
+  operation: z.literal('change.save'),
+  body: ChangeSaveRequestSchema
+});
+const changeApplyRequestEnvelopeSchema = requestEnvelopeBaseSchema.extend({
+  operation: z.literal('change.apply'),
+  body: ChangeApplyRequestSchema
+});
+const changeCancelRequestEnvelopeSchema = requestEnvelopeBaseSchema.extend({
+  operation: z.literal('change.cancel'),
+  body: ChangeCancelRequestSchema
+});
+const changeStatusRequestEnvelopeSchema = requestEnvelopeBaseSchema.extend({
+  operation: z.literal('change.status'),
+  body: ChangeStatusRequestSchema
+});
+const clearApplyBlockRequestEnvelopeSchema = requestEnvelopeBaseSchema.extend({
+  operation: z.literal('application.clearApplyBlock'),
+  body: ClearApplyBlockRequestSchema
+});
+
 export const AgentRequestSchema = z.discriminatedUnion('operation', [
   capabilitiesRequestEnvelopeSchema,
-  inventoryReadRequestEnvelopeSchema
+  inventoryReadRequestEnvelopeSchema,
+  changeValidateRequestEnvelopeSchema,
+  changeSaveRequestEnvelopeSchema,
+  changeApplyRequestEnvelopeSchema,
+  changeCancelRequestEnvelopeSchema,
+  changeStatusRequestEnvelopeSchema,
+  clearApplyBlockRequestEnvelopeSchema
 ]);
 export type AgentRequestEnvelope = z.infer<typeof AgentRequestSchema>;
 
@@ -185,6 +231,18 @@ const successfulInventoryResponseSchema = responseEnvelopeBaseSchema.extend({
   ok: z.literal(true),
   body: InventoryReadResponseSchema
 });
+const successfulChangeResponseSchema = responseEnvelopeBaseSchema.extend({
+  operation: z.enum([
+    'change.validate',
+    'change.save',
+    'change.apply',
+    'change.cancel',
+    'change.status',
+    'application.clearApplyBlock'
+  ]),
+  ok: z.literal(true),
+  body: z.record(z.string(), z.unknown())
+});
 const failedCapabilitiesResponseSchema = responseEnvelopeBaseSchema.extend({
   operation: z.literal('agent.capabilities'),
   ok: z.literal(false),
@@ -195,11 +253,25 @@ const failedInventoryResponseSchema = responseEnvelopeBaseSchema.extend({
   ok: z.literal(false),
   error: protocolErrorSchema
 });
+const failedChangeResponseSchema = responseEnvelopeBaseSchema.extend({
+  operation: z.enum([
+    'change.validate',
+    'change.save',
+    'change.apply',
+    'change.cancel',
+    'change.status',
+    'application.clearApplyBlock'
+  ]),
+  ok: z.literal(false),
+  error: protocolErrorSchema
+});
 
 export const AgentResponseSchema = z.union([
   successfulCapabilitiesResponseSchema,
   successfulInventoryResponseSchema,
   failedCapabilitiesResponseSchema,
-  failedInventoryResponseSchema
+  failedInventoryResponseSchema,
+  successfulChangeResponseSchema,
+  failedChangeResponseSchema
 ]);
 export type AgentResponseEnvelope = z.infer<typeof AgentResponseSchema>;
