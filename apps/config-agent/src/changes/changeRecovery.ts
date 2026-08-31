@@ -7,6 +7,7 @@ export type RecoveryRecord = Readonly<{
   appId: string;
   state: ApplyState;
   hasWrites: boolean;
+  sequence?: number;
   changeDigest?: string;
 }>;
 
@@ -17,7 +18,9 @@ export type RecoveryCoordinator = Readonly<{
 export type ChangeRecoveryOptions = Readonly<{
   readJournal: () => Promise<readonly RecoveryRecord[]>;
   coordinator: RecoveryCoordinator;
-  readAgentState?: (record: RecoveryRecord) => Promise<Readonly<{ state: ApplyState; runId: string }> | null>;
+  readAgentState?: (
+    record: RecoveryRecord
+  ) => Promise<Readonly<{ state: ApplyState; runId: string }> | null>;
   readFixedSystemState?: (record: RecoveryRecord) => Promise<Readonly<{ runId: string }> | null>;
 }>;
 
@@ -38,12 +41,15 @@ export function createChangeRecovery(options: ChangeRecoveryOptions) {
       const journal = await options.readJournal();
       const unique = new Map<string, RecoveryRecord>();
       for (const record of journal) {
-        if (!terminal.has(record.state) && !unique.has(record.runId)) unique.set(record.runId, record);
+        if (!terminal.has(record.state) && !unique.has(record.runId))
+          unique.set(record.runId, record);
       }
       const recovered: RecoveryResult[] = [];
       for (const record of unique.values()) {
         const agentState = options.readAgentState ? await options.readAgentState(record) : null;
-        const fixedState = options.readFixedSystemState ? await options.readFixedSystemState(record) : null;
+        const fixedState = options.readFixedSystemState
+          ? await options.readFixedSystemState(record)
+          : null;
         // State observations are evidence for the same run only; browser/API data never chooses a new run.
         if (agentState && agentState.runId !== record.runId) continue;
         if (fixedState && fixedState.runId !== record.runId) continue;

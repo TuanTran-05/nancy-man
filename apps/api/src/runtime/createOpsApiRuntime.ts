@@ -36,6 +36,11 @@ import { ConfigAgentClient } from '../infrastructure/configAgentClient.js';
 import { StepUpError, type StepUpBinding } from '../modules/auth/stepUpService.js';
 import type { Catalog } from '../../../../packages/config-contracts/src/catalog.js';
 import { VariablesService } from '../modules/variables/variablesService.js';
+import { ConfigChangeService } from '../modules/variables/configChangeService.js';
+import {
+  PostgresConfigChangeRepository,
+  configFingerprint
+} from '../modules/variables/postgresConfigChangeRepository.js';
 
 import { type TransactionalQueryDatabase } from './poolDatabase.js';
 import { type OpsRuntimeConfig } from './runtimeConfig.js';
@@ -65,7 +70,14 @@ export function createOpsApiRuntime(input: {
   });
   const accountAuthorization = new Map<
     string,
-    { grantId: string; userId: string; sessionId: string; ipHash: string; userAgentHash: string; capability: 'accounts_write' }
+    {
+      grantId: string;
+      userId: string;
+      sessionId: string;
+      ipHash: string;
+      userAgentHash: string;
+      capability: 'accounts_write';
+    }
   >();
   const accountService = new AccountService({
     repository: new PostgresAccountRepository(input.database),
@@ -76,7 +88,11 @@ export function createOpsApiRuntime(input: {
   const variablesAuthorization = new Map<string, StepUpBinding>();
   const variableUnlockWindows = new Map<string, { startedAt: number; count: number }>();
   const variableUnlockRateLimiter = {
-    allow: async (value: { userId: string; sessionId: string; ipHash: string }): Promise<boolean> => {
+    allow: async (value: {
+      userId: string;
+      sessionId: string;
+      ipHash: string;
+    }): Promise<boolean> => {
       const now = Date.now();
       const key = `${value.userId}:${value.sessionId}:${value.ipHash}`;
       const current = variableUnlockWindows.get(key);
@@ -130,6 +146,48 @@ export function createOpsApiRuntime(input: {
     authorize: (binding: StepUpBinding) => stepUpService.authorize(binding),
     revoke: (binding: StepUpBinding) => stepUpService.revoke(binding)
   };
+  const variableApplyStepUp = {
+    grant: async (proof: {
+      capability: 'variables_apply';
+      userId: string;
+      sessionId: string;
+      password: string;
+      totpCode: string;
+      ipHash: string;
+      userAgentHash: string;
+      subjectDigest: string;
+    }) => {
+      const { rows } = await input.database.query<{ id: string }>(
+        `SELECT id FROM ops_mfa_factors
+         WHERE user_id = $1 AND factor_type = 'totp' AND revoked_at IS NULL
+         ORDER BY created_at DESC LIMIT 1`,
+        [proof.userId]
+      );
+      const factorId = rows[0]?.id;
+      if (!factorId) throw new StepUpError('STEP_UP_INVALID');
+      const grant = await stepUpService.grant({
+        capability: proof.capability,
+        userId: proof.userId,
+        sessionId: proof.sessionId,
+        password: proof.password,
+        factorId,
+        token: proof.totpCode,
+        ipHash: proof.ipHash,
+        userAgentHash: proof.userAgentHash,
+        subjectDigest: proof.subjectDigest
+      });
+      return { id: grant.id, expiresAt: grant.expiresAt };
+    },
+    consume: (binding: {
+      grantId: string;
+      capability: 'variables_apply';
+      userId: string;
+      sessionId: string;
+      ipHash: string;
+      userAgentHash: string;
+      subjectDigest: string;
+    }) => stepUpService.consume(binding)
+  };
   const sqlElevationRepository = new PostgresSqlElevationRepository(input.database);
   const nonceStore = new PostgresNonceStore(input.database);
   const browser = createBrowserIngestService({
@@ -175,6 +233,116 @@ export function createOpsApiRuntime(input: {
           audit: new PostgresOpsAuditLedger({ database: input.database }),
           worker: sqlWorker,
           encryptionKey: input.sqlWorker.auditEncryptionKey
+        })
+      : undefined;
+
+  const configChangeRepository = input.configAgent
+    ? new PostgresConfigChangeRepository(input.database)
+    : undefined;
+  const configChangeService =
+    input.configAgent && configChangeRepository
+      ? new ConfigChangeService({
+          repository: {
+            createChange: (value) => configChangeRepository.createChange(value),
+            findById: async (changeId) => {
+              const value = await configChangeRepository.getChange(changeId);
+              return value
+                ? {
+                    id: value.id,
+                    applicationId: value.applicationId,
+                    actorUserId: value.actorUserId,
+                    actorSessionId: value.actorSessionId,
+                    state: value.state,
+                    reason: value.reason,
+                    changeDigest: value.changeDigest,
+                    catalogVersion: value.catalogVersion,
+                    manifestVersion: value.manifestVersion,
+                    impactPlan: value.impactPlan,
+                    version: value.version,
+                    expiresAt: value.expiresAt
+                  }
+                : null;
+            },
+            replaceItems: (changeId, items) =>
+              configChangeRepository.replaceItems(
+                changeId,
+                items.map((item) => ({
+                  ...item,
+                  oldValueFingerprint: item.oldValueFingerprint
+                    ? configFingerprint(item.oldValueFingerprint)
+                    : null,
+                  newValueFingerprint: item.newValueFingerprint
+                    ? configFingerprint(item.newValueFingerprint)
+                    : null,
+                  observedSourceFingerprint: configFingerprint(item.observedSourceFingerprint)
+                }))
+              ),
+            updateValidation: (value) =>
+              configChangeRepository.updateValidation({
+                ...value,
+                changeDigest: value.changeDigest,
+                itemFingerprints: value.itemFingerprints.map((item) => ({
+                  ...item,
+                  oldValueFingerprint: item.oldValueFingerprint
+                    ? configFingerprint(item.oldValueFingerprint)
+                    : null,
+                  newValueFingerprint: item.newValueFingerprint
+                    ? configFingerprint(item.newValueFingerprint)
+                    : null,
+                  observedSourceFingerprint: configFingerprint(item.observedSourceFingerprint)
+                }))
+              }),
+            markSaved: (value) => configChangeRepository.markSaved(value),
+            transition: async (value) => {
+              const result = await configChangeRepository.transition(value);
+              return {
+                id: result.changeId,
+                applicationId: result.applicationId,
+                actorUserId: value.actorUserId,
+                actorSessionId: value.actorSessionId,
+                state: result.state,
+                reason: '',
+                changeDigest: null,
+                catalogVersion: input.configAgent!.catalog.catalogVersion,
+                manifestVersion: input.configAgent!.catalog.catalogVersion,
+                impactPlan: {
+                  applicationId: result.applicationId,
+                  sourceIds: [],
+                  actionIds: [],
+                  checkIds: [],
+                  strategies: [],
+                  counts: { items: 0, sets: 0, deletes: 0, sources: 0 },
+                  warnings: [],
+                  expectedEffect: 'no_runtime_action'
+                },
+                version: result.version,
+                expiresAt: new Date(0).toISOString()
+              };
+            },
+            listEvents: async (changeId, afterEventId) =>
+              (await configChangeRepository.listEvents(changeId, afterEventId)).map((event) => ({
+                ...event,
+                sequence: Number(event.sequence)
+              })),
+            cancel: (value) => configChangeRepository.cancel(value),
+            clearApplyBlock: async (value) => {
+              await configChangeRepository.clearApplicationBlock({
+                applicationId: value.appId,
+                actorUserId: value.actorUserId,
+                remediationSummary: value.remediationSummary
+              });
+            }
+          },
+          agent: input.configAgent.client,
+          catalogVersion: input.configAgent.catalog.catalogVersion,
+          manifestVersion: input.config.configAgent.enabled
+            ? input.config.configAgent.expectedManifestVersion
+            : input.configAgent.catalog.catalogVersion,
+          draftEnabled: input.config.configAgent.enabled && input.config.configAgent.draftEnabled,
+          runtimeApplyEnabled:
+            input.config.configAgent.enabled && input.config.configAgent.runtimeApplyEnabled,
+          buildApplyEnabled:
+            input.config.configAgent.enabled && input.config.configAgent.buildApplyEnabled
         })
       : undefined;
 
@@ -240,7 +408,9 @@ export function createOpsApiRuntime(input: {
           return {
             ...stored,
             ipHash: createHash('sha256')
-              .update(`${request.ip || request.socket.remoteAddress || 'unknown'}${input.rateLimitPepper}`)
+              .update(
+                `${request.ip || request.socket.remoteAddress || 'unknown'}${input.rateLimitPepper}`
+              )
               .digest('hex'),
             userAgentHash: createHash('sha256').update(userAgent, 'utf8').digest('hex')
           };
@@ -282,6 +452,48 @@ export function createOpsApiRuntime(input: {
               hashClientIp: (ip: string) =>
                 createHash('sha256').update(`${ip}${input.rateLimitPepper}`).digest('hex'),
               rateLimiter: variableUnlockRateLimiter
+            }
+          }
+        : {}),
+      ...(input.configAgent && configChangeService
+        ? {
+            configChanges: {
+              service: configChangeService,
+              session: {
+                authorize: (request: {
+                  cookieHeader?: string;
+                  csrfToken?: string;
+                  mutation: boolean;
+                }) =>
+                  authorizeOpsSession({
+                    ...request,
+                    sessionPepper: input.authSessionPepper,
+                    repository: sessionRepository
+                  })
+              },
+              stepUp: variableApplyStepUp,
+              accountsWriteStepUp: {
+                resolve: (principal, request) => {
+                  const stored = accountAuthorization.get(principal.sessionId);
+                  if (!stored || stored.userId !== principal.userId) return null;
+                  const userAgent = request.get('user-agent') ?? 'unknown';
+                  const ipHash = createHash('sha256')
+                    .update(
+                      `${request.ip || request.socket.remoteAddress || 'unknown'}${input.rateLimitPepper}`
+                    )
+                    .digest('hex');
+                  const userAgentHash = createHash('sha256')
+                    .update(userAgent, 'utf8')
+                    .digest('hex');
+                  if (stored.ipHash !== ipHash || stored.userAgentHash !== userAgentHash)
+                    return null;
+                  return stored;
+                },
+                consume: (binding) => stepUpService.consume(binding)
+              },
+              hashClientIp: (ip: string) =>
+                createHash('sha256').update(`${ip}${input.rateLimitPepper}`).digest('hex'),
+              allowedOrigin: input.config.browserCorsOrigins[0] ?? 'https://man.thienuy.edu.vn'
             }
           }
         : {}),

@@ -1,0 +1,20 @@
+[Unit]
+Description=Clean expired EduTrack Config Agent artifacts
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=edutrack-config-agent
+Group=edutrack-config-api
+WorkingDirectory=/srv/edutrack-ops/config-agent/current
+EnvironmentFile=/etc/edutrack-ops/config-agent.env
+ExecStart=/usr/bin/node /srv/edutrack-ops/config-agent/current/apps/config-agent/dist/apps/config-agent/src/cleanup/cleanupMain.js
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/edutrack-config-agent
+ReadOnlyPaths=/srv/edutrack-ops/config-agent/current
+RestrictAddressFamilies=AF_UNIX
+UMask=0077

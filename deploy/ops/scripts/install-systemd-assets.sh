@@ -6,6 +6,8 @@ SCRIPT_DIR="$(unset CDPATH; cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 readonly SCRIPT_DIR
 readonly ASSET_ROOT="${EDUTRACK_OPS_CONFIG_AGENT_ASSET_ROOT:-$SCRIPT_DIR/..}"
 readonly AGENT_SERVICE_SOURCE="$ASSET_ROOT/systemd/ops-config-agent.service"
+readonly CLEANUP_SERVICE_SOURCE="$ASSET_ROOT/systemd/ops-config-agent-cleanup.service"
+readonly CLEANUP_TIMER_SOURCE="$ASSET_ROOT/systemd/ops-config-agent-cleanup.timer"
 readonly TMPFILES_SOURCE="$ASSET_ROOT/systemd/ops-config-agent.tmpfiles.conf"
 readonly ENV_EXAMPLE_SOURCE="$ASSET_ROOT/env/config-agent.env.example"
 readonly AGENT_RELATIVE_BINARY="apps/config-agent/dist/apps/config-agent/src/index.js"
@@ -16,6 +18,8 @@ readonly SOCKET_GROUP=edutrack-config-api
 readonly API_USER=edutrack-ops-api
 readonly PROTOCOL_CREDENTIAL=config-agent-protocol-hmac
 readonly FINGERPRINT_CREDENTIAL=config-agent-fingerprint-hmac
+readonly STAGING_CREDENTIAL=config-agent-staging-key
+readonly SNAPSHOT_CREDENTIAL=config-agent-snapshot-key
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -57,12 +61,18 @@ readonly AGENT_RELEASES="$AGENT_DIRECTORY/releases"
 readonly AGENT_VERSION="$AGENT_RELEASES/$VERSION"
 readonly AGENT_CURRENT="$AGENT_DIRECTORY/current"
 readonly SERVICE_DEST="$SYSTEMD_DIRECTORY/ops-config-agent.service"
+readonly CLEANUP_SERVICE_DEST="$SYSTEMD_DIRECTORY/ops-config-agent-cleanup.service"
+readonly CLEANUP_TIMER_DEST="$SYSTEMD_DIRECTORY/ops-config-agent-cleanup.timer"
 readonly TMPFILES_DEST="$TMPFILES_DIRECTORY/ops-config-agent.conf"
 readonly ENV_EXAMPLE_DEST="$CONFIG_DIRECTORY/config-agent.env.example"
 readonly PROTOCOL_DEST="$CREDENTIAL_DIRECTORY/$PROTOCOL_CREDENTIAL"
 readonly FINGERPRINT_DEST="$CREDENTIAL_DIRECTORY/$FINGERPRINT_CREDENTIAL"
+readonly STAGING_DEST="$CREDENTIAL_DIRECTORY/$STAGING_CREDENTIAL"
+readonly SNAPSHOT_DEST="$CREDENTIAL_DIRECTORY/$SNAPSHOT_CREDENTIAL"
 
 [[ -f "$AGENT_SERVICE_SOURCE" && ! -L "$AGENT_SERVICE_SOURCE" ]] || fail CONFIG_AGENT_SERVICE_ASSET_ABSENT
+[[ -f "$CLEANUP_SERVICE_SOURCE" && ! -L "$CLEANUP_SERVICE_SOURCE" ]] || fail CONFIG_AGENT_CLEANUP_SERVICE_ASSET_ABSENT
+[[ -f "$CLEANUP_TIMER_SOURCE" && ! -L "$CLEANUP_TIMER_SOURCE" ]] || fail CONFIG_AGENT_CLEANUP_TIMER_ASSET_ABSENT
 [[ -f "$TMPFILES_SOURCE" && ! -L "$TMPFILES_SOURCE" ]] || fail CONFIG_AGENT_TMPFILES_ASSET_ABSENT
 [[ -f "$ENV_EXAMPLE_SOURCE" && ! -L "$ENV_EXAMPLE_SOURCE" ]] || fail CONFIG_AGENT_ENV_ASSET_ABSENT
 [[ -f "$RELEASE/$AGENT_RELATIVE_BINARY" && ! -L "$RELEASE/$AGENT_RELATIVE_BINARY" ]] || fail CONFIG_AGENT_BINARY_ABSENT
@@ -219,6 +229,8 @@ validate_credential() {
 
 validate_credential "${OPS_CONFIG_AGENT_PROTOCOL_HMAC_SOURCE:-$PROTOCOL_DEST}"
 validate_credential "${OPS_CONFIG_AGENT_FINGERPRINT_HMAC_SOURCE:-$FINGERPRINT_DEST}"
+validate_credential "${OPS_CONFIG_AGENT_STAGING_KEY_SOURCE:-$STAGING_DEST}"
+validate_credential "${OPS_CONFIG_AGENT_SNAPSHOT_KEY_SOURCE:-$SNAPSHOT_DEST}"
 # systemd-analyze verify runs before any live asset is replaced.
 "$SYSTEMD_ANALYZE" verify "$AGENT_SERVICE_SOURCE" >/dev/null 2>&1 || fail CONFIG_AGENT_SYSTEMD_PREFLIGHT_FAILED
 
@@ -275,6 +287,8 @@ atomic_install() {
 # The following operations are deliberately atomic: install -D -m 0755 for the executable,
 # install -D -m 0400 (equivalent to chmod 0400) for credentials, then mv -T into the live path.
 atomic_install "$AGENT_SERVICE_SOURCE" "$SERVICE_DEST" 0644
+atomic_install "$CLEANUP_SERVICE_SOURCE" "$CLEANUP_SERVICE_DEST" 0644
+atomic_install "$CLEANUP_TIMER_SOURCE" "$CLEANUP_TIMER_DEST" 0644
 atomic_install "$TMPFILES_SOURCE" "$TMPFILES_DEST" 0644
 atomic_install "$ENV_EXAMPLE_SOURCE" "$ENV_EXAMPLE_DEST" 0644
 
@@ -288,6 +302,8 @@ install_credential() {
 
 install_credential "${OPS_CONFIG_AGENT_PROTOCOL_HMAC_SOURCE:-$PROTOCOL_DEST}" "$PROTOCOL_DEST"
 install_credential "${OPS_CONFIG_AGENT_FINGERPRINT_HMAC_SOURCE:-$FINGERPRINT_DEST}" "$FINGERPRINT_DEST"
+install_credential "${OPS_CONFIG_AGENT_STAGING_KEY_SOURCE:-$STAGING_DEST}" "$STAGING_DEST"
+install_credential "${OPS_CONFIG_AGENT_SNAPSHOT_KEY_SOURCE:-$SNAPSHOT_DEST}" "$SNAPSHOT_DEST"
 
 if [[ -e "$AGENT_CURRENT" || -L "$AGENT_CURRENT" ]]; then
   [[ -L "$AGENT_CURRENT" ]] || fail CONFIG_AGENT_CURRENT_INVALID

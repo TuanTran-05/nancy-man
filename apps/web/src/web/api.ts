@@ -308,44 +308,120 @@ export const lockVariables = (csrfToken: string) =>
     headers: { 'X-Ops-CSRF': csrfToken }
   });
 
-export const createConfigChange = (input: { appId: string; reason: string; supersedesChangeId?: string }, csrfToken: string) =>
+export const createConfigChange = (
+  input: { appId: string; reason: string; supersedesChangeId?: string },
+  csrfToken: string
+) =>
   request<{ changeId: string; state: 'DRAFT'; expiresAt: string }>('/api/v1/config-changes', {
-    method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify(input)
+    method: 'POST',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify(input)
   });
 
-export const replaceConfigChangeItems = (changeId: string, input: {
-  appId: string; reason: string; catalogVersion: string; manifestVersion: string; items: ConfigChangeItemInput[];
-}, csrfToken: string) =>
+export const replaceConfigChangeItems = (
+  changeId: string,
+  input: {
+    appId: string;
+    reason: string;
+    catalogVersion: string;
+    manifestVersion: string;
+    items: ConfigChangeItemInput[];
+  },
+  csrfToken: string
+) =>
   request<unknown>(`/api/v1/config-changes/${encodeURIComponent(changeId)}/items`, {
-    method: 'PUT', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify(input)
+    method: 'PUT',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify(input)
   });
 
-export const validateConfigChange = (changeId: string, input: {
-  appId: string; reason: string; catalogVersion: string; manifestVersion: string; items: ConfigChangeItemInput[];
-}, csrfToken: string) =>
+export const validateConfigChange = (
+  changeId: string,
+  input: {
+    appId: string;
+    reason: string;
+    catalogVersion: string;
+    manifestVersion: string;
+    items: ConfigChangeItemInput[];
+  },
+  csrfToken: string
+) =>
   request<unknown>(`/api/v1/config-changes/${encodeURIComponent(changeId)}/validate`, {
-    method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify(input)
+    method: 'POST',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify(input)
   });
 
-export const saveConfigChange = (changeId: string, input: { changeDigest: string; catalogVersion: string; manifestVersion: string; impactPlan?: ChangeImpactPlan }, csrfToken: string) =>
-  request<{ changeId: string; state: 'SAVED'; changeDigest: string; expiresAt: string }>(`/api/v1/config-changes/${encodeURIComponent(changeId)}/save`, {
-    method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify(input)
-  });
+export const saveConfigChange = (
+  changeId: string,
+  input: {
+    changeDigest: string;
+    catalogVersion: string;
+    manifestVersion: string;
+    impactPlan?: ChangeImpactPlan;
+  },
+  csrfToken: string
+) =>
+  request<{ changeId: string; state: 'SAVED'; changeDigest: string; expiresAt: string }>(
+    `/api/v1/config-changes/${encodeURIComponent(changeId)}/save`,
+    {
+      method: 'POST',
+      headers: { 'X-Ops-CSRF': csrfToken },
+      body: JSON.stringify(input)
+    }
+  );
 
-export const authorizeConfigApply = (changeDigest: string, input: { password: string; totpCode: string }, csrfToken: string) =>
+export const authorizeConfigApply = (
+  changeDigest: string,
+  input: { password: string; totpCode: string },
+  csrfToken: string
+) =>
   request<{ authorizedUntil: string }>('/api/v1/auth/variables/apply-authorization', {
-    method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify({ ...input, changeDigest })
+    method: 'POST',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify({ ...input, changeDigest })
   });
 
-export const applyConfigChange = (changeId: string, input: { runId: string; changeDigest: string; idempotencyKey: string }, csrfToken: string) =>
-  request<{ changeId: string; runId: string; state: 'APPLYING' }>(`/api/v1/config-changes/${encodeURIComponent(changeId)}/apply`, {
-    method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify(input)
-  });
+export const applyConfigChange = (
+  changeId: string,
+  input: { runId: string; changeDigest: string; idempotencyKey: string },
+  csrfToken: string
+) =>
+  request<{ changeId: string; runId: string; state: 'APPLYING' }>(
+    `/api/v1/config-changes/${encodeURIComponent(changeId)}/apply`,
+    {
+      method: 'POST',
+      headers: { 'X-Ops-CSRF': csrfToken },
+      body: JSON.stringify(input)
+    }
+  );
 
 export const getConfigChangeStatus = (changeId: string) =>
   request<ConfigChangeStatus>(`/api/v1/config-changes/${encodeURIComponent(changeId)}`);
 
+export function subscribeConfigChange(
+  changeId: string,
+  onStatus: (status: ConfigChangeStatus) => void,
+  onError?: () => void
+): () => void {
+  const stream = new EventSource(`/api/v1/config-changes/${encodeURIComponent(changeId)}/events`);
+  const receive = (event: MessageEvent<string>) => {
+    try {
+      onStatus(JSON.parse(event.data) as ConfigChangeStatus);
+    } catch {
+      onError?.();
+    }
+  };
+  stream.addEventListener('change', receive as EventListener);
+  stream.addEventListener('error', () => onError?.());
+  return () => {
+    stream.removeEventListener('change', receive as EventListener);
+    stream.close();
+  };
+}
+
 export const cancelConfigChange = (changeId: string, csrfToken: string) =>
   request<void>(`/api/v1/config-changes/${encodeURIComponent(changeId)}`, {
-    method: 'DELETE', headers: { 'X-Ops-CSRF': csrfToken }
+    method: 'DELETE',
+    headers: { 'X-Ops-CSRF': csrfToken }
   });

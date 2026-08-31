@@ -9,6 +9,7 @@ import {
   authorizeConfigApply,
   applyConfigChange,
   getConfigChangeStatus,
+  subscribeConfigChange,
   lockVariables,
   unlockVariables,
   type ApiError,
@@ -16,6 +17,7 @@ import {
   type VariableCategory,
   type VariableInventoryItem,
   type ConfigChangeItemInput,
+  type ChangeImpactPlan,
   type ConfigChangeStatus
 } from '../api.js';
 import { ApplyConfirmation } from '../components/ApplyConfirmation.js';
@@ -47,6 +49,15 @@ function errorMessage(error: unknown): string {
   if (apiError?.code === 'CONFIG_AGENT_UNAVAILABLE') return 'Config Agent hiện không khả dụng.';
   if (apiError?.code === 'CONFIG_AGENT_PROTOCOL_ERROR')
     return 'Config Agent trả về giao thức không hợp lệ.';
+  if (apiError?.code === 'CSRF_REQUIRED') return 'Yêu cầu CSRF của phiên vận hành không hợp lệ.';
+  if (apiError?.code === 'CONFIG_SOURCE_CHANGED')
+    return 'Source đã thay đổi. Hãy tải inventory lại và restage.';
+  if (apiError?.code === 'CONFIG_APPLICATION_BLOCKED')
+    return 'Ứng dụng đang bị khóa apply do rollback thất bại; cần owner xử lý incident.';
+  if (apiError?.code === 'PUBLIC_BUILD_NOT_ALLOWED')
+    return 'Biến này không nằm trong allowlist public build.';
+  if (apiError?.code === 'CONFIG_CHANGE_INVALID_STATE')
+    return 'Trạng thái change đã thay đổi; hãy tải lại rồi thao tác lại.';
   if (apiError?.status === 401) return 'Phiên vận hành đã hết hạn. Hãy đăng nhập lại.';
   return 'Không thể tải inventory variables.';
 }
@@ -95,7 +106,10 @@ export function VariablesPage({
   const [categoryFilter, setCategoryFilter] = useState<'all' | VariableCategory>('all');
   const [staged, setStaged] = useState<StagedChange | null>(null);
   const [draftItems, setDraftItems] = useState<ConfigChangeItemInput[]>([]);
-  const [inventoryVersions, setInventoryVersions] = useState({ catalogVersion: '', manifestVersion: '' });
+  const [inventoryVersions, setInventoryVersions] = useState({
+    catalogVersion: '',
+    manifestVersion: ''
+  });
   const [confirmApply, setConfirmApply] = useState(false);
   const itemsRef = useRef<VariableInventoryItem[]>([]);
   const catalogRef = useRef<typeof catalog>(null);
@@ -160,7 +174,10 @@ export function VariablesPage({
         ]);
         itemsRef.current = nextInventory.items;
         catalogRef.current = nextCatalog;
-        setInventoryVersions({ catalogVersion: nextInventory.catalogVersion, manifestVersion: nextInventory.manifestVersion });
+        setInventoryVersions({
+          catalogVersion: nextInventory.catalogVersion,
+          manifestVersion: nextInventory.manifestVersion
+        });
         setCatalog(nextCatalog);
         setItems(nextInventory.items);
       } catch (caught) {
@@ -208,61 +225,175 @@ export function VariablesPage({
     }
   }, [clearValues, reportUnauthorized, session.csrfToken]);
 
-  const stage = useCallback(async (item: VariableInventoryItem, nextValue?: string) => {
-    if (!item.catalogId || item.mutability !== 'managed' || item.requirement === 'unknown') return;
-    const operation = nextValue === undefined ? 'delete' : 'set';
-    if (!staged) {
-      const reason = window.prompt('Lý do thay đổi (bắt buộc):', 'Cập nhật variables')?.trim() ?? '';
-      if (reason.length < 3) return;
+  const stage = useCallback(
+    async (item: VariableInventoryItem, nextValue?: string) => {
+      if (!item.catalogId || item.mutability !== 'managed' || item.requirement === 'unknown')
+        return;
+      const operation = nextValue === undefined ? 'delete' : 'set';
+      if (staged && staged.appId !== item.appId) {
+        setError('Mỗi thay đổi chỉ được thuộc một ứng dụng.');
+        return;
+      }
+      const isReplacement = Boolean(staged && staged.state !== 'DRAFT');
+      if (!staged || isReplacement) {
+        const reason =
+          window.prompt('Lý do thay đổi (bắt buộc):', 'Cập nhật variables')?.trim() ?? '';
+        if (reason.length < 3) return;
+        try {
+          const created = await createConfigChange(
+            {
+              appId: item.appId,
+              reason,
+              ...(staged ? { supersedesChangeId: staged.changeId } : {})
+            },
+            session.csrfToken ?? ''
+          );
+          const nextItem: ConfigChangeItemInput = {
+            appId: item.appId,
+            sourceId: item.sourceId,
+            catalogId: item.catalogId,
+            name: item.name,
+            operation,
+            requirement: item.requirement,
+            mutability: item.mutability,
+            strategy: item.applyStrategy,
+            sourceFingerprint: item.sourceFingerprint,
+            ...(nextValue === undefined ? {} : { value: nextValue })
+          };
+          const nextItems = isReplacement
+            ? [
+                ...draftItems.filter((candidate) => candidate.catalogId !== nextItem.catalogId),
+                nextItem
+              ]
+            : [nextItem];
+          setDraftItems(nextItems);
+          setStaged({
+            changeId: created.changeId,
+            appId: item.appId,
+            reason,
+            state: created.state
+          });
+          const validated = await replaceConfigChangeItems(
+            created.changeId,
+            { appId: item.appId, reason, ...inventoryVersions, items: nextItems },
+            session.csrfToken ?? ''
+          );
+          const result = validated as {
+            state?: string;
+            changeDigest?: string;
+            impactPlan?: ChangeImpactPlan;
+          };
+          setStaged((current) =>
+            current
+              ? {
+                  ...current,
+                  state: result.state ?? current.state,
+                  ...(result.changeDigest ? { changeDigest: result.changeDigest } : {}),
+                  ...(result.impactPlan ? { impactPlan: result.impactPlan } : {})
+                }
+              : current
+          );
+        } catch (caught) {
+          setError(errorMessage(caught));
+        }
+        return;
+      }
+      if (staged.appId !== item.appId) {
+        setError('Mỗi thay đổi chỉ được thuộc một ứng dụng.');
+        return;
+      }
+      const nextItem: ConfigChangeItemInput = {
+        appId: item.appId,
+        sourceId: item.sourceId,
+        catalogId: item.catalogId,
+        name: item.name,
+        operation,
+        requirement: item.requirement,
+        mutability: item.mutability,
+        strategy: item.applyStrategy,
+        sourceFingerprint: item.sourceFingerprint,
+        ...(nextValue === undefined ? {} : { value: nextValue })
+      };
+      const nextItems = [
+        ...draftItems.filter((candidate) => candidate.catalogId !== nextItem.catalogId),
+        nextItem
+      ];
+      setDraftItems(nextItems);
       try {
-        const created = await createConfigChange({ appId: item.appId, reason }, session.csrfToken ?? '');
-        const nextItem: ConfigChangeItemInput = {
-          appId: item.appId,
-          sourceId: item.sourceId,
-          catalogId: item.catalogId,
-          name: item.name,
-          operation,
-          requirement: item.requirement,
-          mutability: item.mutability,
-          strategy: item.applyStrategy,
-          sourceFingerprint: item.sourceFingerprint,
-          ...(nextValue === undefined ? {} : { value: nextValue })
+        const validated = await replaceConfigChangeItems(
+          staged.changeId,
+          { appId: staged.appId, reason: staged.reason, ...inventoryVersions, items: nextItems },
+          session.csrfToken ?? ''
+        );
+        const result = validated as {
+          state?: string;
+          changeDigest?: string;
+          impactPlan?: ChangeImpactPlan;
         };
-        setDraftItems([nextItem]);
-        setStaged({ changeId: created.changeId, appId: item.appId, reason, state: created.state });
-        await replaceConfigChangeItems(created.changeId, { appId: item.appId, reason, ...inventoryVersions, items: [nextItem] }, session.csrfToken ?? '');
+        setStaged((current) =>
+          current
+            ? {
+                ...current,
+                state: result.state ?? current.state,
+                ...(result.changeDigest ? { changeDigest: result.changeDigest } : {}),
+                ...(result.impactPlan ? { impactPlan: result.impactPlan } : {})
+              }
+            : current
+        );
       } catch (caught) {
         setError(errorMessage(caught));
       }
-      return;
+    },
+    [draftItems, inventoryVersions, session.csrfToken, staged]
+  );
+
+  useEffect(() => {
+    if (
+      !staged ||
+      ![
+        'APPLYING',
+        'SNAPSHOTTED',
+        'WRITTEN',
+        'ACTION_RUNNING',
+        'HEALTH_CHECKING',
+        'ROLLING_BACK'
+      ].includes(staged.state)
+    ) {
+      return undefined;
     }
-    if (staged.appId !== item.appId) {
-      setError('Mỗi thay đổi chỉ được thuộc một ứng dụng.');
-      return;
-    }
-    const nextItem: ConfigChangeItemInput = {
-      appId: item.appId,
-      sourceId: item.sourceId,
-      catalogId: item.catalogId,
-      name: item.name,
-      operation,
-      requirement: item.requirement,
-      mutability: item.mutability,
-      strategy: item.applyStrategy,
-      sourceFingerprint: item.sourceFingerprint,
-      ...(nextValue === undefined ? {} : { value: nextValue })
-    };
-    const nextItems = [...draftItems.filter((candidate) => candidate.catalogId !== nextItem.catalogId), nextItem];
-    setDraftItems(nextItems);
-    await replaceConfigChangeItems(staged.changeId, { appId: staged.appId, reason: staged.reason, ...inventoryVersions, items: nextItems }, session.csrfToken ?? '');
-  }, [draftItems, inventoryVersions, session.csrfToken, staged]);
+    return subscribeConfigChange(staged.changeId, (status) => {
+      setStaged((current) =>
+        current
+          ? {
+              ...current,
+              state: status.state,
+              ...(status.changeDigest ? { changeDigest: status.changeDigest } : {}),
+              ...(status.impactPlan ? { impactPlan: status.impactPlan } : {})
+            }
+          : current
+      );
+    });
+  }, [staged]);
 
   const validateDraft = useCallback(async () => {
     if (!staged) return;
     try {
-      const result = await validateConfigChange(staged.changeId, { appId: staged.appId, reason: staged.reason, ...inventoryVersions, items: draftItems }, session.csrfToken ?? '');
+      const result = await validateConfigChange(
+        staged.changeId,
+        { appId: staged.appId, reason: staged.reason, ...inventoryVersions, items: draftItems },
+        session.csrfToken ?? ''
+      );
       const status = result as ConfigChangeStatus;
-      setStaged((current) => current ? { ...current, state: status.state, changeDigest: status.changeDigest, impactPlan: status.impactPlan } : current);
+      setStaged((current) =>
+        current
+          ? {
+              ...current,
+              state: status.state,
+              changeDigest: status.changeDigest,
+              impactPlan: status.impactPlan
+            }
+          : current
+      );
     } catch (caught) {
       setError(errorMessage(caught));
     }
@@ -271,23 +402,51 @@ export function VariablesPage({
   const saveDraft = useCallback(async () => {
     if (!staged?.changeDigest || !staged.impactPlan) return;
     try {
-      const result = await saveConfigChange(staged.changeId, { changeDigest: staged.changeDigest, ...inventoryVersions, impactPlan: staged.impactPlan }, session.csrfToken ?? '');
-      setStaged((current) => current ? { ...current, state: result.state } : current);
-    } catch (caught) { setError(errorMessage(caught)); }
+      const result = await saveConfigChange(
+        staged.changeId,
+        { changeDigest: staged.changeDigest, ...inventoryVersions, impactPlan: staged.impactPlan },
+        session.csrfToken ?? ''
+      );
+      setStaged((current) => (current ? { ...current, state: result.state } : current));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
   }, [inventoryVersions, session.csrfToken, staged]);
 
-  const applyDraft = useCallback(async (proof: { password: string; totpCode: string }) => {
-    if (!staged?.changeDigest) return;
-    try {
-      await authorizeConfigApply(staged.changeDigest, proof, session.csrfToken ?? '');
-      const suffix = Math.random().toString(36).slice(2);
-      const result = await applyConfigChange(staged.changeId, { runId: `RUN_${suffix}`, changeDigest: staged.changeDigest, idempotencyKey: `EVT_${suffix}` }, session.csrfToken ?? '');
-      setConfirmApply(false);
-      setStaged((current) => current ? { ...current, state: result.state } : current);
-      const status = await getConfigChangeStatus(staged.changeId);
-      setStaged((current) => current ? { ...current, state: status.state, impactPlan: status.impactPlan, changeDigest: status.changeDigest } : current);
-    } catch (caught) { setError(errorMessage(caught)); }
-  }, [session.csrfToken, staged]);
+  const applyDraft = useCallback(
+    async (proof: { password: string; totpCode: string }) => {
+      if (!staged?.changeDigest) return;
+      try {
+        await authorizeConfigApply(staged.changeDigest, proof, session.csrfToken ?? '');
+        const suffix = Math.random().toString(36).slice(2);
+        const result = await applyConfigChange(
+          staged.changeId,
+          {
+            runId: `RUN_${suffix}`,
+            changeDigest: staged.changeDigest,
+            idempotencyKey: `EVT_${suffix}`
+          },
+          session.csrfToken ?? ''
+        );
+        setConfirmApply(false);
+        setStaged((current) => (current ? { ...current, state: result.state } : current));
+        const status = await getConfigChangeStatus(staged.changeId);
+        setStaged((current) =>
+          current
+            ? {
+                ...current,
+                state: status.state,
+                impactPlan: status.impactPlan,
+                changeDigest: status.changeDigest
+              }
+            : current
+        );
+      } catch (caught) {
+        setError(errorMessage(caught));
+      }
+    },
+    [session.csrfToken, staged]
+  );
 
   const apps = useMemo(() => {
     const known = catalog?.apps ?? [];
@@ -415,7 +574,10 @@ export function VariablesPage({
               {appItems.length ? (
                 <div className="variables-list">
                   {appItems.map((item, index) => (
-                    <div className="variable-row-workspace" key={`${item.sourceId}:${item.name}:${item.catalogId ?? 'unknown'}:${index}`}>
+                    <div
+                      className="variable-row-workspace"
+                      key={`${item.sourceId}:${item.name}:${item.catalogId ?? 'unknown'}:${index}`}
+                    >
                       <VariableRow item={item} />
                       <VariableEditor
                         item={item}
@@ -436,11 +598,41 @@ export function VariablesPage({
           );
         })}
       </section>
-      <StagedChangesPanel change={staged} onValidate={() => void validateDraft()} onApply={() => setConfirmApply(true)} />
-      {staged?.state === 'READY' ? <button type="button" onClick={() => void saveDraft()}>Lưu thay đổi</button> : null}
-      {staged && ['APPLYING', 'SNAPSHOTTED', 'WRITTEN', 'ACTION_RUNNING', 'HEALTH_CHECKING', 'ROLLING_BACK', 'ROLLED_BACK', 'ROLLBACK_FAILED', 'COMPLETED'].includes(staged.state) ? <ApplyProgress state={staged.state} /> : null}
-      {confirmApply && staged?.changeDigest ? <ApplyConfirmation digest={staged.changeDigest} onConfirm={(proof) => void applyDraft(proof)} onCancel={() => setConfirmApply(false)} /> : null}
-      <p className="footer-note">Giá trị chỉ tồn tại trong bộ nhớ trang; mọi thao tác ghi đều qua validation, step-up và Config Agent.</p>
+      <StagedChangesPanel
+        change={staged}
+        onValidate={() => void validateDraft()}
+        onApply={() => setConfirmApply(true)}
+      />
+      {staged?.state === 'READY' ? (
+        <button type="button" onClick={() => void saveDraft()}>
+          Lưu thay đổi
+        </button>
+      ) : null}
+      {staged &&
+      [
+        'APPLYING',
+        'SNAPSHOTTED',
+        'WRITTEN',
+        'ACTION_RUNNING',
+        'HEALTH_CHECKING',
+        'ROLLING_BACK',
+        'ROLLED_BACK',
+        'ROLLBACK_FAILED',
+        'COMPLETED'
+      ].includes(staged.state) ? (
+        <ApplyProgress state={staged.state} />
+      ) : null}
+      {confirmApply && staged?.changeDigest ? (
+        <ApplyConfirmation
+          digest={staged.changeDigest}
+          onConfirm={(proof) => void applyDraft(proof)}
+          onCancel={() => setConfirmApply(false)}
+        />
+      ) : null}
+      <p className="footer-note">
+        Giá trị chỉ tồn tại trong bộ nhớ trang; mọi thao tác ghi đều qua validation, step-up và
+        Config Agent.
+      </p>
     </>
   );
 }

@@ -36,6 +36,9 @@ export type ConfigAgentRuntimeConfig = Readonly<{
   clockSkewMs: number;
   requestTtlMs: number;
   maximumFrameBytes: typeof MAXIMUM_FRAME_BYTES;
+  draftEnabled?: boolean;
+  runtimeApplyEnabled?: boolean;
+  buildApplyEnabled?: boolean;
 }>;
 
 export type RuntimeConfigErrorCode =
@@ -165,6 +168,16 @@ function retentionDuration(
   return value;
 }
 
+function optionalBoolean(environment: Environment, names: readonly string[]): boolean | undefined {
+  const raw = names
+    .map((name) => environment[name]?.trim())
+    .find((value) => value !== undefined && value !== '');
+  if (raw === undefined) return undefined;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  throw new RuntimeConfigError('CONFIG_AGENT_ENV_REQUIRED');
+}
+
 function childDirectory(environment: Environment, stateDirectory: string, name: string): string {
   const directory = pathValue(environment, [
     `OPS_CONFIG_AGENT_${name.toUpperCase()}_DIRECTORY`,
@@ -247,11 +260,7 @@ export function readConfigAgentRuntimeConfig(
     'OPS_CONFIG_AGENT_SNAPSHOT_OLD_KEY_IDS',
     'CONFIG_AGENT_SNAPSHOT_OLD_KEY_IDS'
   ]);
-  const allKeyIds = [
-    ...keyIds,
-    ...stagingAcceptedOldKeyIds,
-    ...snapshotAcceptedOldKeyIds
-  ];
+  const allKeyIds = [...keyIds, ...stagingAcceptedOldKeyIds, ...snapshotAcceptedOldKeyIds];
   if (new Set(allKeyIds).size !== allKeyIds.length) {
     throw new RuntimeConfigError('CONFIG_AGENT_KEY_IDS_MUST_DIFFER');
   }
@@ -331,6 +340,29 @@ export function readConfigAgentRuntimeConfig(
     ),
     maximumFrameBytes: MAXIMUM_FRAME_BYTES
   };
+  const draftEnabled = optionalBoolean(environment, [
+    'OPS_VARIABLES_DRAFT_ENABLED',
+    'CONFIG_AGENT_VARIABLES_DRAFT_ENABLED'
+  ]);
+  const runtimeApplyEnabled = optionalBoolean(environment, [
+    'OPS_VARIABLES_RUNTIME_APPLY_ENABLED',
+    'CONFIG_AGENT_VARIABLES_RUNTIME_APPLY_ENABLED'
+  ]);
+  const buildApplyEnabled = optionalBoolean(environment, [
+    'OPS_VARIABLES_BUILD_APPLY_ENABLED',
+    'CONFIG_AGENT_VARIABLES_BUILD_APPLY_ENABLED'
+  ]);
+  const configuredResult: ConfigAgentRuntimeConfig =
+    draftEnabled !== undefined ||
+    runtimeApplyEnabled !== undefined ||
+    buildApplyEnabled !== undefined
+      ? {
+          ...result,
+          draftEnabled: draftEnabled ?? false,
+          runtimeApplyEnabled: runtimeApplyEnabled ?? false,
+          buildApplyEnabled: buildApplyEnabled ?? false
+        }
+      : result;
   const allowedPeerUid = optionalIdentity(environment, [
     'OPS_CONFIG_AGENT_ALLOWED_PEER_UID',
     'CONFIG_AGENT_ALLOWED_PEER_UID'
@@ -341,10 +373,10 @@ export function readConfigAgentRuntimeConfig(
   ]);
   if (allowedPeerUid !== undefined)
     return {
-      ...result,
+      ...configuredResult,
       allowedPeerUid,
       ...(allowedPeerGid === undefined ? {} : { allowedPeerGid })
     };
-  if (allowedPeerGid !== undefined) return { ...result, allowedPeerGid };
-  return result;
+  if (allowedPeerGid !== undefined) return { ...configuredResult, allowedPeerGid };
+  return configuredResult;
 }

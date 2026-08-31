@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type {
   AgentActor,
@@ -12,7 +12,10 @@ import type {
   ChangeStatusResponse,
   ChangeValidationResponse
 } from '../../../../../packages/config-contracts/src/index.js';
-import { ChangeStatusResponseSchema } from '../../../../../packages/config-contracts/src/changeProtocol.js';
+import {
+  ChangeStatusResponseSchema,
+  type ConfigChangeState
+} from '../../../../../packages/config-contracts/src/changeProtocol.js';
 import type { OpsRole } from '../../../../../packages/security/src/sessions.js';
 
 export type ConfigChangePrincipal = Readonly<{
@@ -46,7 +49,11 @@ export type ConfigChangeRepository = {
     itemFingerprints: readonly ConfigChangeItem[];
     state: 'READY' | 'INVALID';
   }) => Promise<void>;
-  markSaved?: (input: { changeId: string; changeDigest: string; envelopeId?: string }) => Promise<void>;
+  markSaved?: (input: {
+    changeId: string;
+    changeDigest: string;
+    envelopeId?: string;
+  }) => Promise<void>;
   transition: (input: {
     changeId: string;
     applicationId: string;
@@ -58,8 +65,15 @@ export type ConfigChangeRepository = {
     expectedVersion: number;
     to: ConfigChangeRecord['state'];
   }) => Promise<ConfigChangeRecord>;
-  listEvents?: (changeId: string, afterEventId?: string) => Promise<readonly ChangeStatusEventRecord[]>;
-  cancel?: (input: { changeId: string; actorUserId: string; actorSessionId: string }) => Promise<void>;
+  listEvents?: (
+    changeId: string,
+    afterEventId?: string
+  ) => Promise<readonly ChangeStatusEventRecord[]>;
+  cancel?: (input: {
+    changeId: string;
+    actorUserId: string;
+    actorSessionId: string;
+  }) => Promise<void>;
   clearApplyBlock?: (input: {
     appId: string;
     actorUserId: string;
@@ -73,10 +87,7 @@ export type ConfigChangeRecord = Readonly<{
   applicationId: string;
   actorUserId: string;
   actorSessionId: string;
-  state: ChangeValidateRequest['replaceDraft'] extends boolean ?
-    | 'DRAFT' | 'VALIDATING' | 'INVALID' | 'READY' | 'SAVED' | 'APPLYING' | 'SNAPSHOTTED'
-    | 'WRITTEN' | 'ACTION_RUNNING' | 'HEALTH_CHECKING' | 'COMPLETED' | 'ROLLING_BACK'
-    | 'ROLLED_BACK' | 'ROLLBACK_FAILED' | 'CANCELLED' | 'EXPIRED' : never;
+  state: ConfigChangeState;
   reason: string;
   changeDigest?: string | null;
   catalogVersion: string;
@@ -92,8 +103,8 @@ export type ConfigChangeItem = Readonly<{
   operation: 'set' | 'delete';
   requirement: 'required' | 'optional';
   strategy: ChangeValidateRequest['items'][number]['strategy'];
-  oldValueFingerprint?: string | null;
-  newValueFingerprint?: string | null;
+  oldValueFingerprint: string | null;
+  newValueFingerprint: string | null;
   observedSourceFingerprint: string;
 }>;
 
@@ -109,22 +120,39 @@ export type ChangeStatusEventRecord = Readonly<{
 }>;
 
 export type ConfigChangeAgent = {
-  validateChange: (actor: AgentActor, input: ChangeValidateRequest) => Promise<ChangeValidationResponse>;
-  saveChange: (actor: AgentActor, input: ChangeSaveRequest) => Promise<{ changeId: string; state: 'SAVED'; changeDigest: string; expiresAt: string }>;
-  applyChange: (actor: AgentActor, input: ChangeApplyRequest) => Promise<{ changeId: string; runId: string; state: 'APPLYING' }>;
-  cancelChange: (actor: AgentActor, input: ChangeCancelRequest) => Promise<{ changeId: string; state: 'CANCELLED' }>;
+  validateChange: (
+    actor: AgentActor,
+    input: ChangeValidateRequest
+  ) => Promise<ChangeValidationResponse>;
+  saveChange: (
+    actor: AgentActor,
+    input: ChangeSaveRequest
+  ) => Promise<{ changeId: string; state: 'SAVED'; changeDigest: string; expiresAt: string }>;
+  applyChange: (
+    actor: AgentActor,
+    input: ChangeApplyRequest
+  ) => Promise<{ changeId: string; runId: string; state: 'APPLYING' }>;
+  cancelChange: (
+    actor: AgentActor,
+    input: ChangeCancelRequest
+  ) => Promise<{ changeId: string; state: 'CANCELLED' }>;
   getChangeStatus: (actor: AgentActor, input: ChangeStatusRequest) => Promise<ChangeStatusResponse>;
-  clearApplyBlock: (actor: AgentActor, input: ClearApplyBlockRequest) => Promise<{ appId: string; state: 'CLEARED' }>;
+  clearApplyBlock: (
+    actor: AgentActor,
+    input: ClearApplyBlockRequest
+  ) => Promise<{ appId: string; state: 'CLEARED' }>;
 };
 
 export class ConfigChangeServiceError extends Error {
-  constructor(readonly code:
-    | 'CONFIG_CHANGE_NOT_FOUND'
-    | 'CONFIG_CHANGE_INVALID_STATE'
-    | 'CONFIG_SOURCE_CHANGED'
-    | 'CONFIG_APPLICATION_BLOCKED'
-    | 'CONFIG_CONTROL_DEGRADED'
-    | 'CONFIG_CHANGE_AGENT_ERROR') {
+  constructor(
+    readonly code:
+      | 'CONFIG_CHANGE_NOT_FOUND'
+      | 'CONFIG_CHANGE_INVALID_STATE'
+      | 'CONFIG_SOURCE_CHANGED'
+      | 'CONFIG_APPLICATION_BLOCKED'
+      | 'CONFIG_CONTROL_DEGRADED'
+      | 'CONFIG_CHANGE_AGENT_ERROR'
+  ) {
     super(code);
     this.name = 'ConfigChangeServiceError';
   }
@@ -144,22 +172,37 @@ function uuid(): string {
   return randomUUID();
 }
 
+/**
+ * The public protocol deliberately accepts opaque RUN_/EVT_ identifiers, while
+ * the PostgreSQL audit tables use UUID columns. Keep the protocol identifier
+ * out of SQL and derive a stable UUID only for the value-free database event.
+ */
+function databaseUuid(seed: string): string {
+  const bytes = createHash('sha256').update(seed, 'utf8').digest();
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.subarray(0, 16).toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function requireOwnerRecord(record: ConfigChangeRecord | null): ConfigChangeRecord {
   if (!record) throw new ConfigChangeServiceError('CONFIG_CHANGE_NOT_FOUND');
   return record;
 }
 
 export class ConfigChangeService {
-  constructor(private readonly input: {
-    repository: ConfigChangeRepository;
-    agent: ConfigChangeAgent;
-    catalogVersion: string;
-    manifestVersion: string;
-    keyVersion?: string;
-    draftEnabled?: boolean;
-    runtimeApplyEnabled?: boolean;
-    buildApplyEnabled?: boolean;
-  }) {}
+  constructor(
+    private readonly input: {
+      repository: ConfigChangeRepository;
+      agent: ConfigChangeAgent;
+      catalogVersion: string;
+      manifestVersion: string;
+      keyVersion?: string;
+      draftEnabled?: boolean;
+      runtimeApplyEnabled?: boolean;
+      buildApplyEnabled?: boolean;
+    }
+  ) {}
 
   async createDraft(input: {
     principal: ConfigChangePrincipal;
@@ -198,30 +241,48 @@ export class ConfigChangeService {
     return { changeId, state: 'DRAFT', expiresAt };
   }
 
-  async validate(input: { principal: ConfigChangePrincipal; body: ChangeValidateRequest }): Promise<ChangeValidationResponse> {
+  async validate(input: {
+    principal: ConfigChangePrincipal;
+    body: ChangeValidateRequest;
+  }): Promise<ChangeValidationResponse> {
     if (!this.input.draftEnabled) throw new ConfigChangeServiceError('CONFIG_CONTROL_DEGRADED');
     const record = requireOwnerRecord(await this.input.repository.findById(input.body.changeId));
-    if (record.actorUserId !== input.principal.userId || record.actorSessionId !== input.principal.sessionId) {
+    if (
+      record.actorUserId !== input.principal.userId ||
+      record.actorSessionId !== input.principal.sessionId
+    ) {
       throw new ConfigChangeServiceError('CONFIG_CHANGE_NOT_FOUND');
     }
     try {
       const result = await this.input.agent.validateChange(actorFor(input.principal), input.body);
-      await this.input.repository.updateValidation?.({
-        changeId: input.body.changeId,
-        changeDigest: result.changeDigest,
-        impactPlan: result.impactPlan,
-        itemFingerprints: result.itemFingerprints.map((item) => ({
+      const requestItems = new Map(
+        input.body.items.map((item) => [`${item.sourceId}\u0000${item.catalogId}`, item])
+      );
+      const itemFingerprints = result.itemFingerprints.map((item) => {
+        const requested = requestItems.get(`${item.sourceId}\u0000${item.catalogId}`);
+        if (!requested) throw new ConfigChangeServiceError('CONFIG_CHANGE_AGENT_ERROR');
+        return {
           catalogId: item.catalogId,
           sourceId: item.sourceId,
-          operation: 'set',
-          requirement: 'optional',
-          strategy: result.impactPlan.strategies[0] ?? 'no_runtime_action',
+          operation: requested.operation,
+          requirement: requested.requirement === 'unknown' ? 'optional' : requested.requirement,
+          strategy: requested.strategy,
           oldValueFingerprint: item.oldValueFingerprint,
-          newValueFingerprint: item.newValueFingerprint,
-          observedSourceFingerprint: item.oldValueFingerprint
-        })),
-        state: result.state === 'READY' ? 'READY' : 'INVALID'
+          newValueFingerprint: requested.operation === 'delete' ? null : item.newValueFingerprint,
+          observedSourceFingerprint: requested.sourceFingerprint
+        } satisfies ConfigChangeItem;
       });
+      if (this.input.repository.updateValidation) {
+        await this.input.repository.updateValidation({
+          changeId: input.body.changeId,
+          changeDigest: result.changeDigest,
+          impactPlan: result.impactPlan,
+          itemFingerprints,
+          state: result.state === 'READY' ? 'READY' : 'INVALID'
+        });
+      } else {
+        await this.input.repository.replaceItems(input.body.changeId, itemFingerprints);
+      }
       return result;
     } catch (error) {
       if (error instanceof ConfigChangeServiceError) throw error;
@@ -232,18 +293,32 @@ export class ConfigChangeService {
     }
   }
 
-  async replaceItems(input: { principal: ConfigChangePrincipal; changeId: string; body: ChangeValidateRequest }): Promise<ChangeValidationResponse> {
-    return this.validate({ principal: input.principal, body: { ...input.body, changeId: input.changeId, replaceDraft: true } });
+  async replaceItems(input: {
+    principal: ConfigChangePrincipal;
+    changeId: string;
+    body: ChangeValidateRequest;
+  }): Promise<ChangeValidationResponse> {
+    return this.validate({
+      principal: input.principal,
+      body: { ...input.body, changeId: input.changeId, replaceDraft: true }
+    });
   }
 
   async save(input: { principal: ConfigChangePrincipal; body: ChangeSaveRequest }) {
     if (!this.input.draftEnabled) throw new ConfigChangeServiceError('CONFIG_CONTROL_DEGRADED');
     const record = requireOwnerRecord(await this.input.repository.findById(input.body.changeId));
-    if (record.state !== 'READY' || record.actorUserId !== input.principal.userId) {
+    if (
+      record.state !== 'READY' ||
+      record.actorUserId !== input.principal.userId ||
+      record.actorSessionId !== input.principal.sessionId
+    ) {
       throw new ConfigChangeServiceError('CONFIG_CHANGE_INVALID_STATE');
     }
     const saved = await this.input.agent.saveChange(actorFor(input.principal), input.body);
-    await this.input.repository.markSaved?.({ changeId: saved.changeId, changeDigest: saved.changeDigest });
+    await this.input.repository.markSaved?.({
+      changeId: saved.changeId,
+      changeDigest: saved.changeDigest
+    });
     return saved;
   }
 
@@ -252,23 +327,55 @@ export class ConfigChangeService {
       throw new ConfigChangeServiceError('CONFIG_CONTROL_DEGRADED');
     }
     const record = requireOwnerRecord(await this.input.repository.findById(input.body.changeId));
-    if (record.state !== 'SAVED' || record.changeDigest !== input.body.changeDigest) {
+    if (
+      record.state !== 'SAVED' ||
+      record.changeDigest !== input.body.changeDigest ||
+      record.actorUserId !== input.principal.userId ||
+      record.actorSessionId !== input.principal.sessionId
+    ) {
       throw new ConfigChangeServiceError('CONFIG_CHANGE_INVALID_STATE');
     }
     try {
+      await this.input.repository.transition({
+        changeId: record.id,
+        applicationId: record.applicationId,
+        transitionId: databaseUuid(
+          `config-transition:${input.body.changeId}:${input.body.runId}:${input.body.idempotencyKey}`
+        ),
+        eventId: databaseUuid(`config-event:${input.body.changeId}:${input.body.idempotencyKey}`),
+        runId: databaseUuid(`config-run:${input.body.changeId}:${input.body.runId}`),
+        actorUserId: input.principal.userId,
+        actorSessionId: input.principal.sessionId,
+        expectedVersion: record.version,
+        to: 'APPLYING'
+      });
       return await this.input.agent.applyChange(actorFor(input.principal), input.body);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('CONFIG_APPLICATION_BLOCKED')) {
+        throw new ConfigChangeServiceError('CONFIG_APPLICATION_BLOCKED');
+      }
+      if (
+        error instanceof Error &&
+        /(?:INVALID_STATE|VERSION_CONFLICT|TERMINAL)/u.test(error.message)
+      ) {
+        throw new ConfigChangeServiceError('CONFIG_CHANGE_INVALID_STATE');
+      }
       throw new ConfigChangeServiceError('CONFIG_CHANGE_AGENT_ERROR');
     }
   }
 
-  async status(input: { principal: ConfigChangePrincipal; body: ChangeStatusRequest }): Promise<ChangeStatusResponse> {
+  async status(input: {
+    principal: ConfigChangePrincipal;
+    body: ChangeStatusRequest;
+  }): Promise<ChangeStatusResponse> {
     try {
       const result = await this.input.agent.getChangeStatus(actorFor(input.principal), input.body);
       return ChangeStatusResponseSchema.parse(result);
     } catch {
       const record = requireOwnerRecord(await this.input.repository.findById(input.body.changeId));
-      const events = await this.input.repository.listEvents?.(input.body.changeId, input.body.afterEventId) ?? [];
+      const events =
+        (await this.input.repository.listEvents?.(input.body.changeId, input.body.afterEventId)) ??
+        [];
       return ChangeStatusResponseSchema.parse({
         changeId: record.id,
         state: record.state,
@@ -282,14 +389,38 @@ export class ConfigChangeService {
 
   async cancel(input: { principal: ConfigChangePrincipal; body: ChangeCancelRequest }) {
     const record = requireOwnerRecord(await this.input.repository.findById(input.body.changeId));
-    if (record.actorUserId !== input.principal.userId || !['DRAFT', 'READY', 'SAVED'].includes(record.state)) {
+    if (
+      record.actorUserId !== input.principal.userId ||
+      record.actorSessionId !== input.principal.sessionId ||
+      !['DRAFT', 'READY', 'SAVED'].includes(record.state)
+    ) {
       throw new ConfigChangeServiceError('CONFIG_CHANGE_INVALID_STATE');
     }
-    return this.input.agent.cancelChange(actorFor(input.principal), input.body);
+    try {
+      const result = await this.input.agent.cancelChange(actorFor(input.principal), input.body);
+      await this.input.repository.cancel?.({
+        changeId: input.body.changeId,
+        actorUserId: input.principal.userId,
+        actorSessionId: input.principal.sessionId
+      });
+      return result;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('CONFIG_CHANGE_NOT_FOUND')) {
+        throw new ConfigChangeServiceError('CONFIG_CHANGE_NOT_FOUND');
+      }
+      if (
+        error instanceof Error &&
+        /(?:INVALID_STATE|VERSION_CONFLICT|TERMINAL)/u.test(error.message)
+      ) {
+        throw new ConfigChangeServiceError('CONFIG_CHANGE_INVALID_STATE');
+      }
+      throw new ConfigChangeServiceError('CONFIG_CHANGE_AGENT_ERROR');
+    }
   }
 
   async clearApplyBlock(input: { principal: ConfigChangePrincipal; body: ClearApplyBlockRequest }) {
-    if (input.principal.role !== 'ops_owner') throw new ConfigChangeServiceError('CONFIG_APPLICATION_BLOCKED');
+    if (input.principal.role !== 'ops_owner')
+      throw new ConfigChangeServiceError('CONFIG_APPLICATION_BLOCKED');
     const result = await this.input.agent.clearApplyBlock(actorFor(input.principal), input.body);
     await this.input.repository.clearApplyBlock?.({
       appId: input.body.appId,

@@ -12,7 +12,12 @@ import {
   ChangeValidateRequestSchema,
   ClearApplyBlockRequestSchema
 } from '../../../../../packages/config-contracts/src/changeProtocol.js';
-import { ConfigChangeServiceError, type ConfigChangePrincipal, type ConfigChangeService } from './configChangeService.js';
+import {
+  ConfigChangeServiceError,
+  type ConfigChangePrincipal,
+  type ConfigChangeService
+} from './configChangeService.js';
+import { serializeConfigChangeSse } from './configChangeEvents.js';
 
 type Principal = { userId: string; sessionId: string; role: OpsRole };
 type StepUpGrant = {
@@ -24,17 +29,25 @@ type StepUpGrant = {
   userAgentHash: string;
   subjectDigest: string;
 };
+type AccountsWriteGrant = Omit<StepUpGrant, 'capability' | 'subjectDigest'> & {
+  capability: 'accounts_write';
+  subjectDigest?: string;
+};
 
-const createBody = z.object({
-  appId: z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u),
-  reason: z.string().trim().min(3).max(2_000),
-  supersedesChangeId: z.string().optional()
-}).strict();
-const proofBody = z.object({
-  password: z.string().min(1).max(1_024),
-  totpCode: z.string().regex(/^\d{6}$/u),
-  changeDigest: z.string().regex(/^hmac-sha256:v\d+:[a-f0-9]{64}$/u)
-}).strict();
+const createBody = z
+  .object({
+    appId: z.string().regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u),
+    reason: z.string().trim().min(3).max(2_000),
+    supersedesChangeId: z.string().optional()
+  })
+  .strict();
+const proofBody = z
+  .object({
+    password: z.string().min(1).max(1_024),
+    totpCode: z.string().regex(/^\d{6}$/u),
+    changeDigest: z.string().regex(/^hmac-sha256:v\d+:[a-f0-9]{64}$/u)
+  })
+  .strict();
 
 function noStore(response: Response): void {
   response.setHeader('Cache-Control', 'no-store, private');
@@ -55,13 +68,17 @@ function statusFor(code: string): number {
   return 400;
 }
 
-function actor(value: Principal, request: Request, hashClientIp: (ip: string) => string): ConfigChangePrincipal {
+function actor(
+  value: Principal,
+  request: Request,
+  hashClientIp: (ip: string) => string
+): ConfigChangePrincipal {
   const ip = request.ip || request.socket.remoteAddress || 'unknown';
   const userAgent = request.get('user-agent') ?? 'unknown';
   return {
     ...value,
-    ipHash: hashClientIp(ip),
-    userAgentHash: createHash('sha256').update(userAgent, 'utf8').digest('hex')
+    ipHash: `sha256:${hashClientIp(ip).replace(/^sha256:/u, '')}`,
+    userAgentHash: `sha256:${createHash('sha256').update(userAgent, 'utf8').digest('hex')}`
   };
 }
 
@@ -73,7 +90,11 @@ function sendError(response: Response, error: unknown): void {
 export function createConfigChangeRouter(input: {
   service: ConfigChangeService;
   session: {
-    authorize: (input: { cookieHeader?: string; csrfToken?: string; mutation: boolean }) => Promise<Principal | null>;
+    authorize: (input: {
+      cookieHeader?: string;
+      csrfToken?: string;
+      mutation: boolean;
+    }) => Promise<Principal | null>;
   };
   stepUp?: {
     grant: (input: {
@@ -88,6 +109,10 @@ export function createConfigChangeRouter(input: {
     }) => Promise<{ id: string; expiresAt: string }>;
     consume: (binding: StepUpGrant) => Promise<boolean>;
   };
+  accountsWriteStepUp?: {
+    resolve: (principal: Principal, request: Request) => AccountsWriteGrant | null;
+    consume: (binding: AccountsWriteGrant) => Promise<boolean>;
+  };
   hashClientIp: (ip: string) => string;
   allowedOrigin?: string;
 }): Router {
@@ -96,23 +121,32 @@ export function createConfigChangeRouter(input: {
   const allowedOrigin = input.allowedOrigin ?? 'https://man.thienuy.edu.vn';
   const authorizations = new Map<string, StepUpGrant>();
 
-  async function principal(request: Request, response: Response): Promise<{ principal: Principal; actor: ConfigChangePrincipal } | null> {
+  async function principal(
+    request: Request,
+    response: Response,
+    mutation = true,
+    permission: 'variables:write' | 'variables:apply' = 'variables:write'
+  ): Promise<{ principal: Principal; actor: ConfigChangePrincipal } | null> {
     noStore(response);
-    if (request.get('origin') !== allowedOrigin) {
+    if (mutation && request.get('origin') !== allowedOrigin) {
       response.status(403).json({ code: 'ORIGIN_DENIED' });
+      return null;
+    }
+    if (mutation && !request.get('X-Ops-CSRF')) {
+      response.status(403).json({ code: 'CSRF_REQUIRED' });
       return null;
     }
     const value = await input.session.authorize({
       ...(request.get('cookie') ? { cookieHeader: request.get('cookie')! } : {}),
       ...(request.get('X-Ops-CSRF') ? { csrfToken: request.get('X-Ops-CSRF')! } : {}),
-      mutation: true
+      mutation
     });
     if (!value) {
       response.status(401).json({ code: 'AUTH_DENIED' });
       return null;
     }
     try {
-      assertPermission(value.role, 'variables:write');
+      assertPermission(value.role, permission);
     } catch {
       response.status(403).json({ code: 'PERMISSION_DENIED' });
       return null;
@@ -122,7 +156,7 @@ export function createConfigChangeRouter(input: {
 
   router.post('/auth/variables/apply-authorization', async (request, response, next) => {
     try {
-      const current = await principal(request, response);
+      const current = await principal(request, response, true, 'variables:apply');
       if (!current) return;
       const parsed = proofBody.safeParse(request.body);
       if (!parsed.success || !input.stepUp) {
@@ -158,7 +192,7 @@ export function createConfigChangeRouter(input: {
     }
   });
 
-  router.post('/config-changes', async (request, response, next) => {
+  router.post('/config-changes', async (request, response) => {
     try {
       const current = await principal(request, response);
       if (!current) return;
@@ -168,7 +202,9 @@ export function createConfigChangeRouter(input: {
         principal: current.actor,
         applicationId: parsed.data.appId,
         reason: parsed.data.reason,
-        ...(parsed.data.supersedesChangeId ? { supersedesChangeId: parsed.data.supersedesChangeId } : {})
+        ...(parsed.data.supersedesChangeId
+          ? { supersedesChangeId: parsed.data.supersedesChangeId }
+          : {})
       });
       response.status(201).json(result);
     } catch (error) {
@@ -176,13 +212,22 @@ export function createConfigChangeRouter(input: {
     }
   });
 
-  router.put('/config-changes/:changeId/items', async (request, response, next) => {
+  router.put('/config-changes/:changeId/items', async (request, response) => {
     try {
       const current = await principal(request, response);
       if (!current) return;
-      const parsed = ChangeValidateRequestSchema.safeParse({ ...request.body, changeId: request.params.changeId, replaceDraft: true });
-      if (!parsed.success) return response.status(400).json({ code: 'INVALID_CONFIG_CHANGE_ITEMS' });
-      const result = await input.service.replaceItems({ principal: current.actor, changeId: request.params.changeId, body: parsed.data });
+      const parsed = ChangeValidateRequestSchema.safeParse({
+        ...request.body,
+        changeId: request.params.changeId,
+        replaceDraft: true
+      });
+      if (!parsed.success)
+        return response.status(400).json({ code: 'INVALID_CONFIG_CHANGE_ITEMS' });
+      const result = await input.service.replaceItems({
+        principal: current.actor,
+        changeId: request.params.changeId,
+        body: parsed.data
+      });
       response.status(200).json(result);
     } catch (error) {
       sendError(response, error);
@@ -190,12 +235,17 @@ export function createConfigChangeRouter(input: {
   });
 
   router.post('/config-changes/:changeId/validate', async (request, response) => {
-    const current = await principal(request, response);
+    const current = await principal(request, response, true, 'variables:write');
     if (!current) return;
-    const parsed = ChangeValidateRequestSchema.safeParse({ ...request.body, changeId: request.params.changeId });
+    const parsed = ChangeValidateRequestSchema.safeParse({
+      ...request.body,
+      changeId: request.params.changeId
+    });
     if (!parsed.success) return response.status(400).json({ code: 'INVALID_CONFIG_CHANGE' });
     try {
-      response.status(200).json(await input.service.validate({ principal: current.actor, body: parsed.data }));
+      response
+        .status(200)
+        .json(await input.service.validate({ principal: current.actor, body: parsed.data }));
     } catch (error) {
       sendError(response, error);
     }
@@ -204,20 +254,29 @@ export function createConfigChangeRouter(input: {
   router.post('/config-changes/:changeId/save', async (request, response) => {
     const current = await principal(request, response);
     if (!current) return;
-    const parsed = ChangeSaveRequestSchema.safeParse({ ...request.body, changeId: request.params.changeId });
+    const parsed = ChangeSaveRequestSchema.safeParse({
+      ...request.body,
+      changeId: request.params.changeId
+    });
     if (!parsed.success) return response.status(400).json({ code: 'INVALID_CONFIG_CHANGE' });
     try {
-      response.status(200).json(await input.service.save({ principal: current.actor, body: parsed.data }));
+      response
+        .status(200)
+        .json(await input.service.save({ principal: current.actor, body: parsed.data }));
     } catch (error) {
       sendError(response, error);
     }
   });
 
   router.post('/config-changes/:changeId/apply', async (request, response) => {
-    const current = await principal(request, response);
+    const current = await principal(request, response, true, 'variables:apply');
     if (!current) return;
-    const parsed = ChangeApplyRequestSchema.safeParse({ ...request.body, changeId: request.params.changeId });
-    if (!parsed.success || !input.stepUp) return response.status(400).json({ code: 'INVALID_CONFIG_APPLY' });
+    const parsed = ChangeApplyRequestSchema.safeParse({
+      ...request.body,
+      changeId: request.params.changeId
+    });
+    if (!parsed.success || !input.stepUp)
+      return response.status(400).json({ code: 'INVALID_CONFIG_APPLY' });
     const key = `${current.principal.sessionId}:${parsed.data.changeDigest}`;
     const grant = authorizations.get(key);
     if (!grant || !(await input.stepUp.consume(grant))) {
@@ -226,26 +285,30 @@ export function createConfigChangeRouter(input: {
     }
     authorizations.delete(key);
     try {
-      response.status(202).json(await input.service.apply({ principal: current.actor, body: parsed.data }));
+      response
+        .status(202)
+        .json(await input.service.apply({ principal: current.actor, body: parsed.data }));
     } catch (error) {
       sendError(response, error);
     }
   });
 
   router.get('/config-changes/:changeId', async (request, response) => {
-    const current = await principal(request, response);
+    const current = await principal(request, response, false);
     if (!current) return;
     const parsed = ChangeStatusRequestSchema.safeParse({ changeId: request.params.changeId });
     if (!parsed.success) return response.status(400).json({ code: 'INVALID_CONFIG_CHANGE' });
     try {
-      response.status(200).json(await input.service.status({ principal: current.actor, body: parsed.data }));
+      response
+        .status(200)
+        .json(await input.service.status({ principal: current.actor, body: parsed.data }));
     } catch (error) {
       sendError(response, error);
     }
   });
 
   router.get('/config-changes/:changeId/events', async (request, response) => {
-    const current = await principal(request, response);
+    const current = await principal(request, response, false);
     if (!current) return;
     const parsed = ChangeStatusRequestSchema.safeParse({
       changeId: request.params.changeId,
@@ -254,8 +317,12 @@ export function createConfigChangeRouter(input: {
     if (!parsed.success) return response.status(400).json({ code: 'INVALID_CONFIG_CHANGE' });
     try {
       const status = await input.service.status({ principal: current.actor, body: parsed.data });
-      response.status(200).setHeader('Content-Type', 'text/event-stream').setHeader('Connection', 'keep-alive');
-      response.write(`event: change\ndata: ${JSON.stringify(status)}\n\n: heartbeat\n\n`);
+      response
+        .status(200)
+        .setHeader('Content-Type', 'text/event-stream')
+        .setHeader('Connection', 'keep-alive')
+        .setHeader('Cache-Control', 'no-store');
+      response.write(serializeConfigChangeSse(status));
       response.end();
     } catch (error) {
       sendError(response, error);
@@ -265,17 +332,22 @@ export function createConfigChangeRouter(input: {
   router.delete('/config-changes/:changeId', async (request, response) => {
     const current = await principal(request, response);
     if (!current) return;
-    const parsed = ChangeCancelRequestSchema.safeParse({ changeId: request.params.changeId, eventId: request.get('X-Request-ID') ?? `EVT_${Date.now()}` });
+    const parsed = ChangeCancelRequestSchema.safeParse({
+      changeId: request.params.changeId,
+      eventId: request.get('X-Request-ID') ?? `EVT_${Date.now()}`
+    });
     if (!parsed.success) return response.status(400).json({ code: 'INVALID_CONFIG_CHANGE' });
     try {
-      response.status(200).json(await input.service.cancel({ principal: current.actor, body: parsed.data }));
+      response
+        .status(200)
+        .json(await input.service.cancel({ principal: current.actor, body: parsed.data }));
     } catch (error) {
       sendError(response, error);
     }
   });
 
   router.post('/config-applications/:appId/apply-block/clear', async (request, response) => {
-    const current = await principal(request, response);
+    const current = await principal(request, response, true, 'variables:apply');
     if (!current) return;
     const parsed = ClearApplyBlockRequestSchema.safeParse({
       ...request.body,
@@ -283,8 +355,14 @@ export function createConfigChangeRouter(input: {
       eventId: request.get('X-Request-ID') ?? `EVT_${Date.now()}`
     });
     if (!parsed.success) return response.status(400).json({ code: 'INVALID_APPLY_BLOCK_CLEAR' });
+    const accountsGrant = input.accountsWriteStepUp?.resolve(current.principal, request);
+    if (!accountsGrant || !(await input.accountsWriteStepUp?.consume(accountsGrant))) {
+      return response.status(401).json({ code: 'ACCOUNTS_AUTHORIZATION_REQUIRED' });
+    }
     try {
-      response.status(200).json(await input.service.clearApplyBlock({ principal: current.actor, body: parsed.data }));
+      response
+        .status(200)
+        .json(await input.service.clearApplyBlock({ principal: current.actor, body: parsed.data }));
     } catch (error) {
       sendError(response, error);
     }

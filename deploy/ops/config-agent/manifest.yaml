@@ -2,6 +2,17 @@ manifestVersion: 2026-08-31
 catalogVersion: 2026-08-31
 catalogDigest: sha256:1783d0cf20b045679dd584fad52b8995a2bd40cfa8f5e179fd99f4977d4c1bf6
 readOnly: true
+build:
+  repositoryRoot: /srv/edutrack/source
+  releaseRoot: /srv/edutrack
+  buildRoot: /srv/edutrack/staging
+  releaseScript: /srv/edutrack/current/deploy/vps/prepare-platform-release.sh
+  toolingCommit: 8d34181211ea8a4a6356ac7d618fbc871f8bcd7e
+  publicCatalogIds:
+    - edutrack.public_base_url
+    - edutrack.esp_public_base_url
+    - edutrack.vite_turnstile_site_key
+    - edutrack.vite_esp_turnstile_site_key
 apps:
   - id: edutrack
     displayName: EduTrack Platform
@@ -40,10 +51,12 @@ sources:
       path: /srv/edutrack/shared/.env
     owner: deploy
     group: deploy
-    mode: "0600"
+    mode: '0600'
     maximumBytes: 16384
     precedenceRank: 200
     consumerIds: [edutrack.web, edutrack.scheduled_jobs, edutrack.public_build]
+    actionIds: [release.build_redeploy, pm2.reload_app]
+    checkIds: [release.identity, process.active, http.readiness_local, http.smoke_public]
   - id: edutrack.pm2_ecosystem
     appId: edutrack
     pathLabel: /srv/edutrack/current/deploy/vps/ecosystem.config.cjs
@@ -56,7 +69,7 @@ sources:
       fixedDescendant: deploy/vps/ecosystem.config.cjs
     owner: deploy
     group: deploy
-    mode: "0644"
+    mode: '0644'
     maximumBytes: 65536
     precedenceRank: 300
     consumerIds: [edutrack.web]
@@ -70,10 +83,12 @@ sources:
       path: /etc/edutrack-ops/api.env
     owner: root
     group: edutrack-ops
-    mode: "0640"
+    mode: '0640'
     maximumBytes: 8192
     precedenceRank: 200
     consumerIds: [ops.api, ops.notifier, ops.processor, ops.migrate]
+    actionIds: [systemd.restart_unit]
+    checkIds: [process.active, http.readiness_local, agent.healthy]
   - id: ops.web_env
     appId: ops
     pathLabel: /etc/edutrack-ops/web.env
@@ -84,10 +99,12 @@ sources:
       path: /etc/edutrack-ops/web.env
     owner: root
     group: edutrack-ops
-    mode: "0640"
+    mode: '0640'
     maximumBytes: 4096
     precedenceRank: 200
     consumerIds: [ops.web]
+    actionIds: [systemd.restart_unit]
+    checkIds: [process.active, http.readiness_local]
   - id: ops.collector_env
     appId: ops
     pathLabel: /etc/edutrack-ops/collector.env
@@ -98,10 +115,12 @@ sources:
       path: /etc/edutrack-ops/collector.env
     owner: root
     group: edutrack-ops
-    mode: "0640"
+    mode: '0640'
     maximumBytes: 8192
     precedenceRank: 200
     consumerIds: [ops.collector]
+    actionIds: [systemd.restart_unit]
+    checkIds: [process.active]
   - id: ops.sql_worker_env
     appId: ops
     pathLabel: /etc/edutrack-ops/sql-worker.env
@@ -112,10 +131,12 @@ sources:
       path: /etc/edutrack-ops/sql-worker.env
     owner: root
     group: edutrack-ops
-    mode: "0640"
+    mode: '0640'
     maximumBytes: 4096
     precedenceRank: 200
     consumerIds: [ops.sql_worker, ops.api]
+    actionIds: [systemd.restart_unit]
+    checkIds: [process.active, agent.healthy]
   - id: ops.credentials.ops_database_url
     appId: ops
     pathLabel: /etc/edutrack-ops/credentials/ops-database-url
@@ -126,7 +147,7 @@ sources:
       path: /etc/edutrack-ops/credentials/ops-database-url
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 8192
     precedenceRank: 400
     consumerIds: [ops.api, ops.notifier, ops.processor, ops.migrate]
@@ -140,7 +161,7 @@ sources:
       path: /etc/edutrack-ops/credentials/ops-session-pepper
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.migrate]
@@ -154,7 +175,7 @@ sources:
       path: /etc/edutrack-ops/credentials/ops-rate-limit-pepper
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.migrate]
@@ -168,7 +189,7 @@ sources:
       path: /etc/edutrack-ops/credentials/browser-context-edutrack-v1
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.migrate]
@@ -182,7 +203,7 @@ sources:
       path: /etc/edutrack-ops/credentials/ops-auth-session-pepper
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api]
@@ -196,7 +217,7 @@ sources:
       path: /etc/edutrack-ops/credentials/ops-mfa-encryption-key
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api]
@@ -210,7 +231,7 @@ sources:
       path: /etc/edutrack-ops/credentials/ops-password-fingerprint-pepper
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api]
@@ -224,7 +245,7 @@ sources:
       path: /etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.web]
@@ -238,7 +259,7 @@ sources:
       path: /etc/edutrack-ops/credentials/ops-sql-worker-hmac
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.sql_worker]
@@ -252,7 +273,7 @@ sources:
       path: /etc/edutrack-ops/credentials/ops-sql-audit-encryption-key
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api]
@@ -266,9 +287,62 @@ sources:
       path: /etc/edutrack-ops/credentials/production-read-database-url
     owner: root
     group: root
-    mode: "0400"
+    mode: '0400'
     maximumBytes: 8192
     precedenceRank: 400
     consumerIds: [ops.sql_worker]
-actions: []
-checks: []
+actions:
+  - id: application.clear_apply_block
+    description: Clear a blocked application after owner-approved remediation.
+    executable: /usr/bin/systemctl
+    args: [reset-failed]
+    timeoutMs: 10000
+  - id: job.next_run
+    description: Record that a next-job variable takes effect at the next scheduled run.
+    timeoutMs: 1000
+  - id: pm2.reload_app
+    description: Reload the manifest-pinned PM2 application.
+    executable: /usr/bin/pm2
+    args: [reload, edutrack]
+    timeoutMs: 30000
+  - id: release.build_redeploy
+    description: Build and activate a configuration-derived release through pinned tooling.
+    executable: /usr/bin/bash
+    args: [/srv/edutrack/current/deploy/vps/prepare-platform-release.sh]
+    workingDirectory: /srv/edutrack
+    timeoutMs: 300000
+  - id: systemd.reload_unit
+    description: Reload a manifest-pinned systemd unit.
+    executable: /usr/bin/systemctl
+    args: [reload, edutrack-ops-api.service]
+    timeoutMs: 30000
+  - id: systemd.restart_unit
+    description: Restart a manifest-pinned systemd unit.
+    executable: /usr/bin/systemctl
+    args: [restart, edutrack-ops-api.service]
+    timeoutMs: 30000
+checks:
+  - id: agent.healthy
+    description: Verify the configuration agent protocol and loaded catalog are healthy.
+    timeoutMs: 5000
+  - id: dependency.probe
+    description: Run a manifest-pinned dependency probe with bounded output.
+    timeoutMs: 5000
+  - id: http.readiness_local
+    description: Verify the fixed local readiness endpoint.
+    host: 127.0.0.1
+    port: 3100
+    path: healthz
+    timeoutMs: 5000
+  - id: http.smoke_public
+    description: Verify the fixed public HTTPS smoke endpoint.
+    host: man.thienuy.edu.vn
+    port: 443
+    path: healthz
+    timeoutMs: 10000
+  - id: process.active
+    description: Verify the manifest-pinned service process is active and stable.
+    timeoutMs: 5000
+  - id: release.identity
+    description: Verify source, release, and configuration identity.
+    timeoutMs: 5000

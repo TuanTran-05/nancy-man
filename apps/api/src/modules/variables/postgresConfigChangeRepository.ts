@@ -156,6 +156,17 @@ export type ConfigApplicationBlock = {
   clearRemediationSummary: string | null;
 };
 
+export type ChangeTransitionEventRecord = {
+  eventId: string;
+  changeId: string;
+  sequence: number | string;
+  state: ChangeState;
+  reasonCode: string;
+  actionId?: string;
+  checkId?: string;
+  occurredAt: string;
+};
+
 export type ConfigChangeDatabase = ParameterizedDatabase & {
   transaction?: <T>(operation: (database: ParameterizedDatabase) => Promise<T>) => Promise<T>;
 };
@@ -201,11 +212,7 @@ function assertSafeText(value: string, code: string, max: number): void {
     const codePoint = character.codePointAt(0) ?? 0;
     return codePoint < 32 && codePoint !== 9 && codePoint !== 10 && codePoint !== 13;
   });
-  if (
-    value.length < 1 ||
-    value.length > max ||
-    hasForbiddenControl
-  ) {
+  if (value.length < 1 || value.length > max || hasForbiddenControl) {
     throw new ConfigMetadataError(code);
   }
 }
@@ -501,6 +508,116 @@ export class PostgresConfigChangeRepository {
       [changeId]
     );
     return rows[0] ? mapChange(rows[0]) : null;
+  }
+
+  /** Compatibility name used by the API service boundary. */
+  async findById(changeId: string): Promise<ConfigChangeRecord | null> {
+    return this.getChange(changeId);
+  }
+
+  async updateValidation(input: {
+    changeId: string;
+    changeDigest: string;
+    impactPlan: ImpactPlan;
+    itemFingerprints: readonly ConfigChangeItem[];
+    state: 'READY' | 'INVALID';
+  }): Promise<void> {
+    configDigest(input.changeDigest);
+    assertImpactPlan(input.impactPlan);
+    for (const item of input.itemFingerprints) validateItem(item);
+    const current = await this.getChange(input.changeId);
+    if (!current) throw new Error('CONFIG_CHANGE_NOT_FOUND');
+    if (!['DRAFT', 'INVALID'].includes(current.state)) {
+      throw new Error('CONFIG_CHANGE_INVALID_STATE');
+    }
+    await this.replaceItems(input.changeId, input.itemFingerprints);
+    await this.inTransaction(async (database) => {
+      await database.query(
+        `UPDATE ops_config_changes
+         SET state = $2, change_digest = $3, impact_plan = $4::jsonb,
+             version = version + 1, updated_at = now()
+         WHERE id = $1 AND state IN ('DRAFT', 'INVALID')`,
+        [input.changeId, input.state, input.changeDigest, JSON.stringify(input.impactPlan)]
+      );
+    });
+  }
+
+  async markSaved(input: {
+    changeId: string;
+    changeDigest: string;
+    envelopeId?: string;
+  }): Promise<void> {
+    configDigest(input.changeDigest);
+    await this.inTransaction(async (database) => {
+      const { rows } = await database.query<{ id: string }>(
+        `UPDATE ops_config_changes
+         SET state = 'SAVED', change_digest = $2, agent_envelope_id = $3,
+             version = version + 1, updated_at = now()
+         WHERE id = $1 AND state = 'READY' AND change_digest = $2
+         RETURNING id`,
+        [input.changeId, input.changeDigest, input.envelopeId ?? null]
+      );
+      if (!rows[0]) throw new Error('CONFIG_CHANGE_INVALID_STATE');
+    });
+  }
+
+  async listEvents(
+    changeId: string,
+    afterEventId?: string
+  ): Promise<ChangeTransitionEventRecord[]> {
+    assertUuid(changeId, 'CONFIG_CHANGE_ID_INVALID');
+    if (
+      afterEventId !== undefined &&
+      !idPattern.test(afterEventId) &&
+      !/^EVT_[A-Za-z0-9_]+$/u.test(afterEventId)
+    ) {
+      throw new ConfigMetadataError('CONFIG_EVENT_ID_INVALID');
+    }
+    const databaseEventId = afterEventId && idPattern.test(afterEventId) ? afterEventId : null;
+    const { rows } = await this.database.query<ChangeTransitionEventRecord>(
+      `SELECT event_id AS "eventId", change_id AS "changeId", sequence_number AS sequence,
+         state, COALESCE(result_code, 'STATE_TRANSITION') AS "reasonCode",
+         action_id AS "actionId", check_id AS "checkId", occurred_at AS "occurredAt"
+       FROM ops_config_runs
+       WHERE change_id = $1
+         AND ($2::uuid IS NULL OR sequence_number > COALESCE(
+           (SELECT sequence_number FROM ops_config_runs WHERE change_id = $1 AND event_id = $2), 0))
+       ORDER BY sequence_number ASC`,
+      [changeId, databaseEventId]
+    );
+    return rows.map((row) => ({
+      ...row,
+      reasonCode: row.reasonCode.toLowerCase(),
+      sequence: Number(row.sequence)
+    }));
+  }
+
+  async cancel(input: {
+    changeId: string;
+    actorUserId: string;
+    actorSessionId: string;
+  }): Promise<void> {
+    const current = await this.getChange(input.changeId);
+    if (
+      !current ||
+      current.actorUserId !== input.actorUserId ||
+      current.actorSessionId !== input.actorSessionId
+    ) {
+      throw new Error('CONFIG_CHANGE_NOT_FOUND');
+    }
+    if (!['DRAFT', 'READY', 'SAVED'].includes(current.state)) {
+      throw new Error('CONFIG_CHANGE_INVALID_STATE');
+    }
+    await this.inTransaction(async (database) => {
+      const { rows } = await database.query<{ id: string }>(
+        `UPDATE ops_config_changes
+         SET state = 'CANCELLED', version = version + 1, updated_at = now()
+         WHERE id = $1 AND state = $2 AND version = $3
+         RETURNING id`,
+        [input.changeId, current.state, current.version]
+      );
+      if (!rows[0]) throw new Error('CONFIG_CHANGE_INVALID_STATE');
+    });
   }
 
   async replaceItems(changeId: string, items: readonly ConfigChangeItem[]): Promise<void> {

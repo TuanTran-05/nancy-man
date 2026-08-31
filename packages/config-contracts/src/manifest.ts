@@ -6,13 +6,19 @@ const stableIdPattern = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u;
 const accountNamePattern = /^[A-Za-z_][A-Za-z0-9_-]*[$]?$/u;
 const modePattern = /^[0-7]{4}$/u;
 const digestPattern = /^sha256:[a-f0-9]{64}$/u;
+const sha40Pattern = /^[0-9a-f]{40}$/u;
 
-const stableIdSchema = z.string().regex(stableIdPattern, 'Stable IDs must be lowercase dotted identifiers');
+const stableIdSchema = z
+  .string()
+  .regex(stableIdPattern, 'Stable IDs must be lowercase dotted identifiers');
 const nonEmptyTextSchema = z.string().min(1).max(512);
 const absolutePathSchema = z
   .string()
   .min(1)
-  .refine((value) => value.startsWith('/') && !value.includes('\u0000'), 'Absolute path is invalid');
+  .refine(
+    (value) => value.startsWith('/') && !value.includes('\u0000'),
+    'Absolute path is invalid'
+  );
 const relativePathSchema = z
   .string()
   .min(1)
@@ -126,7 +132,11 @@ export type ManifestSource = z.infer<typeof ManifestSourceSchema>;
 export const ManifestActionSchema = z
   .object({
     id: ManifestActionIdSchema,
-    description: nonEmptyTextSchema
+    description: nonEmptyTextSchema,
+    executable: absolutePathSchema.optional(),
+    args: z.array(z.string().min(1).max(256)).max(32).optional(),
+    workingDirectory: absolutePathSchema.optional(),
+    timeoutMs: z.number().int().positive().max(300_000).optional()
   })
   .strict();
 export type ManifestAction = z.infer<typeof ManifestActionSchema>;
@@ -134,10 +144,26 @@ export type ManifestAction = z.infer<typeof ManifestActionSchema>;
 export const ManifestCheckSchema = z
   .object({
     id: ManifestCheckIdSchema,
-    description: nonEmptyTextSchema
+    description: nonEmptyTextSchema,
+    host: z.string().max(253).optional(),
+    port: z.number().int().positive().max(65_535).optional(),
+    path: relativePathSchema.optional(),
+    timeoutMs: z.number().int().positive().max(60_000).optional()
   })
   .strict();
 export type ManifestCheck = z.infer<typeof ManifestCheckSchema>;
+
+export const ManifestBuildSchema = z
+  .object({
+    repositoryRoot: absolutePathSchema,
+    releaseRoot: absolutePathSchema,
+    buildRoot: absolutePathSchema,
+    releaseScript: absolutePathSchema,
+    toolingCommit: z.string().regex(sha40Pattern, 'Tooling commit must be a full lower-case SHA'),
+    publicCatalogIds: z.array(stableIdSchema).min(1).max(256)
+  })
+  .strict();
+export type ManifestBuild = z.infer<typeof ManifestBuildSchema>;
 
 export const AgentManifestSchema = z
   .object({
@@ -145,6 +171,7 @@ export const AgentManifestSchema = z
     catalogVersion: z.string().regex(schemaVersionPattern, 'Catalog version is invalid'),
     catalogDigest: z.string().regex(digestPattern, 'Catalog digest is invalid'),
     readOnly: z.literal(true),
+    build: ManifestBuildSchema.optional(),
     apps: z.array(ManifestAppSchema),
     sources: z.array(ManifestSourceSchema),
     actions: z.array(ManifestActionSchema),

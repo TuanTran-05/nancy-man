@@ -170,4 +170,133 @@ describe('authenticated Config Agent server', () => {
       await server.close();
     }
   });
+
+  test('advertises and dispatches only registered mutation handlers with value-free responses', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'edutrack-config-agent-mutation-'));
+    const socketPath = join(root, 'agent.sock');
+    const cancel = async (body: unknown, receivedActor: typeof actor) => {
+      expect(body).toEqual({ changeId: 'CHG_cancel', eventId: 'EVT_cancel' });
+      expect(receivedActor).toEqual(actor);
+      return { changeId: 'CHG_cancel', state: 'CANCELLED' as const };
+    };
+    const server = createAuthenticatedServer({
+      socketPath,
+      socketGroupId: typeof process.getgid === 'function' ? process.getgid() : undefined,
+      protocolKey: 'protocol-secret',
+      protocolKeyId: 'config-agent-protocol-v1',
+      fingerprintKey: createFingerprintKey('fingerprint-secret', 'v1'),
+      loaded,
+      now: () => new Date('2026-08-31T13:10:05.000Z'),
+      inventoryService: {
+        read: async () => ({
+          catalogVersion: '2026-08-31',
+          manifestVersion: '2026-08-31',
+          generatedAt: '2026-08-31T13:10:05.000Z',
+          items: []
+        })
+      },
+      changeHandlers: {
+        cancel,
+        supportedStrategies: ['no_runtime_action']
+      }
+    });
+    await server.start();
+    try {
+      const capabilities = AgentResponseSchema.parse(
+        JSON.parse(
+          (await exchange(socketPath, request({ requestId: 'REQ_caps_mutation' })))
+            .subarray(4)
+            .toString('utf8')
+        )
+      );
+      expect(capabilities).toMatchObject({
+        ok: true,
+        body: {
+          readOnly: false,
+          supportedOperations: ['inventory.read', 'change.cancel'],
+          supportedStrategies: ['no_runtime_action']
+        }
+      });
+      const response = AgentResponseSchema.parse(
+        JSON.parse(
+          (
+            await exchange(
+              socketPath,
+              request({
+                requestId: 'REQ_cancel_mutation',
+                operation: 'change.cancel',
+                body: { changeId: 'CHG_cancel', eventId: 'EVT_cancel' }
+              } as never)
+            )
+          )
+            .subarray(4)
+            .toString('utf8')
+        )
+      );
+      expect(response).toMatchObject({
+        ok: true,
+        operation: 'change.cancel',
+        body: { state: 'CANCELLED' }
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  test('normalizes internal mutation errors without leaking their text', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'edutrack-config-agent-mutation-error-'));
+    const socketPath = join(root, 'agent.sock');
+    const server = createAuthenticatedServer({
+      socketPath,
+      socketGroupId: typeof process.getgid === 'function' ? process.getgid() : undefined,
+      protocolKey: 'protocol-secret',
+      protocolKeyId: 'config-agent-protocol-v1',
+      fingerprintKey: createFingerprintKey('fingerprint-secret', 'v1'),
+      loaded,
+      now: () => new Date('2026-08-31T13:10:05.000Z'),
+      inventoryService: {
+        read: async () => ({
+          catalogVersion: '2026-08-31',
+          manifestVersion: '2026-08-31',
+          generatedAt: '2026-08-31T13:10:05.000Z',
+          items: []
+        })
+      },
+      changeHandlers: {
+        cancel: async () => {
+          const error = new Error('CONFIG_SOURCE_CHANGED secret sentinel') as Error & {
+            code: string;
+          };
+          error.code = 'CONFIG_SOURCE_CHANGED';
+          throw error;
+        }
+      }
+    });
+    await server.start();
+    try {
+      const response = AgentResponseSchema.parse(
+        JSON.parse(
+          (
+            await exchange(
+              socketPath,
+              request({
+                requestId: 'REQ_cancel_error',
+                operation: 'change.cancel',
+                body: { changeId: 'CHG_cancel', eventId: 'EVT_cancel' }
+              } as never)
+            )
+          )
+            .subarray(4)
+            .toString('utf8')
+        )
+      );
+      expect(response).toMatchObject({
+        ok: false,
+        error: { code: 'config_source_changed', safeMessage: 'Config Agent operation failed' }
+      });
+      expect(JSON.stringify(response)).not.toContain('secret sentinel');
+    } finally {
+      await server.close();
+    }
+  });
 });

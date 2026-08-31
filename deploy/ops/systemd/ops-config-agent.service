@@ -1,5 +1,5 @@
 [Unit]
-Description=EduTrack read-only configuration inventory agent
+Description=EduTrack guarded configuration agent
 After=local-fs.target
 Before=edutrack-ops-api.service
 StartLimitIntervalSec=60s
@@ -19,10 +19,18 @@ Environment=OPS_CONFIG_AGENT_PROTOCOL_KEY_PATH=%d/config-agent-protocol-hmac
 Environment=OPS_CONFIG_AGENT_PROTOCOL_KEY_ID=config-agent-2026-08-31
 Environment=OPS_CONFIG_AGENT_FINGERPRINT_KEY_PATH=%d/config-agent-fingerprint-hmac
 Environment=OPS_CONFIG_AGENT_FINGERPRINT_KEY_VERSION=v1
+Environment=OPS_CONFIG_AGENT_STAGING_KEY_PATH=%d/config-agent-staging-key
+Environment=OPS_CONFIG_AGENT_STAGING_KEY_ID=config-agent-staging-2026-08-31
+Environment=OPS_CONFIG_AGENT_STAGING_KEY_VERSION=v1
+Environment=OPS_CONFIG_AGENT_SNAPSHOT_KEY_PATH=%d/config-agent-snapshot-key
+Environment=OPS_CONFIG_AGENT_SNAPSHOT_KEY_ID=config-agent-snapshot-2026-08-31
+Environment=OPS_CONFIG_AGENT_SNAPSHOT_KEY_VERSION=v1
 Environment=OPS_CONFIG_AGENT_MANIFEST_PATH=/srv/edutrack-ops/config-agent/current/deploy/ops/config-agent/manifest.yaml
 Environment=OPS_CONFIG_AGENT_CATALOG_PATH=/srv/edutrack-ops/config-agent/current/config/variables/catalog.yaml
 LoadCredential=config-agent-protocol-hmac:/etc/edutrack-ops/credentials/config-agent-protocol-hmac
 LoadCredential=config-agent-fingerprint-hmac:/etc/edutrack-ops/credentials/config-agent-fingerprint-hmac
+LoadCredential=config-agent-staging-key:/etc/edutrack-ops/credentials/config-agent-staging-key
+LoadCredential=config-agent-snapshot-key:/etc/edutrack-ops/credentials/config-agent-snapshot-key
 RuntimeDirectory=edutrack-config-agent
 RuntimeDirectoryMode=0750
 ExecStart=/usr/bin/node /srv/edutrack-ops/config-agent/current/apps/config-agent/dist/apps/config-agent/src/index.js
@@ -47,7 +55,7 @@ RestrictRealtime=true
 LockPersonality=true
 CapabilityBoundingSet=
 AmbientCapabilities=
-RestrictAddressFamilies=AF_UNIX
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 MemoryDenyWriteExecute=false
@@ -60,17 +68,15 @@ LogLevelMax=notice
 LogRateLimitIntervalSec=30s
 LogRateLimitBurst=20
 
-# The agent may read only the catalog-declared source boundaries. It has no
-# ReadWritePaths: RuntimeDirectory is the sole writable location.
+# Mutation writes remain explicit and are constrained by the manifest.
+ReadWritePaths=/var/lib/edutrack-config-agent
+ReadWritePaths=/srv/edutrack/shared
+ReadWritePaths=/etc/edutrack-ops
+ReadWritePaths=/srv/edutrack/staging
 ReadOnlyPaths=/srv/edutrack/shared/.env
 ReadOnlyPaths=/srv/edutrack/current
 ReadOnlyPaths=/srv/edutrack/releases
 ReadOnlyPaths=/srv/edutrack-ops/config-agent/current
-ReadOnlyPaths=/etc/edutrack-ops/api.env
-ReadOnlyPaths=/etc/edutrack-ops/web.env
-ReadOnlyPaths=/etc/edutrack-ops/collector.env
-ReadOnlyPaths=/etc/edutrack-ops/sql-worker.env
-ReadOnlyPaths=/etc/edutrack-ops/credentials
 ReadOnlyPaths=/etc/beszel/hub/hub.env
 ReadOnlyPaths=/etc/beszel/agent.env
 

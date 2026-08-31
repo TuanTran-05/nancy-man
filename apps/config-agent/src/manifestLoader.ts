@@ -87,6 +87,21 @@ function validateReferences(catalog: Catalog, manifest: AgentManifest): void {
     }
   }
 
+  if (manifest.build) {
+    const catalogIds = new Set(catalog.entries.map((entry) => entry.id));
+    for (const catalogId of manifest.build.publicCatalogIds) {
+      const entry = catalog.entries.find((candidate) => candidate.id === catalogId);
+      if (
+        !entry ||
+        !catalogIds.has(catalogId) ||
+        entry.sensitivity !== 'public' ||
+        entry.buildAllowed !== true
+      ) {
+        throw new ManifestLoadError('CONFIG_MANIFEST_REFERENCE_INVALID');
+      }
+    }
+  }
+
   for (const entry of catalog.entries) {
     const key = `${entry.sourceId}\u0000${entry.name}`;
     if (catalogEntryKeys.has(key)) {

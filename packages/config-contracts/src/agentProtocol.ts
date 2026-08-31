@@ -15,7 +15,12 @@ import {
   ChangeStatusRequestSchema,
   ChangeValidateRequestSchema,
   ClearApplyBlockRequestSchema,
-  type AgentChangeOperation
+  ChangeValidationResponseSchema,
+  ChangeSavedResponseSchema,
+  ChangeApplyStartedResponseSchema,
+  ChangeCancelledResponseSchema,
+  ChangeStatusResponseSchema,
+  ApplyBlockClearedResponseSchema
 } from './changeProtocol.js';
 
 export const AGENT_PROTOCOL_VERSION = 1 as const;
@@ -28,11 +33,10 @@ const schemaVersionPattern = /^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[A-Za-z0-9._-]+)?$/u
 const requestIdPattern = /^REQ_[A-Za-z0-9_]+$/u;
 const changeIdPattern = /^CHG_[A-Za-z0-9_]+$/u;
 
-const stableIdSchema = z.string().regex(stableIdPattern, 'Stable IDs must be lowercase dotted identifiers');
-const isoTimestampSchema = z.string().datetime({ offset: true });
-const hashSchema = z
+const stableIdSchema = z
   .string()
-  .regex(new RegExp(`(?:${digestPattern.source})|(?:${hmacDigestPattern.source})`, 'u'), 'Hash is invalid');
+  .regex(stableIdPattern, 'Stable IDs must be lowercase dotted identifiers');
+const isoTimestampSchema = z.string().datetime({ offset: true });
 const signatureSchema = z.string().regex(hmacDigestPattern, 'HMAC signature is invalid');
 
 export const AgentOperationSchema = z.enum([
@@ -110,7 +114,9 @@ export const InventoryReadRequestSchema = z
     appIds: z.array(stableIdSchema).optional(),
     sourceIds: z.array(stableIdSchema).optional(),
     categoryIds: z.array(CategorySchema).optional(),
-    variableNames: z.array(z.string().regex(variableNamePattern, 'Variable name is invalid')).optional(),
+    variableNames: z
+      .array(z.string().regex(variableNamePattern, 'Variable name is invalid'))
+      .optional(),
     limit: z.number().int().positive().max(1_000).optional()
   })
   .strict();
@@ -214,10 +220,15 @@ const responseEnvelopeBaseSchema = z
 
 const protocolErrorSchema = z
   .object({
-    code: stableIdSchema.transform((value) => value.toUpperCase()),
+    // Error codes stay lowercase on the wire; callers may normalize them for
+    // their local error enum after signature verification.
+    code: stableIdSchema,
     safeMessage: z.string().min(1).max(256),
     retryable: z.boolean().optional(),
-    eventId: z.string().regex(/^EVT_[A-Za-z0-9_]+$/u, 'Event ID is invalid').optional()
+    eventId: z
+      .string()
+      .regex(/^EVT_[A-Za-z0-9_]+$/u, 'Event ID is invalid')
+      .optional()
   })
   .strict();
 
@@ -231,18 +242,38 @@ const successfulInventoryResponseSchema = responseEnvelopeBaseSchema.extend({
   ok: z.literal(true),
   body: InventoryReadResponseSchema
 });
-const successfulChangeResponseSchema = responseEnvelopeBaseSchema.extend({
-  operation: z.enum([
-    'change.validate',
-    'change.save',
-    'change.apply',
-    'change.cancel',
-    'change.status',
-    'application.clearApplyBlock'
-  ]),
-  ok: z.literal(true),
-  body: z.record(z.string(), z.unknown())
-});
+const successfulChangeResponseSchema = z.union([
+  responseEnvelopeBaseSchema.extend({
+    operation: z.literal('change.validate'),
+    ok: z.literal(true),
+    body: ChangeValidationResponseSchema
+  }),
+  responseEnvelopeBaseSchema.extend({
+    operation: z.literal('change.save'),
+    ok: z.literal(true),
+    body: ChangeSavedResponseSchema
+  }),
+  responseEnvelopeBaseSchema.extend({
+    operation: z.literal('change.apply'),
+    ok: z.literal(true),
+    body: ChangeApplyStartedResponseSchema
+  }),
+  responseEnvelopeBaseSchema.extend({
+    operation: z.literal('change.cancel'),
+    ok: z.literal(true),
+    body: ChangeCancelledResponseSchema
+  }),
+  responseEnvelopeBaseSchema.extend({
+    operation: z.literal('change.status'),
+    ok: z.literal(true),
+    body: ChangeStatusResponseSchema
+  }),
+  responseEnvelopeBaseSchema.extend({
+    operation: z.literal('application.clearApplyBlock'),
+    ok: z.literal(true),
+    body: ApplyBlockClearedResponseSchema
+  })
+]);
 const failedCapabilitiesResponseSchema = responseEnvelopeBaseSchema.extend({
   operation: z.literal('agent.capabilities'),
   ok: z.literal(false),

@@ -77,9 +77,7 @@ export async function resolveRuntimeCredentials(input: {
   const configuredAgent = input.config.configAgent;
   const configAgent = configuredAgent.enabled
     ? await (async () => {
-        const protocolHmacKey = await input.resolveSecret(
-          configuredAgent.protocolHmacKeyReference
-        );
+        const protocolHmacKey = await input.resolveSecret(configuredAgent.protocolHmacKeyReference);
         if (!protocolHmacKey) throw new Error('Ops API runtime credentials are unavailable');
         return {
           socketPath: configuredAgent.socketPath,
@@ -175,16 +173,41 @@ export async function startOpsApi(environment: NodeJS.ProcessEnv = process.env):
   const catalog = configAgent
     ? parseCatalog(
         await readFile(
-          environment.OPS_VARIABLES_CATALOG_PATH ?? resolve(process.cwd(), 'config/variables/catalog.yaml'),
+          environment.OPS_VARIABLES_CATALOG_PATH ??
+            resolve(process.cwd(), 'config/variables/catalog.yaml'),
           'utf8'
         )
       )
     : undefined;
   if (configAgent && catalog) {
+    const enabledAgentConfig = config.configAgent.enabled ? config.configAgent : null;
+    const requiredOperations = [
+      ...(enabledAgentConfig?.draftEnabled
+        ? (['change.validate', 'change.save', 'change.cancel', 'change.status'] as const)
+        : []),
+      ...(enabledAgentConfig &&
+      (enabledAgentConfig.runtimeApplyEnabled || enabledAgentConfig.buildApplyEnabled)
+        ? (['change.apply'] as const)
+        : []),
+      ...(enabledAgentConfig &&
+      (enabledAgentConfig.draftEnabled ||
+        enabledAgentConfig.runtimeApplyEnabled ||
+        enabledAgentConfig.buildApplyEnabled)
+        ? (['application.clearApplyBlock'] as const)
+        : [])
+    ];
+    const requiredStrategies = [
+      ...(enabledAgentConfig?.runtimeApplyEnabled
+        ? (['no_runtime_action', 'next_job', 'runtime_restart', 'credential_restart'] as const)
+        : []),
+      ...(enabledAgentConfig?.buildApplyEnabled ? (['build_redeploy'] as const) : [])
+    ];
     await configAgent.negotiate({
       manifestVersion: credentials.configAgent!.expectedManifestVersion,
       catalogVersion: credentials.configAgent!.expectedCatalogVersion,
-      catalogDigest: credentials.configAgent!.expectedCatalogDigest
+      catalogDigest: credentials.configAgent!.expectedCatalogDigest,
+      requiredOperations,
+      requiredStrategies
     });
   }
   const pool = getOpsPool(credentials.databaseUrl);

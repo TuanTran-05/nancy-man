@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily EduTrack Config Agent artifact cleanup
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=15m
+Unit=ops-config-agent-cleanup.service
+
+[Install]
+WantedBy=timers.target

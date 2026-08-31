@@ -82,7 +82,7 @@ function canConnectUnixSocket(input: {
 }
 
 describe('canonical Ops systemd assets', () => {
-  it('defines a private read-only config agent with an API-only socket boundary', async () => {
+  it('defines a private config agent with an API-only socket boundary', async () => {
     const agent = await readFile(new URL('ops-config-agent.service', systemdDirectory), 'utf8');
     const api = await unit('api');
 
@@ -94,21 +94,21 @@ describe('canonical Ops systemd assets', () => {
     expect(setting(agent, 'ExecStart')).toEqual([
       '/usr/bin/node /srv/edutrack-ops/config-agent/current/apps/config-agent/dist/apps/config-agent/src/index.js'
     ]);
-    expect(setting(agent, 'ReadWritePaths')).toEqual([]);
+    expect(setting(agent, 'ReadWritePaths')).toEqual([
+      '/var/lib/edutrack-config-agent',
+      '/srv/edutrack/shared',
+      '/etc/edutrack-ops',
+      '/srv/edutrack/staging'
+    ]);
     expect(setting(agent, 'ReadOnlyPaths')).toEqual([
       '/srv/edutrack/shared/.env',
       '/srv/edutrack/current',
       '/srv/edutrack/releases',
       '/srv/edutrack-ops/config-agent/current',
-      '/etc/edutrack-ops/api.env',
-      '/etc/edutrack-ops/web.env',
-      '/etc/edutrack-ops/collector.env',
-      '/etc/edutrack-ops/sql-worker.env',
-      '/etc/edutrack-ops/credentials',
       '/etc/beszel/hub/hub.env',
       '/etc/beszel/agent.env'
     ]);
-    expect(setting(agent, 'RestrictAddressFamilies')).toEqual(['AF_UNIX']);
+    expect(setting(agent, 'RestrictAddressFamilies')).toEqual(['AF_UNIX AF_INET AF_INET6']);
     expect(setting(agent, 'CapabilityBoundingSet')).toEqual(['']);
     expect(setting(agent, 'AmbientCapabilities')).toEqual(['']);
     expect(setting(agent, 'SystemCallFilter')).toEqual(['@system-service']);
@@ -119,7 +119,9 @@ describe('canonical Ops systemd assets', () => {
     expect(setting(agent, 'StartLimitBurst')).toEqual(['5']);
     expect(setting(agent, 'LoadCredential')).toEqual([
       'config-agent-protocol-hmac:/etc/edutrack-ops/credentials/config-agent-protocol-hmac',
-      'config-agent-fingerprint-hmac:/etc/edutrack-ops/credentials/config-agent-fingerprint-hmac'
+      'config-agent-fingerprint-hmac:/etc/edutrack-ops/credentials/config-agent-fingerprint-hmac',
+      'config-agent-staging-key:/etc/edutrack-ops/credentials/config-agent-staging-key',
+      'config-agent-snapshot-key:/etc/edutrack-ops/credentials/config-agent-snapshot-key'
     ]);
     expect(agent).toContain('Before=edutrack-ops-api.service');
     expect(agent).toContain('After=local-fs.target');

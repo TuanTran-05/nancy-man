@@ -7,18 +7,12 @@ import {
   AgentCapabilitiesResponseSchema,
   AgentRequestSchema,
   AgentResponseSchema,
-  ChangeApplyRequestSchema,
   ChangeApplyStartedResponseSchema,
-  ChangeCancelRequestSchema,
   ChangeCancelledResponseSchema,
   ChangeSavedResponseSchema,
-  ChangeSaveRequestSchema,
   ChangeStatusResponseSchema,
-  ChangeStatusRequestSchema,
   ChangeValidationResponseSchema,
-  ChangeValidateRequestSchema,
   ApplyBlockClearedResponseSchema,
-  ClearApplyBlockRequestSchema,
   type AgentActor,
   type ChangeApplyRequest,
   type ChangeCancelRequest,
@@ -183,7 +177,8 @@ function valueFreeRecord(operation: string, body: unknown): Record<string, unkno
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     throw new ProtocolServerError('AGENT_PROTOCOL_REJECTED');
   }
-  const forbidden = /^(?:value|oldValue|newValue|bytes|plaintext|command|args|argv|environment|stdout|stderr)$/iu;
+  const forbidden =
+    /^(?:value|oldValue|newValue|bytes|plaintext|command|args|argv|environment|stdout|stderr)$/iu;
   const inspect = (candidate: unknown): void => {
     if (Array.isArray(candidate)) {
       for (const item of candidate) inspect(item);
@@ -200,7 +195,10 @@ function valueFreeRecord(operation: string, body: unknown): Record<string, unkno
   return body as Record<string, unknown>;
 }
 
-function validateMutationResponse(operation: AgentRequestEnvelope['operation'], body: unknown): Record<string, unknown> {
+function validateMutationResponse(
+  operation: AgentRequestEnvelope['operation'],
+  body: unknown
+): Record<string, unknown> {
   const safeBody = valueFreeRecord(operation, body);
   switch (operation) {
     case 'change.validate':
@@ -228,24 +226,42 @@ function mutationHandler(
   if (!handlers) return undefined;
   switch (operation) {
     case 'change.validate':
-      return handlers.validate as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+      return handlers.validate as
+        | ((request: never, actor: AgentActor) => Promise<unknown>)
+        | undefined;
     case 'change.save':
       return handlers.save as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
     case 'change.apply':
-      return handlers.apply as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+      return handlers.apply as
+        | ((request: never, actor: AgentActor) => Promise<unknown>)
+        | undefined;
     case 'change.cancel':
-      return handlers.cancel as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+      return handlers.cancel as
+        | ((request: never, actor: AgentActor) => Promise<unknown>)
+        | undefined;
     case 'change.status':
-      return handlers.status as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+      return handlers.status as
+        | ((request: never, actor: AgentActor) => Promise<unknown>)
+        | undefined;
     case 'application.clearApplyBlock':
-      return handlers.clearApplyBlock as ((request: never, actor: AgentActor) => Promise<unknown>) | undefined;
+      return handlers.clearApplyBlock as
+        | ((request: never, actor: AgentActor) => Promise<unknown>)
+        | undefined;
   }
 }
 
 function protocolErrorCode(operation: string, error: unknown): string {
   const candidate = error instanceof Error && 'code' in error ? String(error.code) : '';
-  if (/^[a-z][a-z0-9_]*$/u.test(candidate)) return candidate;
-  return `${operation.replace(/[^a-z0-9]+/giu, '_').replace(/^_|_$/gu, '').toLowerCase()}_failed`;
+  const normalized = candidate
+    .replace(/([a-z0-9])([A-Z])/gu, '$1_$2')
+    .replace(/[^a-z0-9]+/giu, '_')
+    .replace(/^_|_$/gu, '')
+    .toLowerCase();
+  if (/^[a-z][a-z0-9_]*$/u.test(normalized)) return normalized;
+  return `${operation
+    .replace(/[^a-z0-9]+/giu, '_')
+    .replace(/^_|_$/gu, '')
+    .toLowerCase()}_failed`;
 }
 
 export function createAuthenticatedServer(

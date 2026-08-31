@@ -49,7 +49,8 @@ function config(databasePath: string): NodeJS.ProcessEnv {
     OPS_ZALO_WEBHOOK_SECRET: 'w'.repeat(32),
     OPS_ZALO_LINK_CODE_PEPPER: 'p'.repeat(32),
     OPS_ZALO_CHAT_HASH_SECRET: 'h'.repeat(32),
-    OPS_ZALO_RECIPIENT_KEY: key
+    OPS_ZALO_RECIPIENT_KEY: key,
+    OPS_LEGACY_MONITORING_HMAC_FILE: '/run/credentials/test/ops-legacy-monitoring-hmac'
   };
 }
 
