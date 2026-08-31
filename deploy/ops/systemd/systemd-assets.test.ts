@@ -13,9 +13,10 @@ const services = {
     writablePaths: ['/var/lib/edutrack-ops/object-store']
   },
   web: {
-    executable: '/usr/bin/node apps/web/dist/server/web-server.js',
+    executable: '/usr/bin/node dist/server/web-server.js',
     user: 'edutrack-ops-web',
     group: 'edutrack-ops-shared',
+    workingDirectory: '/srv/edutrack-ops/current/apps/web',
     writablePaths: ['/srv/edutrack-ops/shared']
   },
   collector: {
@@ -88,7 +89,11 @@ describe('canonical Ops systemd assets', () => {
       const contents = await unit(name);
       expect(setting(contents, 'User')).toEqual([expected.user]);
       expect(setting(contents, 'Group')).toEqual([expected.group]);
-      expect(setting(contents, 'WorkingDirectory')).toEqual(['/srv/edutrack-ops/current']);
+      expect(setting(contents, 'WorkingDirectory')).toEqual([
+        'workingDirectory' in expected
+          ? expected.workingDirectory
+          : '/srv/edutrack-ops/current'
+      ]);
       expect(setting(contents, 'ExecStart')).toEqual([expected.executable]);
       expect(setting(contents, 'ReadWritePaths')).toEqual(expected.writablePaths);
       expect(contents).toContain('NoNewPrivileges=true');
