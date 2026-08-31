@@ -11,8 +11,6 @@ readonly AGENT_SERVICE=ops-config-agent.service
 readonly API_ENV="$CONFIG_DIRECTORY/api.env"
 readonly CONFIG_ENV="$CONFIG_DIRECTORY/config-agent.env"
 readonly RELEASE="${1:-}"
-# Production default; this value is changed only after signed pre-enable checks.
-readonly OPS_CONFIG_AGENT_ENABLED=false
 
 fail() { printf '%s\n' "$1" >&2; exit 1; }
 
@@ -42,10 +40,10 @@ request_as_api inventory.read --socket "$SOCKET" --ids-only >/dev/null || fail C
 temporary_api_env="${API_ENV}.tmp.$$"
 cp -p -- "$API_ENV" "$temporary_api_env"
 trap 'rm -f -- "${temporary_api_env:-}"' EXIT
-if grep -q '^OPS_CONFIG_AGENT_ENABLED=' "$temporary_api_env"; then
-  sed -i 's/^OPS_CONFIG_AGENT_ENABLED=.*/OPS_CONFIG_AGENT_ENABLED=true/' "$temporary_api_env"
+if grep -q '^OPS_VARIABLES_READ_ONLY_ENABLED=' "$temporary_api_env"; then
+  sed -i 's/^OPS_VARIABLES_READ_ONLY_ENABLED=.*/OPS_VARIABLES_READ_ONLY_ENABLED=true/' "$temporary_api_env"
 else
-  printf '%s\n' 'OPS_CONFIG_AGENT_ENABLED=true' >> "$temporary_api_env"
+  printf '%s\n' 'OPS_VARIABLES_READ_ONLY_ENABLED=true' >> "$temporary_api_env"
 fi
 mv -T -- "$temporary_api_env" "$API_ENV"
 temporary_api_env=''

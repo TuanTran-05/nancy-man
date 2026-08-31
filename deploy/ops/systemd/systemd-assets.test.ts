@@ -135,8 +135,12 @@ describe('canonical Ops systemd assets', () => {
     expect(agent).toContain('RestrictSUIDSGID=true');
     expect(agent).toContain('LockPersonality=true');
     expect(agent).toContain('UMask=0007');
-    expect(api).toContain('SupplementaryGroups=edutrack-config-api');
-    expect(api).not.toContain('SupplementaryGroups=edutrack-ops-sql');
+    expect(api).toContain('SupplementaryGroups=edutrack-config-api edutrack-ops-sql');
+    expect(api).toContain(
+      'LoadCredential=config-agent-protocol-hmac:/etc/edutrack-ops/credentials/config-agent-protocol-hmac'
+    );
+    expect(api).not.toContain('Requires=ops-config-agent.service');
+    expect(api).not.toContain('ExecStartPre=/usr/bin/test -S /run/edutrack-config-agent/agent.sock');
   });
 
   it('declares explicit runtime directory and socket ownership in tmpfiles assets', async () => {
@@ -184,16 +188,16 @@ describe('canonical Ops systemd assets', () => {
     expect(deploy.indexOf('agent.capabilities')).toBeGreaterThan(
       deploy.indexOf('start ops-config-agent.service')
     );
-    expect(deploy.indexOf('OPS_CONFIG_AGENT_ENABLED=true')).toBeGreaterThan(
+    expect(deploy.indexOf('OPS_VARIABLES_READ_ONLY_ENABLED=true')).toBeGreaterThan(
       deploy.indexOf('agent.capabilities')
     );
     expect(deploy.indexOf('restart edutrack-ops-api.service')).toBeGreaterThan(
-      deploy.indexOf('OPS_CONFIG_AGENT_ENABLED=true')
+      deploy.indexOf('OPS_VARIABLES_READ_ONLY_ENABLED=true')
     );
     expect(deploy.indexOf('healthz')).toBeGreaterThan(
       deploy.indexOf('restart edutrack-ops-api.service')
     );
-    expect(deploy).toContain('OPS_CONFIG_AGENT_ENABLED=false');
+    expect(deploy).toContain('OPS_VARIABLES_READ_ONLY_ENABLED=true');
     expect(deploy).toContain('inventory.read');
     expect(install).toContain('install -D -m 0755');
     expect(install).toContain('mv -T');
@@ -243,7 +247,7 @@ describe('canonical Ops systemd assets', () => {
     const worker = await unit('sql-worker');
     const socketGroup = 'edutrack-ops-sql';
 
-    expect(setting(api, 'SupplementaryGroups')).toEqual(['edutrack-config-api']);
+    expect(setting(api, 'SupplementaryGroups')).toEqual(['edutrack-config-api edutrack-ops-sql']);
     expect(setting(worker, 'Group')).toEqual([socketGroup]);
     expect(setting(worker, 'RuntimeDirectoryMode')).toEqual(['0750']);
 
