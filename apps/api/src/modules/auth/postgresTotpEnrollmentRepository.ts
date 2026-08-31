@@ -25,10 +25,16 @@ export class PostgresTotpEnrollmentRepository {
     const encoded = rows[0]?.encryptedSecret;
     return encoded ? Buffer.from(encoded, 'base64').toString('utf8') : null;
   }
-  async activate(input: { userId: string; tokenHash: string; factorId: string }): Promise<boolean> {
+  async activate(input: {
+    userId: string;
+    tokenHash: string;
+    factorId: string;
+    passwordHash: string;
+    passwordFingerprint: string;
+  }): Promise<boolean> {
     const { rows } = await this.database.query<{ id: string }>(
-      `WITH consumed AS (UPDATE ops_mfa_enrollment_tokens SET used_at=now() WHERE user_id=$1 AND token_hash=$2 AND used_at IS NULL AND expires_at>now() RETURNING user_id), active AS (UPDATE ops_users SET status='active' WHERE id IN (SELECT user_id FROM consumed) AND status='pending_mfa' RETURNING id), factor AS (UPDATE ops_mfa_factors SET last_used_at=now() WHERE id=$3 AND user_id IN (SELECT id FROM active) RETURNING id) SELECT id FROM factor`,
-      [input.userId, input.tokenHash, input.factorId]
+      `WITH valid_factor AS (SELECT id, user_id FROM ops_mfa_factors WHERE id=$3 AND user_id=$1 AND factor_type='totp' AND revoked_at IS NULL), consumed AS (UPDATE ops_mfa_enrollment_tokens SET used_at=now() WHERE user_id=$1 AND token_hash=$2 AND used_at IS NULL AND expires_at>now() AND EXISTS (SELECT 1 FROM valid_factor) RETURNING user_id), superseded_credentials AS (UPDATE ops_password_credentials SET superseded_at=now() WHERE user_id IN (SELECT user_id FROM consumed) AND superseded_at IS NULL RETURNING user_id), superseded_factors AS (UPDATE ops_mfa_factors SET revoked_at=now() WHERE user_id IN (SELECT user_id FROM consumed) AND revoked_at IS NULL AND id <> $3 RETURNING user_id), active AS (UPDATE ops_users SET status='active' WHERE id IN (SELECT user_id FROM consumed) AND status='pending_mfa' RETURNING id), credential AS (INSERT INTO ops_password_credentials (id,user_id,password_hash,password_fingerprint) SELECT gen_random_uuid(), id, $4, $5 FROM active RETURNING user_id), factor AS (UPDATE ops_mfa_factors SET last_used_at=now(), revoked_at=NULL WHERE id=$3 AND user_id IN (SELECT id FROM active) RETURNING id) SELECT id FROM factor`,
+      [input.userId, input.tokenHash, input.factorId, input.passwordHash, input.passwordFingerprint]
     );
     return rows.length === 1;
   }

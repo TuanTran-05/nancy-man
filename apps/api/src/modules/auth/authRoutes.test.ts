@@ -88,7 +88,10 @@ describe('createAuthRouter', () => {
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('address');
     try {
-      const body = { userId: 'f16f9426-010c-4e06-a459-9fd18c4a442d', token: 'a'.repeat(32) };
+      const body = {
+        userId: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
+        token: 'a'.repeat(32)
+      };
       const start = await fetch(`http://127.0.0.1:${address.port}/auth/bootstrap/totp/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -98,7 +101,12 @@ describe('createAuthRouter', () => {
       const verify = await fetch(`http://127.0.0.1:${address.port}/auth/bootstrap/totp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...body, factorId: body.userId, otp: '123456' })
+        body: JSON.stringify({
+          ...body,
+          factorId: body.userId,
+          otp: '123456',
+          password: 'a-long-new-password'
+        })
       });
       expect(verify.status).toBe(204);
     } finally {

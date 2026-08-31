@@ -12,6 +12,7 @@ const config = {
   rateLimitPepperReference: 'ops-rate-limit-pepper',
   authSessionPepperReference: 'ops-auth-session-pepper',
   mfaEncryptionKeyReference: 'ops-mfa-encryption-key',
+  passwordFingerprintPepperReference: 'ops-password-fingerprint-pepper',
   browserContextKey: {
     id: 'edutrack-browser-v1',
     secretReference: 'browser-context-edutrack-v1'
@@ -41,6 +42,7 @@ describe('resolveRuntimeCredentials', () => {
       rateLimitPepper: 'value-for-ops-rate-limit-pepper',
       browserContextKey: 'value-for-browser-context-edutrack-v1',
       authSessionPepper: 'value-for-ops-auth-session-pepper',
+      passwordFingerprintPepper: 'value-for-ops-password-fingerprint-pepper',
       mfaEncryptionKey: expect.any(Buffer)
     });
     expect(requested.sort()).toEqual([
@@ -48,6 +50,7 @@ describe('resolveRuntimeCredentials', () => {
       'ops-auth-session-pepper',
       'ops-database-url',
       'ops-mfa-encryption-key',
+      'ops-password-fingerprint-pepper',
       'ops-rate-limit-pepper',
       'ops-session-pepper'
     ]);

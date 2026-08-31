@@ -15,6 +15,7 @@ type RuntimeCredentials = {
   rateLimitPepper: string;
   browserContextKey: string;
   authSessionPepper: string;
+  passwordFingerprintPepper: string;
   mfaEncryptionKey: Buffer;
   sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
 };
@@ -29,14 +30,16 @@ export async function resolveRuntimeCredentials(input: {
     rateLimitPepper,
     browserContextKey,
     authSessionPepper,
-    mfaKey
+    mfaKey,
+    passwordFingerprintPepper
   ] = await Promise.all([
     input.resolveSecret(input.config.databaseUrlReference),
     input.resolveSecret(input.config.sessionPepperReference),
     input.resolveSecret(input.config.rateLimitPepperReference),
     input.resolveSecret(input.config.browserContextKey.secretReference),
     input.resolveSecret(input.config.authSessionPepperReference),
-    input.resolveSecret(input.config.mfaEncryptionKeyReference)
+    input.resolveSecret(input.config.mfaEncryptionKeyReference),
+    input.resolveSecret(input.config.passwordFingerprintPepperReference)
   ]);
   if (
     !databaseUrl ||
@@ -44,7 +47,8 @@ export async function resolveRuntimeCredentials(input: {
     !rateLimitPepper ||
     !browserContextKey ||
     !authSessionPepper ||
-    !mfaKey
+    !mfaKey ||
+    !passwordFingerprintPepper
   ) {
     throw new Error('Ops API runtime credentials are unavailable');
   }
@@ -58,6 +62,7 @@ export async function resolveRuntimeCredentials(input: {
       rateLimitPepper,
       browserContextKey,
       authSessionPepper,
+      passwordFingerprintPepper,
       mfaEncryptionKey
     };
   }
@@ -75,6 +80,7 @@ export async function resolveRuntimeCredentials(input: {
     rateLimitPepper,
     browserContextKey,
     authSessionPepper,
+    passwordFingerprintPepper,
     mfaEncryptionKey,
     sqlWorker: {
       socketPath: input.config.sqlWorker.socketPath,
@@ -122,6 +128,7 @@ export async function startOpsApi(environment: NodeJS.ProcessEnv = process.env):
       rateLimitPepper: credentials.rateLimitPepper,
       browserContextKey: credentials.browserContextKey,
       authSessionPepper: credentials.authSessionPepper,
+      passwordFingerprintPepper: credentials.passwordFingerprintPepper,
       mfaEncryptionKey: credentials.mfaEncryptionKey,
       ...(credentials.sqlWorker ? { sqlWorker: credentials.sqlWorker } : {}),
       resolveSecret: (ref) => resolver.resolve(ref)

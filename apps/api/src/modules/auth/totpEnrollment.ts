@@ -4,6 +4,13 @@ import {
   generateTotpSecret,
   verifyTotp
 } from '../../../../../packages/security/src/mfa/totp.js';
+import {
+  hashPassword,
+  passwordFingerprint,
+  validatePasswordPolicy
+} from '../../../../../packages/security/src/passwords.js';
+
+type PendingFactor = string | { encryptedSecret: string };
 
 export class TotpEnrollmentService {
   constructor(
@@ -20,13 +27,19 @@ export class TotpEnrollmentService {
           userId: string;
           tokenHash: string;
           factorId: string;
-        }) => Promise<string | null>;
+        }) => Promise<PendingFactor | null>;
         activate: (input: {
           userId: string;
           tokenHash: string;
           factorId: string;
+          passwordHash: string;
+          passwordFingerprint: string;
         }) => Promise<boolean>;
       };
+      passwordFingerprintPepper: string;
+      hashPassword?: (password: string) => Promise<string>;
+      passwordFingerprint?: (password: string, pepper: string) => string;
+      validatePasswordPolicy?: (input: { password: string }) => void;
       now?: () => Date;
     }
   ) {}
@@ -56,13 +69,21 @@ export class TotpEnrollmentService {
     token: string;
     factorId: string;
     otp: string;
+    password: string;
   }): Promise<boolean> {
+    if (!input.password || !this.input.passwordFingerprintPepper) return false;
+    try {
+      (this.input.validatePasswordPolicy ?? validatePasswordPolicy)({ password: input.password });
+    } catch {
+      return false;
+    }
     const tokenHash = createHash('sha256').update(input.token, 'utf8').digest('hex');
-    const encryptedSecret = await this.input.repository.findPendingFactor({
+    const pending = await this.input.repository.findPendingFactor({
       userId: input.userId,
       tokenHash,
       factorId: input.factorId
     });
+    const encryptedSecret = typeof pending === 'string' ? pending : pending?.encryptedSecret;
     if (
       !encryptedSecret ||
       !verifyTotp({
@@ -73,10 +94,22 @@ export class TotpEnrollmentService {
       })
     )
       return false;
+    let passwordHash: string;
+    try {
+      passwordHash = await (this.input.hashPassword ?? hashPassword)(input.password);
+    } catch {
+      return false;
+    }
+    const fingerprint = (this.input.passwordFingerprint ?? passwordFingerprint)(
+      input.password,
+      this.input.passwordFingerprintPepper
+    );
     return this.input.repository.activate({
       userId: input.userId,
       tokenHash,
-      factorId: input.factorId
+      factorId: input.factorId,
+      passwordHash,
+      passwordFingerprint: fingerprint
     });
   }
 }

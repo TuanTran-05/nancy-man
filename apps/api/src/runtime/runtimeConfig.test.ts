@@ -12,6 +12,7 @@ const validEnvironment = {
   OPS_RATE_LIMIT_PEPPER_REFERENCE: 'ops-rate-limit-pepper',
   OPS_AUTH_SESSION_PEPPER_REFERENCE: 'ops-auth-session-pepper',
   OPS_MFA_ENCRYPTION_KEY_REFERENCE: 'ops-mfa-encryption-key',
+  OPS_PASSWORD_FINGERPRINT_PEPPER_REFERENCE: 'ops-password-fingerprint-pepper',
   OPS_BROWSER_CONTEXT_KEY_ID: 'edutrack-browser-v1',
   OPS_BROWSER_CONTEXT_KEY_REFERENCE: 'browser-context-edutrack-v1',
   OPS_OBJECT_STORE_DIRECTORY: '/var/lib/edutrack-ops/object-store',
@@ -31,6 +32,7 @@ describe('readOpsRuntimeConfig', () => {
       rateLimitPepperReference: 'ops-rate-limit-pepper',
       authSessionPepperReference: 'ops-auth-session-pepper',
       mfaEncryptionKeyReference: 'ops-mfa-encryption-key',
+      passwordFingerprintPepperReference: 'ops-password-fingerprint-pepper',
       browserContextKey: {
         id: 'edutrack-browser-v1',
         secretReference: 'browser-context-edutrack-v1'
@@ -87,5 +89,13 @@ describe('readOpsRuntimeConfig', () => {
         auditEncryptionKeyReference: 'ops-sql-audit-encryption-key'
       }
     });
+  });
+
+  it('requires a dedicated password fingerprint pepper reference', () => {
+    const environment = { ...validEnvironment };
+    delete (environment as Record<string, string | undefined>)[
+      'OPS_PASSWORD_FINGERPRINT_PEPPER_REFERENCE'
+    ];
+    expect(() => readOpsRuntimeConfig(environment)).toThrow(/PASSWORD_FINGERPRINT/);
   });
 });

@@ -79,6 +79,7 @@ describe('createOpsApiRuntime', () => {
         rateLimitPepperReference: 'ops-rate-limit-pepper',
         authSessionPepperReference: 'ops-auth-session-pepper',
         mfaEncryptionKeyReference: 'ops-mfa-encryption-key',
+        passwordFingerprintPepperReference: 'ops-password-fingerprint-pepper',
         browserContextKey: {
           id: 'edutrack-browser-v1',
           secretReference: 'browser-context-edutrack-v1'
@@ -93,6 +94,7 @@ describe('createOpsApiRuntime', () => {
       browserContextKey: 'browser-context-key',
       authSessionPepper: 'auth-session-pepper',
       mfaEncryptionKey: Buffer.alloc(32, 7),
+      passwordFingerprintPepper: 'password-fingerprint-pepper',
       resolveSecret: async (reference) =>
         reference === 'ingest-edutrack-api' ? 'server-ingest-key' : null
     });

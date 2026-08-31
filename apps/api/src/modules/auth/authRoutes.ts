@@ -36,11 +36,12 @@ const totpBody = z.object({
 const enrollmentStartBody = z.object({
   userId: z.string().uuid(),
   token: z.string().min(32).max(256)
-});
+}).strict();
 const enrollmentVerifyBody = enrollmentStartBody.extend({
   factorId: z.string().uuid(),
-  otp: z.string().regex(/^\d{6}$/)
-});
+  otp: z.string().regex(/^\d{6}$/),
+  password: z.string().min(14).max(1_024)
+}).strict();
 const sqlElevationBody = z.object({
   factorId: z.string().uuid(),
   token: z.string().regex(/^\d{6}$/),
@@ -93,6 +94,7 @@ export function createAuthRouter(input: {
       token: string;
       factorId: string;
       otp: string;
+      password: string;
     }) => Promise<boolean>;
   };
 }): Router {

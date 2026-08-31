@@ -39,6 +39,7 @@ export function createOpsApiRuntime(input: {
   rateLimitPepper: string;
   browserContextKey: string;
   authSessionPepper: string;
+  passwordFingerprintPepper: string;
   mfaEncryptionKey: Buffer;
   sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
   resolveSecret: (reference: string) => Promise<string | null>;
@@ -120,6 +121,7 @@ export function createOpsApiRuntime(input: {
         }),
         bootstrap: new TotpEnrollmentService({
           encryptionKey: input.mfaEncryptionKey,
+          passwordFingerprintPepper: input.passwordFingerprintPepper,
           repository: new PostgresTotpEnrollmentRepository(input.database)
         })
       },
