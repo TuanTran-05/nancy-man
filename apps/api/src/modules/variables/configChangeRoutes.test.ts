@@ -50,6 +50,33 @@ function appFor() {
 }
 
 describe('config change routes', () => {
+  it('streams value-free terminal progress and closes after completion', async () => {
+    const value = appFor();
+    value.service.status.mockResolvedValue({
+      changeId: '11111111-1111-4111-8111-111111111111',
+      state: 'COMPLETED',
+      sequence: 1,
+      events: [
+        {
+          eventId: 'EVT_done',
+          changeId: '11111111-1111-4111-8111-111111111111',
+          sequence: 1,
+          state: 'COMPLETED',
+          reasonCode: 'health_checks_passed',
+          occurredAt: '2026-08-31T13:10:05.000Z'
+        }
+      ]
+    });
+    const response = await request(value.app)
+      .get('/api/v1/config-changes/11111111-1111-4111-8111-111111111111/events')
+      .set('Accept', 'text/event-stream');
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/event-stream');
+    expect(response.text).toContain('event: change');
+    expect(response.text).not.toContain('value');
+    expect(value.service.status).toHaveBeenCalledTimes(1);
+  });
+
   it('consumes a digest-bound apply grant exactly once', async () => {
     const value = appFor();
     const auth = await request(value.app)

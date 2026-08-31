@@ -239,6 +239,7 @@ export function createOpsApiRuntime(input: {
   const configChangeRepository = input.configAgent
     ? new PostgresConfigChangeRepository(input.database)
     : undefined;
+  const incidentStore = new PostgresIncidentStore(input.database);
   const configChangeService =
     input.configAgent && configChangeRepository
       ? new ConfigChangeService({
@@ -326,12 +327,15 @@ export function createOpsApiRuntime(input: {
               })),
             cancel: (value) => configChangeRepository.cancel(value),
             clearApplyBlock: async (value) => {
-              await configChangeRepository.clearApplicationBlock({
+              return configChangeRepository.clearApplicationBlock({
                 applicationId: value.appId,
                 actorUserId: value.actorUserId,
-                remediationSummary: value.remediationSummary
+                remediationSummary: value.remediationSummary,
+                incidentId: value.incidentId
               });
-            }
+            },
+            blockApplication: (value) => configChangeRepository.blockApplication(value),
+            findLatestRunId: (changeId) => configChangeRepository.findLatestRunId(changeId)
           },
           agent: input.configAgent.client,
           catalogVersion: input.configAgent.catalog.catalogVersion,
@@ -342,7 +346,8 @@ export function createOpsApiRuntime(input: {
           runtimeApplyEnabled:
             input.config.configAgent.enabled && input.config.configAgent.runtimeApplyEnabled,
           buildApplyEnabled:
-            input.config.configAgent.enabled && input.config.configAgent.buildApplyEnabled
+            input.config.configAgent.enabled && input.config.configAgent.buildApplyEnabled,
+          incident: incidentStore
         })
       : undefined;
 
@@ -514,7 +519,7 @@ export function createOpsApiRuntime(input: {
             sessionPepper: input.authSessionPepper,
             repository: sessionRepository
           }),
-        incidents: new PostgresIncidentStore(input.database)
+        incidents: incidentStore
       },
       ...(sqlWorker
         ? {

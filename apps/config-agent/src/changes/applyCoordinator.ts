@@ -1,8 +1,5 @@
 import type { SnapshotStore } from './snapshotStore.js';
-import {
-  createApplyStateMachine,
-  type ApplyState
-} from './applyStateMachine.js';
+import { createApplyStateMachine, type ApplyState } from './applyStateMachine.js';
 import type { AtomicWriteOperation } from './atomicSourceWriter.js';
 
 export type StagedChangeItem = Readonly<{
@@ -47,24 +44,38 @@ export type ApplyEvent = Readonly<{
 export type ApplyCoordinatorDependencies = Readonly<{
   now?: () => Date;
   readStaged: (changeId: string) => Promise<StagedChangePayload | null>;
-  captureSnapshot: (input: Readonly<{ change: StagedChangePayload; runId: string }>) => Promise<SnapshotPayload>;
-  persistSnapshot?: (input: Readonly<{ snapshotId: string; change: StagedChangePayload; snapshot: SnapshotPayload }>) => Promise<void>;
+  captureSnapshot: (
+    input: Readonly<{ change: StagedChangePayload; runId: string }>
+  ) => Promise<SnapshotPayload>;
+  persistSnapshot?: (
+    input: Readonly<{ snapshotId: string; change: StagedChangePayload; snapshot: SnapshotPayload }>
+  ) => Promise<void>;
   snapshotStore?: Pick<SnapshotStore, 'createSnapshot' | 'markRollbackFailed'>;
   acquireApplicationLock?: (applicationId: string) => Promise<() => Promise<void> | void>;
   acquireSourceLock?: (sourceId: string) => Promise<() => Promise<void> | void>;
   acquireActionLock?: (actionId: string) => Promise<() => Promise<void> | void>;
-  writeSource: (input: Readonly<{
-    sourceId: string;
-    expectedSourceFingerprint: string;
-    operations: readonly AtomicWriteOperation[];
-  }>) => Promise<unknown>;
+  writeSource: (
+    input: Readonly<{
+      sourceId: string;
+      expectedSourceFingerprint: string;
+      operations: readonly AtomicWriteOperation[];
+    }>
+  ) => Promise<unknown>;
   runAction: (input: Readonly<{ runId: string; actionId: string }>) => Promise<unknown>;
   rollbackAction?: (input: Readonly<{ runId: string; actionId: string }>) => Promise<unknown>;
-  runHealth: (input: Readonly<{ runId: string; checkIds: readonly string[]; rollback: boolean }>) => Promise<Readonly<{ passed: boolean; reasonCode?: string }>>;
-  restoreSnapshot: (input: Readonly<{ change: StagedChangePayload; runId: string; snapshot: SnapshotPayload }>) => Promise<void>;
-  rollbackHealth?: (input: Readonly<{ runId: string; checkIds: readonly string[] }>) => Promise<Readonly<{ passed: boolean; reasonCode?: string }>>;
+  runHealth: (
+    input: Readonly<{ runId: string; checkIds: readonly string[]; rollback: boolean }>
+  ) => Promise<Readonly<{ passed: boolean; reasonCode?: string }>>;
+  restoreSnapshot: (
+    input: Readonly<{ change: StagedChangePayload; runId: string; snapshot: SnapshotPayload }>
+  ) => Promise<void>;
+  rollbackHealth?: (
+    input: Readonly<{ runId: string; checkIds: readonly string[] }>
+  ) => Promise<Readonly<{ passed: boolean; reasonCode?: string }>>;
   persistEvent: (event: ApplyEvent) => Promise<void>;
-  onRollbackFailed?: (input: Readonly<{ changeId: string; runId: string; snapshotId: string; reasonCode: string }>) => Promise<void>;
+  onRollbackFailed?: (
+    input: Readonly<{ changeId: string; runId: string; snapshotId: string; reasonCode: string }>
+  ) => Promise<void>;
 }>;
 
 export type ApplyCoordinatorResult = Readonly<{
@@ -108,10 +119,17 @@ function sourceOperations(change: StagedChangePayload): Array<{
   expectedSourceFingerprint: string;
   operations: AtomicWriteOperation[];
 }> {
-  const groups = new Map<string, { expectedSourceFingerprint: string; operations: AtomicWriteOperation[] }>();
+  const groups = new Map<
+    string,
+    { expectedSourceFingerprint: string; operations: AtomicWriteOperation[] }
+  >();
   for (const item of change.items) {
-    const group = groups.get(item.sourceId) ?? { expectedSourceFingerprint: item.sourceFingerprint, operations: [] };
-    if (group.expectedSourceFingerprint !== item.sourceFingerprint) throw new ApplyCoordinatorError('CONFIG_SOURCE_CHANGED');
+    const group = groups.get(item.sourceId) ?? {
+      expectedSourceFingerprint: item.sourceFingerprint,
+      operations: []
+    };
+    if (group.expectedSourceFingerprint !== item.sourceFingerprint)
+      throw new ApplyCoordinatorError('CONFIG_SOURCE_CHANGED');
     group.operations.push({
       name: item.name,
       duplicateOrdinal: item.duplicateOrdinal,
@@ -138,10 +156,18 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
     reasonCode: string
   ): Promise<void> {
     machine.transition(state, `${runId}:${state}:${machine.sequence + 1}`);
-    await dependencies.persistEvent({ changeId, runId, state, sequence: machine.sequence, reasonCode });
+    await dependencies.persistEvent({
+      changeId,
+      runId,
+      state,
+      sequence: machine.sequence,
+      reasonCode
+    });
   }
 
-  async function apply(input: Readonly<{ changeId: string; runId: string; changeDigest: string }>): Promise<ApplyCoordinatorResult> {
+  async function apply(
+    input: Readonly<{ changeId: string; runId: string; changeDigest: string }>
+  ): Promise<ApplyCoordinatorResult> {
     const prior = results.get(input.runId);
     if (prior) return prior;
     const running = runs.get(input.runId);
@@ -157,9 +183,11 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
     }
   }
 
-  async function performApply(input: Readonly<{ changeId: string; runId: string; changeDigest: string }>): Promise<ApplyCoordinatorResult> {
+  async function performApply(
+    input: Readonly<{ changeId: string; runId: string; changeDigest: string }>
+  ): Promise<ApplyCoordinatorResult> {
     let snapshot: SnapshotPayload | undefined;
-    let snapshotId = `SNAP_${input.runId}`;
+    const snapshotId = `SNAP_${input.runId}`;
     let writeStarted = false;
     let machine: ReturnType<typeof createApplyStateMachine> | undefined;
     let change: StagedChangePayload | null = null;
@@ -167,22 +195,35 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
     try {
       change = await dependencies.readStaged(input.changeId);
       if (!change) throw new ApplyCoordinatorError('STAGED_CHANGE_NOT_FOUND');
-      if (change.changeDigest !== input.changeDigest) throw new ApplyCoordinatorError('CHANGE_DIGEST_MISMATCH');
-      if (Date.parse(change.expiresAt) <= now().getTime()) throw new ApplyCoordinatorError('STAGED_CHANGE_EXPIRED');
-      if (activeApplications.has(change.appId)) throw new ApplyCoordinatorError('APPLY_ALREADY_RUNNING');
+      if (change.changeDigest !== input.changeDigest)
+        throw new ApplyCoordinatorError('CHANGE_DIGEST_MISMATCH');
+      if (Date.parse(change.expiresAt) <= now().getTime())
+        throw new ApplyCoordinatorError('STAGED_CHANGE_EXPIRED');
+      if (activeApplications.has(change.appId))
+        throw new ApplyCoordinatorError('APPLY_ALREADY_RUNNING');
       activeApplications.add(change.appId);
-      if (dependencies.acquireApplicationLock) releases.push(await dependencies.acquireApplicationLock(change.appId));
+      if (dependencies.acquireApplicationLock)
+        releases.push(await dependencies.acquireApplicationLock(change.appId));
       machine = createApplyStateMachine('APPLYING', { applicationId: change.appId });
-      await dependencies.persistEvent({ changeId: change.changeId, runId: input.runId, state: 'APPLYING', sequence: 0, reasonCode: 'APPLY_STARTED' });
+      await dependencies.persistEvent({
+        changeId: change.changeId,
+        runId: input.runId,
+        state: 'APPLYING',
+        sequence: 0,
+        reasonCode: 'APPLY_STARTED'
+      });
       // Snapshot capture is the last pre-write boundary. No rollback is claimed before it succeeds.
       if (dependencies.acquireSourceLock) {
-        for (const sourceId of change.sourceIds) releases.push(await dependencies.acquireSourceLock(sourceId));
+        for (const sourceId of change.sourceIds)
+          releases.push(await dependencies.acquireSourceLock(sourceId));
       }
       if (dependencies.acquireActionLock) {
-        for (const actionId of change.actionIds) releases.push(await dependencies.acquireActionLock(actionId));
+        for (const actionId of change.actionIds)
+          releases.push(await dependencies.acquireActionLock(actionId));
       }
       snapshot = await dependencies.captureSnapshot({ change, runId: input.runId });
-      if (dependencies.persistSnapshot) await dependencies.persistSnapshot({ snapshotId, change, snapshot });
+      if (dependencies.persistSnapshot)
+        await dependencies.persistSnapshot({ snapshotId, change, snapshot });
       else if (dependencies.snapshotStore) {
         await dependencies.snapshotStore.createSnapshot({
           snapshotId,
@@ -200,29 +241,86 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
       }
       await emit(machine, change.changeId, input.runId, 'WRITTEN', 'SOURCES_WRITTEN');
       await emit(machine, change.changeId, input.runId, 'ACTION_RUNNING', 'ACTIONS_STARTED');
-      for (const actionId of change.actionIds) await dependencies.runAction({ runId: input.runId, actionId });
+      for (const actionId of change.actionIds)
+        await dependencies.runAction({ runId: input.runId, actionId });
       await emit(machine, change.changeId, input.runId, 'HEALTH_CHECKING', 'HEALTH_CHECKS_STARTED');
-      const health = await dependencies.runHealth({ runId: input.runId, checkIds: change.checkIds, rollback: false });
+      const health = await dependencies.runHealth({
+        runId: input.runId,
+        checkIds: change.checkIds,
+        rollback: false
+      });
       if (!health.passed) throw new ApplyCoordinatorError('APPLY_FAILED');
       await emit(machine, change.changeId, input.runId, 'COMPLETED', 'HEALTH_CHECKS_PASSED');
-      return { changeId: change.changeId, runId: input.runId, state: 'COMPLETED', outcome: 'completed' };
+      return {
+        changeId: change.changeId,
+        runId: input.runId,
+        state: 'COMPLETED',
+        outcome: 'completed'
+      };
     } catch (error) {
       const code = errorCode(error);
-      if (!change || !snapshot || !writeStarted || !machine) {
-        throw error instanceof ApplyCoordinatorError ? error : new ApplyCoordinatorError(code === 'CONFIG_SOURCE_CHANGED' ? code : 'APPLY_PRECONDITION_FAILED', false);
+      if (!change || !machine) {
+        throw error instanceof ApplyCoordinatorError
+          ? error
+          : new ApplyCoordinatorError(
+              code === 'CONFIG_SOURCE_CHANGED' ? code : 'APPLY_PRECONDITION_FAILED',
+              false
+            );
+      }
+      if (!snapshot || !writeStarted) {
+        try {
+          await emit(
+            machine,
+            change.changeId,
+            input.runId,
+            'ROLLING_BACK',
+            'ROLLBACK_NOT_REQUIRED'
+          );
+          await emit(machine, change.changeId, input.runId, 'ROLLED_BACK', 'NO_WRITE_TO_ROLL_BACK');
+          return {
+            changeId: change.changeId,
+            runId: input.runId,
+            state: 'ROLLED_BACK',
+            outcome: 'rolled_back'
+          };
+        } catch {
+          try {
+            await emit(machine, change.changeId, input.runId, 'ROLLBACK_FAILED', 'ROLLBACK_FAILED');
+          } catch {
+            // A failed journal write must not leak the original error or any value-bearing context.
+          }
+          await dependencies.onRollbackFailed?.({
+            changeId: change.changeId,
+            runId: input.runId,
+            snapshotId,
+            reasonCode: 'ROLLBACK_FAILED'
+          });
+          return {
+            changeId: change.changeId,
+            runId: input.runId,
+            state: 'ROLLBACK_FAILED',
+            outcome: 'rollback_failed'
+          };
+        }
       }
       try {
         await emit(machine, change.changeId, input.runId, 'ROLLING_BACK', 'ROLLBACK_STARTED');
         await dependencies.restoreSnapshot({ change, runId: input.runId, snapshot });
         for (const actionId of change.actionIds) {
-          if (dependencies.rollbackAction) await dependencies.rollbackAction({ runId: input.runId, actionId });
+          if (dependencies.rollbackAction)
+            await dependencies.rollbackAction({ runId: input.runId, actionId });
         }
         const rollbackHealth = dependencies.rollbackHealth
           ? await dependencies.rollbackHealth({ runId: input.runId, checkIds: change.checkIds })
           : { passed: true };
-        if (!rollbackHealth.passed) throw new Error('rollback health failed');
+        if (!rollbackHealth.passed) throw new ApplyCoordinatorError('APPLY_FAILED');
         await emit(machine, change.changeId, input.runId, 'ROLLED_BACK', 'ROLLBACK_HEALTH_PASSED');
-        return { changeId: change.changeId, runId: input.runId, state: 'ROLLED_BACK', outcome: 'rolled_back' };
+        return {
+          changeId: change.changeId,
+          runId: input.runId,
+          state: 'ROLLED_BACK',
+          outcome: 'rolled_back'
+        };
       } catch {
         try {
           await dependencies.snapshotStore?.markRollbackFailed(snapshotId);
@@ -234,8 +332,18 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
         } catch {
           // A failed journal write must not leak the original error or any value-bearing context.
         }
-        await dependencies.onRollbackFailed?.({ changeId: change.changeId, runId: input.runId, snapshotId, reasonCode: 'ROLLBACK_FAILED' });
-        return { changeId: change.changeId, runId: input.runId, state: 'ROLLBACK_FAILED', outcome: 'rollback_failed' };
+        await dependencies.onRollbackFailed?.({
+          changeId: change.changeId,
+          runId: input.runId,
+          snapshotId,
+          reasonCode: 'ROLLBACK_FAILED'
+        });
+        return {
+          changeId: change.changeId,
+          runId: input.runId,
+          state: 'ROLLBACK_FAILED',
+          outcome: 'rollback_failed'
+        };
       }
     } finally {
       for (const release of releases.reverse()) {
@@ -249,7 +357,9 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
     }
   }
 
-  async function resume(input: Readonly<{ changeId: string; runId: string; changeDigest: string }>): Promise<ApplyCoordinatorResult> {
+  async function resume(
+    input: Readonly<{ changeId: string; runId: string; changeDigest: string }>
+  ): Promise<ApplyCoordinatorResult> {
     return apply(input);
   }
 

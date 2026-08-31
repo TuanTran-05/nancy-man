@@ -4,11 +4,13 @@ import {
   closeSync,
   existsSync,
   fsyncSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   openSync,
   readFileSync,
   readlinkSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync
@@ -88,7 +90,9 @@ export type RuntimeMutationHandlerOptions = Readonly<{
   loaded: LoadedCatalogAndManifest;
   fingerprintKey: FingerprintKey;
   stagingKey: ConstructorParameters<typeof DraftStore>[0]['stagingKey'];
+  stagingKeys?: readonly ConstructorParameters<typeof DraftStore>[0]['stagingKey'][];
   snapshotKey: ConstructorParameters<typeof SnapshotStore>[0]['snapshotKey'];
+  snapshotKeys?: readonly ConstructorParameters<typeof SnapshotStore>[0]['snapshotKey'][];
   executor?: ProcessExecutor;
   buildRedeploy?: (
     input: Readonly<{ runId: string; identity: BuildIdentity }>
@@ -103,9 +107,36 @@ function valueFreeDigest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value), 'utf8').digest('hex');
 }
 
-function currentSourceSha(releaseRoot?: string): string {
-  const current =
-    process.env.OPS_PLATFORM_CURRENT_RELEASE ?? join(releaseRoot ?? '/srv/edutrack', 'current');
+const buildEnvironmentName = /^[A-Z][A-Z0-9_]*$/u;
+
+function containsForbiddenBuildEnvironmentControl(value: string): boolean {
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
+
+export function serializeBuildEnvironment(environment: Readonly<Record<string, string>>): string {
+  return `${Object.entries(environment)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, value]) => {
+      if (!buildEnvironmentName.test(name) || containsForbiddenBuildEnvironmentControl(value)) {
+        throw Object.assign(new Error('BUILD_ENVIRONMENT_INVALID'), {
+          code: 'BUILD_ENVIRONMENT_INVALID'
+        });
+      }
+      return `${name}=${value}`;
+    })
+    .join('\n')}\n`;
+}
+
+type ActiveRelease = Readonly<{ sourceSha: string; releaseId?: string }>;
+
+function currentRelease(
+  build: NonNullable<LoadedCatalogAndManifest['manifest']['build']>
+): ActiveRelease {
+  const current = join(build.releaseRoot, 'current');
   let releaseName: string;
   try {
     releaseName = basename(readlinkSync(current));
@@ -114,15 +145,37 @@ function currentSourceSha(releaseRoot?: string): string {
       code: 'BUILD_SOURCE_UNAVAILABLE'
     });
   }
-  const sourceSha = releaseName.slice(0, 40);
-  if (!/^[0-9a-f]{40}$/u.test(sourceSha)) {
+  const match = /^(?<sourceSha>[0-9a-f]{40})(?<derived>-cfg-[0-9a-f]{64})?$/u.exec(releaseName);
+  const releasesPath = join(build.releaseRoot, 'releases');
+  const rawTarget = join(releasesPath, releaseName);
+  const releasesStat = lstatSync(releasesPath, { throwIfNoEntry: false });
+  const targetStat = lstatSync(rawTarget, { throwIfNoEntry: false });
+  if (
+    !releasesStat?.isDirectory() ||
+    releasesStat.isSymbolicLink() ||
+    !targetStat?.isDirectory() ||
+    targetStat.isSymbolicLink() ||
+    !match?.groups?.sourceSha
+  ) {
     throw Object.assign(new Error('BUILD_SOURCE_INVALID'), { code: 'BUILD_SOURCE_INVALID' });
   }
-  return sourceSha;
+  const releasesRoot = realpathSync(releasesPath);
+  const target = realpathSync(rawTarget);
+  if (target !== realpathSync(current) || !target.startsWith(`${releasesRoot}/`)) {
+    throw Object.assign(new Error('BUILD_SOURCE_INVALID'), { code: 'BUILD_SOURCE_INVALID' });
+  }
+  return {
+    sourceSha: match.groups.sourceSha,
+    ...(match.groups.derived ? { releaseId: releaseName } : {})
+  };
 }
 
-function lockFactory() {
+function lockFactory(root: string) {
   const tails = new Map<string, Promise<void>>();
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+
+  const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 25));
+
   return async (key: string): Promise<() => void> => {
     const previous = tails.get(key) ?? Promise.resolve();
     let release!: () => void;
@@ -134,7 +187,54 @@ function lockFactory() {
       previous.then(() => current)
     );
     await previous;
-    return () => release();
+    const lockPath = join(root, `lock-${createHash('sha256').update(key, 'utf8').digest('hex')}`);
+    let acquired = false;
+    try {
+      while (!acquired) {
+        try {
+          mkdirSync(lockPath, { mode: 0o700 });
+          try {
+            writeFileSync(join(lockPath, 'owner'), `${process.pid}\n`, {
+              mode: 0o600,
+              flag: 'wx'
+            });
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+            throw error;
+          }
+          acquired = true;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+          let ownerPid: number | undefined;
+          try {
+            ownerPid = Number(readFileSync(join(lockPath, 'owner'), 'utf8').trim());
+          } catch {
+            ownerPid = undefined;
+          }
+          let ownerAlive = false;
+          if (ownerPid && Number.isSafeInteger(ownerPid) && ownerPid > 0) {
+            try {
+              process.kill(ownerPid, 0);
+              ownerAlive = true;
+            } catch (probeError) {
+              ownerAlive = (probeError as NodeJS.ErrnoException).code !== 'ESRCH';
+            }
+          }
+          if (!ownerAlive) rmSync(lockPath, { recursive: true, force: true });
+          else await pause();
+        }
+      }
+    } catch (error) {
+      release();
+      throw error;
+    }
+    return () => {
+      if (acquired) {
+        acquired = false;
+        rmSync(lockPath, { recursive: true, force: true });
+      }
+      release();
+    };
   };
 }
 
@@ -220,7 +320,7 @@ async function buildInputsFor(
     }))
     .sort((left, right) => left.catalogId.localeCompare(right.catalogId));
   const configDigest = valueFreeDigest(publicValues);
-  const sourceSha = currentSourceSha(build.releaseRoot);
+  const sourceSha = currentRelease(build).sourceSha;
   const environment: Record<string, string> = { NODE_ENV: 'production' };
   for (const [name, value] of currentValues) environment[name] = value;
   const espSiteKey = environment.VITE_ESP_TURNSTILE_SITE_KEY;
@@ -242,12 +342,14 @@ export function createRuntimeMutationHandlers(
   const draftStore = new DraftStore({
     ...storage,
     stagingKey: options.stagingKey,
+    ...(options.stagingKeys ? { stagingKeys: options.stagingKeys } : {}),
     draftTtlMs: options.config.draftTtlMs,
     stagedTtlMs: options.config.stagedTtlMs
   });
   const snapshotStore = new SnapshotStore({
     ...storage,
     snapshotKey: options.snapshotKey,
+    ...(options.snapshotKeys ? { snapshotKeys: options.snapshotKeys } : {}),
     retentionMs: options.config.snapshotRetentionMs
   });
   const validation = createValidationService({
@@ -260,10 +362,12 @@ export function createRuntimeMutationHandlers(
     manifest: options.loaded.manifest,
     fingerprintKey: options.fingerprintKey
   });
-  const locks = lockFactory();
+  const locks = lockFactory(options.config.locksDirectory);
   const changes = new Map<string, RuntimeChange>();
   const runChanges = new Map<string, string>();
   const buildEnvironments = new Map<string, Readonly<Record<string, string>>>();
+  const buildIdentities = new Map<string, BuildIdentity>();
+  const previousBuildReleases = new Map<string, ActiveRelease | null>();
   const blockedApplications = new Set<string>();
   const journalPath = join(options.config.stateDirectory, 'locks', 'apply-journal.json');
 
@@ -302,7 +406,13 @@ export function createRuntimeMutationHandlers(
         state: value.state as RecoveryRecord['state'],
         hasWrites: value.hasWrites,
         ...(value.sequence === undefined ? {} : { sequence: Number(value.sequence) }),
-        ...(value.changeDigest ? { changeDigest: value.changeDigest } : {})
+        ...(value.changeDigest ? { changeDigest: value.changeDigest } : {}),
+        ...(typeof value.buildReleaseId === 'string'
+          ? { buildReleaseId: value.buildReleaseId }
+          : {}),
+        ...(typeof value.previousReleaseId === 'string'
+          ? { previousReleaseId: value.previousReleaseId }
+          : {})
       };
       result.push(record);
       runChanges.set(record.runId, record.changeId);
@@ -330,6 +440,22 @@ export function createRuntimeMutationHandlers(
     } finally {
       closeSync(directoryDescriptor);
     }
+  }
+
+  function persistRunMetadata(runId: string): void {
+    const records = journalRecords();
+    const existing = records.find((record) => record.runId === runId);
+    if (!existing) return;
+    const identity = buildIdentities.get(runId);
+    const previous = previousBuildReleases.get(runId);
+    writeJournal([
+      ...records.filter((record) => record.runId !== runId),
+      {
+        ...existing,
+        ...(identity ? { buildReleaseId: identity.releaseId } : {}),
+        ...(previous ? { previousReleaseId: previous.releaseId ?? previous.sourceSha } : {})
+      }
+    ]);
   }
 
   for (const record of journalRecords()) {
@@ -364,6 +490,7 @@ export function createRuntimeMutationHandlers(
             });
           const stagingRoot = build.buildRoot;
           const releaseScript = build.releaseScript;
+          const activationScript = build.activationScript;
           const staging = mkdtempSync(join(stagingRoot, `config-${runId}-`));
           try {
             const environmentPath = join(staging, 'public-build.env');
@@ -372,14 +499,22 @@ export function createRuntimeMutationHandlers(
               throw Object.assign(new Error('BUILD_ENVIRONMENT_MISSING'), {
                 code: 'BUILD_ENVIRONMENT_MISSING'
               });
-            writeFileSync(
-              environmentPath,
-              `${Object.entries(environment)
-                .map(([name, value]) => `${name}=${value}`)
-                .join('\n')}\n`,
-              { mode: 0o600, flag: 'wx' }
-            );
-            return executor({
+            writeFileSync(environmentPath, serializeBuildEnvironment(environment), {
+              mode: 0o600,
+              flag: 'wx'
+            });
+            const processEnvironment = {
+              PATH: '/usr/bin:/bin',
+              NODE_ENV: 'production',
+              APP_COMMIT_SHA: identity.sourceSha,
+              APP_RELEASE_ID: identity.releaseId,
+              APP_CONFIG_DIGEST: identity.configDigest,
+              PLATFORM_SOURCE_REPOSITORY: build.repositoryRoot,
+              PLATFORM_RELEASE_ROOT: build.releaseRoot,
+              PLATFORM_BUILD_ROOT: build.buildRoot,
+              PLATFORM_TOOLING_COMMIT: build.toolingCommit
+            };
+            const prepared = await executor({
               executable: '/usr/bin/bash',
               args: [
                 releaseScript,
@@ -389,27 +524,94 @@ export function createRuntimeMutationHandlers(
                 identity.releaseId,
                 '--config-digest',
                 identity.configDigest,
+                '--tooling-commit',
+                build.toolingCommit,
                 '--staging',
                 staging
               ],
               cwd: build.releaseRoot,
-              env: {
-                PATH: '/usr/bin:/bin',
-                NODE_ENV: 'production',
-                APP_COMMIT_SHA: identity.sourceSha,
-                APP_RELEASE_ID: identity.releaseId,
-                APP_CONFIG_DIGEST: identity.configDigest,
-                PLATFORM_SOURCE_REPOSITORY: build.repositoryRoot,
-                PLATFORM_RELEASE_ROOT: build.releaseRoot,
-                PLATFORM_BUILD_ROOT: build.buildRoot
-              },
+              env: processEnvironment,
               timeoutMs: 300_000,
+              maxOutputBytes: 65_536
+            });
+            if (
+              prepared.exitCode !== 0 ||
+              prepared.signal !== null ||
+              prepared.timedOut ||
+              prepared.outputLimitExceeded
+            ) {
+              return prepared;
+            }
+            previousBuildReleases.set(runId, currentRelease(build));
+            return executor({
+              executable: '/usr/bin/bash',
+              args: [
+                activationScript,
+                '--source-sha',
+                identity.sourceSha,
+                '--release-id',
+                identity.releaseId,
+                '--config-digest',
+                identity.configDigest
+              ],
+              cwd: build.releaseRoot,
+              env: {
+                ...processEnvironment,
+                PLATFORM_TOOLING_COMMIT: build.toolingCommit,
+                PLATFORM_PM2_VALIDATOR: build.activationValidatorPaths[0],
+                PLATFORM_NGINX_VALIDATOR: build.activationValidatorPaths[1]
+              },
+              timeoutMs: 120_000,
               maxOutputBytes: 65_536
             });
           } finally {
             rmSync(staging, { recursive: true, force: true });
           }
-        }
+        },
+    rollbackBuildRedeploy: async ({ runId, identity }): Promise<ProcessResult> => {
+      const build = options.loaded.manifest.build;
+      const previous = build ? previousBuildReleases.get(runId) : undefined;
+      if (!build || !previous) {
+        throw Object.assign(new Error('BUILD_ROLLBACK_POINTER_UNAVAILABLE'), {
+          code: 'BUILD_ROLLBACK_POINTER_UNAVAILABLE'
+        });
+      }
+      const rollbackIdentity = previous.releaseId
+        ? /^(?<sourceSha>[0-9a-f]{40})-cfg-(?<configDigest>[0-9a-f]{64})$/u.exec(previous.releaseId)
+        : undefined;
+      const args =
+        previous.releaseId && rollbackIdentity?.groups
+          ? [
+              build.activationScript,
+              '--source-sha',
+              rollbackIdentity.groups.sourceSha!,
+              '--release-id',
+              previous.releaseId,
+              '--config-digest',
+              rollbackIdentity.groups.configDigest!
+            ]
+          : [build.activationScript, previous.sourceSha];
+      return executor({
+        executable: '/usr/bin/bash',
+        args,
+        cwd: build.releaseRoot,
+        env: {
+          PATH: '/usr/bin:/bin',
+          NODE_ENV: 'production',
+          APP_COMMIT_SHA: identity.sourceSha,
+          APP_RELEASE_ID: identity.releaseId,
+          APP_CONFIG_DIGEST: identity.configDigest,
+          PLATFORM_SOURCE_REPOSITORY: build.repositoryRoot,
+          PLATFORM_RELEASE_ROOT: build.releaseRoot,
+          PLATFORM_BUILD_ROOT: build.buildRoot,
+          PLATFORM_TOOLING_COMMIT: build.toolingCommit,
+          PLATFORM_PM2_VALIDATOR: build.activationValidatorPaths[0],
+          PLATFORM_NGINX_VALIDATOR: build.activationValidatorPaths[1]
+        },
+        timeoutMs: 120_000,
+        maxOutputBytes: 65_536
+      });
+    }
   });
 
   const checks = options.loaded.manifest.checks.map((check) => ({
@@ -422,9 +624,8 @@ export function createRuntimeMutationHandlers(
     timeoutMs: check.timeoutMs ?? 10_000,
     maxBodyBytes: 16_384,
     ...(check.id === 'process.active' ? { target: 'edutrack-ops-api.service' } : {}),
-    ...(check.id === 'release.identity'
-      ? { target: process.env.OPS_PLATFORM_CURRENT_RELEASE ?? '/srv/edutrack/current' }
-      : {})
+    ...(check.id === 'dependency.probe' ? { target: 'http://127.0.0.1:3100/healthz' } : {}),
+    ...(check.id === 'release.identity' ? { target: '/srv/edutrack/current' } : {})
   }));
   const health = createHealthCheckRunner({
     definitions: checks,
@@ -440,12 +641,52 @@ export function createRuntimeMutationHandlers(
         return { active: result.exitCode === 0, stable: result.exitCode === 0 };
       },
       fetch: globalThis.fetch,
-      identityProbe: async () => {
-        throw new Error('RELEASE_IDENTITY_UNAVAILABLE');
+      identityProbe: async (target) => {
+        let parsed: unknown;
+        try {
+          const marker = readFileSync(join(target, '.release-source.json'), 'utf8');
+          if (Buffer.byteLength(marker, 'utf8') > 16_384) throw new Error('marker too large');
+          parsed = JSON.parse(marker) as unknown;
+        } catch {
+          throw new Error('RELEASE_IDENTITY_UNAVAILABLE');
+        }
+        if (
+          !parsed ||
+          typeof parsed !== 'object' ||
+          Array.isArray(parsed) ||
+          typeof (parsed as Record<string, unknown>).releaseId !== 'string' ||
+          typeof (parsed as Record<string, unknown>).configDigest !== 'string' ||
+          !/^[0-9a-f]{40}-cfg-[0-9a-f]{64}$/u.test(
+            (parsed as Record<string, unknown>).releaseId as string
+          ) ||
+          !/^[0-9a-f]{64}$/u.test((parsed as Record<string, unknown>).configDigest as string)
+        ) {
+          throw new Error('RELEASE_IDENTITY_UNAVAILABLE');
+        }
+        const releaseId = (parsed as Record<string, unknown>).releaseId;
+        const configDigest = (parsed as Record<string, unknown>).configDigest;
+        if (typeof releaseId !== 'string' || typeof configDigest !== 'string') {
+          throw new Error('RELEASE_IDENTITY_UNAVAILABLE');
+        }
+        return { releaseId, configDigest };
       },
-      dependencyProbe: async () => false,
+      dependencyProbe: async (target) => {
+        try {
+          const response = await globalThis.fetch(target);
+          return response.ok;
+        } catch {
+          return false;
+        }
+      },
       agentProbe: async () => true,
-      apiProbe: async () => false
+      apiProbe: async (target) => {
+        try {
+          const response = await globalThis.fetch(target || 'http://127.0.0.1:3100/healthz');
+          return response.ok;
+        } catch {
+          return false;
+        }
+      }
     }
   });
 
@@ -512,9 +753,27 @@ export function createRuntimeMutationHandlers(
           'ROLLBACK_FAILED'
         ].includes(event.state),
       sequence: event.sequence,
-      ...(current.changeDigest ? { changeDigest: current.changeDigest } : {})
+      ...(current.changeDigest ? { changeDigest: current.changeDigest } : {}),
+      ...(buildIdentities.get(event.runId)
+        ? { buildReleaseId: buildIdentities.get(event.runId)!.releaseId }
+        : existing?.buildReleaseId
+          ? { buildReleaseId: existing.buildReleaseId }
+          : {}),
+      ...(previousBuildReleases.get(event.runId)
+        ? {
+            previousReleaseId:
+              previousBuildReleases.get(event.runId)!.releaseId ??
+              previousBuildReleases.get(event.runId)!.sourceSha
+          }
+        : existing?.previousReleaseId
+          ? { previousReleaseId: existing.previousReleaseId }
+          : {})
     };
     writeJournal([...records.filter((record) => record.runId !== event.runId), next]);
+    if (['COMPLETED', 'ROLLED_BACK', 'ROLLBACK_FAILED'].includes(event.state)) {
+      buildIdentities.delete(event.runId);
+      previousBuildReleases.delete(event.runId);
+    }
   };
 
   const coordinator = createApplyCoordinator({
@@ -569,6 +828,9 @@ export function createRuntimeMutationHandlers(
           writer
         );
         buildIdentity = buildInputs.identity;
+        buildIdentities.set(runId, buildInputs.identity);
+        previousBuildReleases.set(runId, currentRelease(options.loaded.manifest.build!));
+        persistRunMetadata(runId);
         buildEnvironments.set(runId, buildInputs.environment);
       }
       try {
@@ -581,8 +843,44 @@ export function createRuntimeMutationHandlers(
         buildEnvironments.delete(runId);
       }
     },
+    rollbackAction: async ({ runId, actionId }) => {
+      if (actionId !== 'release.build_redeploy') return;
+      const identity = buildIdentities.get(runId);
+      if (!identity) throw new Error('BUILD_IDENTITY_MISSING');
+      await actionRunner.rollback({ runId, actionId, buildIdentity: identity });
+    },
     runHealth: async ({ runId, checkIds }) => {
-      const results = await health.run({ runId, checkIds });
+      const identity = buildIdentities.get(runId);
+      const results = await health.run({
+        runId,
+        checkIds,
+        ...(identity
+          ? { expectedReleaseId: identity.releaseId, expectedConfigDigest: identity.configDigest }
+          : {})
+      });
+      const failed = results.find((result) => result.outcome === 'failed');
+      return {
+        passed: !failed,
+        ...(failed ? { reasonCode: failed.reasonCode } : {})
+      };
+    },
+    rollbackHealth: async ({ runId, checkIds }) => {
+      const previous = previousBuildReleases.get(runId);
+      const expected = previous?.releaseId
+        ? /^(?<sourceSha>[0-9a-f]{40})-cfg-(?<configDigest>[0-9a-f]{64})$/u.exec(previous.releaseId)
+        : undefined;
+      const results = await health.run({
+        runId,
+        checkIds: expected
+          ? checkIds
+          : checkIds.filter((checkId) => checkId !== 'release.identity'),
+        ...(expected?.groups?.configDigest && previous?.releaseId
+          ? {
+              expectedReleaseId: previous.releaseId,
+              expectedConfigDigest: expected.groups.configDigest
+            }
+          : {})
+      });
       const failed = results.find((result) => result.outcome === 'failed');
       return {
         passed: !failed,
@@ -606,22 +904,99 @@ export function createRuntimeMutationHandlers(
     readJournal: async () => journalRecords(),
     coordinator: {
       resume: async (record) => {
-        const result = await coordinator.resume({
-          changeId: record.changeId,
-          runId: record.runId,
-          changeDigest: record.changeDigest ?? ''
-        });
-        return { state: result.state };
+        if (!record.hasWrites) {
+          const result = await coordinator.resume({
+            changeId: record.changeId,
+            runId: record.runId,
+            changeDigest: record.changeDigest ?? ''
+          });
+          return { state: result.state };
+        }
+        const change = await draftStore.readStaged<ValidatedChangeDraft>(record.changeId);
+        const snapshot = await snapshotStore.readSnapshot<SnapshotPayload>(`SNAP_${record.runId}`);
+        if (!change || !snapshot) throw new Error('CONFIG_AGENT_RECOVERY_SNAPSHOT_MISSING');
+        runChanges.set(record.runId, record.changeId);
+        if (record.buildReleaseId) {
+          const match = /^(?<sourceSha>[0-9a-f]{40})-cfg-(?<configDigest>[0-9a-f]{64})$/u.exec(
+            record.buildReleaseId
+          );
+          if (match?.groups?.sourceSha && match.groups.configDigest) {
+            buildIdentities.set(record.runId, {
+              sourceSha: match.groups.sourceSha,
+              configDigest: match.groups.configDigest,
+              releaseId: record.buildReleaseId
+            });
+          }
+        }
+        if (record.previousReleaseId) {
+          const match = /^(?<sourceSha>[0-9a-f]{40})(?<derived>-cfg-[0-9a-f]{64})?$/u.exec(
+            record.previousReleaseId
+          );
+          if (match?.groups?.sourceSha) {
+            previousBuildReleases.set(record.runId, {
+              sourceSha: match.groups.sourceSha,
+              ...(match.groups.derived ? { releaseId: record.previousReleaseId } : {})
+            });
+          }
+        }
+        try {
+          await persistEvent({
+            changeId: record.changeId,
+            runId: record.runId,
+            state: 'ROLLING_BACK',
+            sequence: (record.sequence ?? 0) + 1,
+            reasonCode: 'RECOVERY_ROLLBACK_STARTED'
+          });
+          for (const source of snapshot.sources) await writer.restore(source);
+          for (const actionId of change.actionIds) {
+            if (actionId === 'release.build_redeploy') {
+              const identity = buildIdentities.get(record.runId);
+              if (!identity) throw new Error('BUILD_IDENTITY_MISSING');
+              await actionRunner.rollback({
+                runId: record.runId,
+                actionId,
+                buildIdentity: identity
+              });
+            }
+          }
+          await persistEvent({
+            changeId: record.changeId,
+            runId: record.runId,
+            state: 'ROLLED_BACK',
+            sequence: (record.sequence ?? 0) + 2,
+            reasonCode: 'RECOVERY_ROLLBACK_COMPLETED'
+          });
+          return { state: 'ROLLED_BACK' };
+        } catch {
+          await persistEvent({
+            changeId: record.changeId,
+            runId: record.runId,
+            state: 'ROLLBACK_FAILED',
+            sequence: (record.sequence ?? 0) + 2,
+            reasonCode: 'RECOVERY_ROLLBACK_FAILED'
+          }).catch(() => undefined);
+          blockedApplications.add(change.appId);
+          return { state: 'ROLLBACK_FAILED' };
+        }
       }
     }
   });
-  void recovery.reconcile().catch(() => undefined);
+  const recoveryReady = recovery.reconcile().catch(() => {
+    throw Object.assign(new Error('CONFIG_AGENT_RECOVERY_FAILED'), {
+      code: 'CONFIG_AGENT_RECOVERY_FAILED'
+    });
+  });
+  const awaitRecovery = async (): Promise<void> => {
+    await recoveryReady;
+  };
 
   const handlers: AgentMutationHandlers = {
+    ready: awaitRecovery,
     supportedStrategies: [
       ...new Set(options.loaded.manifest.actions.map((action) => strategyForAction(action.id)))
     ],
     validate: async (request: ChangeValidateRequest) => {
+      await awaitRecovery();
       const result = await validation.validate(request);
       record({
         changeId: result.changeId,
@@ -634,6 +1009,7 @@ export function createRuntimeMutationHandlers(
       return result;
     },
     save: async (request: ChangeSaveRequest) => {
+      await awaitRecovery();
       const draft = await draftStore.readDraft<ValidatedChangeDraft>(request.changeId);
       if (!draft || draft.changeDigest !== request.changeDigest)
         throw Object.assign(new Error('CONFIG_CHANGE_INVALID_STATE'), {
@@ -660,6 +1036,7 @@ export function createRuntimeMutationHandlers(
       };
     },
     apply: async (request: ChangeApplyRequest) => {
+      await awaitRecovery();
       const staged = await draftStore.readStaged<ValidatedChangeDraft>(request.changeId);
       if (!staged || staged.changeDigest !== request.changeDigest)
         throw Object.assign(new Error('CONFIG_CHANGE_INVALID_STATE'), {
@@ -687,6 +1064,7 @@ export function createRuntimeMutationHandlers(
       return { changeId: request.changeId, runId: request.runId, state: 'APPLYING' as const };
     },
     cancel: async (request: ChangeCancelRequest) => {
+      await awaitRecovery();
       const draft = await draftStore.readDraft<ValidatedChangeDraft>(request.changeId);
       const staged = await draftStore.readStaged<ValidatedChangeDraft>(request.changeId);
       const current = draft ?? staged;
@@ -705,6 +1083,7 @@ export function createRuntimeMutationHandlers(
       return { changeId: request.changeId, state: 'CANCELLED' as const };
     },
     status: async (request: ChangeStatusRequest) => {
+      await awaitRecovery();
       const current = changes.get(request.changeId);
       if (!current)
         throw Object.assign(new Error('CONFIG_CHANGE_NOT_FOUND'), {
@@ -728,6 +1107,7 @@ export function createRuntimeMutationHandlers(
       } satisfies ChangeStatusResponse;
     },
     clearApplyBlock: async (request: ClearApplyBlockRequest, actor: AgentActor) => {
+      await awaitRecovery();
       if (actor.role !== 'ops_owner' || !blockedApplications.has(request.appId)) {
         throw Object.assign(new Error('CONFIG_APPLICATION_BLOCKED'), {
           code: 'CONFIG_APPLICATION_BLOCKED'

@@ -64,6 +64,9 @@ export type ConfigChangeRepository = {
     actorSessionId: string;
     expectedVersion: number;
     to: ConfigChangeRecord['state'];
+    resultCode?: string;
+    actionId?: string;
+    checkId?: string;
   }) => Promise<ConfigChangeRecord>;
   listEvents?: (
     changeId: string,
@@ -79,7 +82,15 @@ export type ConfigChangeRepository = {
     actorUserId: string;
     remediationSummary: string;
     incidentId: string;
-  }) => Promise<void>;
+  }) => Promise<boolean>;
+  blockApplication?: (input: {
+    applicationId: string;
+    failedRunId: string;
+    failedChangeId: string;
+    reasonCode: string;
+    blockedActorUserId: string;
+  }) => Promise<boolean>;
+  findLatestRunId?: (changeId: string) => Promise<string | null>;
 };
 
 export type ConfigChangeRecord = Readonly<{
@@ -185,6 +196,22 @@ function databaseUuid(seed: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+const terminalStates = new Set<ConfigChangeState>([
+  'COMPLETED',
+  'ROLLED_BACK',
+  'ROLLBACK_FAILED',
+  'CANCELLED',
+  'EXPIRED',
+  'INVALID'
+]);
+
+function unrefDelay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, milliseconds);
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref();
+  });
+}
+
 function requireOwnerRecord(record: ConfigChangeRecord | null): ConfigChangeRecord {
   if (!record) throw new ConfigChangeServiceError('CONFIG_CHANGE_NOT_FOUND');
   return record;
@@ -201,8 +228,158 @@ export class ConfigChangeService {
       draftEnabled?: boolean;
       runtimeApplyEnabled?: boolean;
       buildApplyEnabled?: boolean;
+      incident?: {
+        create: (input: {
+          actorUserId: string;
+          title: string;
+          severity: 'critical';
+          summary: string;
+          issueIds: string[];
+        }) => Promise<unknown>;
+      };
     }
   ) {}
+
+  private async transitionDatabase(input: {
+    record: ConfigChangeRecord;
+    state: ConfigChangeState;
+    seed: string;
+    reasonCode?: string;
+  }): Promise<ConfigChangeRecord> {
+    if (input.record.state === input.state) return input.record;
+    const result = await this.input.repository.transition({
+      changeId: input.record.id,
+      applicationId: input.record.applicationId,
+      transitionId: databaseUuid(`config-reconcile-transition:${input.seed}`),
+      eventId: databaseUuid(`config-reconcile-event:${input.seed}`),
+      runId: databaseUuid(`config-reconcile-run:${input.record.id}`),
+      actorUserId: input.record.actorUserId,
+      actorSessionId: input.record.actorSessionId,
+      expectedVersion: input.record.version,
+      to: input.state,
+      ...(input.reasonCode ? { resultCode: input.reasonCode.toUpperCase() } : {})
+    });
+    return result;
+  }
+
+  private async reconcileAgentStatus(
+    record: ConfigChangeRecord,
+    result: ChangeStatusResponse
+  ): Promise<ConfigChangeRecord> {
+    let current = record;
+    for (const event of result.events) {
+      if (event.state === current.state) continue;
+      try {
+        current = await this.transitionDatabase({
+          record: current,
+          state: event.state,
+          seed: `${record.id}:${event.eventId}`,
+          reasonCode: event.reasonCode
+        });
+      } catch (error) {
+        const refreshed = await this.input.repository.findById(record.id);
+        if (!refreshed || refreshed.state !== event.state) throw error;
+        current = refreshed;
+      }
+    }
+    if (result.state === 'ROLLBACK_FAILED' && this.input.repository.blockApplication) {
+      const failedRunId =
+        (await this.input.repository.findLatestRunId?.(record.id)) ??
+        databaseUuid(`config-failed-run:${record.id}:${result.sequence}`);
+      const blocked = await this.input.repository.blockApplication({
+        applicationId: record.applicationId,
+        failedRunId,
+        failedChangeId: record.id,
+        reasonCode: 'ROLLBACK_FAILED',
+        blockedActorUserId: record.actorUserId
+      });
+      if (blocked) {
+        await this.input.incident?.create({
+          actorUserId: record.actorUserId,
+          title: `Configuration rollback failed for ${record.applicationId}`,
+          severity: 'critical',
+          summary: 'Automatic configuration rollback failed; remediation is required.',
+          issueIds: []
+        });
+      }
+    }
+    return current;
+  }
+
+  private async persistDispatchFailure(record: ConfigChangeRecord): Promise<void> {
+    if (record.state !== 'APPLYING') return;
+    let current = record;
+    try {
+      current = await this.transitionDatabase({
+        record: current,
+        state: 'ROLLING_BACK',
+        seed: `${record.id}:dispatch:rollback`
+      });
+      current = await this.transitionDatabase({
+        record: current,
+        state: 'ROLLBACK_FAILED',
+        seed: `${record.id}:dispatch:failed`
+      });
+    } catch {
+      const refreshed = await this.input.repository.findById(record.id);
+      if (refreshed) current = refreshed;
+      if (current.state === 'ROLLING_BACK') {
+        try {
+          current = await this.transitionDatabase({
+            record: current,
+            state: 'ROLLBACK_FAILED',
+            seed: `${record.id}:dispatch:failed:retry`
+          });
+        } catch {
+          const retry = await this.input.repository.findById(record.id);
+          if (retry) current = retry;
+        }
+      }
+    }
+    if (current.state === 'ROLLBACK_FAILED') {
+      const failedRunId =
+        (await this.input.repository.findLatestRunId?.(record.id)) ??
+        databaseUuid(`config-failed-run:${record.id}:dispatch`);
+      const blocked = await this.input.repository.blockApplication?.({
+        applicationId: record.applicationId,
+        failedRunId,
+        failedChangeId: record.id,
+        reasonCode: 'DISPATCH_FAILED',
+        blockedActorUserId: record.actorUserId
+      });
+      if (blocked) {
+        await this.input.incident?.create({
+          actorUserId: record.actorUserId,
+          title: `Configuration dispatch failed for ${record.applicationId}`,
+          severity: 'critical',
+          summary: 'Config Agent dispatch failed after database apply state was recorded.',
+          issueIds: []
+        });
+      }
+    }
+  }
+
+  private async monitorApply(
+    principal: ConfigChangePrincipal,
+    body: ChangeApplyRequest
+  ): Promise<void> {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      await unrefDelay(1_000);
+      try {
+        const result = ChangeStatusResponseSchema.parse(
+          await this.input.agent.getChangeStatus(actorFor(principal), { changeId: body.changeId })
+        );
+        const record = await this.input.repository.findById(body.changeId);
+        if (record) await this.reconcileAgentStatus(record, result);
+        if (terminalStates.has(result.state)) return;
+      } catch {
+        // A restarting agent is not evidence of a failed run; the final timeout below
+        // converts a permanently unreachable apply into a durable blocked state.
+      }
+    }
+    const record = await this.input.repository.findById(body.changeId);
+    if (record?.state === 'APPLYING') await this.persistDispatchFailure(record);
+  }
 
   async createDraft(input: {
     principal: ConfigChangePrincipal;
@@ -335,8 +512,10 @@ export class ConfigChangeService {
     ) {
       throw new ConfigChangeServiceError('CONFIG_CHANGE_INVALID_STATE');
     }
+    let databaseApplying = false;
+    let databaseApplyingRecord = record;
     try {
-      await this.input.repository.transition({
+      const transitioned = await this.input.repository.transition({
         changeId: record.id,
         applicationId: record.applicationId,
         transitionId: databaseUuid(
@@ -349,8 +528,19 @@ export class ConfigChangeService {
         expectedVersion: record.version,
         to: 'APPLYING'
       });
-      return await this.input.agent.applyChange(actorFor(input.principal), input.body);
+      databaseApplying = true;
+      databaseApplyingRecord = transitioned ?? {
+        ...record,
+        state: 'APPLYING',
+        version: record.version + 1
+      };
+      const result = await this.input.agent.applyChange(actorFor(input.principal), input.body);
+      void this.monitorApply(input.principal, input.body).catch(() => undefined);
+      return result;
     } catch (error) {
+      if (databaseApplying) {
+        await this.persistDispatchFailure(databaseApplyingRecord);
+      }
       if (error instanceof Error && error.message.includes('CONFIG_APPLICATION_BLOCKED')) {
         throw new ConfigChangeServiceError('CONFIG_APPLICATION_BLOCKED');
       }
@@ -370,7 +560,10 @@ export class ConfigChangeService {
   }): Promise<ChangeStatusResponse> {
     try {
       const result = await this.input.agent.getChangeStatus(actorFor(input.principal), input.body);
-      return ChangeStatusResponseSchema.parse(result);
+      const parsed = ChangeStatusResponseSchema.parse(result);
+      const record = requireOwnerRecord(await this.input.repository.findById(input.body.changeId));
+      await this.reconcileAgentStatus(record, parsed);
+      return parsed;
     } catch {
       const record = requireOwnerRecord(await this.input.repository.findById(input.body.changeId));
       const events =
@@ -421,13 +614,14 @@ export class ConfigChangeService {
   async clearApplyBlock(input: { principal: ConfigChangePrincipal; body: ClearApplyBlockRequest }) {
     if (input.principal.role !== 'ops_owner')
       throw new ConfigChangeServiceError('CONFIG_APPLICATION_BLOCKED');
-    const result = await this.input.agent.clearApplyBlock(actorFor(input.principal), input.body);
-    await this.input.repository.clearApplyBlock?.({
+    const cleared = await this.input.repository.clearApplyBlock?.({
       appId: input.body.appId,
       actorUserId: input.principal.userId,
       remediationSummary: input.body.remediationSummary,
       incidentId: input.body.incidentId
     });
+    if (cleared === false) throw new ConfigChangeServiceError('CONFIG_CHANGE_INVALID_STATE');
+    const result = await this.input.agent.clearApplyBlock(actorFor(input.principal), input.body);
     return result;
   }
 }

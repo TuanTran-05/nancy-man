@@ -104,7 +104,7 @@ describe('config-agent apply coordinator', () => {
     expect(JSON.stringify(failed.calls)).not.toContain('3001');
   });
 
-  test('precondition failure occurs before snapshot and never claims rollback', async () => {
+  test('precondition failure before a write closes as a durable no-op rollback', async () => {
     const { deps, calls } = dependencies({
       captureSnapshot: async () => {
         throw new ApplyCoordinatorError('CONFIG_SOURCE_CHANGED');
@@ -116,8 +116,8 @@ describe('config-agent apply coordinator', () => {
         runId: 'RUN_APPLY_4',
         changeDigest: staged.changeDigest
       })
-    ).rejects.toMatchObject({ code: 'CONFIG_SOURCE_CHANGED', rolledBack: false });
+    ).resolves.toMatchObject({ state: 'ROLLED_BACK', outcome: 'rolled_back' });
     expect(calls).not.toContain('restore');
-    expect(calls).not.toContain('ROLLING_BACK');
+    expect(calls).toContain('ROLLING_BACK');
   });
 });

@@ -159,6 +159,8 @@ export const ManifestBuildSchema = z
     releaseRoot: absolutePathSchema,
     buildRoot: absolutePathSchema,
     releaseScript: absolutePathSchema,
+    activationScript: absolutePathSchema,
+    activationValidatorPaths: z.tuple([absolutePathSchema, absolutePathSchema]),
     toolingCommit: z.string().regex(sha40Pattern, 'Tooling commit must be a full lower-case SHA'),
     publicCatalogIds: z.array(stableIdSchema).min(1).max(256)
   })

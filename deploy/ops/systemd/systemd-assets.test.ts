@@ -98,12 +98,11 @@ describe('canonical Ops systemd assets', () => {
       '/var/lib/edutrack-config-agent',
       '/srv/edutrack/shared',
       '/etc/edutrack-ops',
-      '/srv/edutrack/staging'
+      '/srv/edutrack/staging',
+      '/srv/edutrack/current',
+      '/srv/edutrack/releases'
     ]);
     expect(setting(agent, 'ReadOnlyPaths')).toEqual([
-      '/srv/edutrack/shared/.env',
-      '/srv/edutrack/current',
-      '/srv/edutrack/releases',
       '/srv/edutrack-ops/config-agent/current',
       '/etc/beszel/hub/hub.env',
       '/etc/beszel/agent.env'
@@ -142,7 +141,9 @@ describe('canonical Ops systemd assets', () => {
       'LoadCredential=config-agent-protocol-hmac:/etc/edutrack-ops/credentials/config-agent-protocol-hmac'
     );
     expect(api).not.toContain('Requires=ops-config-agent.service');
-    expect(api).not.toContain('ExecStartPre=/usr/bin/test -S /run/edutrack-config-agent/agent.sock');
+    expect(api).not.toContain(
+      'ExecStartPre=/usr/bin/test -S /run/edutrack-config-agent/agent.sock'
+    );
   });
 
   it('declares explicit runtime directory and socket ownership in tmpfiles assets', async () => {

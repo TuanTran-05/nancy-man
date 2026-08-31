@@ -48,6 +48,7 @@ export type AuthenticatedServerOptions = Readonly<{
 }>;
 
 export type AgentMutationHandlers = Readonly<{
+  ready?: () => Promise<void>;
   validate?: (request: ChangeValidateRequest, actor: AgentActor) => Promise<unknown>;
   save?: (request: ChangeSaveRequest, actor: AgentActor) => Promise<unknown>;
   apply?: (request: ChangeApplyRequest, actor: AgentActor) => Promise<unknown>;
@@ -156,7 +157,7 @@ function removeSocketIfSafe(socketPath: string): void {
 function peerAllowed(socket: PeerAwareSocket, options: AuthenticatedServerOptions): boolean {
   if (options.allowedPeerUid === undefined && options.allowedPeerGid === undefined) return true;
   const readPeerCredentials = socket.getPeerCredentials;
-  if (typeof readPeerCredentials !== 'function') return true;
+  if (typeof readPeerCredentials !== 'function') return false;
   let credentials: PeerCredentials;
   try {
     credentials = readPeerCredentials.call(socket);

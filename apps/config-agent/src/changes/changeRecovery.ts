@@ -9,6 +9,8 @@ export type RecoveryRecord = Readonly<{
   hasWrites: boolean;
   sequence?: number;
   changeDigest?: string;
+  buildReleaseId?: string;
+  previousReleaseId?: string;
 }>;
 
 export type RecoveryCoordinator = Readonly<{

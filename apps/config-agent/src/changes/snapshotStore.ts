@@ -16,6 +16,7 @@ export const SNAPSHOT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 export type SnapshotStoreOptions = SecureStorageOptions &
   Readonly<{
     snapshotKey: EnvelopeKey;
+    snapshotKeys?: readonly EnvelopeKey[];
     retentionMs?: number;
     randomBytes?: (size: number) => Uint8Array;
   }>;
@@ -100,6 +101,7 @@ function encodeValue(value: unknown): Buffer {
 export class SnapshotStore {
   private readonly storage: SecureStorageOptions;
   private readonly snapshotKey: EnvelopeKey;
+  private readonly snapshotKeys: readonly EnvelopeKey[];
   private readonly retentionMs: number;
   private readonly randomBytes: ((size: number) => Uint8Array) | undefined;
 
@@ -111,6 +113,13 @@ export class SnapshotStore {
       ...(options.groupGid === undefined ? {} : { groupGid: options.groupGid })
     };
     this.snapshotKey = options.snapshotKey;
+    this.snapshotKeys = options.snapshotKeys ?? [options.snapshotKey];
+    if (
+      this.snapshotKeys.length === 0 ||
+      this.snapshotKeys.some((key) => key.purpose !== 'snapshot')
+    ) {
+      fail('SNAPSHOT_KEY_INVALID');
+    }
     this.retentionMs = retention(options.retentionMs);
     this.randomBytes = options.randomBytes;
   }
@@ -163,7 +172,7 @@ export class SnapshotStore {
     const artifact = await readSecureArtifact(this.storage, 'snapshots', snapshotId);
     const plaintext = decryptEnvelope({
       artifact,
-      keys: [this.snapshotKey],
+      keys: this.snapshotKeys,
       now: current,
       allowExpired: evidence,
       expected: {

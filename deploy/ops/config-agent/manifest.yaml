@@ -7,6 +7,10 @@ build:
   releaseRoot: /srv/edutrack
   buildRoot: /srv/edutrack/staging
   releaseScript: /srv/edutrack/current/deploy/vps/prepare-platform-release.sh
+  activationScript: /srv/edutrack/current/deploy/vps/activate-platform-release.sh
+  activationValidatorPaths:
+    - /var/lib/edutrack-config-agent/validators/validate-platform-pm2
+    - /var/lib/edutrack-config-agent/validators/validate-platform-nginx
   toolingCommit: 8d34181211ea8a4a6356ac7d618fbc871f8bcd7e
   publicCatalogIds:
     - edutrack.public_base_url

@@ -52,7 +52,8 @@ describe('Ops database migration runner', () => {
       '0014_ops_account_administration',
       '0015_ops_secret_elevations',
       '0016_ops_secret_elevation_reuse',
-      '0017_ops_config_changes'
+      '0017_ops_config_changes',
+      '0018_ops_config_application_blocks_partial_unique'
     ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {

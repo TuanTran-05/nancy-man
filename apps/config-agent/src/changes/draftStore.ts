@@ -8,11 +8,7 @@ import {
   type ArtifactIndexEntry,
   type SecureStorageOptions
 } from './artifactStorage.js';
-import {
-  decryptEnvelope,
-  encryptEnvelope,
-  type EnvelopeKey
-} from '../crypto/encryptedEnvelope.js';
+import { decryptEnvelope, encryptEnvelope, type EnvelopeKey } from '../crypto/encryptedEnvelope.js';
 
 export const DRAFT_TTL_MS = 24 * 60 * 60 * 1_000;
 export const STAGED_TTL_MS = 24 * 60 * 60 * 1_000;
@@ -22,6 +18,7 @@ type DateInput = Date | undefined;
 export type DraftStoreOptions = SecureStorageOptions &
   Readonly<{
     stagingKey: EnvelopeKey;
+    stagingKeys?: readonly EnvelopeKey[];
     draftTtlMs?: number;
     stagedTtlMs?: number;
     randomBytes?: (size: number) => Uint8Array;
@@ -42,11 +39,7 @@ export type SealDraftInput = Readonly<{
 }>;
 
 export class DraftStoreError extends Error {
-  readonly code:
-    | 'DRAFT_INVALID'
-    | 'DRAFT_NOT_FOUND'
-    | 'DRAFT_CORRUPT'
-    | 'DRAFT_KEY_INVALID';
+  readonly code: 'DRAFT_INVALID' | 'DRAFT_NOT_FOUND' | 'DRAFT_CORRUPT' | 'DRAFT_KEY_INVALID';
 
   constructor(code: DraftStoreError['code']) {
     super(code);
@@ -144,6 +137,7 @@ function isExpired(entry: ArtifactIndexEntry, now: Date): boolean {
 export class DraftStore {
   private readonly storage: SecureStorageOptions;
   private readonly stagingKey: EnvelopeKey;
+  private readonly stagingKeys: readonly EnvelopeKey[];
   private readonly draftTtl: number;
   private readonly stagedTtl: number;
   private readonly randomBytes: ((size: number) => Uint8Array) | undefined;
@@ -156,6 +150,13 @@ export class DraftStore {
       ...(options.groupGid === undefined ? {} : { groupGid: options.groupGid })
     };
     this.stagingKey = options.stagingKey;
+    this.stagingKeys = options.stagingKeys ?? [options.stagingKey];
+    if (
+      this.stagingKeys.length === 0 ||
+      this.stagingKeys.some((key) => key.purpose !== 'staging')
+    ) {
+      fail('DRAFT_KEY_INVALID');
+    }
     this.draftTtl = ttl(options.draftTtlMs, DRAFT_TTL_MS);
     this.stagedTtl = ttl(options.stagedTtlMs, STAGED_TTL_MS);
     this.randomBytes = options.randomBytes;
@@ -327,7 +328,7 @@ export class DraftStore {
     const artifact = await readSecureArtifact(this.storage, directory, entry.id);
     const plaintext = decryptEnvelope({
       artifact,
-      keys: [this.stagingKey],
+      keys: this.stagingKeys,
       now,
       expected: {
         envelopeType: entry.kind,

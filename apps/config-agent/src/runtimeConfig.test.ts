@@ -19,10 +19,13 @@ const environment = {
   OPS_CONFIG_AGENT_STAGING_KEY_VERSION: 'v1',
   OPS_CONFIG_AGENT_STAGING_OLD_KEY_IDS:
     'config-agent-staging-2026-08-30,config-agent-staging-2026-08-29',
+  OPS_CONFIG_AGENT_STAGING_OLD_KEY_PATHS:
+    '/etc/edutrack-config-agent/credentials/staging-v0,/etc/edutrack-config-agent/credentials/staging-v-previous',
   OPS_CONFIG_AGENT_SNAPSHOT_KEY_PATH: '/etc/edutrack-config-agent/credentials/snapshot-v1',
   OPS_CONFIG_AGENT_SNAPSHOT_KEY_ID: 'config-agent-snapshot-2026-08-31',
   OPS_CONFIG_AGENT_SNAPSHOT_KEY_VERSION: 'v1',
   OPS_CONFIG_AGENT_SNAPSHOT_OLD_KEY_IDS: 'config-agent-snapshot-2026-08-30',
+  OPS_CONFIG_AGENT_SNAPSHOT_OLD_KEY_PATHS: '/etc/edutrack-config-agent/credentials/snapshot-v0',
   OPS_CONFIG_AGENT_STATE_DIRECTORY: '/var/lib/edutrack-config-agent',
   OPS_CONFIG_AGENT_DRAFTS_DIRECTORY: '/var/lib/edutrack-config-agent/drafts',
   OPS_CONFIG_AGENT_STAGED_DIRECTORY: '/var/lib/edutrack-config-agent/staged',
@@ -55,10 +58,15 @@ describe('readConfigAgentRuntimeConfig', () => {
         'config-agent-staging-2026-08-30',
         'config-agent-staging-2026-08-29'
       ],
+      stagingAcceptedOldKeyPaths: [
+        '/etc/edutrack-config-agent/credentials/staging-v0',
+        '/etc/edutrack-config-agent/credentials/staging-v-previous'
+      ],
       snapshotKeyPath: '/etc/edutrack-config-agent/credentials/snapshot-v1',
       snapshotKeyId: 'config-agent-snapshot-2026-08-31',
       snapshotKeyVersion: 'v1',
       snapshotAcceptedOldKeyIds: ['config-agent-snapshot-2026-08-30'],
+      snapshotAcceptedOldKeyPaths: ['/etc/edutrack-config-agent/credentials/snapshot-v0'],
       stateDirectory: '/var/lib/edutrack-config-agent',
       draftsDirectory: '/var/lib/edutrack-config-agent/drafts',
       stagedDirectory: '/var/lib/edutrack-config-agent/staged',

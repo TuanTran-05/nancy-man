@@ -10,6 +10,7 @@ import {
   uuid
 } from 'drizzle-orm/pg-core';
 
+import { sql } from 'drizzle-orm';
 import { pgTable } from 'drizzle-orm/pg-core';
 
 const byteaColumn = customType<{ data: Buffer; driverData: Buffer }>({
@@ -257,16 +258,24 @@ export const opsConfigRuns = pgTable(
   ]
 );
 
-export const opsConfigApplicationBlocks = pgTable('ops_config_application_blocks', {
-  applicationId: text('application_id').primaryKey(),
-  failedRunId: uuid('failed_run_id').notNull(),
-  failedChangeId: uuid('failed_change_id').notNull(),
-  reasonCode: text('reason_code').notNull(),
-  blockedActorUserId: uuid('blocked_actor_user_id').notNull(),
-  blockedAt: timestamp('blocked_at', { withTimezone: true }).defaultNow().notNull(),
-  acknowledgedActorUserId: uuid('acknowledged_actor_user_id'),
-  acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
-  clearedActorUserId: uuid('cleared_actor_user_id'),
-  clearedAt: timestamp('cleared_at', { withTimezone: true }),
-  clearRemediationSummary: text('clear_remediation_summary')
-});
+export const opsConfigApplicationBlocks = pgTable(
+  'ops_config_application_blocks',
+  {
+    applicationId: text('application_id').notNull(),
+    failedRunId: uuid('failed_run_id').notNull(),
+    failedChangeId: uuid('failed_change_id').notNull(),
+    reasonCode: text('reason_code').notNull(),
+    blockedActorUserId: uuid('blocked_actor_user_id').notNull(),
+    blockedAt: timestamp('blocked_at', { withTimezone: true }).defaultNow().notNull(),
+    acknowledgedActorUserId: uuid('acknowledged_actor_user_id'),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    clearedActorUserId: uuid('cleared_actor_user_id'),
+    clearedAt: timestamp('cleared_at', { withTimezone: true }),
+    clearRemediationSummary: text('clear_remediation_summary')
+  },
+  (table) => [
+    uniqueIndex('ops_config_application_blocks_active_idx')
+      .on(table.applicationId)
+      .where(sql`${table.clearedAt} IS NULL`)
+  ]
+);

@@ -18,10 +18,12 @@ export type ConfigAgentRuntimeConfig = Readonly<{
   stagingKeyId: string;
   stagingKeyVersion: string;
   stagingAcceptedOldKeyIds: readonly string[];
+  stagingAcceptedOldKeyPaths: readonly string[];
   snapshotKeyPath: string;
   snapshotKeyId: string;
   snapshotKeyVersion: string;
   snapshotAcceptedOldKeyIds: readonly string[];
+  snapshotAcceptedOldKeyPaths: readonly string[];
   stateDirectory: string;
   draftsDirectory: string;
   stagedDirectory: string;
@@ -120,6 +122,26 @@ function oldKeyIds(environment: Environment, names: readonly string[]): string[]
   }
   if (new Set(values).size !== values.length) {
     throw new RuntimeConfigError('CONFIG_AGENT_KEY_ID_INVALID');
+  }
+  return values;
+}
+
+function oldKeyPaths(environment: Environment, names: readonly string[]): string[] {
+  const raw = names.map((name) => environment[name]?.trim()).find(Boolean);
+  if (!raw) return [];
+  const values = raw.split(',').map((value) => value.trim());
+  if (
+    values.some(
+      (value) =>
+        !value ||
+        !isAbsolute(value) ||
+        value === '/' ||
+        value.includes('\u0000') ||
+        normalize(value) !== value
+    ) ||
+    new Set(values).size !== values.length
+  ) {
+    throw new RuntimeConfigError('CONFIG_AGENT_PATH_INVALID');
   }
   return values;
 }
@@ -260,6 +282,20 @@ export function readConfigAgentRuntimeConfig(
     'OPS_CONFIG_AGENT_SNAPSHOT_OLD_KEY_IDS',
     'CONFIG_AGENT_SNAPSHOT_OLD_KEY_IDS'
   ]);
+  const stagingAcceptedOldKeyPaths = oldKeyPaths(environment, [
+    'OPS_CONFIG_AGENT_STAGING_OLD_KEY_PATHS',
+    'CONFIG_AGENT_STAGING_OLD_KEY_PATHS'
+  ]);
+  const snapshotAcceptedOldKeyPaths = oldKeyPaths(environment, [
+    'OPS_CONFIG_AGENT_SNAPSHOT_OLD_KEY_PATHS',
+    'CONFIG_AGENT_SNAPSHOT_OLD_KEY_PATHS'
+  ]);
+  if (
+    stagingAcceptedOldKeyIds.length !== stagingAcceptedOldKeyPaths.length ||
+    snapshotAcceptedOldKeyIds.length !== snapshotAcceptedOldKeyPaths.length
+  ) {
+    throw new RuntimeConfigError('CONFIG_AGENT_PATH_INVALID');
+  }
   const allKeyIds = [...keyIds, ...stagingAcceptedOldKeyIds, ...snapshotAcceptedOldKeyIds];
   if (new Set(allKeyIds).size !== allKeyIds.length) {
     throw new RuntimeConfigError('CONFIG_AGENT_KEY_IDS_MUST_DIFFER');
@@ -289,6 +325,7 @@ export function readConfigAgentRuntimeConfig(
       'CONFIG_AGENT_STAGING_KEY_VERSION'
     ]),
     stagingAcceptedOldKeyIds,
+    stagingAcceptedOldKeyPaths,
     snapshotKeyPath,
     snapshotKeyId,
     snapshotKeyVersion: keyVersion(environment, [
@@ -296,6 +333,7 @@ export function readConfigAgentRuntimeConfig(
       'CONFIG_AGENT_SNAPSHOT_KEY_VERSION'
     ]),
     snapshotAcceptedOldKeyIds,
+    snapshotAcceptedOldKeyPaths,
     stateDirectory,
     draftsDirectory,
     stagedDirectory,

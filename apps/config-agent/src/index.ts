@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { createFingerprintKey } from './inventory/fingerprint.js';
 import { createInventoryService } from './inventory/inventoryService.js';
 import { loadCatalogAndManifest } from './manifestLoader.js';
-import { loadEnvelopeKey, type EnvelopeKey } from './crypto/encryptedEnvelope.js';
+import { loadEnvelopeKeys, type EnvelopeKey } from './crypto/encryptedEnvelope.js';
 import { createRuntimeMutationHandlers } from './changes/runtimeHandlers.js';
 import {
   readConfigAgentRuntimeConfig,
@@ -42,6 +42,7 @@ function enabledChangeHandlers(
   const draft = config.draftEnabled === true;
   const apply = config.runtimeApplyEnabled === true || config.buildApplyEnabled === true;
   const gated: AgentMutationHandlers = {
+    ...(handlers.ready ? { ready: handlers.ready } : {}),
     ...(draft && handlers.validate ? { validate: handlers.validate } : {}),
     ...(draft && handlers.save ? { save: handlers.save } : {}),
     ...(apply && handlers.apply ? { apply: handlers.apply } : {}),
@@ -114,27 +115,43 @@ export async function startConfigAgent(
     loadCredential(config.fingerprintKeyPath),
     config.fingerprintKeyVersion
   );
-  let stagingKey: EnvelopeKey;
-  let snapshotKey: EnvelopeKey;
+  let stagingKeys: EnvelopeKey[];
+  let snapshotKeys: EnvelopeKey[];
   try {
-    [stagingKey, snapshotKey] = await Promise.all([
-      loadEnvelopeKey({
-        path: config.stagingKeyPath,
-        purpose: 'staging',
-        keyId: config.stagingKeyId,
-        keyVersion: config.stagingKeyVersion
-      }),
-      loadEnvelopeKey({
-        path: config.snapshotKeyPath,
-        purpose: 'snapshot',
-        keyId: config.snapshotKeyId,
-        keyVersion: config.snapshotKeyVersion
-      })
+    [stagingKeys, snapshotKeys] = await Promise.all([
+      loadEnvelopeKeys([
+        {
+          path: config.stagingKeyPath,
+          purpose: 'staging',
+          keyId: config.stagingKeyId,
+          keyVersion: config.stagingKeyVersion
+        },
+        ...config.stagingAcceptedOldKeyIds.map((keyId, index) => ({
+          path: config.stagingAcceptedOldKeyPaths[index]!,
+          purpose: 'staging' as const,
+          keyId,
+          keyVersion: config.stagingKeyVersion
+        }))
+      ]),
+      loadEnvelopeKeys([
+        {
+          path: config.snapshotKeyPath,
+          purpose: 'snapshot',
+          keyId: config.snapshotKeyId,
+          keyVersion: config.snapshotKeyVersion
+        },
+        ...config.snapshotAcceptedOldKeyIds.map((keyId, index) => ({
+          path: config.snapshotAcceptedOldKeyPaths[index]!,
+          purpose: 'snapshot' as const,
+          keyId,
+          keyVersion: config.snapshotKeyVersion
+        }))
+      ])
     ]);
   } catch {
     throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_READ_FAILED');
   }
-  assertKeySeparation(protocolKey, fingerprintKey.secret, [stagingKey, snapshotKey]);
+  assertKeySeparation(protocolKey, fingerprintKey.secret, [...stagingKeys, ...snapshotKeys]);
   const inventoryService = createInventoryService({
     catalog: loaded.catalog,
     manifest: loaded.manifest,
@@ -147,11 +164,14 @@ export async function startConfigAgent(
           config,
           loaded,
           fingerprintKey,
-          stagingKey,
-          snapshotKey
+          stagingKey: stagingKeys[0]!,
+          snapshotKey: snapshotKeys[0]!,
+          stagingKeys,
+          snapshotKeys
         })
       : undefined);
   const changeHandlers = enabledChangeHandlers(config, configuredHandlers);
+  await changeHandlers?.ready?.();
   const server = createAuthenticatedServer({
     socketPath: config.socketPath,
     socketGroup: config.socketGroup,
@@ -162,7 +182,9 @@ export async function startConfigAgent(
     inventoryService,
     ...(changeHandlers ? { changeHandlers } : {}),
     clockSkewMs: config.clockSkewMs,
-    requestTtlMs: config.requestTtlMs
+    requestTtlMs: config.requestTtlMs,
+    ...(config.allowedPeerUid === undefined ? {} : { allowedPeerUid: config.allowedPeerUid }),
+    ...(config.allowedPeerGid === undefined ? {} : { allowedPeerGid: config.allowedPeerGid })
   });
   await server.start();
   return { config, server };

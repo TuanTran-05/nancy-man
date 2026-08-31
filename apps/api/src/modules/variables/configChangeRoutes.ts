@@ -19,6 +19,15 @@ import {
 } from './configChangeService.js';
 import { serializeConfigChangeSse } from './configChangeEvents.js';
 
+const terminalChangeStates = new Set([
+  'COMPLETED',
+  'ROLLED_BACK',
+  'ROLLBACK_FAILED',
+  'CANCELLED',
+  'EXPIRED',
+  'INVALID'
+]);
+
 type Principal = { userId: string; sessionId: string; role: OpsRole };
 type StepUpGrant = {
   grantId: string;
@@ -28,6 +37,7 @@ type StepUpGrant = {
   ipHash: string;
   userAgentHash: string;
   subjectDigest: string;
+  expiresAt?: string;
 };
 type AccountsWriteGrant = Omit<StepUpGrant, 'capability' | 'subjectDigest'> & {
   capability: 'accounts_write';
@@ -121,6 +131,18 @@ export function createConfigChangeRouter(input: {
   const allowedOrigin = input.allowedOrigin ?? 'https://man.thienuy.edu.vn';
   const authorizations = new Map<string, StepUpGrant>();
 
+  function pruneAuthorizations(): void {
+    const now = Date.now();
+    for (const [key, grant] of authorizations) {
+      if (!grant.expiresAt || Date.parse(grant.expiresAt) <= now) authorizations.delete(key);
+    }
+    while (authorizations.size >= 4_096) {
+      const oldest = authorizations.keys().next().value;
+      if (!oldest) break;
+      authorizations.delete(oldest);
+    }
+  }
+
   async function principal(
     request: Request,
     response: Response,
@@ -174,6 +196,7 @@ export function createConfigChangeRouter(input: {
           userAgentHash: current.actor.userAgentHash,
           subjectDigest: parsed.data.changeDigest
         });
+        pruneAuthorizations();
         authorizations.set(`${current.principal.sessionId}:${parsed.data.changeDigest}`, {
           grantId: grant.id,
           capability: 'variables_apply',
@@ -181,7 +204,8 @@ export function createConfigChangeRouter(input: {
           sessionId: current.principal.sessionId,
           ipHash: current.actor.ipHash,
           userAgentHash: current.actor.userAgentHash,
-          subjectDigest: parsed.data.changeDigest
+          subjectDigest: parsed.data.changeDigest,
+          expiresAt: grant.expiresAt
         });
         response.status(200).json({ authorizedUntil: grant.expiresAt });
       } catch {
@@ -316,16 +340,47 @@ export function createConfigChangeRouter(input: {
     });
     if (!parsed.success) return response.status(400).json({ code: 'INVALID_CONFIG_CHANGE' });
     try {
-      const status = await input.service.status({ principal: current.actor, body: parsed.data });
       response
         .status(200)
-        .setHeader('Content-Type', 'text/event-stream')
+        .setHeader('Content-Type', 'text/event-stream; charset=utf-8')
         .setHeader('Connection', 'keep-alive')
-        .setHeader('Cache-Control', 'no-store');
-      response.write(serializeConfigChangeSse(status));
-      response.end();
+        .setHeader('Cache-Control', 'no-store, private')
+        .setHeader('X-Accel-Buffering', 'no');
+      let afterEventId = parsed.data.afterEventId;
+      let lastSequence = -1;
+      let disconnected = false;
+      const onClose = (): void => {
+        disconnected = true;
+      };
+      request.once('close', onClose);
+      const startedAt = Date.now();
+      try {
+        while (!disconnected && !response.writableEnded && Date.now() - startedAt < 5 * 60_000) {
+          const status = await input.service.status({
+            principal: current.actor,
+            body: {
+              changeId: parsed.data.changeId,
+              ...(afterEventId ? { afterEventId } : {})
+            }
+          });
+          if (status.sequence !== lastSequence || status.events.length > 0) {
+            response.write(serializeConfigChangeSse(status));
+            lastSequence = status.sequence;
+            const lastEventId = status.events.at(-1)?.eventId;
+            if (lastEventId) afterEventId = lastEventId;
+          } else {
+            response.write(': heartbeat\n\n');
+          }
+          if (terminalChangeStates.has(status.state)) break;
+          await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
+        }
+      } finally {
+        request.off('close', onClose);
+        if (!response.writableEnded) response.end();
+      }
     } catch (error) {
-      sendError(response, error);
+      if (!response.headersSent) sendError(response, error);
+      else if (!response.writableEnded) response.end();
     }
   });
 

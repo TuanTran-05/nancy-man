@@ -106,9 +106,7 @@ function assertHeader(header: EnvelopeHeader): void {
     'manifestVersion',
     'purpose'
   ];
-  if (
-    Object.keys(header).sort().join(',') !== expectedFields.sort().join(',')
-  ) {
+  if (Object.keys(header).sort().join(',') !== expectedFields.sort().join(',')) {
     fail('ENVELOPE_HEADER_INVALID');
   }
   if (
@@ -231,7 +229,7 @@ export function assertDistinctEnvelopeKeys(keys: readonly EnvelopeKey[]): void {
     for (let second = first + 1; second < keys.length; second += 1) {
       const left = keys[first];
       const right = keys[second];
-      if (!left || !right || left.purpose === right.purpose) continue;
+      if (!left || !right) continue;
       if (timingSafeEqual(left.bytes, right.bytes)) fail('ENVELOPE_KEY_REUSED');
     }
   }
@@ -340,12 +338,19 @@ function parseArtifact(artifact: Uint8Array): SerializedEnvelope {
   const header = candidate.header as EnvelopeHeader;
   assertHeader(header);
   const nonce = decodeBase64(candidate.nonce);
-  const ciphertext = decodeBase64(candidate.ciphertext);
+  decodeBase64(candidate.ciphertext);
   const authTag = decodeBase64(candidate.authTag);
   if (nonce.length !== NONCE_BYTES || authTag.length !== AUTH_TAG_BYTES) {
     fail('ENVELOPE_MALFORMED');
   }
-  return { format: ENVELOPE_FORMAT, version: ENVELOPE_VERSION, header, nonce: candidate.nonce as string, ciphertext: candidate.ciphertext as string, authTag: candidate.authTag as string };
+  return {
+    format: ENVELOPE_FORMAT,
+    version: ENVELOPE_VERSION,
+    header,
+    nonce: candidate.nonce as string,
+    ciphertext: candidate.ciphertext as string,
+    authTag: candidate.authTag as string
+  };
 }
 
 export type DecryptEnvelopeOptions = Readonly<{
@@ -353,7 +358,12 @@ export type DecryptEnvelopeOptions = Readonly<{
   keys: readonly EnvelopeKey[];
   now?: Date;
   allowExpired?: boolean;
-  expected?: Partial<Pick<EnvelopeHeader, 'envelopeType' | 'purpose' | 'changeId' | 'appId' | 'catalogVersion' | 'manifestVersion'>>;
+  expected?: Partial<
+    Pick<
+      EnvelopeHeader,
+      'envelopeType' | 'purpose' | 'changeId' | 'appId' | 'catalogVersion' | 'manifestVersion'
+    >
+  >;
 }>;
 
 export function decryptEnvelope(options: DecryptEnvelopeOptions): Buffer {

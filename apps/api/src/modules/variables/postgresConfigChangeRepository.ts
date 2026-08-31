@@ -850,6 +850,18 @@ export class PostgresConfigChangeRepository {
     return rows[0] ?? null;
   }
 
+  async findLatestRunId(changeId: string): Promise<string | null> {
+    assertUuid(changeId, 'CONFIG_CHANGE_ID_INVALID');
+    const { rows } = await this.database.query<{ id: string }>(
+      `SELECT id FROM ops_config_runs
+       WHERE change_id = $1
+       ORDER BY sequence_number DESC, occurred_at DESC
+       LIMIT 1`,
+      [changeId]
+    );
+    return rows[0]?.id ?? null;
+  }
+
   async blockApplication(input: {
     applicationId: string;
     failedRunId: string;
@@ -868,7 +880,7 @@ export class PostgresConfigChangeRepository {
       `INSERT INTO ops_config_application_blocks (
          application_id, failed_run_id, failed_change_id, reason_code, blocked_actor_user_id
        ) VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (application_id) DO NOTHING
+       ON CONFLICT (application_id) WHERE cleared_at IS NULL DO NOTHING
        RETURNING application_id AS "applicationId"`,
       [
         input.applicationId,
@@ -885,9 +897,11 @@ export class PostgresConfigChangeRepository {
     applicationId: string;
     actorUserId: string;
     remediationSummary: string;
+    incidentId: string;
   }): Promise<boolean> {
     assertIdentifier(input.applicationId, 'CONFIG_APPLICATION_INVALID');
     assertUuid(input.actorUserId, 'CONFIG_ACTOR_INVALID');
+    assertIdentifier(input.incidentId, 'CONFIG_INCIDENT_INVALID');
     assertValueFreeText(input.remediationSummary.trim(), 'CONFIG_REMEDIATION_INVALID', 2_000);
     if (input.remediationSummary.trim().length < 3)
       throw new ConfigMetadataError('CONFIG_REMEDIATION_INVALID');
@@ -895,8 +909,13 @@ export class PostgresConfigChangeRepository {
       `UPDATE ops_config_application_blocks
        SET cleared_actor_user_id = $2, cleared_at = now(), clear_remediation_summary = $3
        WHERE application_id = $1 AND cleared_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM incidents
+           WHERE (incidents.id::text = $4 OR incidents.incident_key = $4)
+             AND incidents.status = 'resolved'
+         )
        RETURNING application_id AS "applicationId"`,
-      [input.applicationId, input.actorUserId, input.remediationSummary.trim()]
+      [input.applicationId, input.actorUserId, input.remediationSummary.trim(), input.incidentId]
     );
     return rows.length === 1;
   }

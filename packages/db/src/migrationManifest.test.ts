@@ -97,6 +97,11 @@ const expectedTrustRoot = [
     '0017_ops_config_changes',
     '0017_ops_config_changes.sql',
     '494a2d02909e3c6b7bdf401d585f36057285e2ebaf4843893ef8faf0d270bcd9'
+  ],
+  [
+    '0018_ops_config_application_blocks_partial_unique',
+    '0018_ops_config_application_blocks_partial_unique.sql',
+    '848472343435a458ac9e1b65472a5bcc6c9944703a55536f8eeb327bb3781f91'
   ]
 ] as const;
 
