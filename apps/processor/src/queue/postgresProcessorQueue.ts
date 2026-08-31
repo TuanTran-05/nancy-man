@@ -125,7 +125,7 @@ export class PostgresProcessorQueue {
         UPDATE ingest_processing
         SET state = 'retrying',
             attempt_count = attempt_count + 1,
-            next_attempt_at = $2 + INTERVAL '1 minute',
+            next_attempt_at = $2::timestamptz + INTERVAL '1 minute',
             claimed_at = NULL,
             claimed_by = NULL,
             last_error_code = 'PROCESSING_FAILED'
@@ -144,7 +144,7 @@ export class PostgresProcessorQueue {
             claimed_at = NULL,
             claimed_by = NULL,
             last_error_code = 'CLAIM_TIMEOUT'
-        WHERE state = 'claimed' AND claimed_at < $1 - INTERVAL '5 minutes'
+        WHERE state = 'claimed' AND claimed_at < $1::timestamptz - INTERVAL '5 minutes'
       `,
       [now]
     );

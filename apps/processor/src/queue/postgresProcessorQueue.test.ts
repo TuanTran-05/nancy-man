@@ -63,4 +63,17 @@ describe('PostgresProcessorQueue', () => {
     expect(queries[0]).toContain("SET state = 'retrying'");
     expect(queries[0]).toContain('attempt_count = attempt_count + 1');
   });
+
+  it('casts the claim release clock before subtracting an interval', async () => {
+    const queries: string[] = [];
+    const queue = new PostgresProcessorQueue({
+      query: async <T>(sql: string) => {
+        queries.push(sql);
+        return { rows: [] as T[] };
+      }
+    });
+
+    await queue.releaseExpiredClaims(new Date('2026-08-22T08:00:00.000Z'));
+    expect(queries[0]).toContain('claimed_at < $1::timestamptz - INTERVAL');
+  });
 });
