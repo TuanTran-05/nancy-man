@@ -278,6 +278,7 @@ export function createOpsApiRuntime(input: {
                   })
               },
               stepUp: variableStepUp,
+              audit: new PostgresOpsAuditLedger({ database: input.database }),
               hashClientIp: (ip: string) =>
                 createHash('sha256').update(`${ip}${input.rateLimitPepper}`).digest('hex'),
               rateLimiter: variableUnlockRateLimiter

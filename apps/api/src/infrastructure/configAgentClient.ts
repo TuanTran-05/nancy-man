@@ -139,6 +139,7 @@ export class ConfigAgentClient {
   private readonly now: () => Date;
   private readonly requestId: () => string;
   private readonly startupActor: AgentActor;
+  private negotiatedExpectations: ConfigAgentExpectations | undefined;
 
   constructor(input: ConfigAgentClientOptions) {
     if (!validSocketPath(input.socketPath)) throw new ConfigAgentError('AGENT_REQUEST_INVALID');
@@ -184,6 +185,7 @@ export class ConfigAgentClient {
     ) {
       throw new ConfigAgentError('CONFIG_AGENT_INCOMPATIBLE');
     }
+    this.negotiatedExpectations = expected;
     return capabilities.data;
   }
 
@@ -198,6 +200,13 @@ export class ConfigAgentClient {
     });
     if (!response.ok || response.operation !== 'inventory.read') {
       throw new ConfigAgentError('CONFIG_AGENT_REJECTED');
+    }
+    if (
+      this.negotiatedExpectations &&
+      (response.body.catalogVersion !== this.negotiatedExpectations.catalogVersion ||
+        response.body.manifestVersion !== this.negotiatedExpectations.manifestVersion)
+    ) {
+      throw new ConfigAgentError('AGENT_RESPONSE_MISMATCH');
     }
     return response.body;
   }
@@ -237,7 +246,15 @@ export class ConfigAgentClient {
     }
     const issued = Date.parse(parsed.data.issuedAt);
     const expires = Date.parse(parsed.data.expiresAt);
-    if (!Number.isFinite(issued) || !Number.isFinite(expires) || expires <= this.now().getTime()) {
+    const currentTime = this.now().getTime();
+    if (
+      !Number.isFinite(issued) ||
+      !Number.isFinite(expires) ||
+      issued > currentTime + 30_000 ||
+      expires <= issued ||
+      expires > issued + 60_000 ||
+      expires <= currentTime
+    ) {
       throw new ConfigAgentError('AGENT_RESPONSE_EXPIRED');
     }
     return parsed.data;

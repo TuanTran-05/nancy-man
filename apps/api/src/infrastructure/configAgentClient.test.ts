@@ -151,6 +151,46 @@ describe('ConfigAgentClient', () => {
     });
   });
 
+  it('binds subsequent inventory responses to the negotiated versions and rejects future timestamps', async () => {
+    let capabilitiesRequest = true;
+    await withSocket((request, socket) => {
+      if (capabilitiesRequest) {
+        capabilitiesRequest = false;
+        socket.end(encodeFrame(responseFor(request, capabilities)));
+        return;
+      }
+      socket.end(encodeFrame(responseFor(request, {
+        ...inventory,
+        catalogVersion: '2026-09-01'
+      })));
+    }, async (socketPath) => {
+      const client = new ConfigAgentClient(options(socketPath));
+      await client.negotiate({
+        manifestVersion: '2026-08-31',
+        catalogVersion: '2026-08-31',
+        catalogDigest: `sha256:${'b'.repeat(64)}`
+      });
+      await expect(client.readInventory(actor)).rejects.toMatchObject({
+        code: 'AGENT_RESPONSE_MISMATCH'
+      });
+    });
+
+    await withSocket((request, socket) => {
+      const response = responseFor(request, inventory);
+      const future = {
+        ...response,
+        issuedAt: '2026-09-01T13:10:01.000Z',
+        expiresAt: '2026-09-01T13:10:31.000Z'
+      };
+      socket.end(encodeFrame({ ...future, signature: signAgentEnvelope(future, 'agent-protocol-secret') }));
+    }, async (socketPath) => {
+      const client = new ConfigAgentClient(options(socketPath));
+      await expect(client.readInventory(actor)).rejects.toMatchObject({
+        code: 'AGENT_RESPONSE_EXPIRED'
+      });
+    });
+  });
+
   it('rejects a bad response signature, request mismatch, schema drift, and trailing frames without exposing body data', async () => {
     const cases: Array<{ name: string; response: (request: Record<string, unknown>) => unknown }> = [
       {

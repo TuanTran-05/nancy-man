@@ -32,6 +32,16 @@ type VariableRateLimiter = {
   allow: (input: { userId: string; sessionId: string; ipHash: string }) => Promise<boolean>;
 };
 
+type VariablesAudit = {
+  append: (input: {
+    actorUserId: string | null;
+    action: string;
+    subjectType: string;
+    subjectId?: string;
+    metadata: Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+
 const unlockBody = z.object({
   password: z.string().min(1).max(1_024),
   totpCode: z.string().regex(/^\d{6}$/u)
@@ -89,6 +99,7 @@ export function createVariablesRouter(input: {
   stepUp: VariableStepUp;
   hashClientIp: (ip: string) => string;
   rateLimiter: VariableRateLimiter;
+  audit?: VariablesAudit;
   allowedOrigin?: string;
 }): Router {
   const router = express.Router();
@@ -137,6 +148,23 @@ export function createVariablesRouter(input: {
     };
   }
 
+  async function appendAudit(event: {
+    actorUserId: string | null;
+    action: string;
+    sessionId?: string;
+    code: string;
+  }): Promise<void> {
+    await input.audit?.append({
+      actorUserId: event.actorUserId,
+      action: event.action,
+      subjectType: 'variables_capability',
+      metadata: {
+        ...(event.sessionId ? { sessionId: event.sessionId } : {}),
+        code: event.code
+      }
+    });
+  }
+
   router.post('/auth/variables/unlock', async (request, response, next) => {
     try {
       noStore(response);
@@ -170,8 +198,20 @@ export function createVariablesRouter(input: {
           ipHash: hashes.ipHash,
           userAgentHash: hashes.userAgentHash
         });
+        await appendAudit({
+          actorUserId: value.userId,
+          action: 'variables.unlock',
+          sessionId: value.sessionId,
+          code: 'SUCCESS'
+        });
         return response.status(200).json({ unlockedUntil: grant.expiresAt });
       } catch {
+        await appendAudit({
+          actorUserId: value.userId,
+          action: 'variables.unlock_failed',
+          sessionId: value.sessionId,
+          code: 'MFA_DENIED'
+        });
         return response.status(401).json({ code: 'MFA_DENIED' });
       }
     } catch (error) {
@@ -192,6 +232,12 @@ export function createVariablesRouter(input: {
         }
         grants.delete(value.sessionId);
       }
+      await appendAudit({
+        actorUserId: value.userId,
+        action: 'variables.lock',
+        sessionId: value.sessionId,
+        code: 'SUCCESS'
+      });
       return response.status(204).end();
     } catch (error) {
       next(error);
@@ -218,6 +264,12 @@ export function createVariablesRouter(input: {
         await input.stepUp.authorize(current);
       } catch {
         grants.delete(value.sessionId);
+        await appendAudit({
+          actorUserId: value.userId,
+          action: 'variables.expired',
+          sessionId: value.sessionId,
+          code: 'STEP_UP_REQUIRED'
+        });
         return response.status(401).json({ code: 'STEP_UP_REQUIRED' });
       }
       try {

@@ -47,6 +47,7 @@ export class OpsSessionRepository {
           AND session.revoked_at IS NULL
           AND session.idle_expires_at > $2
           AND session.absolute_expires_at > $2
+          AND (user_record.login_blocked_until IS NULL OR user_record.login_blocked_until <= $2)
         LIMIT 1
       `,
       [sessionHash, nowIso]
