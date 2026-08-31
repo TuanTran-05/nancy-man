@@ -1,9 +1,9 @@
 {
-  "migrationSetSha256": "cdb2771dad55314a165d9f5cb9652a443f830826f7f5c67cf960aaa68cbd2840",
-  "nodeVersion": "v22.23.2",
-  "packageLockSha256": "75c3df410d17eca53ab2e5b05e54fb088109ff92667cfb51d845fbf8a91bbe70",
-  "releaseManifestSha256": "0e914ff5499d8b0b93b70d0d269bca2c99cccb4326efb43dc40118a5c0d363ac",
   "schemaVersion": 1,
   "sourceGitSha": "fe20b232a851e0f9f9b60ad575b040a07ac99a37",
-  "sourceTreeSha": "f1471d975bd150a7be7b430c2b6da4af438b55b9"
+  "sourceTreeSha": "f1471d975bd150a7be7b430c2b6da4af438b55b9",
+  "nodeVersion": "v22.23.2",
+  "packageLockSha256": "75c3df410d17eca53ab2e5b05e54fb088109ff92667cfb51d845fbf8a91bbe70",
+  "migrationSetSha256": "cdb2771dad55314a165d9f5cb9652a443f830826f7f5c67cf960aaa68cbd2840",
+  "releaseManifestSha256": "55bfc25d1fc6529bf94eb4651061eb61c6bd6765f318ff62394e09c1a24bbe8b"
 }

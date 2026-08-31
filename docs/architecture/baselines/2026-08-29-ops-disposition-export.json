@@ -3,7 +3,7 @@
   "payload": {
     "candidate": {
       "gitSha": "fe20b232a851e0f9f9b60ad575b040a07ac99a37",
-      "manifestSha256": "0e914ff5499d8b0b93b70d0d269bca2c99cccb4326efb43dc40118a5c0d363ac",
+      "manifestSha256": "55bfc25d1fc6529bf94eb4651061eb61c6bd6765f318ff62394e09c1a24bbe8b",
       "repository": "edutrack-ops",
       "treeSha": "f1471d975bd150a7be7b430c2b6da4af438b55b9"
     },
@@ -1159,6 +1159,6 @@
     "schemaVersion": 1,
     "surface": "ops"
   },
-  "payloadSha256": "c9da6b4c80518f34eeb7b822add1b646784a715f9a6d20f8539ad29723786ea5",
+  "payloadSha256": "d75bbb66412fbb3b56481a7fa9937e9a0b010e593154ee152f59b093ed8c1202",
   "schemaVersion": 1
 }
