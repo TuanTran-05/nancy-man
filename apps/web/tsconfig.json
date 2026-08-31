@@ -21,12 +21,14 @@
     "../api/src/**/*.ts",
     "../../deploy/dr/dr-status.schema.ts",
     "../../packages/contracts/src/**/*.ts",
+    "../../packages/config-contracts/src/**/*.ts",
     "../../packages/db/src/**/*.ts",
     "../../packages/security/src/**/*.ts"
   ],
   "exclude": [
     "../api/src/**/*.test.ts",
     "../../packages/contracts/src/**/*.test.ts",
+    "../../packages/config-contracts/src/**/*.test.ts",
     "../../packages/db/src/**/*.test.ts",
     "../../packages/security/src/**/*.test.ts"
   ]
