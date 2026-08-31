@@ -17,8 +17,12 @@ export const opsUsers = pgTable(
     status: text('status').$type<'pending_mfa' | 'active' | 'locked' | 'revoked'>().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
-    lockedUntil: timestamp('locked_until', { withTimezone: true }),
-    revokedAt: timestamp('revoked_at', { withTimezone: true })
+    loginBlockedUntil: timestamp('login_blocked_until', { withTimezone: true }),
+    administrativelyLockedAt: timestamp('administratively_locked_at', { withTimezone: true }),
+    administrativelyLockedBy: uuid('administratively_locked_by'),
+    lockReason: text('lock_reason'),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedBy: uuid('revoked_by')
   },
   (table) => [index('ops_users_status_idx').on(table.status)]
 );
@@ -83,4 +87,26 @@ export const opsSessions = pgTable(
     userAgent: text('user_agent').notNull()
   },
   (table) => [index('ops_sessions_user_active_idx').on(table.userId, table.idleExpiresAt)]
+);
+
+export const opsAccountEvents = pgTable(
+  'ops_account_events',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id').notNull(),
+    actorUserId: uuid('actor_user_id'),
+    eventType: text('event_type')
+      .$type<
+        | 'created'
+        | 'role_changed'
+        | 'administratively_locked'
+        | 'recovery_issued'
+        | 'activated'
+        | 'revoked'
+      >()
+      .notNull(),
+    metadata: jsonb('metadata').notNull().default({}),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull()
+  },
+  (table) => [index('ops_account_events_user_occurred_idx').on(table.userId, table.occurredAt)]
 );

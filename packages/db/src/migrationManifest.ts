@@ -80,6 +80,11 @@ export const opsMigrationTrustRoot: readonly MigrationTrustRootEntry[] = [
     id: '0013_sql_session_elevations',
     fileName: '0013_sql_session_elevations.sql',
     checksum: 'ad11197d1d48df1e4df5f7cc719fc57cc7e3827d60fd799ff282b242cfba7a5a'
+  },
+  {
+    id: '0014_ops_account_administration',
+    fileName: '0014_ops_account_administration.sql',
+    checksum: '3ca78b98b51979767355df5d148222c28b6e9ba3fa75aeb7ead2574c87617cca'
   }
 ];
 
