@@ -23,6 +23,7 @@ export type PasswordCredential = {
   displayName: string;
   role: OpsRole;
   status: 'pending_mfa' | 'active' | 'locked' | 'revoked';
+  loginBlockedUntil: string | null;
   passwordHash: string;
   mfaFactors: readonly MfaFactorSummary[];
 };
@@ -138,6 +139,7 @@ export class OpsAuthService {
     if (
       !principal ||
       principal.status !== 'active' ||
+      (principal.loginBlockedUntil !== null && Date.parse(principal.loginBlockedUntil) > this.now().getTime()) ||
       !(await this.verifyPassword(principal.passwordHash, input.password)) ||
       principal.mfaFactors.length === 0
     ) {

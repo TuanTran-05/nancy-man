@@ -34,6 +34,7 @@ export class PostgresOpsAuthRepository implements OpsAuthRepository {
           user_record.display_name AS "displayName",
           user_record.role,
           user_record.status,
+          user_record.login_blocked_until AS "loginBlockedUntil",
           credential.password_hash AS "passwordHash",
           COALESCE(
             jsonb_agg(
@@ -53,7 +54,7 @@ export class PostgresOpsAuthRepository implements OpsAuthRepository {
         LEFT JOIN ops_mfa_factors AS factor
           ON factor.user_id = user_record.id AND factor.revoked_at IS NULL
         WHERE lower(user_record.username) = lower($1) OR lower(user_record.email) = lower($1)
-        GROUP BY user_record.id, credential.password_hash
+        GROUP BY user_record.id, credential.password_hash, user_record.login_blocked_until
         LIMIT 1
       `,
       [identifier]
@@ -83,7 +84,7 @@ export class PostgresOpsAuthRepository implements OpsAuthRepository {
     const { rows } = await this.database.query<{ id: string }>(
       `
         UPDATE ops_users
-        SET status = 'locked', locked_until = now() + interval '30 minutes'
+        SET login_blocked_until = now() + interval '30 minutes'
         WHERE id = $1 AND status = 'active'
           AND (
             SELECT count(*) FROM ops_login_events

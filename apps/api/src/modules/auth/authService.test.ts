@@ -9,6 +9,45 @@ const now = new Date('2026-08-22T03:14:00.000Z');
 const mfaKey = Buffer.alloc(32, 7);
 
 describe('OpsAuthService', () => {
+  it('denies a credential during login cooldown without changing account status', async () => {
+    let passwordChecks = 0;
+    const service = new OpsAuthService({
+      repository: {
+        findPasswordCredential: async () => ({
+          id: 'f16f9426-010c-4e06-a459-9fd18c4a442d',
+          username: 'ops.owner',
+          displayName: 'Ops Owner',
+          role: 'ops_owner',
+          status: 'active',
+          loginBlockedUntil: '2099-08-31T12:30:00.000Z',
+          passwordHash: '$argon2id$encoded',
+          mfaFactors: [{ id: 'factor-totp', type: 'totp', label: 'Authenticator' }]
+        }),
+        recordLoginEvent: async () => undefined,
+        createMfaChallenge: async () => undefined,
+        findTotpChallenge: async () => null,
+        consumeMfaChallengeAndCreateSession: async () => false
+      },
+      sessionPepper: 'auth-session-pepper',
+      mfaEncryptionKey: mfaKey,
+      verifyPassword: async () => {
+        passwordChecks += 1;
+        return true;
+      },
+      now: () => now
+    });
+
+    await expect(
+      service.beginLogin({
+        identifier: 'ops.owner',
+        password: 'a-long-unique-passphrase',
+        ipHash: 'a'.repeat(64),
+        userAgent: 'test-agent'
+      })
+    ).resolves.toEqual({ status: 'denied' });
+    expect(passwordChecks).toBe(0);
+  });
+
   it('only creates a short-lived MFA challenge after an active account proves its password', async () => {
     const recorded: unknown[] = [];
     const challenges: unknown[] = [];
@@ -20,6 +59,7 @@ describe('OpsAuthService', () => {
           displayName: 'Ops Owner',
           role: 'ops_owner',
           status: 'active',
+          loginBlockedUntil: null,
           passwordHash: '$argon2id$encoded',
           mfaFactors: [{ id: 'factor-totp', type: 'totp', label: 'Authenticator' }]
         }),

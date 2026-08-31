@@ -17,6 +17,7 @@ describe('PostgresOpsAuthRepository', () => {
                 displayName: 'Ops Owner',
                 role: 'ops_owner',
                 status: 'active',
+                loginBlockedUntil: null,
                 passwordHash: '$argon2id$encoded',
                 mfaFactors: [{ id: 'factor-id', type: 'totp', label: 'Authenticator' }]
               }
@@ -55,12 +56,12 @@ describe('PostgresOpsAuthRepository', () => {
     expect(consume?.parameters).toContain('session-id');
   });
 
-  it('locks only the affected active account after five failed attempts in fifteen minutes', async () => {
+  it('records only a login cooldown after five failed attempts in fifteen minutes', async () => {
     const calls: string[] = [];
     const repository = new PostgresOpsAuthRepository({
       query: async <T>(sql: string) => {
         calls.push(sql);
-        if (sql.includes("SET status = 'locked'")) return { rows: [{ id: 'user-id' }] as T[] };
+        if (sql.includes('SET login_blocked_until')) return { rows: [{ id: 'user-id' }] as T[] };
         return { rows: [] as T[] };
       }
     });
@@ -73,6 +74,8 @@ describe('PostgresOpsAuthRepository', () => {
     });
     expect(calls.join('\n')).toContain("interval '15 minutes'");
     expect(calls.join('\n')).toContain("interval '30 minutes'");
+    expect(calls.join('\n')).toContain('login_blocked_until');
+    expect(calls.join('\n')).not.toContain("SET status = 'locked'");
     expect(calls.filter((sql) => sql.includes('INSERT INTO ops_login_events'))).toHaveLength(2);
   });
 });
