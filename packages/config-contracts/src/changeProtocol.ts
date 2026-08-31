@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 const stableIdPattern = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u;
-const changeIdPattern = /^CHG_[A-Za-z0-9_]+$/u;
-const runIdPattern = /^RUN_[A-Za-z0-9_]+$/u;
-const eventIdPattern = /^EVT_[A-Za-z0-9_]+$/u;
+const opaqueUuid = '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const changeIdPattern = new RegExp(`^(?:CHG_[A-Za-z0-9_]+|${opaqueUuid})$`, 'u');
+const runIdPattern = new RegExp(`^(?:RUN_[A-Za-z0-9_]+|${opaqueUuid})$`, 'u');
+const eventIdPattern = new RegExp(`^(?:EVT_[A-Za-z0-9_]+|${opaqueUuid})$`, 'u');
 const digestPattern = /^sha256:[a-f0-9]{64}$/u;
 const hmacDigestPattern = /^hmac-sha256:v[0-9]+:[a-f0-9]{64}$/u;
 const variableNamePattern = /^[A-Z][A-Z0-9_]*$/u;
@@ -114,12 +115,29 @@ export const ChangeValidateRequestSchema = oneApplication(
 );
 export type ChangeValidateRequest = z.infer<typeof ChangeValidateRequestSchema>;
 
+export const ChangeImpactPlanSchema = z.object({
+  applicationId: stableId,
+  strategies: z.array(ChangeApplyStrategySchema),
+  sourceIds: z.array(stableId),
+  actionIds: z.array(stableId),
+  checkIds: z.array(stableId),
+  counts: z.object({
+    items: z.number().int().nonnegative(),
+    sets: z.number().int().nonnegative(),
+    deletes: z.number().int().nonnegative(),
+    sources: z.number().int().nonnegative()
+  }).strict(),
+  warnings: z.array(z.string().min(1).max(512)),
+  expectedEffect: ChangeApplyStrategySchema
+}).strict();
+export type ChangeImpactPlan = z.infer<typeof ChangeImpactPlanSchema>;
+
 export const ChangeSaveRequestSchema = z.object({
   changeId,
   changeDigest,
   catalogVersion: version,
   manifestVersion: version,
-  impactPlan: z.record(z.string(), z.unknown()).optional()
+  impactPlan: ChangeImpactPlanSchema.optional()
 }).strict();
 export type ChangeSaveRequest = z.infer<typeof ChangeSaveRequestSchema>;
 
@@ -146,19 +164,6 @@ export const ClearApplyBlockRequestSchema = z.object({
 });
 export type ClearApplyBlockRequest = z.infer<typeof ClearApplyBlockRequestSchema>;
 
-export const ChangeImpactPlanSchema = z.object({
-  appId: stableId,
-  strategies: z.array(ChangeApplyStrategySchema),
-  sourceIds: z.array(stableId),
-  actionIds: z.array(stableId),
-  checkIds: z.array(stableId),
-  itemCount: z.number().int().nonnegative(),
-  warnings: z.array(z.string().min(1).max(512)),
-  expectedEffect: z.enum(['immediate', 'takes_effect_next_run', 'restart_required', 'redeploy_required'])
-}).strict();
-export type ChangeValidationResponse = z.infer<typeof ChangeValidationResponseSchema>;
-export type ChangeImpactPlan = z.infer<typeof ChangeImpactPlanSchema>;
-
 export const ChangeValidationResponseSchema = z.object({
   changeId,
   state: ConfigChangeStateSchema,
@@ -168,6 +173,7 @@ export const ChangeValidationResponseSchema = z.object({
   ruleIds: z.array(stableId),
   warnings: z.array(z.string().min(1).max(512))
 }).strict();
+export type ChangeValidationResponse = z.infer<typeof ChangeValidationResponseSchema>;
 
 export const ChangeSavedResponseSchema = z.object({
   changeId,

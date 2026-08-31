@@ -131,6 +131,48 @@ export interface VariableCatalog {
   apps: VariableCatalogApp[];
 }
 
+export interface ConfigChangeItemInput {
+  appId: string;
+  sourceId: string;
+  catalogId: string;
+  name: string;
+  operation: 'set' | 'delete';
+  requirement: VariableRequirement;
+  mutability: VariableMutability;
+  strategy: VariableApplyStrategy;
+  sourceFingerprint: string;
+  value?: string;
+}
+
+export interface ChangeImpactPlan {
+  applicationId: string;
+  sourceIds: string[];
+  actionIds: string[];
+  checkIds: string[];
+  strategies: VariableApplyStrategy[];
+  counts: { items: number; sets: number; deletes: number; sources: number };
+  warnings: string[];
+  expectedEffect: VariableApplyStrategy;
+}
+
+export interface ConfigChangeStatus {
+  changeId: string;
+  state: string;
+  sequence: number;
+  changeDigest?: string;
+  impactPlan?: ChangeImpactPlan;
+  events: Array<{
+    eventId: string;
+    changeId: string;
+    sequence: number;
+    state: string;
+    reasonCode: string;
+    actionId?: string;
+    checkId?: string;
+    occurredAt: string;
+  }>;
+}
+
 export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -264,4 +306,46 @@ export const lockVariables = (csrfToken: string) =>
   request<void>('/api/v1/auth/variables/unlock', {
     method: 'DELETE',
     headers: { 'X-Ops-CSRF': csrfToken }
+  });
+
+export const createConfigChange = (input: { appId: string; reason: string; supersedesChangeId?: string }, csrfToken: string) =>
+  request<{ changeId: string; state: 'DRAFT'; expiresAt: string }>('/api/v1/config-changes', {
+    method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify(input)
+  });
+
+export const replaceConfigChangeItems = (changeId: string, input: {
+  appId: string; reason: string; catalogVersion: string; manifestVersion: string; items: ConfigChangeItemInput[];
+}, csrfToken: string) =>
+  request<unknown>(`/api/v1/config-changes/${encodeURIComponent(changeId)}/items`, {
+    method: 'PUT', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify(input)
+  });
+
+export const validateConfigChange = (changeId: string, input: {
+  appId: string; reason: string; catalogVersion: string; manifestVersion: string; items: ConfigChangeItemInput[];
+}, csrfToken: string) =>
+  request<unknown>(`/api/v1/config-changes/${encodeURIComponent(changeId)}/validate`, {
+    method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify(input)
+  });
+
+export const saveConfigChange = (changeId: string, input: { changeDigest: string; catalogVersion: string; manifestVersion: string; impactPlan?: ChangeImpactPlan }, csrfToken: string) =>
+  request<{ changeId: string; state: 'SAVED'; changeDigest: string; expiresAt: string }>(`/api/v1/config-changes/${encodeURIComponent(changeId)}/save`, {
+    method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify(input)
+  });
+
+export const authorizeConfigApply = (changeDigest: string, input: { password: string; totpCode: string }, csrfToken: string) =>
+  request<{ authorizedUntil: string }>('/api/v1/auth/variables/apply-authorization', {
+    method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify({ ...input, changeDigest })
+  });
+
+export const applyConfigChange = (changeId: string, input: { runId: string; changeDigest: string; idempotencyKey: string }, csrfToken: string) =>
+  request<{ changeId: string; runId: string; state: 'APPLYING' }>(`/api/v1/config-changes/${encodeURIComponent(changeId)}/apply`, {
+    method: 'POST', headers: { 'X-Ops-CSRF': csrfToken }, body: JSON.stringify(input)
+  });
+
+export const getConfigChangeStatus = (changeId: string) =>
+  request<ConfigChangeStatus>(`/api/v1/config-changes/${encodeURIComponent(changeId)}`);
+
+export const cancelConfigChange = (changeId: string, csrfToken: string) =>
+  request<void>(`/api/v1/config-changes/${encodeURIComponent(changeId)}`, {
+    method: 'DELETE', headers: { 'X-Ops-CSRF': csrfToken }
   });
