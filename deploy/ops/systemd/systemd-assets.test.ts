@@ -82,6 +82,128 @@ function canConnectUnixSocket(input: {
 }
 
 describe('canonical Ops systemd assets', () => {
+  it('defines a private read-only config agent with an API-only socket boundary', async () => {
+    const agent = await readFile(new URL('ops-config-agent.service', systemdDirectory), 'utf8');
+    const api = await unit('api');
+
+    expect(setting(agent, 'User')).toEqual(['edutrack-config-agent']);
+    expect(setting(agent, 'Group')).toEqual(['edutrack-config-api']);
+    expect(setting(agent, 'SupplementaryGroups')).toEqual(['edutrack-config-agent']);
+    expect(setting(agent, 'RuntimeDirectory')).toEqual(['edutrack-config-agent']);
+    expect(setting(agent, 'RuntimeDirectoryMode')).toEqual(['0750']);
+    expect(setting(agent, 'ExecStart')).toEqual([
+      '/usr/bin/node /srv/edutrack-ops/config-agent/current/apps/config-agent/dist/apps/config-agent/src/runtime/main.js'
+    ]);
+    expect(setting(agent, 'ReadWritePaths')).toEqual([]);
+    expect(setting(agent, 'ReadOnlyPaths')).toEqual([
+      '/srv/edutrack/shared/.env',
+      '/srv/edutrack/current',
+      '/srv/edutrack/releases',
+      '/srv/edutrack-ops/config-agent/current',
+      '/etc/edutrack-ops/api.env',
+      '/etc/edutrack-ops/web.env',
+      '/etc/edutrack-ops/collector.env',
+      '/etc/edutrack-ops/sql-worker.env',
+      '/etc/edutrack-ops/credentials',
+      '/etc/beszel/hub/hub.env',
+      '/etc/beszel/agent.env'
+    ]);
+    expect(setting(agent, 'RestrictAddressFamilies')).toEqual(['AF_UNIX']);
+    expect(setting(agent, 'CapabilityBoundingSet')).toEqual(['']);
+    expect(setting(agent, 'AmbientCapabilities')).toEqual(['']);
+    expect(setting(agent, 'SystemCallFilter')).toEqual(['@system-service']);
+    expect(setting(agent, 'LimitNOFILE')).toEqual(['4096']);
+    expect(setting(agent, 'MemoryMax')).toEqual(['256M']);
+    expect(setting(agent, 'TasksMax')).toEqual(['64']);
+    expect(setting(agent, 'StartLimitIntervalSec')).toEqual(['60s']);
+    expect(setting(agent, 'StartLimitBurst')).toEqual(['5']);
+    expect(setting(agent, 'LoadCredential')).toEqual([
+      'config-agent-protocol-hmac:/etc/edutrack-ops/credentials/config-agent-protocol-hmac',
+      'config-agent-fingerprint-hmac:/etc/edutrack-ops/credentials/config-agent-fingerprint-hmac'
+    ]);
+    expect(agent).toContain('Before=edutrack-ops-api.service');
+    expect(agent).toContain('After=local-fs.target');
+    expect(agent).toContain('StandardOutput=journal');
+    expect(agent).toContain('StandardError=journal');
+    expect(agent).toContain('LogLevelMax=notice');
+    expect(agent).toContain('NoNewPrivileges=true');
+    expect(agent).toContain('PrivateTmp=true');
+    expect(agent).toContain('PrivateDevices=true');
+    expect(agent).toContain('ProtectHome=true');
+    expect(agent).toContain('ProtectSystem=strict');
+    expect(agent).toContain('RestrictNamespaces=true');
+    expect(agent).toContain('RestrictSUIDSGID=true');
+    expect(agent).toContain('LockPersonality=true');
+    expect(agent).toContain('UMask=0007');
+    expect(api).toContain('SupplementaryGroups=edutrack-config-api');
+    expect(api).not.toContain('SupplementaryGroups=edutrack-ops-sql');
+  });
+
+  it('declares explicit runtime directory and socket ownership in tmpfiles assets', async () => {
+    const tmpfiles = await readFile(
+      new URL('ops-config-agent.tmpfiles.conf', systemdDirectory),
+      'utf8'
+    );
+    expect(tmpfiles).toContain(
+      'd /run/edutrack-config-agent 0750 edutrack-config-api edutrack-config-api -'
+    );
+    expect(tmpfiles).toContain('agent.sock');
+    expect(tmpfiles).toContain('0660');
+  });
+
+  it('keeps the config-agent environment dark by default and value-free', async () => {
+    const environment = await readFile(
+      new URL('config-agent.env.example', environmentDirectory),
+      'utf8'
+    );
+    expect(environment).toContain('OPS_CONFIG_AGENT_ENABLED=false');
+    expect(environment).toContain(
+      'OPS_CONFIG_AGENT_SOCKET_PATH=/run/edutrack-config-agent/agent.sock'
+    );
+    expect(environment).toContain(
+      'OPS_CONFIG_AGENT_PROTOCOL_HMAC_REFERENCE=config-agent-protocol-hmac'
+    );
+    expect(environment).toContain(
+      'OPS_CONFIG_AGENT_FINGERPRINT_HMAC_REFERENCE=config-agent-fingerprint-hmac'
+    );
+    expect(environment).not.toMatch(
+      /(?:postgres(?:ql)?:\/\/|BEGIN (?:RSA |OPENSSH )?PRIVATE KEY)/iu
+    );
+  });
+
+  it('contains the inactive install, signed negotiation, feature-flag, restart, and smoke sequence', async () => {
+    const deploy = await readFile(new URL('../scripts/deploy-release.sh', import.meta.url), 'utf8');
+    const install = await readFile(
+      new URL('../scripts/install-systemd-assets.sh', import.meta.url),
+      'utf8'
+    );
+    expect(deploy.indexOf('install-systemd-assets.sh')).toBeGreaterThanOrEqual(0);
+    expect(deploy.indexOf('start ops-config-agent.service')).toBeGreaterThan(
+      deploy.indexOf('install-systemd-assets.sh')
+    );
+    expect(deploy.indexOf('agent.capabilities')).toBeGreaterThan(
+      deploy.indexOf('start ops-config-agent.service')
+    );
+    expect(deploy.indexOf('OPS_CONFIG_AGENT_ENABLED=true')).toBeGreaterThan(
+      deploy.indexOf('agent.capabilities')
+    );
+    expect(deploy.indexOf('restart edutrack-ops-api.service')).toBeGreaterThan(
+      deploy.indexOf('OPS_CONFIG_AGENT_ENABLED=true')
+    );
+    expect(deploy.indexOf('healthz')).toBeGreaterThan(
+      deploy.indexOf('restart edutrack-ops-api.service')
+    );
+    expect(deploy).toContain('OPS_CONFIG_AGENT_ENABLED=false');
+    expect(deploy).toContain('inventory.read');
+    expect(install).toContain('install -D -m 0755');
+    expect(install).toContain('mv -T');
+    expect(install).toContain('systemd-analyze verify');
+    expect(install).toContain('systemctl daemon-reload');
+    expect(install).toContain('chmod 0400');
+    expect(install).not.toMatch(/cat\s+.*(?:env|credential)/iu);
+    expect(install).not.toContain('printf "%s" "$value"');
+  });
+
   it('defines exactly the seven least-privilege service identities and entrypoints', async () => {
     expect(Object.keys(services)).toHaveLength(7);
 
@@ -90,9 +212,7 @@ describe('canonical Ops systemd assets', () => {
       expect(setting(contents, 'User')).toEqual([expected.user]);
       expect(setting(contents, 'Group')).toEqual([expected.group]);
       expect(setting(contents, 'WorkingDirectory')).toEqual([
-        'workingDirectory' in expected
-          ? expected.workingDirectory
-          : '/srv/edutrack-ops/current'
+        'workingDirectory' in expected ? expected.workingDirectory : '/srv/edutrack-ops/current'
       ]);
       expect(setting(contents, 'ExecStart')).toEqual([expected.executable]);
       expect(setting(contents, 'ReadWritePaths')).toEqual(expected.writablePaths);
@@ -118,12 +238,12 @@ describe('canonical Ops systemd assets', () => {
     ]);
   });
 
-  it('gives only the API and SQL worker identities group-level access to the private socket', async () => {
+  it('gives only the SQL worker identity group-level access to the private SQL socket', async () => {
     const api = await unit('api');
     const worker = await unit('sql-worker');
     const socketGroup = 'edutrack-ops-sql';
 
-    expect(setting(api, 'SupplementaryGroups')).toEqual([socketGroup]);
+    expect(setting(api, 'SupplementaryGroups')).toEqual(['edutrack-config-api']);
     expect(setting(worker, 'Group')).toEqual([socketGroup]);
     expect(setting(worker, 'RuntimeDirectoryMode')).toEqual(['0750']);
 
@@ -149,7 +269,9 @@ describe('canonical Ops systemd assets', () => {
     expect(web).toContain(
       'LoadCredential=ops-legacy-monitoring-hmac:/etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac'
     );
-    expect(web).toContain('Environment=OPS_LEGACY_MONITORING_HMAC_FILE=%d/ops-legacy-monitoring-hmac');
+    expect(web).toContain(
+      'Environment=OPS_LEGACY_MONITORING_HMAC_FILE=%d/ops-legacy-monitoring-hmac'
+    );
   });
 
   it('keeps collector watchdog and failure notification under the collector identity', async () => {

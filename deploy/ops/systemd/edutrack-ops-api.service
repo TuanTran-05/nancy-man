@@ -2,12 +2,14 @@
 Description=EduTrack Operations API
 After=network-online.target
 Wants=network-online.target
+Requires=ops-config-agent.service
+After=ops-config-agent.service
 
 [Service]
 Type=simple
 User=edutrack-ops-api
 Group=edutrack-ops-api
-SupplementaryGroups=edutrack-ops-sql
+SupplementaryGroups=edutrack-config-api
 WorkingDirectory=/srv/edutrack-ops/current
 EnvironmentFile=/etc/edutrack-ops/api.env
 Environment=OPS_SECRET_DIRECTORY=%d
@@ -20,6 +22,7 @@ LoadCredential=ops-password-fingerprint-pepper:/etc/edutrack-ops/credentials/ops
 LoadCredential=ops-legacy-monitoring-hmac:/etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac
 LoadCredential=browser-context-edutrack-v1:/etc/edutrack-ops/credentials/browser-context-edutrack-v1
 ExecStart=/usr/bin/node apps/api/dist/apps/api/src/runtime/main.js
+ExecStartPre=/usr/bin/test -S /run/edutrack-config-agent/agent.sock
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30s

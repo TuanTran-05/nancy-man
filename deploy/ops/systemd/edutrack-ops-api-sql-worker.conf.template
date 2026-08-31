@@ -5,5 +5,6 @@
 # API deployment cannot access the private SQL worker unless an operator both
 # installs this credential and sets OPS_SQL_WORKER_ENABLED=true in api.env.
 [Service]
+SupplementaryGroups=edutrack-config-api edutrack-ops-sql
 LoadCredential=ops-sql-worker-hmac:/etc/edutrack-ops/credentials/ops-sql-worker-hmac
 LoadCredential=ops-sql-audit-encryption-key:/etc/edutrack-ops/credentials/ops-sql-audit-encryption-key
