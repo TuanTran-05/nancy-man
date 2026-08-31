@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import {
+  createCsrfToken,
   deriveCsrfSecret,
   verifyCsrfToken,
   type OpsRole
@@ -37,6 +38,7 @@ export async function authorizeOpsSession(input: {
   role: OpsRole;
   username?: string;
   displayName?: string;
+  csrfToken?: string;
 } | null> {
   const token = sessionToken(input.cookieHeader);
   if (!token) return null;
@@ -56,6 +58,7 @@ export async function authorizeOpsSession(input: {
     userId: session.userId,
     role: session.role,
     ...(session.username ? { username: session.username } : {}),
-    ...(session.displayName ? { displayName: session.displayName } : {})
+    ...(session.displayName ? { displayName: session.displayName } : {}),
+    csrfToken: createCsrfToken({ sessionId: session.id, csrfSecret })
   };
 }

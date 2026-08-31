@@ -132,6 +132,11 @@ readonly DEPLOY_ASSETS=(
 )
 for asset in "${DEPLOY_ASSETS[@]}"; do copy_git_blob "$asset"; done
 
+node -e '
+const fs=require("node:fs"); const value=fs.readFileSync(process.argv[1],"utf8");
+if (!/location (?:\^~ )?\/api\/v1\//.test(value) || !/location = \/api\/zalo-bot\/webhook/.test(value) || !/location = \/api\/session \{[\s\S]*?return 410;/.test(value) || /location \/api\/ \{/.test(value)) process.exit(1);
+' "$STAGING/deploy/ops/nginx/man.thienuy.edu.vn-api.conf" || fail RELEASE_PUBLIC_ROUTING_INVALID
+
 node "$MANIFEST_TOOL" generate "$STAGING" >/dev/null
 # shellcheck disable=SC2016 # JavaScript template interpolation must reach Node literally.
 manifest_digest="$(node -e 'const fs=require("node:fs"), crypto=require("node:crypto"); const value=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(crypto.createHash("sha256").update(`${JSON.stringify(value)}\n`).digest("hex"));' "$STAGING/.release-manifest.json")"

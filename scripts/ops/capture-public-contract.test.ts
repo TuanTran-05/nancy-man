@@ -5,6 +5,7 @@ import {
   buildPublicContract,
   capturePublicContract,
   serializePublicContract,
+  validatePublicRouteOwnership,
   validatePublicContract
 } from './capture-public-contract.mjs';
 
@@ -95,6 +96,22 @@ async function rejectionCodeWithin(promise: Promise<unknown>, timeoutMs = 750): 
 }
 
 describe('Ops public-contract capture', () => {
+  it('validates canonical route ownership and rejects a generic legacy API proxy', () => {
+    const config = `
+      location ^~ /api/v1/ { proxy_pass http://127.0.0.1:3100; }
+      location = /api/zalo-bot/webhook { proxy_pass http://127.0.0.1:3101; }
+      location = /api/session { return 410; }
+      location / { proxy_pass http://127.0.0.1:3101; }
+    `;
+    expect(validatePublicRouteOwnership(config)).toMatchObject({
+      canonicalApiPrefix: '/api/v1/',
+      retiredStatus: 410
+    });
+    expect(() => validatePublicRouteOwnership(`${config}\nlocation /api/ { proxy_pass http://127.0.0.1:3101; }`)).toThrow(
+      'PUBLIC_CONTRACT_ROUTING_INVALID'
+    );
+  });
+
   it('reduces shuffled fixtures to a deterministic route/status/shape/header/landmark allowlist', () => {
     const contract = buildPublicContract([
       unauthorizedResponse('/api/session'),

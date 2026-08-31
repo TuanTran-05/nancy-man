@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { deriveCsrfSecret, hashCsrfSecret } from '../../../../../packages/security/src/sessions.js';
+import {
+  createCsrfToken,
+  deriveCsrfSecret,
+  hashCsrfSecret
+} from '../../../../../packages/security/src/sessions.js';
 
 import { authorizeOpsSession } from './sessionAuthorization.js';
 
@@ -40,7 +44,11 @@ describe('authorizeOpsSession', () => {
       role: 'ops_owner',
       sessionId: 'session-id',
       username: 'tuan.dev',
-      displayName: 'Tuan Dev'
+      displayName: 'Tuan Dev',
+      csrfToken: createCsrfToken({
+        sessionId: 'session-id',
+        csrfSecret: deriveCsrfSecret({ sessionToken: 'token'.repeat(8), csrfPepper: 'pepper' })
+      })
     });
   });
 });

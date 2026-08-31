@@ -11,6 +11,15 @@ const ROUTES = Object.freeze([
   Object.freeze({ method: 'GET', path: '/api/overview', status: 401 })
 ]);
 const ROUTE_KEYS = new Set(ROUTES.map(({ method, path }) => `${method} ${path}`));
+export const PUBLIC_ROUTE_OWNERSHIP = Object.freeze({
+  canonicalApiPrefix: '/api/v1/',
+  canonicalApiUpstream: '127.0.0.1:3100',
+  webRootUpstream: '127.0.0.1:3101',
+  legacyWebhookPath: '/api/zalo-bot/webhook',
+  legacyWebhookUpstream: '127.0.0.1:3101',
+  retiredSessionPath: '/api/session',
+  retiredStatus: 410
+});
 const SECURITY_HEADERS = new Set([
   'cache-control',
   'content-security-policy',
@@ -49,6 +58,31 @@ const MAX_ENCODED_TOKEN_CHARACTERS = 16_384;
 
 function fail(code) {
   throw new Error(code);
+}
+
+export function validatePublicRouteOwnership(config) {
+  if (typeof config !== 'string') fail('PUBLIC_CONTRACT_ROUTING_INVALID');
+  const hasCanonicalApi = new RegExp(
+    `location (?:\\^~ )?${PUBLIC_ROUTE_OWNERSHIP.canonicalApiPrefix.replaceAll('/', '\\/')}\\s*\\{[\\s\\S]*?proxy_pass http:\\/\\/${PUBLIC_ROUTE_OWNERSHIP.canonicalApiUpstream}`
+  ).test(config);
+  const hasWebRoot = new RegExp(
+    `location \\/\\s*\\{[\\s\\S]*?proxy_pass http:\\/\\/${PUBLIC_ROUTE_OWNERSHIP.webRootUpstream}`
+  ).test(config);
+  const hasExactWebhook = new RegExp(
+    `location = ${PUBLIC_ROUTE_OWNERSHIP.legacyWebhookPath.replaceAll('/', '\\/')}\\s*\\{[\\s\\S]*?proxy_pass http:\\/\\/${PUBLIC_ROUTE_OWNERSHIP.legacyWebhookUpstream}`
+  ).test(config);
+  const hasRetiredSession = new RegExp(
+    `location = ${PUBLIC_ROUTE_OWNERSHIP.retiredSessionPath.replaceAll('/', '\\/')}\\s*\\{[\\s\\S]*?return ${PUBLIC_ROUTE_OWNERSHIP.retiredStatus};`
+  ).test(config);
+  if (
+    !hasCanonicalApi ||
+    !hasWebRoot ||
+    !hasExactWebhook ||
+    !hasRetiredSession ||
+    config.includes('location /api/ {')
+  )
+    fail('PUBLIC_CONTRACT_ROUTING_INVALID');
+  return PUBLIC_ROUTE_OWNERSHIP;
 }
 
 function exactKeys(value, expected) {

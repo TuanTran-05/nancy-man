@@ -13,6 +13,7 @@ export interface OpsAppDependencies {
   store: OpsStore;
   auth: AuthService;
   staticDir?: string;
+  legacyBrowserApi?: boolean;
   zalo?: OpsZaloRouteDependencies;
   internalMonitoring?: {
     secret: string;
@@ -35,9 +36,28 @@ export function createOpsApp(deps: OpsAppDependencies): Express {
     })
   );
   const router = express.Router();
-  attachAuthRoutes(router, deps.auth);
-  attachMonitorRoutes(router, deps.store, deps.auth);
-  if (deps.zalo) attachZaloRoutes(router, deps.zalo);
+  const legacyBrowserApi = deps.legacyBrowserApi ?? true;
+  if (legacyBrowserApi) {
+    attachAuthRoutes(router, deps.auth);
+    attachMonitorRoutes(router, deps.store, deps.auth);
+  } else {
+    router.all(
+      [
+        '/api/session',
+        '/api/overview',
+        '/api/infrastructure/history',
+        '/api/incidents',
+        '/api/incidents/:id/ack',
+        '/api/zalo/link',
+        '/api/zalo/link-code'
+      ],
+      (_request, response) => {
+        response.setHeader('Cache-Control', 'no-store');
+        response.status(410).json({ error: 'legacy_route_retired' });
+      }
+    );
+  }
+  if (deps.zalo) attachZaloRoutes(router, deps.zalo, { legacyBrowserApi });
   if (deps.internalMonitoring) {
     attachInternalCanonicalRoutes(router, {
       store: deps.store,

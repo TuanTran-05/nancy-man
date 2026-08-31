@@ -15,6 +15,7 @@ export function startWebServer() {
     store,
     auth,
     staticDir: resolve(process.cwd(), 'dist/web'),
+    legacyBrowserApi: false,
     zalo: {
       store,
       auth,

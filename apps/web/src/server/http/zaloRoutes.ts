@@ -74,12 +74,17 @@ function ignored(response: Response, reason?: string): void {
   response.status(200).json(reason ? { ignored: true, reason } : { ignored: true });
 }
 
-export function attachZaloRoutes(router: Router, deps: OpsZaloRouteDependencies): void {
+export function attachZaloRoutes(
+  router: Router,
+  deps: OpsZaloRouteDependencies,
+  options: { legacyBrowserApi?: boolean } = {}
+): void {
   const now = deps.now ?? (() => new Date());
   const confirmationSender = deps.confirmationSender ?? sendZaloText;
   const guard = requireOpsSession(deps.auth);
 
-  router.get('/api/zalo/link', guard, (request: SessionRequest, response) => {
+  if (options.legacyBrowserApi !== false)
+    router.get('/api/zalo/link', guard, (request: SessionRequest, response) => {
     noStore(response);
     const status = deps.store.getZaloLinkStatus(request.opsSession!.accountId);
     response.json(
@@ -87,9 +92,10 @@ export function attachZaloRoutes(router: Router, deps: OpsZaloRouteDependencies)
         ? { linked: true, linkedAt: status.linkedAt, lastSeenAt: status.lastSeenAt }
         : { linked: false }
     );
-  });
+    });
 
-  router.post('/api/zalo/link-code', guard, (request: SessionRequest, response) => {
+  if (options.legacyBrowserApi !== false)
+    router.post('/api/zalo/link-code', guard, (request: SessionRequest, response) => {
     noStore(response);
     const csrf = request.header('X-CSRF-Token');
     if (!csrf || !deps.auth.verifySessionCsrf(request.opsSession!, csrf)) {
@@ -115,9 +121,10 @@ export function attachZaloRoutes(router: Router, deps: OpsZaloRouteDependencies)
     response
       .status(201)
       .json({ code, expiresAt: expiresAt.toISOString(), command: `/link ${code}` });
-  });
+    });
 
-  router.delete('/api/zalo/link', guard, (request: SessionRequest, response) => {
+  if (options.legacyBrowserApi !== false)
+    router.delete('/api/zalo/link', guard, (request: SessionRequest, response) => {
     noStore(response);
     const csrf = request.header('X-CSRF-Token');
     if (!csrf || !deps.auth.verifySessionCsrf(request.opsSession!, csrf)) {
@@ -134,7 +141,7 @@ export function attachZaloRoutes(router: Router, deps: OpsZaloRouteDependencies)
       occurredAt: at
     });
     response.status(204).end();
-  });
+    });
 
   router.post('/api/zalo-bot/webhook', async (request, response) => {
     noStore(response);

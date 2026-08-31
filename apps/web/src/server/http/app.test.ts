@@ -80,6 +80,41 @@ const makeZaloFixture = () => {
 };
 
 describe('protected Ops HTTP API', () => {
+  it('retires legacy browser API routes while keeping the exact webhook route available', async () => {
+    const fixture = makeZaloFixture();
+    const retiredAuth = createAuthService({ store: fixture.store, dataKey: Buffer.alloc(32, 7) });
+    const retiredApp = createOpsApp({
+      store: fixture.store,
+      auth: retiredAuth,
+      legacyBrowserApi: false,
+      zalo: {
+        store: fixture.store,
+        auth: retiredAuth,
+        config: {
+          botToken: 'bot-secret',
+          webhookSecret: 'w'.repeat(32),
+          linkCodePepper: 'p'.repeat(32),
+          chatHashSecret: 'h'.repeat(32),
+          recipientKey: Buffer.alloc(32, 8),
+          timeoutMs: 5000,
+          linkTtlSeconds: 600
+        }
+      }
+    });
+    try {
+      await request(retiredApp).get('/api/session').expect(410);
+      await request(retiredApp).get('/api/overview').expect(410);
+      await request(retiredApp).get('/api/zalo/link').expect(410);
+      await request(retiredApp)
+        .post('/api/zalo-bot/webhook')
+        .set('X-Bot-Api-Secret-Token', 'w'.repeat(32))
+        .send({ event_name: 'test' })
+        .expect(200);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it('denies monitoring API without an Ops session', async () => {
     const fixture = makeFixture();
     try {

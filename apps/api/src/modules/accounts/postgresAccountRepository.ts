@@ -164,8 +164,10 @@ export class PostgresAccountRepository implements AccountRepository {
   }
 
   private async lockActiveOwnerCount(database: QueryDatabase): Promise<number> {
-    const { rows } = await database.query<{ count: string }>(`SELECT count(*)::text AS count FROM ops_users WHERE status = 'active' AND role = 'ops_owner' FOR UPDATE`);
-    return Number(rows[0]?.count ?? 0);
+    const { rows } = await database.query<{ id: string }>(
+      `SELECT id FROM ops_users WHERE status = 'active' AND role = 'ops_owner' ORDER BY id FOR UPDATE`
+    );
+    return rows.length;
   }
 
   private async revokeAccess(database: QueryDatabase, userId: string, reason: string): Promise<void> {

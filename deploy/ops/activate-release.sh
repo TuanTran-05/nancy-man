@@ -90,6 +90,10 @@ readonly RELEASE="$RELEASE_ROOT/releases/$SHA"
 [[ -d "$RELEASE" && ! -L "$RELEASE" ]] || fail RELEASE_TARGET_ABSENT
 [[ -f "$RELEASE/.release-source.json" && -f "$RELEASE/.release-manifest.json" ]] || fail RELEASE_MARKER_ABSENT
 node "$MANIFEST_TOOL" verify "$RELEASE" >/dev/null
+node -e '
+const fs=require("node:fs"); const value=fs.readFileSync(process.argv[1],"utf8");
+if (!/location (?:\^~ )?\/api\/v1\//.test(value) || !/location = \/api\/zalo-bot\/webhook/.test(value) || !/location = \/api\/session \{[\s\S]*?return 410;/.test(value) || /location \/api\/ \{/.test(value)) process.exit(1);
+' "$RELEASE/deploy/ops/nginx/man.thienuy.edu.vn-api.conf" || fail RELEASE_PUBLIC_ROUTING_INVALID
 
 # shellcheck disable=SC2016 # JavaScript template interpolation must reach Node literally.
 node -e '

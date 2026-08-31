@@ -90,8 +90,10 @@ describe('man.thienuy.edu.vn canonical dual-plane vhost', () => {
     const config = readFileSync(configPath, 'utf8');
 
     expect(config).toMatch(/location = \/healthz[\s\S]*127\.0\.0\.1:3100/);
-    expect(config).toMatch(/location \/api\/v1\/[\s\S]*127\.0\.0\.1:3100/);
-    expect(config).toMatch(/location \/api\/[\s\S]*127\.0\.0\.1:3101/);
+    expect(config).toMatch(/location (?:\^~ )?\/api\/v1\/[\s\S]*127\.0\.0\.1:3100/);
+    expect(config).toMatch(/location = \/api\/zalo-bot\/webhook[\s\S]*127\.0\.0\.1:3101/);
+    expect(config).toMatch(/location = \/api\/session[\s\S]*return 410/);
+    expect(config).not.toContain('location /api/ {');
     expect(config).toMatch(/location \/[\s\S]*127\.0\.0\.1:3101/);
     expect(config).not.toContain('REPLACE_WITH_CERT_NAME');
     expect(config).not.toMatch(/^\s*ssl_(?:protocols|session_timeout)\b/mu);
@@ -167,16 +169,19 @@ describe('man.thienuy.edu.vn canonical dual-plane vhost', () => {
         ['/healthz', 'api'],
         ['/api/v1', 'api'],
         ['/api/v1/auth/session', 'api'],
-        ['/api', 'web'],
-        ['/api/overview', 'web'],
+        ['/api/zalo-bot/webhook', 'web'],
         ['/', 'web'],
         ['/assets/app.js', 'web']
       ] as const) {
         const response = await requestThroughTlsNginx(httpsPort, path);
-        expect(response.status).toBe(200);
+        expect(response.status, path).toBe(200);
         const body = JSON.parse(response.text) as Record<string, unknown>;
         expect(body).toMatchObject({ plane, path, forwardedProto: 'https' });
         expect(body.requestId).toEqual(expect.any(String));
+      }
+
+      for (const path of ['/api/session', '/api/overview', '/api/unknown']) {
+        expect((await requestThroughTlsNginx(httpsPort, path)).status).toBe(410);
       }
 
       const redirect = await requestThroughHttpNginx(

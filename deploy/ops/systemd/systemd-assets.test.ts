@@ -140,6 +140,18 @@ describe('canonical Ops systemd assets', () => {
     );
   });
 
+  it('injects the monitoring adapter HMAC independently into both loopback services', async () => {
+    const api = await unit('api');
+    const web = await unit('web');
+    expect(api).toContain(
+      'LoadCredential=ops-legacy-monitoring-hmac:/etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac'
+    );
+    expect(web).toContain(
+      'LoadCredential=ops-legacy-monitoring-hmac:/etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac'
+    );
+    expect(web).toContain('Environment=OPS_LEGACY_MONITORING_HMAC_FILE=%d/ops-legacy-monitoring-hmac');
+  });
+
   it('keeps collector watchdog and failure notification under the collector identity', async () => {
     const collector = await unit('collector');
     const failed = await readFile(

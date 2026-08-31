@@ -123,14 +123,14 @@ const expectedStoredContract = {
     },
     {
       route: { method: 'GET', path: '/api/overview' },
-      status: 401,
+      status: 410,
       jsonShape: { type: 'object', keys: { error: { type: 'string' } } },
       securityHeaders: { 'cache-control': 'no-store' },
       uiLandmarks: []
     },
     {
       route: { method: 'GET', path: '/api/session' },
-      status: 401,
+      status: 410,
       jsonShape: { type: 'object', keys: { error: { type: 'string' } } },
       securityHeaders: { 'cache-control': 'no-store' },
       uiLandmarks: []
@@ -684,6 +684,7 @@ async function startSnapshotCandidate(snapshotPath: string, port: number): Promi
     store: candidateStore,
     auth,
     staticDir: join(repositoryRoot, 'apps/web/dist/web'),
+    legacyBrowserApi: false,
     zalo: {
       store: candidateStore,
       auth,
@@ -965,11 +966,11 @@ test('keeps MFA, overview, history and incident acknowledgement functional on sy
   expect(forbiddenCandidateText.test(await page.locator('body').innerText())).toBe(false);
 });
 
-test('rejects the separate API cookie in the monitoring session namespace', async () => {
+test('rejects the retired monitoring session route even when given an API cookie', async () => {
   const response = await fetch(`${candidateOrigin}/api/session`, {
     headers: { Cookie: '__Host-ops-session=synthetic-api-cookie' }
   });
-  expect(response.status).toBe(401);
+  expect(response.status).toBe(410);
 });
 
 test('keeps API health, ingest validation and SQL denial bounded to an isolated PostgreSQL candidate', async () => {

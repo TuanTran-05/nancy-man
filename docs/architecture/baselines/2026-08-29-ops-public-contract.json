@@ -23,7 +23,7 @@
         "method": "GET",
         "path": "/api/overview"
       },
-      "status": 401,
+      "status": 410,
       "jsonShape": {
         "type": "object",
         "keys": {
@@ -42,7 +42,7 @@
         "method": "GET",
         "path": "/api/session"
       },
-      "status": 401,
+      "status": 410,
       "jsonShape": {
         "type": "object",
         "keys": {
