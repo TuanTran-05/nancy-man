@@ -7,12 +7,30 @@ const validManifest = {
   catalogVersion: '2026-08-31',
   catalogDigest: `sha256:${'a'.repeat(64)}`,
   readOnly: true,
+  apps: [
+    {
+      id: 'edutrack',
+      displayName: 'EduTrack Platform',
+      sourceIds: ['edutrack.shared_env', 'edutrack.pm2_ecosystem']
+    },
+    {
+      id: 'ops',
+      displayName: 'Ops Console',
+      sourceIds: ['ops.api_env']
+    },
+    {
+      id: 'website',
+      displayName: 'Thien Uy Website',
+      sourceIds: []
+    }
+  ],
   sources: [
     {
       id: 'edutrack.shared_env',
-      appId: 'edutrack-platform',
+      appId: 'edutrack',
       pathLabel: '/srv/edutrack/shared/.env',
       adapterId: 'node_env_file',
+      mutability: 'catalog_controlled',
       locator: {
         kind: 'file',
         path: '/srv/edutrack/shared/.env'
@@ -22,6 +40,40 @@ const validManifest = {
       mode: '0640',
       maximumBytes: 131072,
       precedenceRank: 200
+    },
+    {
+      id: 'edutrack.pm2_ecosystem',
+      appId: 'edutrack',
+      pathLabel: '/srv/edutrack/current/deploy/vps/ecosystem.config.cjs',
+      adapterId: 'pm2_ecosystem_static',
+      mutability: 'observed',
+      locator: {
+        kind: 'active_release_link',
+        currentPath: '/srv/edutrack/current',
+        approvedTargetRoot: '/srv/edutrack/releases',
+        fixedDescendant: 'deploy/vps/ecosystem.config.cjs'
+      },
+      owner: 'deploy',
+      group: 'deploy',
+      mode: '0644',
+      maximumBytes: 65536,
+      precedenceRank: 300
+    },
+    {
+      id: 'ops.api_env',
+      appId: 'ops',
+      pathLabel: '/etc/edutrack-ops/api.env',
+      adapterId: 'systemd_environment_file',
+      mutability: 'catalog_controlled',
+      locator: {
+        kind: 'file',
+        path: '/etc/edutrack-ops/api.env'
+      },
+      owner: 'root',
+      group: 'root',
+      mode: '0640',
+      maximumBytes: 65536,
+      precedenceRank: 200
     }
   ],
   actions: [{ id: 'systemd.restart_unit', description: 'Restart a declared unit' }],
@@ -30,18 +82,21 @@ const validManifest = {
 
 describe('AgentManifestSchema', () => {
   it('accepts a read-only manifest with fixed ids and file expectations', () => {
-    expect(AgentManifestSchema.parse(validManifest)).toMatchObject({
+    const parsed = AgentManifestSchema.parse(validManifest);
+    expect(parsed.apps.find((app) => app.id === 'website')).toMatchObject({
+      sourceIds: []
+    });
+    expect(parsed.sources[0]).toMatchObject({
+      id: 'edutrack.shared_env',
+      adapterId: 'node_env_file',
+      mutability: 'catalog_controlled',
+      owner: 'deploy',
+      group: 'deploy',
+      mode: '0640'
+    });
+    expect(parsed).toMatchObject({
       manifestVersion: '2026-08-31',
-      readOnly: true,
-      sources: [
-        {
-          id: 'edutrack.shared_env',
-          adapterId: 'node_env_file',
-          owner: 'deploy',
-          group: 'deploy',
-          mode: '0640'
-        }
-      ]
+      readOnly: true
     });
   });
 
@@ -58,6 +113,10 @@ describe('AgentManifestSchema', () => {
       {
         ...validManifest,
         sources: [{ ...validManifest.sources[0], maximumBytes: -1 }]
+      },
+      {
+        ...validManifest,
+        apps: [{ ...validManifest.apps[0], sourceIds: ['missing.source'] }]
       },
       {
         ...validManifest,

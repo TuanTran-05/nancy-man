@@ -4,13 +4,30 @@ import { CatalogSchema } from './catalog.js';
 
 const validCatalog = {
   catalogVersion: '2026-08-31',
+  apps: [
+    {
+      id: 'edutrack',
+      displayName: 'EduTrack Platform',
+      runtimeVariableCount: 3
+    },
+    {
+      id: 'ops',
+      displayName: 'Ops Console',
+      runtimeVariableCount: 2
+    },
+    {
+      id: 'website',
+      displayName: 'Thien Uy Website',
+      runtimeVariableCount: 0
+    }
+  ],
   entries: [
     {
       id: 'edutrack.database_url',
       name: 'DATABASE_URL',
-      appId: 'edutrack-platform',
+      appId: 'edutrack',
       sourceId: 'edutrack.shared_env',
-      consumerIds: ['edutrack-web', 'scheduled-jobs'],
+      consumerIds: ['edutrack.web', 'edutrack.scheduled_jobs'],
       category: 'database',
       description: 'Primary application PostgreSQL connection',
       sensitivity: 'secret',
@@ -24,14 +41,14 @@ const validCatalog = {
   validators: [{ id: 'postgres_url', type: 'url', allowedSchemes: ['postgres', 'postgresql'] }],
   consumers: [
     {
-      id: 'edutrack-web',
-      appId: 'edutrack-platform',
+      id: 'edutrack.web',
+      appId: 'edutrack',
       kind: 'service',
       displayName: 'EduTrack Web'
     },
     {
-      id: 'scheduled-jobs',
-      appId: 'edutrack-platform',
+      id: 'edutrack.scheduled_jobs',
+      appId: 'edutrack',
       kind: 'job',
       displayName: 'Scheduled jobs'
     }
@@ -48,7 +65,11 @@ const validCatalog = {
 
 describe('CatalogSchema', () => {
   it('accepts a strict value-free catalog entry', () => {
-    expect(CatalogSchema.parse(validCatalog).entries[0]).toMatchObject({
+    const parsed = CatalogSchema.parse(validCatalog);
+    expect(parsed.apps.find((app) => app.id === 'website')).toMatchObject({
+      runtimeVariableCount: 0
+    });
+    expect(parsed.entries[0]).toMatchObject({
       id: 'edutrack.database_url',
       requirement: 'required',
       mutability: 'managed',
@@ -85,6 +106,10 @@ describe('CatalogSchema', () => {
     const invalidCatalogs = [
       {
         ...validCatalog,
+        apps: [{ ...validCatalog.apps[0], runtimeVariableCount: -1 }]
+      },
+      {
+        ...validCatalog,
         entries: [{ ...validCatalog.entries[0], id: 'EduTrack.database_url' }]
       },
       {
@@ -94,6 +119,10 @@ describe('CatalogSchema', () => {
       {
         ...validCatalog,
         entries: [validCatalog.entries[0], validCatalog.entries[0]]
+      },
+      {
+        ...validCatalog,
+        entries: [{ ...validCatalog.entries[0], appId: 'missing-app' }]
       },
       {
         ...validCatalog,

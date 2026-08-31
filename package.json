@@ -15,6 +15,7 @@
     "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
     "format:check": "prettier --check . --ignore-unknown",
     "test": "vitest run --passWithNoTests",
+    "variables:coverage": "node --experimental-strip-types scripts/variables/catalogCoverage.ts",
     "build": "npm run build --workspaces --if-present",
     "test:e2e": "npm run test:e2e --workspace @edutrack-ops/web",
     "consolidation:ops:capture": "node scripts/consolidation/opsDisposition.mjs --capture",
