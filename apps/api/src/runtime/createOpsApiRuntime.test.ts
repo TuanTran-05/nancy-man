@@ -87,7 +87,8 @@ describe('createOpsApiRuntime', () => {
         },
         objectStoreDirectory: '/var/lib/edutrack-ops/object-store',
         browserCorsOrigins: ['https://thienuy.edu.vn'],
-        sqlWorker: { enabled: false }
+        sqlWorker: { enabled: false },
+        configAgent: { enabled: false }
       },
       database,
       sessionPepper: 'session-pepper',

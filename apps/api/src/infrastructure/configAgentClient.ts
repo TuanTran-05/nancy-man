@@ -1,0 +1,339 @@
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createConnection, type Socket } from 'node:net';
+
+import {
+  AGENT_PROTOCOL_VERSION,
+  AgentActorSchema,
+  AgentCapabilitiesResponseSchema,
+  AgentRequestSchema,
+  AgentResponseSchema,
+  type AgentActor,
+  type AgentCapabilitiesResponse,
+  type AgentRequestEnvelope,
+  type AgentResponseEnvelope,
+  type InventoryReadRequest,
+  type InventoryReadResponse
+} from '../../../../packages/config-contracts/src/agentProtocol.js';
+import {
+  encodeFrame,
+  FrameDecoder,
+  MAX_FRAME_BYTES
+} from '../../../../packages/config-contracts/src/framing.js';
+
+const defaultStartupActor: AgentActor = {
+  userId: '00000000-0000-0000-0000-000000000000',
+  sessionId: '00000000-0000-0000-0000-000000000000',
+  role: 'ops_owner',
+  ipHash: `sha256:${'0'.repeat(64)}`,
+  userAgentHash: `sha256:${'0'.repeat(64)}`
+};
+
+export type ConfigAgentClientOptions = {
+  socketPath: string;
+  hmacKey: string | Buffer;
+  hmacKeyId: string;
+  connectTimeoutMs?: number;
+  readTimeoutMs?: number;
+  totalTimeoutMs?: number;
+  maximumResponseBytes?: number;
+  now?: () => Date;
+  requestId?: () => string;
+  startupActor?: AgentActor;
+};
+
+export type ConfigAgentExpectations = {
+  protocolVersion?: typeof AGENT_PROTOCOL_VERSION;
+  manifestVersion: string;
+  catalogVersion: string;
+  catalogDigest: string;
+};
+
+export class ConfigAgentError extends Error {
+  constructor(
+    readonly code:
+      | 'AGENT_CONNECT_TIMEOUT'
+      | 'AGENT_CONNECT_FAILED'
+      | 'AGENT_READ_TIMEOUT'
+      | 'AGENT_TOTAL_TIMEOUT'
+      | 'AGENT_RESPONSE_TOO_LARGE'
+      | 'AGENT_EMPTY_RESPONSE'
+      | 'AGENT_TRAILING_FRAME'
+      | 'AGENT_PROTOCOL_INVALID'
+      | 'AGENT_RESPONSE_MISMATCH'
+      | 'AGENT_RESPONSE_SIGNATURE_INVALID'
+      | 'AGENT_RESPONSE_EXPIRED'
+      | 'AGENT_REQUEST_INVALID'
+      | 'CONFIG_AGENT_INCOMPATIBLE'
+      | 'CONFIG_AGENT_REJECTED'
+  ) {
+    super(code);
+    this.name = 'ConfigAgentError';
+  }
+}
+
+function canonicalValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => canonicalValue(item));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== 'signature')
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, canonicalValue(item)])
+    );
+  }
+  return value;
+}
+
+function canonicalEnvelope(value: unknown): string {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
+  }
+  return JSON.stringify(canonicalValue(value));
+}
+
+export function signAgentEnvelope(value: unknown, key: string | Buffer): string {
+  const digest = createHmac('sha256', key)
+    .update(canonicalEnvelope(value), 'utf8')
+    .digest('hex');
+  return `hmac-sha256:v1:${digest}`;
+}
+
+function verifySignature(value: AgentResponseEnvelope, key: string | Buffer): boolean {
+  const expected = Buffer.from(signAgentEnvelope(value, key), 'utf8');
+  const actual = Buffer.from(value.signature, 'utf8');
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+function validRequestId(value: string): boolean {
+  return /^REQ_[A-Za-z0-9_]+$/u.test(value);
+}
+
+function validSocketPath(value: string): boolean {
+  return value.startsWith('/') && value.length > 1 && value.endsWith('.sock');
+}
+
+function duration(value: number | undefined, fallback: number): number {
+  const selected = value ?? fallback;
+  if (!Number.isSafeInteger(selected) || selected <= 0 || selected > 60_000) {
+    throw new ConfigAgentError('AGENT_REQUEST_INVALID');
+  }
+  return selected;
+}
+
+function maxBytes(value: number | undefined): number {
+  const selected = value ?? MAX_FRAME_BYTES;
+  if (!Number.isSafeInteger(selected) || selected <= 0 || selected > MAX_FRAME_BYTES) {
+    throw new ConfigAgentError('AGENT_RESPONSE_TOO_LARGE');
+  }
+  return selected;
+}
+
+export class ConfigAgentClient {
+  private readonly socketPath: string;
+  private readonly hmacKey: string | Buffer;
+  private readonly hmacKeyId: string;
+  private readonly connectTimeoutMs: number;
+  private readonly readTimeoutMs: number;
+  private readonly totalTimeoutMs: number;
+  private readonly maximumResponseBytes: number;
+  private readonly now: () => Date;
+  private readonly requestId: () => string;
+  private readonly startupActor: AgentActor;
+
+  constructor(input: ConfigAgentClientOptions) {
+    if (!validSocketPath(input.socketPath)) throw new ConfigAgentError('AGENT_REQUEST_INVALID');
+    if (!input.hmacKey || !input.hmacKeyId) throw new ConfigAgentError('AGENT_REQUEST_INVALID');
+    if (!validRequestId(input.requestId?.() ?? 'REQ_probe')) {
+      throw new ConfigAgentError('AGENT_REQUEST_INVALID');
+    }
+    this.socketPath = input.socketPath;
+    this.hmacKey = input.hmacKey;
+    this.hmacKeyId = input.hmacKeyId;
+    this.connectTimeoutMs = duration(input.connectTimeoutMs, 5_000);
+    this.readTimeoutMs = duration(input.readTimeoutMs, 5_000);
+    this.totalTimeoutMs = duration(input.totalTimeoutMs, 15_000);
+    this.maximumResponseBytes = maxBytes(input.maximumResponseBytes);
+    this.now = input.now ?? (() => new Date());
+    this.requestId = input.requestId ?? (() => `REQ_${randomUUID().replaceAll('-', '')}`);
+    this.startupActor = input.startupActor ?? defaultStartupActor;
+    if (!AgentActorSchema.safeParse(this.startupActor).success) {
+      throw new ConfigAgentError('AGENT_REQUEST_INVALID');
+    }
+  }
+
+  async negotiate(expected: ConfigAgentExpectations): Promise<AgentCapabilitiesResponse> {
+    const response = await this.request({
+      operation: 'agent.capabilities',
+      body: {},
+      actor: this.startupActor
+    });
+    if (!response.ok || response.operation !== 'agent.capabilities') {
+      throw new ConfigAgentError('CONFIG_AGENT_REJECTED');
+    }
+    const capabilities = AgentCapabilitiesResponseSchema.safeParse(response.body);
+    if (!capabilities.success) throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
+    if (
+      capabilities.data.protocolVersion !== (expected.protocolVersion ?? AGENT_PROTOCOL_VERSION) ||
+      capabilities.data.readOnly !== true ||
+      capabilities.data.supportedOperations.length !== 1 ||
+      capabilities.data.supportedOperations[0] !== 'inventory.read' ||
+      capabilities.data.manifestVersion !== expected.manifestVersion ||
+      capabilities.data.catalogVersion !== expected.catalogVersion ||
+      capabilities.data.catalogDigest !== expected.catalogDigest ||
+      capabilities.data.maximumFrameBytes !== MAX_FRAME_BYTES
+    ) {
+      throw new ConfigAgentError('CONFIG_AGENT_INCOMPATIBLE');
+    }
+    return capabilities.data;
+  }
+
+  async readInventory(
+    actor: AgentActor,
+    filters: Omit<InventoryReadRequest, 'includeValues'> = {}
+  ): Promise<InventoryReadResponse> {
+    const response = await this.request({
+      operation: 'inventory.read',
+      body: { includeValues: true, ...filters },
+      actor
+    });
+    if (!response.ok || response.operation !== 'inventory.read') {
+      throw new ConfigAgentError('CONFIG_AGENT_REJECTED');
+    }
+    return response.body;
+  }
+
+  private async request(input: {
+    operation: AgentRequestEnvelope['operation'];
+    body: Record<string, unknown>;
+    actor: AgentActor;
+  }): Promise<AgentResponseEnvelope> {
+    const issuedAt = this.now();
+    const requestId = this.requestId();
+    const unsigned = {
+      version: AGENT_PROTOCOL_VERSION,
+      requestId,
+      issuedAt: issuedAt.toISOString(),
+      expiresAt: new Date(issuedAt.getTime() + Math.min(this.totalTimeoutMs, 30_000)).toISOString(),
+      actor: input.actor,
+      operation: input.operation,
+      body: input.body,
+      hmacKeyId: this.hmacKeyId
+    } as const;
+    const request = { ...unsigned, signature: signAgentEnvelope(unsigned, this.hmacKey) };
+    if (!AgentRequestSchema.safeParse(request).success) {
+      throw new ConfigAgentError('AGENT_REQUEST_INVALID');
+    }
+    const response = await this.exchange(encodeFrame(request), requestId);
+    const parsed = AgentResponseSchema.safeParse(response);
+    if (!parsed.success) throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
+    if (parsed.data.requestId !== requestId || parsed.data.operation !== input.operation) {
+      throw new ConfigAgentError('AGENT_RESPONSE_MISMATCH');
+    }
+    if (parsed.data.hmacKeyId !== this.hmacKeyId) {
+      throw new ConfigAgentError('AGENT_RESPONSE_SIGNATURE_INVALID');
+    }
+    if (!verifySignature(parsed.data, this.hmacKey)) {
+      throw new ConfigAgentError('AGENT_RESPONSE_SIGNATURE_INVALID');
+    }
+    const issued = Date.parse(parsed.data.issuedAt);
+    const expires = Date.parse(parsed.data.expiresAt);
+    if (!Number.isFinite(issued) || !Number.isFinite(expires) || expires <= this.now().getTime()) {
+      throw new ConfigAgentError('AGENT_RESPONSE_EXPIRED');
+    }
+    return parsed.data;
+  }
+
+  private exchange(frame: Buffer, requestId: string): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      let socket: Socket | undefined;
+      let settled = false;
+      let connected = false;
+      let receivedBytes = 0;
+      let decodedResponse: unknown;
+      const decoder = new FrameDecoder();
+      let connectTimer: ReturnType<typeof setTimeout> | undefined;
+      let readTimer: ReturnType<typeof setTimeout> | undefined;
+      const totalTimer = setTimeout(() => fail('AGENT_TOTAL_TIMEOUT'), this.totalTimeoutMs);
+
+      const clearTimers = () => {
+        clearTimeout(connectTimer);
+        clearTimeout(readTimer);
+        clearTimeout(totalTimer);
+      };
+      const fail = (code: ConfigAgentError['code']) => {
+        if (settled) return;
+        settled = true;
+        clearTimers();
+        socket?.destroy();
+        reject(new ConfigAgentError(code));
+      };
+      const armReadTimer = () => {
+        clearTimeout(readTimer);
+        readTimer = setTimeout(() => fail('AGENT_READ_TIMEOUT'), this.readTimeoutMs);
+      };
+
+      try {
+        connectTimer = setTimeout(() => fail('AGENT_CONNECT_TIMEOUT'), this.connectTimeoutMs);
+        socket = createConnection(this.socketPath);
+        socket.once('connect', () => {
+          if (settled) return;
+          connected = true;
+          clearTimeout(connectTimer);
+          armReadTimer();
+          socket?.write(frame);
+        });
+        socket.on('data', (chunk: Buffer) => {
+          if (settled) return;
+          receivedBytes += chunk.length;
+          if (receivedBytes > this.maximumResponseBytes) {
+            fail('AGENT_RESPONSE_TOO_LARGE');
+            return;
+          }
+          armReadTimer();
+          let values: unknown[];
+          try {
+            values = decoder.push(chunk);
+          } catch {
+            fail('AGENT_PROTOCOL_INVALID');
+            return;
+          }
+          if (values.length > 1 || (values.length === 1 && decodedResponse !== undefined)) {
+            fail('AGENT_TRAILING_FRAME');
+            return;
+          }
+          if (values.length === 1) decodedResponse = values[0];
+        });
+        socket.once('end', () => {
+          if (settled) return;
+          clearTimeout(readTimer);
+          try {
+            decoder.finish();
+          } catch {
+            fail('AGENT_TRAILING_FRAME');
+            return;
+          }
+          if (decodedResponse === undefined) {
+            fail('AGENT_EMPTY_RESPONSE');
+            return;
+          }
+          settled = true;
+          clearTimers();
+          resolve(decodedResponse);
+        });
+        socket.once('error', () => {
+          if (!connected) fail('AGENT_CONNECT_FAILED');
+          else fail('AGENT_PROTOCOL_INVALID');
+        });
+        socket.once('close', () => {
+          if (!settled && decodedResponse === undefined) {
+            fail(connected ? 'AGENT_EMPTY_RESPONSE' : 'AGENT_CONNECT_FAILED');
+          }
+        });
+      } catch {
+        fail('AGENT_CONNECT_FAILED');
+      }
+
+      void requestId;
+    });
+  }
+}

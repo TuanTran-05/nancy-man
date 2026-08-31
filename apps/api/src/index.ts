@@ -9,6 +9,7 @@ import { createSchemaRouter } from './modules/database/schemaRoutes.js';
 import { createIncidentRouter } from './modules/incidents/incidentRoutes.js';
 import { createAccountRouter } from './modules/accounts/accountRoutes.js';
 import { createMonitoringRouter } from './modules/monitoring/monitoringRoutes.js';
+import { createVariablesRouter } from './modules/variables/variablesRoutes.js';
 
 export function createOpsApi(input: {
   ingest: Parameters<typeof createIngestRouter>[0];
@@ -20,6 +21,7 @@ export function createOpsApi(input: {
   sql?: Parameters<typeof createSqlRouter>[0];
   accounts?: Parameters<typeof createAccountRouter>[0];
   monitoring?: Parameters<typeof createMonitoringRouter>[0];
+  variables?: Parameters<typeof createVariablesRouter>[0];
   trustedProxy?: string | readonly string[];
 }) {
   const app = express();
@@ -39,6 +41,7 @@ export function createOpsApi(input: {
   if (input.auth) app.use('/api/v1/auth', createAuthRouter(input.auth));
   if (input.accounts) app.use('/api/v1/users', createAccountRouter(input.accounts));
   if (input.monitoring) app.use('/api/v1', createMonitoringRouter(input.monitoring));
+  if (input.variables) app.use('/api/v1', createVariablesRouter(input.variables));
   if (input.issues) app.use('/api/v1/issues', createIssueRouter(input.issues));
   if (input.incidents) app.use('/api/v1/incidents', createIncidentRouter(input.incidents));
   if (input.database) app.use('/api/v1/database', createSchemaRouter(input.database));

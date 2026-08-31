@@ -20,7 +20,8 @@ const config = {
   },
   objectStoreDirectory: '/var/lib/edutrack-ops/object-store',
   browserCorsOrigins: ['https://thienuy.edu.vn'],
-  sqlWorker: { enabled: false as const }
+  sqlWorker: { enabled: false as const },
+  configAgent: { enabled: false as const }
 };
 
 describe('resolveRuntimeCredentials', () => {
@@ -95,6 +96,38 @@ describe('resolveRuntimeCredentials', () => {
         socketPath: '/run/edutrack-ops/sql-worker.sock',
         hmacSecret: 'value-for-ops-sql-worker-hmac',
         auditEncryptionKey: expect.any(Buffer)
+      }
+    });
+  });
+
+  it('loads the Config Agent protocol HMAC only when read-only Variables is enabled', async () => {
+    await expect(
+      resolveRuntimeCredentials({
+        config: {
+          ...config,
+          configAgent: {
+            enabled: true,
+            socketPath: '/run/edutrack-config-agent/agent.sock',
+            protocolHmacKeyReference: 'ops-config-agent-hmac',
+            protocolHmacKeyId: 'config-agent-2026-08-31',
+            expectedManifestVersion: '2026-08-31',
+            expectedCatalogVersion: '2026-08-31',
+            expectedCatalogDigest: `sha256:${'b'.repeat(64)}`,
+            connectTimeoutMs: 1000,
+            readTimeoutMs: 2000,
+            totalTimeoutMs: 5000,
+            maximumResponseBytes: 1_048_576
+          }
+        },
+        resolveSecret: async (reference) => {
+          if (reference === 'ops-mfa-encryption-key') return Buffer.alloc(32, 7).toString('base64url');
+          return `value-for-${reference}`;
+        }
+      })
+    ).resolves.toMatchObject({
+      configAgent: {
+        socketPath: '/run/edutrack-config-agent/agent.sock',
+        protocolHmacKey: 'value-for-ops-config-agent-hmac'
       }
     });
   });

@@ -1,9 +1,12 @@
 import { type Server } from 'node:http';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { parseCatalog } from '../../../../packages/config-contracts/src/catalog.js';
 import { getOpsPool } from '../../../../packages/db/src/client.js';
 
+import { ConfigAgentClient } from '../infrastructure/configAgentClient.js';
 import { createOpsApiRuntime } from './createOpsApiRuntime.js';
 import { FileSecretResolver } from './fileSecretResolver.js';
 import { createPoolDatabase } from './poolDatabase.js';
@@ -19,6 +22,18 @@ type RuntimeCredentials = {
   legacyMonitoringHmacSecret: string;
   mfaEncryptionKey: Buffer;
   sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
+  configAgent?: {
+    socketPath: string;
+    protocolHmacKey: string;
+    protocolHmacKeyId: string;
+    expectedManifestVersion: string;
+    expectedCatalogVersion: string;
+    expectedCatalogDigest: string;
+    connectTimeoutMs: number;
+    readTimeoutMs: number;
+    totalTimeoutMs: number;
+    maximumResponseBytes: number;
+  };
 };
 
 export async function resolveRuntimeCredentials(input: {
@@ -59,6 +74,27 @@ export async function resolveRuntimeCredentials(input: {
   const mfaEncryptionKey = Buffer.from(mfaKey, 'base64url');
   if (mfaEncryptionKey.length !== 32)
     throw new Error('Ops API runtime credentials are unavailable');
+  const configuredAgent = input.config.configAgent;
+  const configAgent = configuredAgent.enabled
+    ? await (async () => {
+        const protocolHmacKey = await input.resolveSecret(
+          configuredAgent.protocolHmacKeyReference
+        );
+        if (!protocolHmacKey) throw new Error('Ops API runtime credentials are unavailable');
+        return {
+          socketPath: configuredAgent.socketPath,
+          protocolHmacKey,
+          protocolHmacKeyId: configuredAgent.protocolHmacKeyId,
+          expectedManifestVersion: configuredAgent.expectedManifestVersion,
+          expectedCatalogVersion: configuredAgent.expectedCatalogVersion,
+          expectedCatalogDigest: configuredAgent.expectedCatalogDigest,
+          connectTimeoutMs: configuredAgent.connectTimeoutMs,
+          readTimeoutMs: configuredAgent.readTimeoutMs,
+          totalTimeoutMs: configuredAgent.totalTimeoutMs,
+          maximumResponseBytes: configuredAgent.maximumResponseBytes
+        };
+      })()
+    : undefined;
   if (!input.config.sqlWorker.enabled) {
     return {
       databaseUrl,
@@ -68,7 +104,8 @@ export async function resolveRuntimeCredentials(input: {
       authSessionPepper,
       passwordFingerprintPepper,
       legacyMonitoringHmacSecret,
-      mfaEncryptionKey
+      mfaEncryptionKey,
+      ...(configAgent ? { configAgent } : {})
     };
   }
   const [sqlWorkerHmac, sqlAuditKey] = await Promise.all([
@@ -92,7 +129,8 @@ export async function resolveRuntimeCredentials(input: {
       socketPath: input.config.sqlWorker.socketPath,
       hmacSecret: sqlWorkerHmac,
       auditEncryptionKey
-    }
+    },
+    ...(configAgent ? { configAgent } : {})
   };
 }
 
@@ -123,6 +161,32 @@ export async function startOpsApi(environment: NodeJS.ProcessEnv = process.env):
     config,
     resolveSecret: (ref) => resolver.resolve(ref)
   });
+  const configAgent = credentials.configAgent
+    ? new ConfigAgentClient({
+        socketPath: credentials.configAgent.socketPath,
+        hmacKey: credentials.configAgent.protocolHmacKey,
+        hmacKeyId: credentials.configAgent.protocolHmacKeyId,
+        connectTimeoutMs: credentials.configAgent.connectTimeoutMs,
+        readTimeoutMs: credentials.configAgent.readTimeoutMs,
+        totalTimeoutMs: credentials.configAgent.totalTimeoutMs,
+        maximumResponseBytes: credentials.configAgent.maximumResponseBytes
+      })
+    : undefined;
+  const catalog = configAgent
+    ? parseCatalog(
+        await readFile(
+          environment.OPS_VARIABLES_CATALOG_PATH ?? resolve(process.cwd(), 'config/variables/catalog.yaml'),
+          'utf8'
+        )
+      )
+    : undefined;
+  if (configAgent && catalog) {
+    await configAgent.negotiate({
+      manifestVersion: credentials.configAgent!.expectedManifestVersion,
+      catalogVersion: credentials.configAgent!.expectedCatalogVersion,
+      catalogDigest: credentials.configAgent!.expectedCatalogDigest
+    });
+  }
   const pool = getOpsPool(credentials.databaseUrl);
   const database = createPoolDatabase(pool);
 
@@ -139,6 +203,7 @@ export async function startOpsApi(environment: NodeJS.ProcessEnv = process.env):
       legacyMonitoringHmacSecret: credentials.legacyMonitoringHmacSecret,
       mfaEncryptionKey: credentials.mfaEncryptionKey,
       ...(credentials.sqlWorker ? { sqlWorker: credentials.sqlWorker } : {}),
+      ...(configAgent && catalog ? { configAgent: { client: configAgent, catalog } } : {}),
       resolveSecret: (ref) => resolver.resolve(ref)
     });
     const server = await listen(runtime.app, config.apiHost, config.apiPort);
