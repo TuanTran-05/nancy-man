@@ -11,7 +11,6 @@ WorkingDirectory=/srv/edutrack-ops/current
 EnvironmentFile=/etc/edutrack-ops/sql-worker.env
 Environment=OPS_SECRET_DIRECTORY=%d
 LoadCredential=ops-sql-worker-hmac:/etc/edutrack-ops/credentials/ops-sql-worker-hmac
-ExecStartPre=+/usr/bin/chmod 0400 %d/ops-sql-worker-hmac
 RuntimeDirectory=edutrack-ops
 RuntimeDirectoryMode=0750
 ExecStart=/usr/bin/node apps/sql-worker/dist/apps/sql-worker/src/index.js

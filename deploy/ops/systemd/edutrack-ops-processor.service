@@ -11,7 +11,6 @@ WorkingDirectory=/srv/edutrack-ops/current
 EnvironmentFile=/etc/edutrack-ops/api.env
 Environment=OPS_SECRET_DIRECTORY=%d
 LoadCredential=ops-database-url:/etc/edutrack-ops/credentials/ops-database-url
-ExecStartPre=+/usr/bin/chmod 0400 %d/ops-database-url
 ExecStart=/usr/bin/node apps/processor/dist/apps/processor/src/runtime/main.js
 Restart=on-failure
 RestartSec=5s

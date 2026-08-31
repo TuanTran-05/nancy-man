@@ -14,7 +14,6 @@ LoadCredential=ops-database-url:/etc/edutrack-ops/credentials/ops-database-url
 LoadCredential=ops-session-pepper:/etc/edutrack-ops/credentials/ops-session-pepper
 LoadCredential=ops-rate-limit-pepper:/etc/edutrack-ops/credentials/ops-rate-limit-pepper
 LoadCredential=browser-context-edutrack-v1:/etc/edutrack-ops/credentials/browser-context-edutrack-v1
-ExecStartPre=+/usr/bin/chmod 0400 %d/ops-database-url %d/ops-session-pepper %d/ops-rate-limit-pepper %d/browser-context-edutrack-v1
 ExecStart=/usr/bin/node apps/api/dist/apps/api/src/cli/migrate.js
 UMask=0077
 NoNewPrivileges=true

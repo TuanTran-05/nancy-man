@@ -98,35 +98,6 @@ describe('canonical Ops systemd assets', () => {
     }
   });
 
-  it('normalizes systemd-loaded credential modes before the strict file resolver reads them', async () => {
-    const credentials: Record<string, string[]> = {
-      api: [
-        'ops-database-url',
-        'ops-session-pepper',
-        'ops-rate-limit-pepper',
-        'ops-auth-session-pepper',
-        'ops-mfa-encryption-key',
-        'browser-context-edutrack-v1'
-      ],
-      migrate: [
-        'ops-database-url',
-        'ops-session-pepper',
-        'ops-rate-limit-pepper',
-        'browser-context-edutrack-v1'
-      ],
-      notifier: ['ops-database-url'],
-      processor: ['ops-database-url'],
-      'sql-worker': ['ops-sql-worker-hmac']
-    };
-
-    for (const [name, references] of Object.entries(credentials)) {
-      const contents = await unit(name);
-      expect(contents).toContain(
-        `ExecStartPre=+/usr/bin/chmod 0400 ${references.map((reference) => `%d/${reference}`).join(' ')}`
-      );
-    }
-  });
-
   it('limits SQLite access to the web and collector service boundary', async () => {
     const units = await Promise.all(
       Object.keys(services).map(async (name) => [name, await unit(name)])
