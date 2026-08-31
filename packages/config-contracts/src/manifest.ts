@@ -50,6 +50,9 @@ export const SourceAdapterSchema = z.enum([
 ]);
 export type SourceAdapter = z.infer<typeof SourceAdapterSchema>;
 
+export const SourceMutabilitySchema = z.enum(['catalog_controlled', 'observed']);
+export type SourceMutability = z.infer<typeof SourceMutabilitySchema>;
+
 export const ManifestActionIdSchema = z.enum([
   'application.clear_apply_block',
   'job.next_run',
@@ -91,12 +94,22 @@ export const SourceLocatorSchema = z.discriminatedUnion('kind', [
 ]);
 export type SourceLocator = z.infer<typeof SourceLocatorSchema>;
 
+export const ManifestAppSchema = z
+  .object({
+    id: stableIdSchema,
+    displayName: nonEmptyTextSchema,
+    sourceIds: z.array(stableIdSchema)
+  })
+  .strict();
+export type ManifestApp = z.infer<typeof ManifestAppSchema>;
+
 export const ManifestSourceSchema = z
   .object({
     id: stableIdSchema,
     appId: stableIdSchema,
     pathLabel: nonEmptyTextSchema,
     adapterId: SourceAdapterSchema,
+    mutability: SourceMutabilitySchema,
     locator: SourceLocatorSchema,
     owner: z.string().regex(accountNamePattern, 'Owner is invalid'),
     group: z.string().regex(accountNamePattern, 'Group is invalid'),
@@ -132,16 +145,42 @@ export const AgentManifestSchema = z
     catalogVersion: z.string().regex(schemaVersionPattern, 'Catalog version is invalid'),
     catalogDigest: z.string().regex(digestPattern, 'Catalog digest is invalid'),
     readOnly: z.literal(true),
+    apps: z.array(ManifestAppSchema),
     sources: z.array(ManifestSourceSchema),
     actions: z.array(ManifestActionSchema),
     checks: z.array(ManifestCheckSchema)
   })
   .strict()
   .superRefine((manifest, context) => {
+    addUniqueIdIssue(context, manifest.apps, ['apps']);
     addUniqueIdIssue(context, manifest.sources, ['sources']);
     addUniqueIdIssue(context, manifest.actions, ['actions']);
     addUniqueIdIssue(context, manifest.checks, ['checks']);
 
+    const appIds = new Set(manifest.apps.map((app) => app.id));
+    const sourceIds = new Set(manifest.sources.map((source) => source.id));
+
+    manifest.sources.forEach((source, index) => {
+      if (!appIds.has(source.appId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Unknown app "${source.appId}"`,
+          path: ['sources', index, 'appId']
+        });
+      }
+    });
+
+    manifest.apps.forEach((app, index) => {
+      for (const sourceId of app.sourceIds) {
+        if (!sourceIds.has(sourceId)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Unknown source "${sourceId}"`,
+            path: ['apps', index, 'sourceIds']
+          });
+        }
+      }
+    });
     const actionIds = new Set(manifest.actions.map((action) => action.id));
     const checkIds = new Set(manifest.checks.map((check) => check.id));
     manifest.sources.forEach((source, index) => {

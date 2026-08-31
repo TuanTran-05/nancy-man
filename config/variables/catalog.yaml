@@ -1,0 +1,923 @@
+catalogVersion: 2026-08-31
+apps:
+  - id: edutrack
+    displayName: EduTrack Platform
+    runtimeVariableCount: 90
+  - id: ops
+    displayName: Ops Console
+    runtimeVariableCount: 47
+  - id: website
+    displayName: Thien Uy Website
+    runtimeVariableCount: 0
+consumers:
+  - id: edutrack.web
+    appId: edutrack
+    kind: service
+    displayName: EduTrack web runtime
+  - id: edutrack.scheduled_jobs
+    appId: edutrack
+    kind: job
+    displayName: EduTrack scheduled jobs
+  - id: edutrack.public_build
+    appId: edutrack
+    kind: build
+    displayName: EduTrack public Vite build
+  - id: ops.api
+    appId: ops
+    kind: service
+    displayName: Ops API
+  - id: ops.web
+    appId: ops
+    kind: service
+    displayName: Ops web
+  - id: ops.collector
+    appId: ops
+    kind: service
+    displayName: Ops collector
+  - id: ops.sql_worker
+    appId: ops
+    kind: service
+    displayName: Ops SQL worker
+  - id: ops.notifier
+    appId: ops
+    kind: service
+    displayName: Ops notifier
+  - id: ops.processor
+    appId: ops
+    kind: service
+    displayName: Ops processor
+  - id: ops.migrate
+    appId: ops
+    kind: service
+    displayName: Ops migrate
+precedences:
+  - id: edutrack.shared_env_runtime
+    rank: 200
+    scope: runtime
+    description: Active shared Node env file
+  - id: edutrack.shared_env_build
+    rank: 200
+    scope: build
+    description: Active shared Vite build env file
+  - id: edutrack.pm2_runtime
+    rank: 300
+    scope: runtime
+    description: Active PM2 env object overrides shared env
+  - id: ops.runtime_env
+    rank: 200
+    scope: runtime
+    description: Root-managed systemd environment file
+validators:
+  - id: postgres_url
+    type: url
+    allowedSchemes: [postgres, postgresql]
+  - id: https_url
+    type: url
+    allowedSchemes: [https]
+  - id: loopback_http_url
+    type: regex
+    pattern: "^http://127\\.0\\.0\\.1(?::[0-9]{2,5})?(?:/.*)?$"
+  - id: absolute_path
+    type: regex
+    pattern: "^/"
+  - id: release_sha
+    type: regex
+    pattern: "^[a-f0-9]{40}$"
+  - id: boolean_string
+    type: enum
+    allowedValues: ["true", "false"]
+  - id: non_empty
+    type: non_empty
+  - id: credential_reference
+    type: regex
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$"
+  - id: positive_integer
+    type: integer
+    minimum: 1
+entries:
+  - id: edutrack.database_url
+    name: DATABASE_URL
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web, edutrack.scheduled_jobs]
+    category: database
+    description: Primary PostgreSQL connection for EduTrack runtime.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: postgres_url
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.session_secret
+    name: SESSION_SECRET
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: auth_security
+    description: Cookie and session signing secret for staff and ESP auth.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.storage_local_root
+    name: STORAGE_LOCAL_ROOT
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web, edutrack.scheduled_jobs]
+    category: storage
+    description: Filesystem root for local object storage.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: absolute_path
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.storage_signing_secret
+    name: STORAGE_SIGNING_SECRET
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: auth_security
+    description: Signing key for storage URLs and download proofs.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.otp_pepper
+    name: OTP_PEPPER
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: auth_security
+    description: Pepper for activation and OTP-side cryptographic checks.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.lookup_challenge_secret
+    name: LOOKUP_CHALLENGE_SECRET
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: auth_security
+    description: Secret for password-recovery and lookup challenge tokens.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.cron_secret
+    name: CRON_SECRET
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.scheduled_jobs]
+    category: auth_security
+    description: Bearer secret that authorizes VPS cron routes.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: next_job
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.app_url
+    name: APP_URL
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web, edutrack.public_build]
+    category: runtime_networking
+    description: Canonical runtime origins for staff and ESP surfaces.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: build_redeploy
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.public_base_url
+    name: PUBLIC_BASE_URL
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web, edutrack.public_build]
+    category: runtime_networking
+    description: Public staff base origin.
+    sensitivity: public
+    requirement: required
+    mutability: managed
+    applyStrategy: build_redeploy
+    validatorId: https_url
+    precedenceId: edutrack.shared_env_build
+    buildAllowed: true
+  - id: edutrack.esp_public_base_url
+    name: ESP_PUBLIC_BASE_URL
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web, edutrack.public_build]
+    category: runtime_networking
+    description: Public ESP base origin.
+    sensitivity: public
+    requirement: required
+    mutability: managed
+    applyStrategy: build_redeploy
+    validatorId: https_url
+    precedenceId: edutrack.shared_env_build
+    buildAllowed: true
+  - id: edutrack.internal_api_base_url
+    name: INTERNAL_API_BASE_URL
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: runtime_networking
+    description: Loopback API origin for internal cron fan-out.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: loopback_http_url
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.turnstile_secret_key
+    name: TURNSTILE_SECRET_KEY
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: auth_security
+    description: Cloudflare Turnstile secret for staff auth.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.vite_turnstile_site_key
+    name: VITE_TURNSTILE_SITE_KEY
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.public_build]
+    category: build_public_frontend
+    description: Public Turnstile site key embedded in the staff build.
+    sensitivity: public
+    requirement: required
+    mutability: managed
+    applyStrategy: build_redeploy
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_build
+    buildAllowed: true
+  - id: edutrack.esp_turnstile_secret_key
+    name: ESP_TURNSTILE_SECRET_KEY
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: auth_security
+    description: Cloudflare Turnstile secret for ESP auth.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.vite_esp_turnstile_site_key
+    name: VITE_ESP_TURNSTILE_SITE_KEY
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.public_build]
+    category: build_public_frontend
+    description: Public Turnstile site key embedded in the ESP build.
+    sensitivity: public
+    requirement: required
+    mutability: managed
+    applyStrategy: build_redeploy
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_build
+    buildAllowed: true
+  - id: edutrack.google_oauth_client_id
+    name: GOOGLE_OAUTH_CLIENT_ID
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: integrations
+    description: Google OAuth client ID for staff sign-in.
+    sensitivity: internal
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.google_oauth_client_secret
+    name: GOOGLE_OAUTH_CLIENT_SECRET
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: integrations
+    description: Google OAuth client secret for staff sign-in.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.payos_client_id
+    name: PAYOS_CLIENT_ID
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: payments
+    description: PayOS client identifier.
+    sensitivity: internal
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.payos_api_key
+    name: PAYOS_API_KEY
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: payments
+    description: PayOS API key.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.payos_checksum_key
+    name: PAYOS_CHECKSUM_KEY
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: payments
+    description: PayOS checksum key for request signing.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.payos_return_url
+    name: PAYOS_RETURN_URL
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: payments
+    description: PayOS return URL after payment completion.
+    sensitivity: public
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: https_url
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.payos_cancel_url
+    name: PAYOS_CANCEL_URL
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: payments
+    description: PayOS cancel URL after payment cancellation.
+    sensitivity: public
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: https_url
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.gemini_api_key
+    name: GEMINI_API_KEY
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: integrations
+    description: Gemini API key for Zalo-assisted admin features.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.zalo_app_id
+    name: ZALO_APP_ID
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: integrations
+    description: Zalo application identifier.
+    sensitivity: internal
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.zalo_app_secret
+    name: ZALO_APP_SECRET
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: integrations
+    description: Zalo application secret.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.zalo_oa_id
+    name: ZALO_OA_ID
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: integrations
+    description: Zalo OA identifier.
+    sensitivity: internal
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.zalo_oa_access_token
+    name: ZALO_OA_ACCESS_TOKEN
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: integrations
+    description: Zalo OA access token.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.zalo_refresh_token
+    name: ZALO_REFRESH_TOKEN
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: integrations
+    description: Zalo OA refresh token.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.zalo_bot_token
+    name: ZALO_BOT_TOKEN
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: integrations
+    description: Zalo bot access token for admin delivery.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.zalo_bot_webhook_secret
+    name: ZALO_BOT_WEBHOOK_SECRET
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: integrations
+    description: Zalo bot webhook verification secret.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.zalo_bot_link_code_pepper
+    name: ZALO_BOT_LINK_CODE_PEPPER
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: auth_security
+    description: Pepper used to hash Zalo link codes.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.zalo_bot_chat_hash_secret
+    name: ZALO_BOT_CHAT_HASH_SECRET
+    appId: edutrack
+    sourceId: edutrack.shared_env
+    consumerIds: [edutrack.web]
+    category: auth_security
+    description: Secret used to pseudonymize Zalo chat identifiers.
+    sensitivity: secret
+    requirement: optional
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: edutrack.shared_env_runtime
+    buildAllowed: false
+  - id: edutrack.pm2_node_env
+    name: NODE_ENV
+    appId: edutrack
+    sourceId: edutrack.pm2_ecosystem
+    consumerIds: [edutrack.web]
+    category: runtime_networking
+    description: PM2 runtime mode override for the active release.
+    sensitivity: internal
+    requirement: required
+    mutability: observed
+    applyStrategy: build_redeploy
+    validatorId: non_empty
+    precedenceId: edutrack.pm2_runtime
+    buildAllowed: false
+  - id: edutrack.pm2_host
+    name: HOST
+    appId: edutrack
+    sourceId: edutrack.pm2_ecosystem
+    consumerIds: [edutrack.web]
+    category: runtime_networking
+    description: PM2 runtime host bind address override.
+    sensitivity: internal
+    requirement: required
+    mutability: observed
+    applyStrategy: build_redeploy
+    validatorId: non_empty
+    precedenceId: edutrack.pm2_runtime
+    buildAllowed: false
+  - id: edutrack.pm2_port
+    name: PORT
+    appId: edutrack
+    sourceId: edutrack.pm2_ecosystem
+    consumerIds: [edutrack.web]
+    category: runtime_networking
+    description: PM2 runtime port override.
+    sensitivity: internal
+    requirement: required
+    mutability: observed
+    applyStrategy: build_redeploy
+    validatorId: positive_integer
+    precedenceId: edutrack.pm2_runtime
+    buildAllowed: false
+  - id: ops.public_url
+    name: OPS_PUBLIC_URL
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api]
+    category: runtime_networking
+    description: Canonical public origin for the Ops Console.
+    sensitivity: public
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: https_url
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.api_host
+    name: OPS_API_HOST
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api]
+    category: runtime_networking
+    description: Loopback listen host for the Ops API.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.api_port
+    name: OPS_API_PORT
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api]
+    category: runtime_networking
+    description: Loopback listen port for the Ops API.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: positive_integer
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.database_url_reference
+    name: OPS_DATABASE_URL_REFERENCE
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api, ops.notifier, ops.processor, ops.migrate]
+    category: database
+    description: Credential reference for the Ops PostgreSQL database URL.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: credential_restart
+    validatorId: credential_reference
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.session_pepper_reference
+    name: OPS_SESSION_PEPPER_REFERENCE
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api, ops.migrate]
+    category: auth_security
+    description: Credential reference for the canonical session pepper.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: credential_restart
+    validatorId: credential_reference
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.rate_limit_pepper_reference
+    name: OPS_RATE_LIMIT_PEPPER_REFERENCE
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api, ops.migrate]
+    category: auth_security
+    description: Credential reference for rate-limit hashing.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: credential_restart
+    validatorId: credential_reference
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.auth_session_pepper_reference
+    name: OPS_AUTH_SESSION_PEPPER_REFERENCE
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api]
+    category: auth_security
+    description: Credential reference for auth-session signing.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: credential_restart
+    validatorId: credential_reference
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.mfa_encryption_key_reference
+    name: OPS_MFA_ENCRYPTION_KEY_REFERENCE
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api]
+    category: auth_security
+    description: Credential reference for MFA secret encryption.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: credential_restart
+    validatorId: credential_reference
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.browser_context_key_id
+    name: OPS_BROWSER_CONTEXT_KEY_ID
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api]
+    category: telemetry
+    description: Browser telemetry key identifier.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: credential_reference
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.browser_context_key_reference
+    name: OPS_BROWSER_CONTEXT_KEY_REFERENCE
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api]
+    category: telemetry
+    description: Credential reference for browser telemetry HMAC context.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: credential_restart
+    validatorId: credential_reference
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.object_store_directory
+    name: OPS_OBJECT_STORE_DIRECTORY
+    appId: ops
+    sourceId: ops.api_env
+    consumerIds: [ops.api]
+    category: storage
+    description: Root directory for Ops object-store payloads.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: absolute_path
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.web_db_path
+    name: OPS_DB_PATH
+    appId: ops
+    sourceId: ops.web_env
+    consumerIds: [ops.web]
+    category: storage
+    description: SQLite database path for the legacy web plane.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: absolute_path
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.web_data_key
+    name: OPS_DATA_KEY
+    appId: ops
+    sourceId: ops.web_env
+    consumerIds: [ops.web]
+    category: auth_security
+    description: Base64 application data-encryption key for the web plane.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.web_listen_host
+    name: OPS_LISTEN_HOST
+    appId: ops
+    sourceId: ops.web_env
+    consumerIds: [ops.web]
+    category: runtime_networking
+    description: Loopback listen host for the web plane.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.web_port
+    name: OPS_PORT
+    appId: ops
+    sourceId: ops.web_env
+    consumerIds: [ops.web]
+    category: runtime_networking
+    description: Loopback listen port for the web plane.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: positive_integer
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.web_zalo_bot_token
+    name: OPS_ALERT_ZALO_BOT_TOKEN
+    appId: ops
+    sourceId: ops.web_env
+    consumerIds: [ops.web]
+    category: integrations
+    description: Legacy web-plane Zalo bot token.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.web_zalo_webhook_secret
+    name: OPS_ZALO_WEBHOOK_SECRET
+    appId: ops
+    sourceId: ops.web_env
+    consumerIds: [ops.web]
+    category: integrations
+    description: Legacy web-plane Zalo webhook secret.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: non_empty
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.collector_app_url
+    name: OPS_APP_URL
+    appId: ops
+    sourceId: ops.collector_env
+    consumerIds: [ops.collector]
+    category: runtime_networking
+    description: Loopback URL the collector probes for Ops web health.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: loopback_http_url
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.collector_monitor_database_url
+    name: OPS_MONITOR_DATABASE_URL
+    appId: ops
+    sourceId: ops.collector_env
+    consumerIds: [ops.collector]
+    category: database
+    description: PostgreSQL URL used for monitoring and parity probes.
+    sensitivity: secret
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: postgres_url
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.collector_backup_dir
+    name: OPS_BACKUP_DIR
+    appId: ops
+    sourceId: ops.collector_env
+    consumerIds: [ops.collector]
+    category: backup_jobs
+    description: Backup directory probed by the collector.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: absolute_path
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.collector_cron_log_path
+    name: OPS_CRON_LOG_PATH
+    appId: ops
+    sourceId: ops.collector_env
+    consumerIds: [ops.collector]
+    category: backup_jobs
+    description: Cron log path monitored by the collector.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: absolute_path
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.sql_worker_secret_directory
+    name: OPS_SECRET_DIRECTORY
+    appId: ops
+    sourceId: ops.sql_worker_env
+    consumerIds: [ops.sql_worker]
+    category: storage
+    description: Runtime credential directory exposed to the SQL worker.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: absolute_path
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.sql_worker_socket_path
+    name: OPS_SQL_SOCKET_PATH
+    appId: ops
+    sourceId: ops.sql_worker_env
+    consumerIds: [ops.sql_worker, ops.api]
+    category: runtime_networking
+    description: Unix socket path for SQL worker requests.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: runtime_restart
+    validatorId: absolute_path
+    precedenceId: ops.runtime_env
+    buildAllowed: false
+  - id: ops.sql_worker_hmac_reference
+    name: OPS_SQL_WORKER_HMAC_REFERENCE
+    appId: ops
+    sourceId: ops.sql_worker_env
+    consumerIds: [ops.sql_worker, ops.api]
+    category: auth_security
+    description: Credential reference for SQL worker HMAC authentication.
+    sensitivity: internal
+    requirement: required
+    mutability: managed
+    applyStrategy: credential_restart
+    validatorId: credential_reference
+    precedenceId: ops.runtime_env
+    buildAllowed: false

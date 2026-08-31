@@ -65,6 +65,15 @@ export const ApplyStrategySchema = z.enum([
 ]);
 export type ApplyStrategy = z.infer<typeof ApplyStrategySchema>;
 
+export const CatalogAppSchema = z
+  .object({
+    id: stableIdSchema,
+    displayName: nonEmptyTextSchema,
+    runtimeVariableCount: z.number().int().nonnegative()
+  })
+  .strict();
+export type CatalogApp = z.infer<typeof CatalogAppSchema>;
+
 const urlValidatorSchema = z
   .object({
     id: stableIdSchema,
@@ -162,6 +171,7 @@ export type CatalogEntry = z.infer<typeof CatalogEntrySchema>;
 export const CatalogSchema = z
   .object({
     catalogVersion: z.string().regex(schemaVersionPattern, 'Catalog version is invalid'),
+    apps: z.array(CatalogAppSchema),
     entries: z.array(CatalogEntrySchema),
     validators: z.array(ValidatorSchema),
     consumers: z.array(ConsumerSchema),
@@ -169,16 +179,36 @@ export const CatalogSchema = z
   })
   .strict()
   .superRefine((catalog, context) => {
+    addUniqueIdIssue(context, catalog.apps, ['apps']);
     addUniqueIdIssue(context, catalog.entries, ['entries']);
     addUniqueIdIssue(context, catalog.validators, ['validators']);
     addUniqueIdIssue(context, catalog.consumers, ['consumers']);
     addUniqueIdIssue(context, catalog.precedences, ['precedences']);
 
+    const appIds = new Set(catalog.apps.map((app) => app.id));
     const consumerIds = new Set(catalog.consumers.map((consumer) => consumer.id));
     const validatorIds = new Set(catalog.validators.map((validator) => validator.id));
     const precedenceIds = new Set(catalog.precedences.map((precedence) => precedence.id));
 
+    catalog.consumers.forEach((consumer, index) => {
+      if (!appIds.has(consumer.appId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Unknown app "${consumer.appId}"`,
+          path: ['consumers', index, 'appId']
+        });
+      }
+    });
+
     catalog.entries.forEach((entry, index) => {
+      if (!appIds.has(entry.appId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Unknown app "${entry.appId}"`,
+          path: ['entries', index, 'appId']
+        });
+      }
+
       for (const consumerId of entry.consumerIds) {
         if (!consumerIds.has(consumerId)) {
           context.addIssue({
