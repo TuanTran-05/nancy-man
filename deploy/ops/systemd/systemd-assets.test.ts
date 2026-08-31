@@ -13,7 +13,7 @@ const services = {
     writablePaths: ['/var/lib/edutrack-ops/object-store']
   },
   web: {
-    executable: '/usr/bin/node apps/web/dist/server/web-entry.js',
+    executable: '/usr/bin/node apps/web/dist/server/web-server.js',
     user: 'edutrack-ops-web',
     group: 'edutrack-ops-shared',
     writablePaths: ['/srv/edutrack-ops/shared']
