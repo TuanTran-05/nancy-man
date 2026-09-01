@@ -223,6 +223,35 @@ describe('immutable Ops prepare and activate assets', () => {
     ).toMatch(/RELEASE_MANIFEST_PASS/u);
   });
 
+  it('allows attested code and migration names containing secret while rejecting credential payload paths', () => {
+    const validRoot = root();
+    const validBuild = build(validRoot);
+    const resolver = join(
+      validBuild,
+      'apps',
+      'api',
+      'dist',
+      'apps',
+      'api',
+      'src',
+      'runtime',
+      'fileSecretResolver.js'
+    );
+    writeFileSync(resolver, '// attested runtime source\n');
+    writeFileSync(
+      join(validBuild, 'packages', 'db', 'migrations', '0015_ops_secret_elevations.sql'),
+      'select 1;\n'
+    );
+    expect(prepareRelease(validRoot, validBuild)).toMatch(/RELEASE_PREPARED/u);
+
+    const invalidRoot = root();
+    const invalidBuild = build(invalidRoot);
+    const credential = join(invalidBuild, 'apps', 'api', 'dist', 'credentials', 'database-url');
+    mkdirSync(join(credential, '..'), { recursive: true });
+    writeFileSync(credential, 'credential payload\n');
+    expect(() => prepareRelease(invalidRoot, invalidBuild)).toThrow(/RELEASE_INPUT_FORBIDDEN/u);
+  });
+
   it('copies deployment payload bytes from the requested Git commit, never dirty checkout files', () => {
     const directory = root();
     const source = sourceRepository();

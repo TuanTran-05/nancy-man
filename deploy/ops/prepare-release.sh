@@ -64,7 +64,7 @@ is_safe_source_tree() {
     links="$(stat -c '%h' -- "$path")"
     [[ "$links" == 1 ]] || return 1
     case "/$relative" in
-      */shared/*|*/node_modules/*|*/logs/*|*/backups/*|*/.env|*/.env.*|*credential*|*secret*|*.pem|*.key|*.p12|*.sqlite|*.sqlite-*|*.db|*.db-*|*.dump|*.sql.gz|*.sql.zip|*.sql.zst) return 1 ;;
+      */shared/*|*/node_modules/*|*/logs/*|*/backups/*|*/.env|*/.env.*|*/credential/*|*/credentials/*|*/secret/*|*/secrets/*|*/credential|*/credentials|*/secret|*/secrets|*.credential|*.credentials|*.secret|*.secrets|*.pem|*.key|*.p12|*.sqlite|*.sqlite-*|*.db|*.db-*|*.dump|*.sql.gz|*.sql.zip|*.sql.zst) return 1 ;;
     esac
   done < <(find "$base" -xdev -type f -print0)
 }
