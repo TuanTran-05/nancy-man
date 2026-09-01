@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -29,5 +29,6 @@ describe('copyDatabaseMigrations', () => {
     await expect(readFile(join(destination, '0001_ops_foundation.sql'), 'utf8')).resolves.toBe(
       'CREATE TABLE ops_users ();\n'
     );
+    expect((await stat(destination)).mode & 0o777).toBe(0o755);
   });
 });
