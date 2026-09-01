@@ -94,6 +94,8 @@ describe('canonical Ops systemd assets', () => {
     ]);
     expect(setting(agent, 'RuntimeDirectory')).toEqual(['edutrack-config-agent']);
     expect(setting(agent, 'RuntimeDirectoryMode')).toEqual(['0750']);
+    expect(setting(agent, 'StateDirectory')).toEqual(['edutrack-config-agent']);
+    expect(setting(agent, 'StateDirectoryMode')).toEqual(['0700']);
     expect(setting(agent, 'ExecStart')).toEqual([
       '/usr/bin/node /srv/edutrack-ops/config-agent/current/apps/config-agent/dist/apps/config-agent/src/index.js'
     ]);
@@ -107,8 +109,8 @@ describe('canonical Ops systemd assets', () => {
     ]);
     expect(setting(agent, 'ReadOnlyPaths')).toEqual([
       '/srv/edutrack-ops/config-agent/current',
-      '/etc/beszel/hub/hub.env',
-      '/etc/beszel/agent.env'
+      '-/etc/beszel/hub/hub.env',
+      '-/etc/beszel/agent.env'
     ]);
     expect(setting(agent, 'RestrictAddressFamilies')).toEqual(['AF_UNIX AF_INET AF_INET6']);
     expect(setting(agent, 'CapabilityBoundingSet')).toEqual(['']);

@@ -33,6 +33,8 @@ LoadCredential=config-agent-staging-key:/etc/edutrack-ops/credentials/config-age
 LoadCredential=config-agent-snapshot-key:/etc/edutrack-ops/credentials/config-agent-snapshot-key
 RuntimeDirectory=edutrack-config-agent
 RuntimeDirectoryMode=0750
+StateDirectory=edutrack-config-agent
+StateDirectoryMode=0700
 ExecStart=/usr/bin/node /srv/edutrack-ops/config-agent/current/apps/config-agent/dist/apps/config-agent/src/index.js
 Restart=on-failure
 RestartSec=5s
@@ -76,8 +78,8 @@ ReadWritePaths=/srv/edutrack/staging
 ReadWritePaths=/srv/edutrack/current
 ReadWritePaths=/srv/edutrack/releases
 ReadOnlyPaths=/srv/edutrack-ops/config-agent/current
-ReadOnlyPaths=/etc/beszel/hub/hub.env
-ReadOnlyPaths=/etc/beszel/agent.env
+ReadOnlyPaths=-/etc/beszel/hub/hub.env
+ReadOnlyPaths=-/etc/beszel/agent.env
 
 [Install]
 WantedBy=multi-user.target
