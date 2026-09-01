@@ -319,4 +319,20 @@ describe('ConfigAgentClient', () => {
       signAgentEnvelope(envelope, 'secret')
     );
   });
+
+  it('uses locale-independent lexical ordering for nested envelope keys', () => {
+    const envelope = {
+      requestId: 'REQ_vector',
+      operation: 'inventory.read',
+      body: {
+        appId: 'ops',
+        appName: 'Ops Console',
+        applyStrategy: 'restart'
+      }
+    };
+
+    expect(signAgentEnvelope(envelope, 'secret')).toBe(
+      'hmac-sha256:v1:ba0ab8d7186fbd6107990edfdd2ffddc8aeebe38d26930162ff0ad4dd3b4b860'
+    );
+  });
 });
