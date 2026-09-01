@@ -3,6 +3,29 @@ import { describe, expect, it } from 'vitest';
 import { PostgresStepUpRepository } from './postgresStepUpRepository.js';
 
 describe('PostgresStepUpRepository', () => {
+  it('returns the stored UTF-8 TOTP envelope for step-up verification', async () => {
+    let statement = '';
+    const repository = new PostgresStepUpRepository({
+      query: async <T>(sql: string) => {
+        statement = sql;
+        return {
+          rows: [
+            {
+              passwordHash: '$argon2id$encoded',
+              encryptedTotpSecret: 'v1.iv.ciphertext.tag'
+            }
+          ] as T[]
+        };
+      }
+    });
+
+    await expect(
+      repository.findProof({ userId: 'user-id', factorId: 'factor-id' })
+    ).resolves.toMatchObject({ encryptedTotpSecret: 'v1.iv.ciphertext.tag' });
+    expect(statement).toContain("convert_from(factor.encrypted_secret, 'UTF8')");
+    expect(statement).not.toContain("encode(factor.encrypted_secret, 'base64')");
+  });
+
   it('uses the typed elevation table and atomically consumes one-use grants', async () => {
     const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
     const repository = new PostgresStepUpRepository({

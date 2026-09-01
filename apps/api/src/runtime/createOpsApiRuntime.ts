@@ -56,6 +56,8 @@ export function createOpsApiRuntime(input: {
   authSessionPepper: string;
   passwordFingerprintPepper: string;
   legacyMonitoringHmacSecret: string;
+  legacyMonitoringBaseUrl?: string;
+  monitoringAllowedOrigin?: string;
   mfaEncryptionKey: Buffer;
   sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
   configAgent?: { client: ConfigAgentClient; catalog: Catalog };
@@ -84,7 +86,10 @@ export function createOpsApiRuntime(input: {
     stepUp: stepUpService,
     audit: new PostgresOpsAuditLedger({ database: input.database })
   });
-  const monitoringClient = new LegacyMonitoringClient({ secret: input.legacyMonitoringHmacSecret });
+  const monitoringClient = new LegacyMonitoringClient({
+    secret: input.legacyMonitoringHmacSecret,
+    ...(input.legacyMonitoringBaseUrl ? { baseUrl: input.legacyMonitoringBaseUrl } : {})
+  });
   const variablesAuthorization = new Map<string, StepUpBinding>();
   const variableUnlockWindows = new Map<string, { startedAt: number; count: number }>();
   const variableUnlockRateLimiter = {
@@ -423,6 +428,7 @@ export function createOpsApiRuntime(input: {
       },
       monitoring: {
         client: monitoringClient,
+        ...(input.monitoringAllowedOrigin ? { allowedOrigin: input.monitoringAllowedOrigin } : {}),
         session: {
           authorize: (request) =>
             authorizeOpsSession({

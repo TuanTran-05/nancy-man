@@ -149,7 +149,10 @@ function closeServer(server: Server): Promise<void> {
   );
 }
 
-export async function startOpsApi(environment: NodeJS.ProcessEnv = process.env): Promise<{
+export async function startOpsApi(
+  environment: NodeJS.ProcessEnv = process.env,
+  overrides: { legacyMonitoringBaseUrl?: string; monitoringAllowedOrigin?: string } = {}
+): Promise<{
   app: ReturnType<typeof createOpsApiRuntime>['app'];
   close: () => Promise<void>;
 }> {
@@ -224,6 +227,12 @@ export async function startOpsApi(environment: NodeJS.ProcessEnv = process.env):
       authSessionPepper: credentials.authSessionPepper,
       passwordFingerprintPepper: credentials.passwordFingerprintPepper,
       legacyMonitoringHmacSecret: credentials.legacyMonitoringHmacSecret,
+      ...(overrides.legacyMonitoringBaseUrl
+        ? { legacyMonitoringBaseUrl: overrides.legacyMonitoringBaseUrl }
+        : {}),
+      ...(overrides.monitoringAllowedOrigin
+        ? { monitoringAllowedOrigin: overrides.monitoringAllowedOrigin }
+        : {}),
       mfaEncryptionKey: credentials.mfaEncryptionKey,
       ...(credentials.sqlWorker ? { sqlWorker: credentials.sqlWorker } : {}),
       ...(configAgent && catalog ? { configAgent: { client: configAgent, catalog } } : {}),

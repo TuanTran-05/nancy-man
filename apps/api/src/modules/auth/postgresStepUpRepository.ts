@@ -22,7 +22,7 @@ export class PostgresStepUpRepository implements StepUpRepository {
     }>(
       `
         SELECT credential.password_hash AS "passwordHash",
-               encode(factor.encrypted_secret, 'base64') AS "encryptedTotpSecret"
+               convert_from(factor.encrypted_secret, 'UTF8') AS "encryptedTotpSecret"
         FROM ops_users AS user_record
         JOIN LATERAL (
           SELECT password_hash

@@ -7,8 +7,8 @@ import { pathToFileURL, URL } from 'node:url';
 
 const ROUTES = Object.freeze([
   Object.freeze({ method: 'GET', path: '/', status: 200 }),
-  Object.freeze({ method: 'GET', path: '/api/session', status: 401 }),
-  Object.freeze({ method: 'GET', path: '/api/overview', status: 401 })
+  Object.freeze({ method: 'GET', path: '/api/session', status: 410 }),
+  Object.freeze({ method: 'GET', path: '/api/overview', status: 410 })
 ]);
 const ROUTE_KEYS = new Set(ROUTES.map(({ method, path }) => `${method} ${path}`));
 export const PUBLIC_ROUTE_OWNERSHIP = Object.freeze({

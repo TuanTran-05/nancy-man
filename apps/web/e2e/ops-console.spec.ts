@@ -9,6 +9,7 @@ let requests: string[] = [];
 test.beforeEach(async ({ page }) => {
   requests = [];
   page.on('request', (request) => requests.push(request.url()));
+  await installCanonicalUiFixture(page);
 });
 
 test.afterEach(async ({ browserName }, testInfo) => {
@@ -62,16 +63,128 @@ function totp(seed: string, time = Date.now()) {
   return String(binary % 1_000_000).padStart(6, '0');
 }
 
+async function installCanonicalUiFixture(page: Page): Promise<void> {
+  const fixturePassword = process.env.OPS_E2E_PASSWORD ?? 'correct horse battery staple';
+  const fixtureTotp = process.env.OPS_E2E_TOTP ?? totp('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ');
+  const legacyLogin = await fetch(new URL('/api/session', allowedOrigin), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'ops-e2e', password: fixturePassword, totp: fixtureTotp })
+  });
+  if (legacyLogin.status !== 201) throw new Error('OPS_E2E_LEGACY_FIXTURE_LOGIN_FAILED');
+  const legacyCookie = legacyLogin.headers.get('set-cookie')?.split(';', 1)[0];
+  const legacySession = (await legacyLogin.json()) as { csrfToken?: string };
+  if (!legacyCookie || !legacySession.csrfToken)
+    throw new Error('OPS_E2E_LEGACY_FIXTURE_SESSION_INVALID');
+
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    if (path === '/api/v1/auth/session') {
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'UNAUTHENTICATED' })
+      });
+      return;
+    }
+    if (path === '/api/v1/auth/login') {
+      const body = request.postDataJSON() as { identifier?: string; password?: string };
+      const valid = body.identifier === 'ops-e2e' && body.password === fixturePassword;
+      await route.fulfill({
+        status: valid ? 202 : 401,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          valid
+            ? {
+                status: 'mfa_required',
+                mfaChallenge: 'c'.repeat(32),
+                factors: [
+                  {
+                    id: '30000000-0000-4000-8000-000000000011',
+                    type: 'totp',
+                    label: 'Synthetic authenticator'
+                  }
+                ]
+              }
+            : { code: 'AUTH_DENIED' }
+        )
+      });
+      return;
+    }
+    if (path === '/api/v1/auth/login/totp') {
+      const body = request.postDataJSON() as { token?: string };
+      const valid = body.token === fixtureTotp;
+      await route.fulfill({
+        status: valid ? 200 : 401,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          valid
+            ? {
+                userId: '30000000-0000-4000-8000-000000000012',
+                username: 'ops-e2e',
+                displayName: 'Synthetic Ops Operator',
+                role: 'ops_owner',
+                csrfToken: 'synthetic-canonical-csrf',
+                expiresAt: new Date(Date.now() + 30 * 60_000).toISOString()
+              }
+            : { code: 'AUTH_DENIED' }
+        )
+      });
+      return;
+    }
+
+    let legacyPath: string | null = null;
+    if (path === '/api/v1/monitoring/overview') legacyPath = '/api/overview';
+    if (path === '/api/v1/monitoring/infrastructure/history') {
+      legacyPath = `/api/infrastructure/history${url.search}`;
+    }
+    if (path === '/api/v1/zalo/link') legacyPath = '/api/zalo/link';
+    if (path === '/api/v1/zalo/link-code') legacyPath = '/api/zalo/link-code';
+    const acknowledgement = /^\/api\/v1\/monitoring\/incidents\/([^/]+)\/ack$/u.exec(path);
+    if (acknowledgement) {
+      legacyPath = `/api/incidents/${encodeURIComponent(acknowledgement[1])}/ack`;
+    }
+    if (!legacyPath) {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'OPS_E2E_CANONICAL_FIXTURE_ROUTE_MISSING' })
+      });
+      return;
+    }
+
+    const response = await fetch(new URL(legacyPath, allowedOrigin), {
+      method: request.method(),
+      headers: {
+        accept: 'application/json',
+        cookie: legacyCookie,
+        ...(request.method() === 'POST'
+          ? { 'Content-Type': 'application/json', 'X-CSRF-Token': legacySession.csrfToken }
+          : {})
+      },
+      ...(request.postData() ? { body: request.postData()! } : {})
+    });
+    await route.fulfill({
+      status: response.status,
+      contentType: response.headers.get('content-type') ?? 'application/json',
+      body: await response.text()
+    });
+  });
+}
+
 async function login(page: Page) {
   await page.goto('/');
   await page.getByLabel('Tên đăng nhập').fill('ops-e2e');
   await page
     .getByLabel('Mật khẩu')
     .fill(process.env.OPS_E2E_PASSWORD ?? 'correct horse battery staple');
+  await page.getByRole('button', { name: 'Đăng nhập' }).click();
   await page
     .getByLabel('Mã xác thực')
     .fill(process.env.OPS_E2E_TOTP ?? totp('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'));
-  await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await page.getByRole('button', { name: 'Hoàn tất đăng nhập' }).click();
   await expect(page.getByRole('button', { name: /Xác nhận đã xem/ })).toBeVisible();
 }
 

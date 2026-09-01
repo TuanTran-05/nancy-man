@@ -11,7 +11,7 @@ export class PostgresSqlElevationRepository {
   }): Promise<{ encryptedSecret: string } | null> {
     const { rows } = await this.database.query<{ encryptedSecret: string }>(
       `
-        SELECT encode(factor.encrypted_secret, 'base64') AS "encryptedSecret"
+        SELECT convert_from(factor.encrypted_secret, 'UTF8') AS "encryptedSecret"
         FROM ops_mfa_factors AS factor
         JOIN ops_users AS user_record
           ON user_record.id = factor.user_id AND user_record.status = 'active'

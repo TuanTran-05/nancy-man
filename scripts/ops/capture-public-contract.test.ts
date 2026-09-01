@@ -28,7 +28,7 @@ const rootResponse = {
 const unauthorizedResponse = (route: '/api/session' | '/api/overview') => ({
   method: 'GET',
   route,
-  status: 401,
+  status: 410,
   headers: {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
@@ -57,7 +57,7 @@ const expectedContract = {
     },
     {
       route: { method: 'GET', path: '/api/overview' },
-      status: 401,
+      status: 410,
       jsonShape: {
         type: 'object',
         keys: { error: { type: 'string' } }
@@ -67,7 +67,7 @@ const expectedContract = {
     },
     {
       route: { method: 'GET', path: '/api/session' },
-      status: 401,
+      status: 410,
       jsonShape: {
         type: 'object',
         keys: { error: { type: 'string' } }

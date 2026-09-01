@@ -3,6 +3,35 @@ import { describe, expect, it } from 'vitest';
 import { PostgresOpsAuthRepository } from './postgresAuthRepository.js';
 
 describe('PostgresOpsAuthRepository', () => {
+  it('returns the stored UTF-8 TOTP envelope for challenge verification', async () => {
+    let statement = '';
+    const repository = new PostgresOpsAuthRepository({
+      query: async <T>(sql: string) => {
+        statement = sql;
+        return {
+          rows: [
+            {
+              id: 'challenge-id',
+              userId: 'user-id',
+              role: 'ops_owner',
+              encryptedTotpSecret: 'v1.iv.ciphertext.tag'
+            }
+          ] as T[]
+        };
+      }
+    });
+
+    await expect(
+      repository.findTotpChallenge({
+        challengeHash: 'a'.repeat(64),
+        factorId: 'factor-id',
+        ipHash: 'b'.repeat(64)
+      })
+    ).resolves.toMatchObject({ encryptedTotpSecret: 'v1.iv.ciphertext.tag' });
+    expect(statement).toContain("convert_from(factor.encrypted_secret, 'UTF8')");
+    expect(statement).not.toContain("encode(factor.encrypted_secret, 'base64')");
+  });
+
   it('uses parameterized queries and consumes a verified MFA challenge atomically with session creation', async () => {
     const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
     const repository = new PostgresOpsAuthRepository({

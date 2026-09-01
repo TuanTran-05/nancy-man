@@ -3,12 +3,28 @@ import { describe, expect, it } from 'vitest';
 import { PostgresSqlElevationRepository } from './postgresSqlElevationRepository.js';
 
 describe('PostgresSqlElevationRepository', () => {
+  it('returns the stored UTF-8 TOTP envelope for SQL elevation verification', async () => {
+    let statement = '';
+    const repository = new PostgresSqlElevationRepository({
+      query: async <T>(sql: string) => {
+        statement = sql;
+        return { rows: [{ encryptedSecret: 'v1.iv.ciphertext.tag' }] as T[] };
+      }
+    });
+
+    await expect(
+      repository.findActiveTotpFactor({ userId: 'user-id', factorId: 'factor-id' })
+    ).resolves.toEqual({ encryptedSecret: 'v1.iv.ciphertext.tag' });
+    expect(statement).toContain("convert_from(factor.encrypted_secret, 'UTF8')");
+    expect(statement).not.toContain("encode(factor.encrypted_secret, 'base64')");
+  });
+
   it('binds factor lookup and elevation grant to the active authenticated user/session', async () => {
     const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
     const repository = new PostgresSqlElevationRepository({
       query: async <T>(sql: string, parameters: readonly unknown[] = []) => {
         calls.push({ sql, parameters });
-        if (sql.includes('encode(factor.encrypted_secret')) {
+        if (sql.includes('convert_from(factor.encrypted_secret')) {
           return { rows: [{ encryptedSecret: 'encrypted' }] as T[] };
         }
         return { rows: [{ granted: true }] as T[] };

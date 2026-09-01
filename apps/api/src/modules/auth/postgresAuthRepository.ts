@@ -126,7 +126,7 @@ export class PostgresOpsAuthRepository implements OpsAuthRepository {
           challenge.id,
           challenge.user_id AS "userId",
           user_record.role,
-          encode(factor.encrypted_secret, 'base64') AS "encryptedTotpSecret"
+          convert_from(factor.encrypted_secret, 'UTF8') AS "encryptedTotpSecret"
         FROM ops_mfa_login_challenges AS challenge
         JOIN ops_users AS user_record ON user_record.id = challenge.user_id
         JOIN ops_mfa_factors AS factor

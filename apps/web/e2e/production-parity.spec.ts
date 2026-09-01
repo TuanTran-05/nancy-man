@@ -25,6 +25,11 @@ import { startOpsApi } from '../../api/src/runtime/main.js';
 import { getOpsPool } from '../../../packages/db/src/client.js';
 import { migrateOpsDatabase } from '../../../packages/db/src/migrate.js';
 import { opsMigrationTrustRoot } from '../../../packages/db/src/migrationManifest.js';
+import { encryptTotpSecret } from '../../../packages/security/src/mfa/totp.js';
+import {
+  hashPassword as hashCanonicalPassword,
+  passwordFingerprint
+} from '../../../packages/security/src/passwords.js';
 import { parseOpsE2eBaseUrl } from './baseUrl.js';
 import { createOpsApp } from '../src/server/http/app.js';
 import { createPostgresContractClient } from '../src/server/collector/postgresContractTarget.js';
@@ -46,11 +51,16 @@ const dataKey = Buffer.alloc(32, 17);
 const recipientKey = Buffer.alloc(32, 19);
 const totpSeed = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
 const username = 'ops-parity-e2e';
-const password = 'correct horse battery staple';
+const password = 'synthetic canonical passphrase 2026!';
 const syntheticNow = '2030-08-30T01:02:03.000Z';
 const syntheticAccountId = '10000000-0000-4000-8000-000000000007';
 const syntheticIncidentId = '20000000-0000-4000-8000-000000000007';
+const canonicalUserId = '30000000-0000-4000-8000-000000000008';
+const canonicalCredentialId = '30000000-0000-4000-8000-000000000009';
+const canonicalFactorId = '30000000-0000-4000-8000-000000000010';
 const legacyMonitoringHmac = 'e2e-legacy-monitoring-hmac';
+const mfaEncryptionKey = Buffer.alloc(32, 23);
+const passwordFingerprintPepper = 'e2e-password-fingerprint-pepper';
 const forbiddenCandidateText =
   /(?:\/srv\/edutrack-ops|\.sqlite|select\s+.+\s+from|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/iu;
 const sqliteDataTables = [
@@ -99,9 +109,10 @@ let internalCandidateServer: Server | undefined;
 let candidateStore: OpsStore | undefined;
 let candidateDirectory: string | undefined;
 let browserContacts: string[] = [];
-let usingSnapshot = false;
 let apiHandle: Awaited<ReturnType<typeof startOpsApi>> | undefined;
 let apiPort: number | undefined;
+let candidatePort: number | undefined;
+let internalCandidatePort: number | undefined;
 let postgresRoot: string | undefined;
 let postgresDataDirectory: string | undefined;
 let postgresPort: number | undefined;
@@ -264,7 +275,11 @@ async function writeSecret(root: string, reference: string, value: string): Prom
   }
 }
 
-async function startOwnedPostgresApi(excludedPorts: Set<number>): Promise<void> {
+async function startOwnedPostgresApi(
+  excludedPorts: Set<number>,
+  legacyMonitoringBaseUrl: string,
+  monitoringAllowedOrigin: string
+): Promise<void> {
   if (forbiddenDatabaseEnvironment.some((name) => name in process.env))
     safeFail('OPS_PARITY_DATABASE_ENVIRONMENT_FORBIDDEN');
   await assertFixedPostgresBinaries();
@@ -418,6 +433,31 @@ async function startOwnedPostgresApi(excludedPorts: Set<number>): Promise<void> 
         JSON.stringify(['https://man.thienuy.edu.vn'])
       ]
     );
+    const passwordHash = await hashCanonicalPassword(password, {
+      parameters: { memoryCost: 8_192, timeCost: 1, parallelism: 1 }
+    });
+    await pool.query(
+      `INSERT INTO ops_users (id, username, email, display_name, role, status)
+       VALUES ($1, $2, $3, $4, 'ops_owner', 'active')`,
+      [canonicalUserId, username, 'ops-parity@example.invalid', 'Synthetic Ops Owner']
+    );
+    await pool.query(
+      `INSERT INTO ops_password_credentials
+       (id, user_id, password_hash, password_fingerprint)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        canonicalCredentialId,
+        canonicalUserId,
+        passwordHash,
+        passwordFingerprint(password, passwordFingerprintPepper)
+      ]
+    );
+    await pool.query(
+      `INSERT INTO ops_mfa_factors
+       (id, user_id, factor_type, encrypted_secret, label)
+       VALUES ($1, $2, 'totp', convert_to($3, 'UTF8'), 'Synthetic authenticator')`,
+      [canonicalFactorId, canonicalUserId, encryptTotpSecret(totpSeed, mfaEncryptionKey)]
+    );
   } catch (error) {
     postgresSetupFailure =
       error instanceof Error && /^OPS_PARITY_PG_IDENTITY_MISMATCH_[A-Z_]+$/u.test(error.message)
@@ -445,9 +485,9 @@ async function startOwnedPostgresApi(excludedPorts: Set<number>): Promise<void> 
     ['session-pepper', randomBytes(32).toString('base64url')],
     ['rate-limit-pepper', randomBytes(32).toString('base64url')],
     ['auth-session-pepper', randomBytes(32).toString('base64url')],
-    ['password-fingerprint-pepper', randomBytes(32).toString('base64url')],
+    ['password-fingerprint-pepper', passwordFingerprintPepper],
     ['legacy-monitoring-hmac', legacyMonitoringHmac],
-    ['mfa-encryption-key', randomBytes(32).toString('base64url')],
+    ['mfa-encryption-key', mfaEncryptionKey.toString('base64url')],
     ['browser-context-key', 'task7-browser-key']
   ] as const)
     await writeSecret(secretDirectory, reference, value);
@@ -476,7 +516,10 @@ async function startOwnedPostgresApi(excludedPorts: Set<number>): Promise<void> 
   if (createPostgresContractClient(controlledEnvironment, (value) => value) !== guardedDatabaseUrl)
     safeFail('OPS_PARITY_PG_GUARD_REJECTED');
   try {
-    apiHandle = await startOpsApi(controlledEnvironment);
+    apiHandle = await startOpsApi(controlledEnvironment, {
+      legacyMonitoringBaseUrl,
+      monitoringAllowedOrigin
+    });
   } catch {
     safeFail('OPS_PARITY_API_START_FAILED');
   }
@@ -659,8 +702,12 @@ function seedSyntheticFixture(store: OpsStore): void {
     );
 }
 
-async function startSnapshotCandidate(snapshotPath: string, port: number): Promise<void> {
-  await validateSnapshot(snapshotPath);
+async function startCandidate(
+  snapshotPath: string | undefined,
+  port: number,
+  internalPort: number
+): Promise<void> {
+  if (snapshotPath) await validateSnapshot(snapshotPath);
   candidateDirectory = await mkdtemp(join(tmpdir(), 'edutrack-ops-candidate-'));
   const directoryStat = await lstat(candidateDirectory);
   if (
@@ -673,7 +720,11 @@ async function startSnapshotCandidate(snapshotPath: string, port: number): Promi
   )
     safeFail('OPS_PARITY_CANDIDATE_TEMP_INVALID');
   const databasePath = join(candidateDirectory, 'ops.sqlite');
-  await copyFile(snapshotPath, databasePath);
+  if (snapshotPath) {
+    await copyFile(snapshotPath, databasePath);
+  } else {
+    await writeFile(databasePath, '', { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+  }
   const databaseStat = await lstat(databasePath);
   if (
     !databaseStat.isFile() ||
@@ -682,16 +733,17 @@ async function startSnapshotCandidate(snapshotPath: string, port: number): Promi
     (databaseStat.mode & 0o777) !== 0o600
   )
     safeFail('OPS_PARITY_CANDIDATE_DATABASE_INVALID');
-  await sanitizeCopiedDatabase(databasePath);
+  if (snapshotPath) await sanitizeCopiedDatabase(databasePath);
   candidateStore = createOpsStore(databasePath, () => new Date(), recipientKey);
   seedSyntheticFixture(candidateStore);
   const auth = createAuthService({ store: candidateStore, dataKey });
+  if (!apiHandle) safeFail('OPS_PARITY_API_UNAVAILABLE');
   const app = createOpsApp({
     store: candidateStore,
     auth,
     staticDir: join(repositoryRoot, 'apps/web/dist/web'),
     legacyBrowserApi: false,
-    canonicalApi: apiHandle?.app,
+    canonicalApi: apiHandle.app,
     zalo: {
       store: candidateStore,
       auth,
@@ -709,7 +761,9 @@ async function startSnapshotCandidate(snapshotPath: string, port: number): Promi
     internalMonitoring: { secret: legacyMonitoringHmac }
   });
   candidateServer = await listen(app, port);
-  internalCandidateServer = await listen(app, 3101);
+  candidatePort = port;
+  internalCandidateServer = await listen(app, internalPort);
+  internalCandidatePort = internalPort;
 }
 
 async function candidateContract(
@@ -764,10 +818,11 @@ function totp(seed: string, time = Date.now()): string {
 
 async function login(page: Page): Promise<void> {
   await page.goto(candidateOrigin);
-  await page.getByLabel('Tên đăng nhập').fill(usingSnapshot ? username : 'ops-e2e');
+  await page.getByLabel('Tên đăng nhập').fill(username);
   await page.getByLabel('Mật khẩu').fill(password);
-  await page.getByLabel('Mã xác thực').fill(totp(totpSeed));
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await page.getByLabel('Mã xác thực').fill(totp(totpSeed));
+  await page.getByRole('button', { name: 'Hoàn tất đăng nhập' }).click();
   await expect(page.getByRole('heading', { name: 'Hạ tầng VPS' })).toBeVisible();
 }
 
@@ -814,6 +869,7 @@ async function cleanupOwnedResources(): Promise<unknown[]> {
     }
   }
 
+  const closingCandidatePort = candidatePort;
   try {
     await closeServer(candidateServer);
   } catch (error) {
@@ -821,12 +877,29 @@ async function cleanupOwnedResources(): Promise<unknown[]> {
   } finally {
     candidateServer = undefined;
   }
+  if (closingCandidatePort !== undefined) {
+    try {
+      await assertPortReleased(closingCandidatePort);
+      candidatePort = undefined;
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  const closingInternalCandidatePort = internalCandidatePort;
   try {
     await closeServer(internalCandidateServer);
   } catch (error) {
     failures.push(error);
   } finally {
     internalCandidateServer = undefined;
+  }
+  if (closingInternalCandidatePort !== undefined) {
+    try {
+      await assertPortReleased(closingInternalCandidatePort);
+      internalCandidatePort = undefined;
+    } catch (error) {
+      failures.push(error);
+    }
   }
   try {
     const database = candidateStore?.getDatabaseForBackup();
@@ -901,16 +974,25 @@ test.beforeAll(async () => {
   try {
     const configured = parseOpsE2eBaseUrl(process.env.OPS_E2E_BASE_URL);
     const snapshotPath = process.env.OPS_PARITY_SQLITE_SNAPSHOT;
-    usingSnapshot = Boolean(snapshotPath);
-    const candidate = parseCandidateOrigin(
-      process.env.OPS_PARITY_CANDIDATE_BASE_URL,
-      configured.baseURL
-    );
-    if (snapshotPath && candidate.origin === configured.origin)
-      safeFail('OPS_PARITY_SNAPSHOT_REQUIRES_DISTINCT_CANDIDATE_PORT');
+    const excludedPorts = new Set([configured.port]);
+    const candidate = process.env.OPS_PARITY_CANDIDATE_BASE_URL
+      ? parseCandidateOrigin(process.env.OPS_PARITY_CANDIDATE_BASE_URL, configured.baseURL)
+      : parseCandidateOrigin(
+          undefined,
+          `http://127.0.0.1:${await allocateUnusedHighPort(excludedPorts)}`
+        );
+    if (candidate.origin === configured.origin)
+      safeFail('OPS_PARITY_CANDIDATE_REQUIRES_DISTINCT_PORT');
+    excludedPorts.add(candidate.port);
+    const internalPort = await allocateUnusedHighPort(excludedPorts);
+    excludedPorts.add(internalPort);
     candidateOrigin = candidate.origin;
-    await startOwnedPostgresApi(new Set([configured.port, candidate.port]));
-    if (snapshotPath) await startSnapshotCandidate(snapshotPath, candidate.port);
+    await startOwnedPostgresApi(
+      excludedPorts,
+      `http://127.0.0.1:${internalPort}/`,
+      candidate.origin
+    );
+    await startCandidate(snapshotPath, candidate.port, internalPort);
   } catch (error) {
     const primary =
       error instanceof Error && /^OPS_PARITY_[A-Z_]+$/u.test(error.message)
@@ -967,14 +1049,10 @@ test('keeps MFA, overview, history and incident acknowledgement functional on sy
 }) => {
   await login(page);
   await expect(page.getByText('42,5%').first()).toBeVisible();
-  await expect(
-    page.getByText(usingSnapshot ? 'synthetic-worker' : 'edutrack-worker')
-  ).toBeVisible();
+  await expect(page.getByText('synthetic-worker')).toBeVisible();
   await page.getByRole('button', { name: '7d' }).click();
   await expect(page.getByRole('button', { name: '7d' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(
-    page.getByText(usingSnapshot ? 'Synthetic Task 7 incident' : 'Synthetic E2E incident')
-  ).toBeVisible();
+  await expect(page.getByText('Synthetic Task 7 incident')).toBeVisible();
   await page.getByRole('button', { name: 'Xác nhận đã xem' }).click();
   await page.getByLabel('Ghi chú').fill('Synthetic acknowledgement only');
   await page.getByRole('button', { name: 'Lưu acknowledge' }).click();
