@@ -229,18 +229,20 @@ process.stdout.write(`CONFIG_AGENT_PREFLIGHT_PASS sources=${manifest.sources.len
 NODE
 
 validate_credential() {
-  local path="$1"
+  local path="$1" expected_size="${2:-}" size
   [[ -f "$path" && ! -L "$path" ]] || fail CONFIG_AGENT_CREDENTIAL_ABSENT
   local metadata
   metadata="$(stat -c '%U:%G:%a:%h:%s' -- "$path" 2>/dev/null)" || fail CONFIG_AGENT_CREDENTIAL_STAT_FAILED
   [[ "$metadata" == root:root:400:1:* ]] || fail CONFIG_AGENT_CREDENTIAL_METADATA_MISMATCH
-  [[ "${metadata##*:}" != 0 ]] || fail CONFIG_AGENT_CREDENTIAL_EMPTY
+  size="${metadata##*:}"
+  [[ "$size" != 0 ]] || fail CONFIG_AGENT_CREDENTIAL_EMPTY
+  [[ -z "$expected_size" || "$size" == "$expected_size" ]] || fail CONFIG_AGENT_CREDENTIAL_SIZE_MISMATCH
 }
 
 validate_credential "${OPS_CONFIG_AGENT_PROTOCOL_HMAC_SOURCE:-$PROTOCOL_DEST}"
 validate_credential "${OPS_CONFIG_AGENT_FINGERPRINT_HMAC_SOURCE:-$FINGERPRINT_DEST}"
-validate_credential "${OPS_CONFIG_AGENT_STAGING_KEY_SOURCE:-$STAGING_DEST}"
-validate_credential "${OPS_CONFIG_AGENT_SNAPSHOT_KEY_SOURCE:-$SNAPSHOT_DEST}"
+validate_credential "${OPS_CONFIG_AGENT_STAGING_KEY_SOURCE:-$STAGING_DEST}" 32
+validate_credential "${OPS_CONFIG_AGENT_SNAPSHOT_KEY_SOURCE:-$SNAPSHOT_DEST}" 32
 # systemd-analyze verify runs before any live asset is replaced.
 "$SYSTEMD_ANALYZE" verify "$AGENT_SERVICE_SOURCE" >/dev/null 2>&1 || fail CONFIG_AGENT_SYSTEMD_PREFLIGHT_FAILED
 

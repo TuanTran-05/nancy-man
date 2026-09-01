@@ -259,6 +259,12 @@ describe('canonical Ops systemd assets', () => {
     expect(install).toContain('systemd-analyze verify');
     expect(install).toContain('systemctl daemon-reload');
     expect(install).toContain('chmod 0400');
+    expect(install).toContain(
+      'validate_credential "${OPS_CONFIG_AGENT_STAGING_KEY_SOURCE:-$STAGING_DEST}" 32'
+    );
+    expect(install).toContain(
+      'validate_credential "${OPS_CONFIG_AGENT_SNAPSHOT_KEY_SOURCE:-$SNAPSHOT_DEST}" 32'
+    );
     expect(install).toContain('process.argv.slice(2)');
     expect(install).not.toContain('process.argv.slice(1)');
     expect(install).toContain("mode.padStart(4, '0') !== source.mode");

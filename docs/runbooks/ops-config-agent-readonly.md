@@ -75,20 +75,31 @@ install -d -m 0750 -o root -g root /etc/edutrack-ops/credentials
 umask 077
 openssl rand -hex 32 > /etc/edutrack-ops/credentials/.protocol-hmac.new
 openssl rand -hex 32 > /etc/edutrack-ops/credentials/.fingerprint-hmac.new
+openssl rand 32 > /etc/edutrack-ops/credentials/.staging-key.new
+openssl rand 32 > /etc/edutrack-ops/credentials/.snapshot-key.new
 chown root:root /etc/edutrack-ops/credentials/.protocol-hmac.new \
-  /etc/edutrack-ops/credentials/.fingerprint-hmac.new
+  /etc/edutrack-ops/credentials/.fingerprint-hmac.new \
+  /etc/edutrack-ops/credentials/.staging-key.new \
+  /etc/edutrack-ops/credentials/.snapshot-key.new
 chmod 0400 /etc/edutrack-ops/credentials/.protocol-hmac.new \
-  /etc/edutrack-ops/credentials/.fingerprint-hmac.new
+  /etc/edutrack-ops/credentials/.fingerprint-hmac.new \
+  /etc/edutrack-ops/credentials/.staging-key.new \
+  /etc/edutrack-ops/credentials/.snapshot-key.new
 mv -T /etc/edutrack-ops/credentials/.protocol-hmac.new \
   /etc/edutrack-ops/credentials/config-agent-protocol-hmac
 mv -T /etc/edutrack-ops/credentials/.fingerprint-hmac.new \
   /etc/edutrack-ops/credentials/config-agent-fingerprint-hmac
+mv -T /etc/edutrack-ops/credentials/.staging-key.new \
+  /etc/edutrack-ops/credentials/config-agent-staging-key
+mv -T /etc/edutrack-ops/credentials/.snapshot-key.new \
+  /etc/edutrack-ops/credentials/config-agent-snapshot-key
 ```
 
-The protocol HMAC and fingerprint HMAC must remain different keys. Rotate by
-writing new private temporary files, atomically replacing the two destination
-files, then restarting the agent and repeating capability negotiation. Never
-place either key in Git, an environment file, a command argument, or a log.
+The protocol HMAC, fingerprint HMAC, 32-byte staging key, and 32-byte snapshot
+key must all remain different. Rotate by writing new private temporary files,
+atomically replacing the destination files, then restarting the agent and
+repeating capability negotiation. Never place any key in Git, an environment
+file, a command argument, or a log.
 
 Install the environment file once, keeping the feature disabled until the
 deployment gate passes:
