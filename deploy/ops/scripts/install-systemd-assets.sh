@@ -278,6 +278,7 @@ chmod 0750 "$CONFIG_DIRECTORY" "$CREDENTIAL_DIRECTORY"
 stage="$(mktemp -d "$AGENT_RELEASES/.${VERSION}.XXXXXX")"
 cleanup() { rm -rf -- "${stage:-}"; }
 trap cleanup EXIT
+chmod 0755 "$stage"
 mkdir -p -- "$stage/apps/config-agent" "$stage/deploy/ops/config-agent" "$stage/config/variables"
 cp -a --no-preserve=ownership -- "$RELEASE/apps/config-agent/dist" "$stage/apps/config-agent/"
 install -D -m 0755 -- "$RELEASE/$AGENT_RELATIVE_BINARY" "$stage/$AGENT_RELATIVE_BINARY"
