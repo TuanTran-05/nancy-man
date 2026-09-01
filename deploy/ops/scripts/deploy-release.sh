@@ -22,7 +22,7 @@ fail() { printf '%s\n' "$1" >&2; exit 1; }
 # succeed as the API identity.
 "$INSTALLER" "$RELEASE"
 
-systemctl start ops-config-agent.service
+systemctl restart "$AGENT_SERVICE"
 
 API_IDENTITY="${EDUTRACK_OPS_API_IDENTITY:-edutrack-ops-api}"
 SOCKET="${OPS_CONFIG_AGENT_SOCKET_PATH:-/run/edutrack-config-agent/agent.sock}"

@@ -231,14 +231,15 @@ describe('canonical Ops systemd assets', () => {
       'utf8'
     );
     expect(deploy.indexOf('install-systemd-assets.sh')).toBeGreaterThanOrEqual(0);
-    expect(deploy.indexOf('start ops-config-agent.service')).toBeGreaterThan(
+    expect(deploy).toContain('systemctl restart "$AGENT_SERVICE"');
+    expect(deploy.indexOf('restart "$AGENT_SERVICE"')).toBeGreaterThan(
       deploy.indexOf('install-systemd-assets.sh')
     );
     expect(deploy.indexOf('agent.capabilities')).toBeGreaterThan(
-      deploy.indexOf('start ops-config-agent.service')
+      deploy.indexOf('restart "$AGENT_SERVICE"')
     );
     expect(deploy.indexOf('test -S "$SOCKET"')).toBeGreaterThan(
-      deploy.indexOf('start ops-config-agent.service')
+      deploy.indexOf('restart "$AGENT_SERVICE"')
     );
     expect(deploy.indexOf('agent.capabilities')).toBeGreaterThan(
       deploy.indexOf('test -S "$SOCKET"')
