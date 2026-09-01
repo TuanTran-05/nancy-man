@@ -155,7 +155,12 @@ const assertPath = async (path, source, kind) => {
   const after = metadata(path);
   if (before !== after) fail(`CONFIG_AGENT_${kind}_CHANGED`);
   const [owner, group, mode, links, size] = after.split(':');
-  if (owner !== source.owner || group !== source.group || mode !== source.mode || links !== '1') {
+  if (
+    owner !== source.owner ||
+    group !== source.group ||
+    mode.padStart(4, '0') !== source.mode ||
+    links !== '1'
+  ) {
     fail(`CONFIG_AGENT_${kind}_METADATA_MISMATCH`);
   }
   if (Number(size) > source.maximumBytes) fail(`CONFIG_AGENT_${kind}_OVERSIZE`);

@@ -261,6 +261,7 @@ describe('canonical Ops systemd assets', () => {
     expect(install).toContain('chmod 0400');
     expect(install).toContain('process.argv.slice(2)');
     expect(install).not.toContain('process.argv.slice(1)');
+    expect(install).toContain("mode.padStart(4, '0') !== source.mode");
     expect(install).toContain('chmod 0750 "$CONFIG_DIRECTORY" "$CREDENTIAL_DIRECTORY"');
     expect(install).toContain('/usr/local/libexec/edutrack-config-agent-smoke');
     expect(install).not.toMatch(/cat\s+.*(?:env|credential)/iu);
