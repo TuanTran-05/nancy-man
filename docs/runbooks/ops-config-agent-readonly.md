@@ -1,5 +1,12 @@
 # Read-only Config Agent operations
 
+This runbook covers installation and read-only recovery. Use the
+[`catalog-change-review.md`](../checklists/catalog-change-review.md) checklist
+for catalog/manifest changes and the
+[`ops-config-agent-key-rotation.md`](ops-config-agent-key-rotation.md) runbook
+for key retention and re-encryption. Owner recovery and enrollment links have
+separate procedures so a read-only rollback never becomes an account reset.
+
 The Config Agent is a local, read-only inventory service. It has no public
 listener and it must never receive a database, audit, telemetry, or object
 store write path. `OPS_CONFIG_AGENT_ENABLED=false` is the production default;

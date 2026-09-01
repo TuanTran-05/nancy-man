@@ -17,6 +17,7 @@
     "test": "vitest run --passWithNoTests",
     "variables:coverage": "node --experimental-strip-types scripts/variables/catalogCoverage.ts",
     "build": "npm run build --workspaces --if-present",
+    "bootstrap-owner": "npm run bootstrap-owner --workspace @edutrack-ops/api",
     "test:e2e": "npm run test:e2e --workspace @edutrack-ops/web",
     "consolidation:ops:capture": "node scripts/consolidation/opsDisposition.mjs --capture",
     "consolidation:ops:validate": "node scripts/consolidation/opsDisposition.mjs docs/architecture/baselines/2026-08-29-ops-disposition-ledger.json"

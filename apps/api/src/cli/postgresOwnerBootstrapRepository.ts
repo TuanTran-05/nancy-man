@@ -11,7 +11,7 @@ export class PostgresOwnerBootstrapRepository implements OwnerBootstrapRepositor
   }
   async createPendingOwner(owner: PendingOwnerInput): Promise<{ id: string }> {
     const userId = randomUUID();
-    const expiry = new Date(Date.now() + 60 * 60 * 1_000).toISOString();
+    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString();
     const { rows } = await this.database.query<{ id: string }>(
       `WITH owner_row AS (INSERT INTO ops_users (id, username, email, display_name, role, status) VALUES ($1,$2,$3,$4,'ops_owner','pending_mfa') RETURNING id), credential AS (INSERT INTO ops_password_credentials (id,user_id,password_hash,password_fingerprint) SELECT $5,id,$6,$7 FROM owner_row), enrollment AS (INSERT INTO ops_mfa_enrollment_tokens (id,user_id,token_hash,purpose,expires_at) SELECT $8,id,$9,'bootstrap',$10 FROM owner_row) SELECT id FROM owner_row`,
       [

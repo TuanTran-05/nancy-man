@@ -1,5 +1,10 @@
 # Ops account recovery
 
+For loss of the last usable owner or an offline additional-owner bootstrap,
+follow [`ops-owner-loss-offline-recovery.md`](ops-owner-loss-offline-recovery.md).
+For handling the one-time URL, follow
+[`ops-enrollment-link-handling.md`](ops-enrollment-link-handling.md).
+
 ## Owner bootstrap
 
 The first owner is created only through the offline bootstrap CLI on the Ops

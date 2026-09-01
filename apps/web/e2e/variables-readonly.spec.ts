@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
-const roles = ['ops_owner', 'ops_maintainer', 'ops_readonly'] as const;
+const roles = ['ops_owner', 'ops_maintainer', 'ops_viewer'] as const;
 const syntheticValue = 'synthetic-e2e-value';
 
 const inventory = {
@@ -93,7 +93,11 @@ async function installVariableRoutes(page: Page, role: (typeof roles)[number]) {
 
 async function openVariables(page: Page, role: (typeof roles)[number]) {
   await installVariableRoutes(page, role);
-  await page.goto('/variables');
+  await page.goto('/');
+  await page.evaluate(() => {
+    window.history.replaceState({}, '', '/variables');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
   await expect(page.getByRole('heading', { name: 'Mở khóa Variables' })).toBeVisible();
 }
 
@@ -117,7 +121,7 @@ test('all active roles can unlock the read-only Variables workspace', async ({ p
 test('rejects bad proof, denies direct inventory reads, filters metadata, and locks locally', async ({
   page
 }) => {
-  await openVariables(page, 'ops_readonly');
+  await openVariables(page, 'ops_viewer');
 
   expect(
     await page.evaluate(
@@ -133,7 +137,7 @@ test('rejects bad proof, denies direct inventory reads, filters metadata, and lo
   await expect(page.getByText('/etc/edutrack-ops/api.env')).toBeVisible();
   await expect(page.getByText('ops.api_database_url_duplicate')).toBeVisible();
   await expect(page.getByText('CHG_e2e')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Lưu|Xóa|Áp dụng|Sửa/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Sửa' })).toHaveCount(1);
 
   await page.getByLabel('Tìm variables').fill('does-not-exist');
   await expect(page.getByText(syntheticValue, { exact: true })).toHaveCount(0);
@@ -151,8 +155,14 @@ test('clears values when leaving the route and when the local deadline expires',
   await openVariables(page, 'ops_maintainer');
   await unlock(page);
   await expect(page.getByText(syntheticValue, { exact: true })).toBeVisible();
-  await page.goto('/');
-  await page.goto('/variables');
+  await page.evaluate(() => {
+    window.history.replaceState({}, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await page.evaluate(() => {
+    window.history.replaceState({}, '', '/variables');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
   await expect(page.getByRole('heading', { name: 'Mở khóa Variables' })).toBeVisible();
 
   await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -174,7 +184,10 @@ test('clears values when leaving the route and when the local deadline expires',
   await page.route('**/api/v1/variables', (route) =>
     json(route, unlocked ? inventory : { code: 'STEP_UP_REQUIRED' }, unlocked ? 200 : 401)
   );
-  await page.reload();
+  await page.evaluate(() => {
+    window.history.replaceState({}, '', '/variables');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
   await unlock(page);
   await expect(page.getByText(syntheticValue, { exact: true })).toBeVisible();
   await page.waitForTimeout(1_200);

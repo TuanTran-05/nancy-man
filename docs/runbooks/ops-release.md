@@ -52,7 +52,7 @@ the current rollback target.
 For source metadata drift, repair the owner, group, mode, or hard-link state
 on the host and rerun the installer. Do not relax the manifest or add a broad
 read/write path. For key rotation, use private temporary files and atomic
-replacement as documented in `ops-config-agent-readonly.md`; protocol and
+replacement as documented in `ops-config-agent-key-rotation.md`; protocol and
 fingerprint keys must never be reused.
 
 ## Health and no-value checks
