@@ -59,7 +59,15 @@ temporary_api_env=''
 systemctl daemon-reload
 systemctl restart edutrack-ops-api.service
 
-curl --fail --silent --show-error --max-time 10 \
-  -H 'Accept: application/json' \
-  "${EDUTRACK_OPS_PUBLIC_HEALTH_URL:-https://man.thienuy.edu.vn/healthz}" >/dev/null || fail CONFIG_AGENT_HTTP_SMOKE_FAILED
+api_ready=false
+for _health_attempt in {1..30}; do
+  if curl --fail --silent --max-time 1 \
+    -H 'Accept: application/json' \
+    "${EDUTRACK_OPS_PUBLIC_HEALTH_URL:-https://man.thienuy.edu.vn/healthz}" >/dev/null; then
+    api_ready=true
+    break
+  fi
+  sleep 0.5
+done
+[[ "$api_ready" == true ]] || fail CONFIG_AGENT_HTTP_SMOKE_FAILED
 printf 'CONFIG_AGENT_RELEASE_ACTIVE release=%s\n' "${RELEASE##*/}"

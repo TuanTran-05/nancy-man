@@ -259,6 +259,11 @@ describe('canonical Ops systemd assets', () => {
     expect(deploy.indexOf('healthz')).toBeGreaterThan(
       deploy.indexOf('restart edutrack-ops-api.service')
     );
+    expect(deploy.indexOf('api_ready=false')).toBeGreaterThan(
+      deploy.indexOf('restart edutrack-ops-api.service')
+    );
+    expect(deploy).toContain('for _health_attempt in {1..30}; do');
+    expect(deploy).toContain('[[ "$api_ready" == true ]] || fail CONFIG_AGENT_HTTP_SMOKE_FAILED');
     expect(deploy).toContain('OPS_VARIABLES_READ_ONLY_ENABLED=true');
     expect(deploy).toContain('inventory.read');
     expect(install).toContain('install -D -m 0755');
