@@ -237,6 +237,12 @@ describe('canonical Ops systemd assets', () => {
     expect(deploy.indexOf('agent.capabilities')).toBeGreaterThan(
       deploy.indexOf('start ops-config-agent.service')
     );
+    expect(deploy.indexOf('test -S "$SOCKET"')).toBeGreaterThan(
+      deploy.indexOf('start ops-config-agent.service')
+    );
+    expect(deploy.indexOf('agent.capabilities')).toBeGreaterThan(
+      deploy.indexOf('test -S "$SOCKET"')
+    );
     expect(deploy.indexOf('OPS_VARIABLES_READ_ONLY_ENABLED=true')).toBeGreaterThan(
       deploy.indexOf('agent.capabilities')
     );

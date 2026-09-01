@@ -76,6 +76,14 @@ function loadCredential(path: string): Buffer {
   return key;
 }
 
+export function loadHmacCredential(path: string): Buffer {
+  const key = loadCredential(path);
+  const normalized = Buffer.from(key.toString('utf8').trim(), 'utf8');
+  key.fill(0);
+  if (normalized.length === 0) throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_EMPTY');
+  return normalized;
+}
+
 function keysMatch(left: Uint8Array, right: Uint8Array): boolean {
   const a = Buffer.from(left);
   const b = Buffer.from(right);
@@ -110,9 +118,9 @@ export async function startConfigAgent(
     catalogPath: config.catalogPath,
     manifestPath: config.manifestPath
   });
-  const protocolKey = loadCredential(config.protocolKeyPath);
+  const protocolKey = loadHmacCredential(config.protocolKeyPath);
   const fingerprintKey = createFingerprintKey(
-    loadCredential(config.fingerprintKeyPath),
+    loadHmacCredential(config.fingerprintKeyPath),
     config.fingerprintKeyVersion
   );
   let stagingKeys: EnvelopeKey[];

@@ -23,12 +23,20 @@ fail() { printf '%s\n' "$1" >&2; exit 1; }
 "$INSTALLER" "$RELEASE"
 
 systemctl start ops-config-agent.service
-systemctl is-active --quiet ops-config-agent.service || fail CONFIG_AGENT_START_FAILED
 
 API_IDENTITY="${EDUTRACK_OPS_API_IDENTITY:-edutrack-ops-api}"
 SOCKET="${OPS_CONFIG_AGENT_SOCKET_PATH:-/run/edutrack-config-agent/agent.sock}"
 readonly SMOKE_CLIENT="${EDUTRACK_OPS_CONFIG_AGENT_SMOKE_CLIENT:-/usr/local/libexec/edutrack-config-agent-smoke}"
 [[ -x "$SMOKE_CLIENT" && ! -L "$SMOKE_CLIENT" ]] || fail CONFIG_AGENT_SMOKE_CLIENT_ABSENT
+agent_ready=false
+for _attempt in {1..25}; do
+  if systemctl is-active --quiet ops-config-agent.service && runuser -u "$API_IDENTITY" -- test -S "$SOCKET"; then
+    agent_ready=true
+    break
+  fi
+  sleep 0.2
+done
+[[ "$agent_ready" == true ]] || fail CONFIG_AGENT_START_FAILED
 request_as_api() {
   runuser -u "$API_IDENTITY" -- "$SMOKE_CLIENT" "$@"
 }

@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { isConfigAgentEntrypoint } from './index.js';
+import { isConfigAgentEntrypoint, loadHmacCredential } from './index.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -31,5 +31,16 @@ describe('isConfigAgentEntrypoint', () => {
       isConfigAgentEntrypoint(linkedExecutable, pathToFileURL(realpathSync(executable)).href)
     ).toBe(true);
     expect(isConfigAgentEntrypoint(undefined, pathToFileURL(executable).href)).toBe(false);
+  });
+});
+
+describe('loadHmacCredential', () => {
+  it('normalizes the trailing newline written by openssl rand -hex', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'config-agent-hmac-'));
+    temporaryDirectories.push(directory);
+    const credential = join(directory, 'protocol-hmac');
+    writeFileSync(credential, '0123456789abcdef\n');
+
+    expect(loadHmacCredential(credential).toString('utf8')).toBe('0123456789abcdef');
   });
 });
