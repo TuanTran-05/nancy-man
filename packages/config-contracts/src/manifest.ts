@@ -90,6 +90,10 @@ const activeReleaseLinkLocatorSchema = z
     kind: z.literal('active_release_link'),
     currentPath: absolutePathSchema,
     approvedTargetRoot: absolutePathSchema,
+    metadataFileName: z
+      .string()
+      .regex(/^\.[A-Za-z0-9][A-Za-z0-9._-]*$/u)
+      .optional(),
     fixedDescendant: relativePathSchema
   })
   .strict();

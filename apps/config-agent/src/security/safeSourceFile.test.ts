@@ -236,6 +236,24 @@ describe('active release link resolver', () => {
     expect(resolved.releaseId).toBe('20260831-abc');
   });
 
+  test('accepts the canonical immutable release source marker when explicitly declared', () => {
+    const fixture = releaseFixture();
+    writeFileSync(join(fixture.release, '.release-source.json'), '{"gitSha":"20260831-abc"}\n', {
+      mode: 0o640
+    });
+
+    const resolved = resolveActiveReleaseLink({
+      sourceId: 'edutrack.pm2_ecosystem',
+      currentPath: fixture.current,
+      approvedTargetRoot: fixture.releasesRoot,
+      fixedDescendant: 'deploy/vps/ecosystem.config.cjs',
+      metadataFileName: '.release-source.json'
+    });
+
+    expect(resolved.metadataPath).toBe(join(fixture.release, '.release-source.json'));
+    expect(resolved.releaseId).toBe('20260831-abc');
+  });
+
   test.each([
     [
       'nested release target',

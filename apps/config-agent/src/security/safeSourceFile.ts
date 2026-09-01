@@ -376,13 +376,14 @@ function readReleaseMetadata(path: string, releaseId: string, sourceId: string):
   }
   try {
     const parsed: unknown = JSON.parse(metadataText);
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      Array.isArray(parsed) ||
-      typeof (parsed as Record<string, unknown>).releaseId !== 'string' ||
-      (parsed as Record<string, unknown>).releaseId !== releaseId
-    ) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      fail('ACTIVE_RELEASE_METADATA_INVALID', sourceId);
+    }
+    const record = parsed as Record<string, unknown>;
+    const identities = [record.releaseId, record.gitSha].filter(
+      (value): value is string => typeof value === 'string'
+    );
+    if (identities.length === 0 || identities.some((identity) => identity !== releaseId)) {
       fail('ACTIVE_RELEASE_METADATA_INVALID', sourceId);
     }
   } catch (error) {

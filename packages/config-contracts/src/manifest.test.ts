@@ -51,6 +51,7 @@ const validManifest = {
         kind: 'active_release_link',
         currentPath: '/srv/edutrack/current',
         approvedTargetRoot: '/srv/edutrack/releases',
+        metadataFileName: '.release-source.json',
         fixedDescendant: 'deploy/vps/ecosystem.config.cjs'
       },
       owner: 'deploy',

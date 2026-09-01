@@ -110,6 +110,9 @@ function declaredPath(source: ManifestSource): { path: string; trustedRoot?: str
     sourceId: source.id,
     currentPath: source.locator.currentPath,
     approvedTargetRoot: source.locator.approvedTargetRoot,
+    ...(source.locator.metadataFileName
+      ? { metadataFileName: source.locator.metadataFileName }
+      : {}),
     fixedDescendant: source.locator.fixedDescendant
   });
   return { path: resolution.sourcePath, trustedRoot: resolution.releasePath };
