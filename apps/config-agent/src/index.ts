@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
@@ -204,7 +204,18 @@ async function main(): Promise<void> {
   }
 }
 
-const entrypoint = process.argv[1];
-if (entrypoint && import.meta.url === pathToFileURL(entrypoint).href) {
+export function isConfigAgentEntrypoint(
+  entrypoint: string | undefined,
+  moduleUrl: string
+): boolean {
+  if (!entrypoint) return false;
+  try {
+    return moduleUrl === pathToFileURL(realpathSync(entrypoint)).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isConfigAgentEntrypoint(process.argv[1], import.meta.url)) {
   void main();
 }

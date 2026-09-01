@@ -16,6 +16,7 @@ readonly MANIFEST_RELATIVE_PATH="deploy/ops/config-agent/manifest.yaml"
 readonly CATALOG_RELATIVE_PATH="config/variables/catalog.yaml"
 readonly AGENT_USER=edutrack-config-agent
 readonly CONFIG_GROUP=edutrack-ops
+readonly PLATFORM_GROUP=deploy
 readonly SOCKET_GROUP=edutrack-config-api
 readonly API_USER=edutrack-ops-api
 readonly PROTOCOL_CREDENTIAL=config-agent-protocol-hmac
@@ -261,10 +262,11 @@ else
   getent group "$SOCKET_GROUP" >/dev/null || groupadd --system "$SOCKET_GROUP"
   getent group "$AGENT_USER" >/dev/null || groupadd --system "$AGENT_USER"
   getent group "$CONFIG_GROUP" >/dev/null || fail CONFIG_AGENT_CONFIG_GROUP_ABSENT
+  getent group "$PLATFORM_GROUP" >/dev/null || fail CONFIG_AGENT_PLATFORM_GROUP_ABSENT
   id "$AGENT_USER" >/dev/null 2>&1 || useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin --gid "$AGENT_USER" "$AGENT_USER"
   id "$API_USER" >/dev/null 2>&1 || fail CONFIG_AGENT_API_USER_ABSENT
   usermod --append --groups "$SOCKET_GROUP" "$API_USER"
-  usermod --append --groups "$SOCKET_GROUP" "$AGENT_USER"
+  usermod --append --groups "$SOCKET_GROUP,$CONFIG_GROUP,$PLATFORM_GROUP" "$AGENT_USER"
 fi
 
 mkdir -p -- "$AGENT_RELEASES" "$SYSTEMD_DIRECTORY" "$TMPFILES_DIRECTORY" "$CONFIG_DIRECTORY" "$CREDENTIAL_DIRECTORY"

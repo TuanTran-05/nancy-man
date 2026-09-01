@@ -23,7 +23,7 @@ getent group edutrack-config-api || groupadd --system edutrack-config-api
 getent group edutrack-config-agent || groupadd --system edutrack-config-agent
 id edutrack-config-agent >/dev/null 2>&1 || useradd --system --home-dir /nonexistent \
   --shell /usr/sbin/nologin --gid edutrack-config-agent edutrack-config-agent
-usermod --append --groups edutrack-config-api edutrack-config-agent
+usermod --append --groups edutrack-config-api,edutrack-ops,deploy edutrack-config-agent
 usermod --append --groups edutrack-config-api edutrack-ops-api
 install -d -m 0750 -o root -g edutrack-ops /etc/edutrack-ops
 install -d -m 0750 -o root -g edutrack-config-api /run/edutrack-config-agent
