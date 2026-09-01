@@ -626,6 +626,19 @@ select {
   width: 100%;
   margin-top: 8px;
 }
+.enrollment-card {
+  width: min(520px, 100%);
+}
+.enrollment-secret {
+  color: #a7f3d0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.08em;
+}
+.enrollment-uri {
+  display: inline-block;
+  margin-bottom: 4px;
+  color: #67e8f9;
+}
 .dialog-backdrop {
   position: fixed;
   inset: 0;

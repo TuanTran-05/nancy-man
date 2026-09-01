@@ -2,20 +2,11 @@ import { useEffect, useState } from 'react';
 import { beginLogin, completeLogin, getSession, logout, type SessionInfo } from './api.js';
 import { OpsShell } from './components/OpsShell.js';
 import { LoginForm } from './components/LoginForm.js';
+import { TotpEnrollmentPage } from './components/TotpEnrollmentPage.js';
 import { OverviewPage } from './pages/OverviewPage.js';
 import { UsersPage } from './pages/UsersPage.js';
 import { VariablesPage } from './pages/VariablesPage.js';
-import { useOpsRoute } from './routing.js';
-
-function PlaceholderPage({ title, description }: { title: string; description: string }) {
-  return (
-    <section className="panel placeholder-page">
-      <p className="eyebrow">OPS CONSOLE</p>
-      <h2>{title}</h2>
-      <p className="muted">{description}</p>
-    </section>
-  );
-}
+import { navigate, useOpsRoute } from './routing.js';
 
 export function App() {
   const route = useOpsRoute();
@@ -24,12 +15,30 @@ export function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (route === '/bootstrap/mfa') {
+      setLoading(false);
+      return;
+    }
+    let active = true;
+    setLoading(true);
     getSession()
-      .then(setSession)
-      .catch(() => setSession(null))
-      .finally(() => setLoading(false));
-  }, []);
+      .then((result) => {
+        if (active) setSession(result);
+      })
+      .catch(() => {
+        if (active) setSession(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [route]);
 
+  if (route === '/bootstrap/mfa') {
+    return <TotpEnrollmentPage onComplete={() => navigate('/')} />;
+  }
   if (loading) return <main className="loading-shell">Đang tải…</main>;
   if (!session) {
     return (
@@ -78,12 +87,7 @@ export function App() {
         <UsersPage session={session} onUnauthorized={() => setSession(null)} />
       ) : route === '/variables' ? (
         <VariablesPage session={session} onUnauthorized={() => setSession(null)} />
-      ) : (
-        <PlaceholderPage
-          title="Thiết lập MFA"
-          description="Thiết lập MFA bootstrap sẽ được tải ở đây."
-        />
-      )}
+      ) : null}
     </OpsShell>
   );
 }

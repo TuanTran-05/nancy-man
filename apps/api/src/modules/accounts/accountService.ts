@@ -82,6 +82,12 @@ function assertIdentifier(value: string, code: string): void {
   }
 }
 
+function enrollmentUrl(baseUrl: string, userId: string, token: string): string {
+  const url = new URL('/bootstrap/mfa', baseUrl);
+  url.hash = new URLSearchParams({ token, userId }).toString();
+  return url.toString();
+}
+
 export class AccountService {
   private readonly now: () => Date;
   private readonly issueId: () => string;
@@ -148,7 +154,7 @@ export class AccountService {
     });
     return {
       userId,
-      enrollmentUrl: `${this.enrollmentBaseUrl}/bootstrap/mfa?token=${encodeURIComponent(token.plainToken)}`,
+      enrollmentUrl: enrollmentUrl(this.enrollmentBaseUrl, userId, token.plainToken),
       expiresAt
     };
   }
@@ -225,7 +231,7 @@ export class AccountService {
     });
     return {
       userId: input.targetUserId,
-      enrollmentUrl: `${this.enrollmentBaseUrl}/bootstrap/mfa?token=${encodeURIComponent(token.plainToken)}`,
+      enrollmentUrl: enrollmentUrl(this.enrollmentBaseUrl, input.targetUserId, token.plainToken),
       expiresAt
     };
   }

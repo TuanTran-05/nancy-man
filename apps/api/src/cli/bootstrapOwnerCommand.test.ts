@@ -41,7 +41,7 @@ describe('offline owner bootstrap command', () => {
       userId: 'owner-id'
     });
     expect(output).toEqual([
-      'Enrollment URL: https://man.thienuy.edu.vn/bootstrap/mfa?token=one-time-token&userId=owner-id'
+      'Enrollment URL: https://man.thienuy.edu.vn/bootstrap/mfa#token=one-time-token&userId=owner-id'
     ]);
     expect(output.join('\n')).not.toContain('a-strong-owner-password');
   });

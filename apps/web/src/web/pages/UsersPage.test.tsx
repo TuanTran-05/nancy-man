@@ -100,7 +100,8 @@ describe('UsersPage', () => {
       return jsonResponse(
         {
           userId: 'new-id',
-          enrollmentUrl: 'https://man.thienuy.edu.vn/bootstrap/mfa?token=one-time-secret',
+          enrollmentUrl:
+            'https://man.thienuy.edu.vn/bootstrap/mfa#token=one-time-secret&userId=new-id',
           expiresAt: '2026-09-01T12:00:00.000Z'
         },
         201
@@ -113,7 +114,7 @@ describe('UsersPage', () => {
     await user.type(screen.getByLabelText('Tên hiển thị mới'), 'New Operator');
     await user.click(screen.getByRole('button', { name: 'Tạo liên kết enrollment' }));
     const link = await screen.findByDisplayValue(
-      'https://man.thienuy.edu.vn/bootstrap/mfa?token=one-time-secret'
+      'https://man.thienuy.edu.vn/bootstrap/mfa#token=one-time-secret&userId=new-id'
     );
     expect(link).toHaveAttribute('autocomplete', 'off');
     expect(screen.getByText(/hết hạn sau 24 giờ/i)).toBeInTheDocument();

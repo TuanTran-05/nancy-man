@@ -65,7 +65,8 @@ describe('createAccountRouter', () => {
             calls.push(input);
             return {
               userId: 'new-user',
-              enrollmentUrl: 'https://man.thienuy.edu.vn/bootstrap/mfa?token=one-time',
+              enrollmentUrl:
+                'https://man.thienuy.edu.vn/bootstrap/mfa#token=one-time&userId=new-user',
               expiresAt: '2026-09-01T12:00:00.000Z'
             };
           }

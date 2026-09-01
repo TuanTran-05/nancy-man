@@ -130,10 +130,34 @@ describe('AccountService', () => {
       })
     ).resolves.toEqual({
       userId: 'new-user-id',
-      enrollmentUrl: 'https://ops.example.test/bootstrap/mfa?token=plain-enrollment-token',
+      enrollmentUrl:
+        'https://ops.example.test/bootstrap/mfa#token=plain-enrollment-token&userId=new-user-id',
       expiresAt: '2026-09-01T12:00:00.000Z'
     });
     expect(JSON.stringify(value.audited)).not.toContain('plain-enrollment-token');
+  });
+
+  it('binds a recovery enrollment link to the target user without putting the token in the query', async () => {
+    const repositoryValue = repository();
+    await repositoryValue.lock({
+      actorUserId: owner.id,
+      targetUserId: maintainer.id,
+      reason: 'recovery test'
+    });
+    const value = serviceWith(repositoryValue);
+
+    await expect(
+      value.service.recover({
+        ...grant,
+        actorUserId: owner.id,
+        targetUserId: maintainer.id
+      })
+    ).resolves.toEqual({
+      userId: maintainer.id,
+      enrollmentUrl:
+        'https://ops.example.test/bootstrap/mfa#token=plain-enrollment-token&userId=maintainer-id',
+      expiresAt: '2026-09-01T12:00:00.000Z'
+    });
   });
 
   it('requires exact username confirmation for terminal revoke', async () => {

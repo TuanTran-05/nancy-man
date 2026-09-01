@@ -65,7 +65,7 @@ describe('offline owner bootstrap', () => {
     ]);
     expect(result).toEqual({
       enrollmentUrl:
-        'https://man.thienuy.edu.vn/bootstrap/mfa?token=single-use-token&userId=f16f9426-010c-4e06-a459-9fd18c4a442d',
+        'https://man.thienuy.edu.vn/bootstrap/mfa#token=single-use-token&userId=f16f9426-010c-4e06-a459-9fd18c4a442d',
       userId: 'f16f9426-010c-4e06-a459-9fd18c4a442d'
     });
     expect(JSON.stringify(result)).not.toContain(input.password);

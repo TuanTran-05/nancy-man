@@ -52,8 +52,10 @@ export async function bootstrapOwner(input: {
     enrollmentTokenHash: enrollmentToken.tokenHash
   });
   const enrollmentUrl = new URL('/bootstrap/mfa', publicUrl);
-  enrollmentUrl.searchParams.set('token', enrollmentToken.plainToken);
-  enrollmentUrl.searchParams.set('userId', owner.id);
+  enrollmentUrl.hash = new URLSearchParams({
+    token: enrollmentToken.plainToken,
+    userId: owner.id
+  }).toString();
 
   return { userId: owner.id, enrollmentUrl: enrollmentUrl.toString() };
 }

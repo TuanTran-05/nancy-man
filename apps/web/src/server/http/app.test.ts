@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import request from 'supertest';
@@ -23,10 +23,13 @@ const makeFixture = () => {
     now
   );
   const auth = createAuthService({ store, dataKey: key, now: () => now });
+  const staticDirectory = join(directory, 'static');
+  mkdirSync(staticDirectory);
+  writeFileSync(join(staticDirectory, 'index.html'), '<main>ops-shell</main>');
   return {
     directory,
     store,
-    app: createOpsApp({ store, auth }),
+    app: createOpsApp({ store, auth, staticDir: staticDirectory }),
     cleanup: () => rmSync(directory, { recursive: true, force: true })
   };
 };
@@ -80,6 +83,19 @@ const makeZaloFixture = () => {
 };
 
 describe('protected Ops HTTP API', () => {
+  it('serves the SPA entrypoint for a direct MFA bootstrap request', async () => {
+    const fixture = makeFixture();
+    try {
+      await request(fixture.app)
+        .get('/bootstrap/mfa')
+        .expect(200)
+        .expect('Content-Type', /html/u)
+        .expect('<main>ops-shell</main>');
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it('retires legacy browser API routes while keeping the exact webhook route available', async () => {
     const fixture = makeZaloFixture();
     const retiredAuth = createAuthService({ store: fixture.store, dataKey: Buffer.alloc(32, 7) });

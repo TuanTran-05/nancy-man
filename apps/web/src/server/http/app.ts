@@ -73,9 +73,17 @@ export function createOpsApp(deps: OpsAppDependencies): Express {
   app.use(router);
   if (deps.canonicalApi) app.use(deps.canonicalApi);
   if (deps.staticDir) {
-    app.use(
-      express.static(resolve(deps.staticDir), { index: 'index.html', etag: true, maxAge: '1h' })
-    );
+    const staticRoot = resolve(deps.staticDir);
+    app.get('/bootstrap/mfa', (_request, response, next) => {
+      response.sendFile(
+        resolve(staticRoot, 'index.html'),
+        { etag: true, maxAge: '1h' },
+        (error) => {
+          if (error) next(error);
+        }
+      );
+    });
+    app.use(express.static(staticRoot, { index: 'index.html', etag: true, maxAge: '1h' }));
   }
   app.use((_request, response) => response.status(404).json({ error: 'not_found' }));
   return app;

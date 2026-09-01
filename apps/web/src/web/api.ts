@@ -41,6 +41,12 @@ export interface MfaRequired {
   factors: MfaFactor[];
 }
 
+export interface TotpEnrollment {
+  factorId: string;
+  secret: string;
+  otpauthUri: string;
+}
+
 export interface ZaloLinkInfo {
   linked: boolean;
   linkedAt?: string;
@@ -210,6 +216,24 @@ export const beginLogin = (credentials: { identifier: string; password: string }
 
 export const completeLogin = (input: { mfaChallenge: string; factorId: string; token: string }) =>
   request<SessionInfo>('/api/v1/auth/login/totp', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+
+export const startTotpEnrollment = (input: { userId: string; token: string }) =>
+  request<TotpEnrollment>('/api/v1/auth/bootstrap/totp/start', {
+    method: 'POST',
+    body: JSON.stringify(input)
+  });
+
+export const completeTotpEnrollment = (input: {
+  userId: string;
+  token: string;
+  factorId: string;
+  otp: string;
+  password: string;
+}) =>
+  request<void>('/api/v1/auth/bootstrap/totp/verify', {
     method: 'POST',
     body: JSON.stringify(input)
   });

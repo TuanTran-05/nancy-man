@@ -58,6 +58,11 @@ const syntheticIncidentId = '20000000-0000-4000-8000-000000000007';
 const canonicalUserId = '30000000-0000-4000-8000-000000000008';
 const canonicalCredentialId = '30000000-0000-4000-8000-000000000009';
 const canonicalFactorId = '30000000-0000-4000-8000-000000000010';
+const bootstrapUserId = '30000000-0000-4000-8000-000000000011';
+const bootstrapTokenId = '30000000-0000-4000-8000-000000000012';
+const bootstrapUsername = 'ops-bootstrap-e2e';
+const bootstrapToken = 'synthetic-bootstrap-enrollment-token-2026';
+const bootstrapPassword = 'new synthetic bootstrap passphrase 2026!';
 const legacyMonitoringHmac = 'e2e-legacy-monitoring-hmac';
 const mfaEncryptionKey = Buffer.alloc(32, 23);
 const passwordFingerprintPepper = 'e2e-password-fingerprint-pepper';
@@ -457,6 +462,26 @@ async function startOwnedPostgresApi(
        (id, user_id, factor_type, encrypted_secret, label)
        VALUES ($1, $2, 'totp', convert_to($3, 'UTF8'), 'Synthetic authenticator')`,
       [canonicalFactorId, canonicalUserId, encryptTotpSecret(totpSeed, mfaEncryptionKey)]
+    );
+    await pool.query(
+      `INSERT INTO ops_users (id, username, email, display_name, role, status)
+       VALUES ($1, $2, $3, $4, 'ops_owner', 'pending_mfa')`,
+      [
+        bootstrapUserId,
+        bootstrapUsername,
+        'ops-bootstrap@example.invalid',
+        'Synthetic Bootstrap Owner'
+      ]
+    );
+    await pool.query(
+      `INSERT INTO ops_mfa_enrollment_tokens
+       (id, user_id, token_hash, purpose, expires_at)
+       VALUES ($1, $2, $3, 'bootstrap', now() + interval '1 hour')`,
+      [
+        bootstrapTokenId,
+        bootstrapUserId,
+        createHash('sha256').update(bootstrapToken, 'utf8').digest('hex')
+      ]
     );
   } catch (error) {
     postgresSetupFailure =
@@ -1042,6 +1067,42 @@ test('matches the sanitized anonymous production contract without retaining resp
       });
     })
   ).rejects.toThrow('PUBLIC_CONTRACT_FORBIDDEN_MATERIAL');
+});
+
+test('completes anonymous MFA bootstrap without sending the enrollment token in an HTTP request', async ({
+  page
+}) => {
+  await page.goto(
+    `${candidateOrigin}/bootstrap/mfa#${new URLSearchParams({
+      token: bootstrapToken,
+      userId: bootstrapUserId
+    }).toString()}`
+  );
+
+  await expect(page.getByRole('heading', { name: 'Thiết lập xác thực hai lớp' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('');
+  expect(browserContacts.some((value) => value.includes(bootstrapToken))).toBe(false);
+
+  await page.getByRole('button', { name: 'Bắt đầu thiết lập MFA' }).click();
+  const secret = await page.getByLabel('Khóa thiết lập thủ công').inputValue();
+  expect(secret).toMatch(/^[A-Z2-7]+$/u);
+  await expect(page.getByRole('link', { name: 'Mở bằng ứng dụng xác thực' })).toHaveAttribute(
+    'href',
+    /^otpauth:\/\/totp\//u
+  );
+
+  await page.getByLabel('Mật khẩu mới').fill(bootstrapPassword);
+  await page.getByLabel('Xác nhận mật khẩu').fill(bootstrapPassword);
+  await page.getByLabel('Mã xác thực').fill(totp(secret));
+  await page.getByRole('button', { name: 'Kích hoạt tài khoản' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Ops Console' })).toBeVisible();
+  await page.getByLabel('Tên đăng nhập').fill(bootstrapUsername);
+  await page.getByLabel('Mật khẩu').fill(bootstrapPassword);
+  await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await page.getByLabel('Mã xác thực').fill(totp(secret));
+  await page.getByRole('button', { name: 'Hoàn tất đăng nhập' }).click();
+  await expect(page.getByRole('heading', { name: 'Hạ tầng VPS' })).toBeVisible();
 });
 
 test('keeps MFA, overview, history and incident acknowledgement functional on synthetic copy-only data', async ({
