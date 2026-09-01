@@ -93,7 +93,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import { TextDecoder } from 'node:util';
 import { parse as parseYaml } from 'yaml';
 
-const [manifestPath, catalogPath] = process.argv.slice(1);
+const [manifestPath, catalogPath] = process.argv.slice(2);
 const fail = (code) => {
   process.stderr.write(`${code}\n`);
   process.exit(1);
