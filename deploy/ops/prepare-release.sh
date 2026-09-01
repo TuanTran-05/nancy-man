@@ -71,14 +71,17 @@ is_safe_source_tree() {
 
 is_safe_source_tree "$BUILD_DIR" || fail RELEASE_INPUT_FORBIDDEN
 
-for app in api notifier processor sql-worker web; do
+for app in api config-agent notifier processor sql-worker web; do
   [[ -d "$BUILD_DIR/apps/$app/dist" && ! -L "$BUILD_DIR/apps/$app/dist" ]] || fail RELEASE_BUILD_ARTIFACT_ABSENT
   [[ -f "$BUILD_DIR/apps/$app/package.json" ]] || fail RELEASE_PACKAGE_METADATA_ABSENT
 done
 [[ -f "$BUILD_DIR/package.json" && -f "$BUILD_DIR/package-lock.json" ]] || fail RELEASE_PACKAGE_METADATA_ABSENT
 [[ -d "$BUILD_DIR/packages/db/migrations" ]] || fail RELEASE_MIGRATIONS_ABSENT
 for required in \
+  apps/api/dist/bin/edutrack-config-agent-smoke \
+  apps/api/dist/apps/api/src/cli/smoke-config-agent.js \
   apps/api/dist/apps/api/src/runtime/main.js \
+  apps/config-agent/dist/apps/config-agent/src/index.js \
   apps/notifier/dist/apps/notifier/src/runtime/main.js \
   apps/processor/dist/apps/processor/src/runtime/main.js \
   apps/sql-worker/dist/apps/sql-worker/src/index.js \
@@ -101,6 +104,7 @@ copy_git_blob() {
   [[ "$mode" == 100644 || "$mode" == 100755 ]] || fail RELEASE_DEPLOY_ASSET_ABSENT
   mkdir -p -- "$STAGING/$(dirname -- "$source")"
   git -C "$REPOSITORY" show "$SHA:$source" > "$STAGING/$source"
+  if [[ "$mode" == 100755 ]]; then chmod 0755 "$STAGING/$source"; else chmod 0644 "$STAGING/$source"; fi
 }
 
 copy_file "$BUILD_DIR/package.json" package.json
@@ -115,12 +119,17 @@ for dist in "$BUILD_DIR"/apps/*/dist "$BUILD_DIR"/packages/*/dist; do
 done
 copy_tree "$BUILD_DIR/packages/db/migrations" packages/db/migrations
 readonly DEPLOY_ASSETS=(
+  config/variables/catalog.yaml
   deploy/ops/release-manifest.mjs
   deploy/ops/env/api.env.example
   deploy/ops/env/collector.env.example
+  deploy/ops/env/config-agent.env.example
   deploy/ops/env/sql-worker.env.example
   deploy/ops/env/web.env.example
+  deploy/ops/config-agent/manifest.yaml
   deploy/ops/nginx/man.thienuy.edu.vn-api.conf
+  deploy/ops/scripts/deploy-release.sh
+  deploy/ops/scripts/install-systemd-assets.sh
   deploy/ops/systemd/edutrack-ops-api.service
   deploy/ops/systemd/edutrack-ops-web.service
   deploy/ops/systemd/edutrack-ops-collector.service
@@ -129,6 +138,10 @@ readonly DEPLOY_ASSETS=(
   deploy/ops/systemd/edutrack-ops-notifier.service
   deploy/ops/systemd/edutrack-ops-sql-worker.service
   deploy/ops/systemd/edutrack-ops-migrate.service
+  deploy/ops/systemd/ops-config-agent.service
+  deploy/ops/systemd/ops-config-agent-cleanup.service
+  deploy/ops/systemd/ops-config-agent-cleanup.timer
+  deploy/ops/systemd/ops-config-agent.tmpfiles.conf
 )
 for asset in "${DEPLOY_ASSETS[@]}"; do copy_git_blob "$asset"; done
 

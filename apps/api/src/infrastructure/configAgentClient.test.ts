@@ -161,6 +161,24 @@ describe('ConfigAgentClient', () => {
     );
   });
 
+  it('rejects an otherwise compatible agent that is not read-only', async () => {
+    await withSocket(
+      (request, socket) => {
+        socket.end(encodeFrame(responseFor(request, { ...capabilities, readOnly: false })));
+      },
+      async (socketPath) => {
+        const client = new ConfigAgentClient(options(socketPath));
+        await expect(
+          client.negotiate({
+            manifestVersion: '2026-08-31',
+            catalogVersion: '2026-08-31',
+            catalogDigest: `sha256:${'b'.repeat(64)}`
+          })
+        ).rejects.toMatchObject({ code: 'CONFIG_AGENT_INCOMPATIBLE' });
+      }
+    );
+  });
+
   it('binds subsequent inventory responses to the negotiated versions and rejects future timestamps', async () => {
     let capabilitiesRequest = true;
     await withSocket(

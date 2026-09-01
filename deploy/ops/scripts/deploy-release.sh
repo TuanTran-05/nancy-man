@@ -35,6 +35,7 @@ request_as_api() {
 
 request_as_api agent.capabilities --socket "$SOCKET" >/dev/null || fail CONFIG_AGENT_CAPABILITIES_FAILED
 request_as_api inventory.read --socket "$SOCKET" --ids-only >/dev/null || fail CONFIG_AGENT_INVENTORY_FAILED
+systemctl enable "$AGENT_SERVICE" >/dev/null 2>&1 || fail CONFIG_AGENT_ENABLE_FAILED
 
 [[ -f "$API_ENV" && -f "$CONFIG_ENV" ]] || fail CONFIG_AGENT_ENV_ABSENT
 temporary_api_env="${API_ENV}.tmp.$$"

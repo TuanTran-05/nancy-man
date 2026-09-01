@@ -9,7 +9,7 @@ StartLimitBurst=5
 Type=simple
 User=edutrack-config-agent
 Group=edutrack-config-api
-SupplementaryGroups=edutrack-config-agent
+SupplementaryGroups=edutrack-config-agent edutrack-ops deploy
 WorkingDirectory=/srv/edutrack-ops/config-agent/current
 EnvironmentFile=/etc/edutrack-ops/config-agent.env
 Environment=OPS_CONFIG_AGENT_SOCKET_PATH=/run/edutrack-config-agent/agent.sock

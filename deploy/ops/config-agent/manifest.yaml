@@ -1,4 +1,4 @@
-manifestVersion: 2026-08-31
+manifestVersion: 2026-09-01
 catalogVersion: 2026-08-31
 catalogDigest: sha256:1783d0cf20b045679dd584fad52b8995a2bd40cfa8f5e179fd99f4977d4c1bf6
 readOnly: true
@@ -39,8 +39,6 @@ apps:
       - ops.credentials.ops_password_fingerprint_pepper
       - ops.credentials.ops_legacy_monitoring_hmac
       - ops.credentials.ops_sql_worker_hmac
-      - ops.credentials.ops_sql_audit_encryption_key
-      - ops.credentials.production_read_database_url
   - id: website
     displayName: Thien Uy Website
     sourceIds: []
@@ -55,7 +53,7 @@ sources:
       path: /srv/edutrack/shared/.env
     owner: deploy
     group: deploy
-    mode: '0600'
+    mode: '0640'
     maximumBytes: 16384
     precedenceRank: 200
     consumerIds: [edutrack.web, edutrack.scheduled_jobs, edutrack.public_build]
@@ -150,8 +148,8 @@ sources:
       kind: file
       path: /etc/edutrack-ops/credentials/ops-database-url
     owner: root
-    group: root
-    mode: '0400'
+    group: edutrack-config-agent
+    mode: '0440'
     maximumBytes: 8192
     precedenceRank: 400
     consumerIds: [ops.api, ops.notifier, ops.processor, ops.migrate]
@@ -164,8 +162,8 @@ sources:
       kind: file
       path: /etc/edutrack-ops/credentials/ops-session-pepper
     owner: root
-    group: root
-    mode: '0400'
+    group: edutrack-config-agent
+    mode: '0440'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.migrate]
@@ -178,8 +176,8 @@ sources:
       kind: file
       path: /etc/edutrack-ops/credentials/ops-rate-limit-pepper
     owner: root
-    group: root
-    mode: '0400'
+    group: edutrack-config-agent
+    mode: '0440'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.migrate]
@@ -192,8 +190,8 @@ sources:
       kind: file
       path: /etc/edutrack-ops/credentials/browser-context-edutrack-v1
     owner: root
-    group: root
-    mode: '0400'
+    group: edutrack-config-agent
+    mode: '0440'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.migrate]
@@ -206,8 +204,8 @@ sources:
       kind: file
       path: /etc/edutrack-ops/credentials/ops-auth-session-pepper
     owner: root
-    group: root
-    mode: '0400'
+    group: edutrack-config-agent
+    mode: '0440'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api]
@@ -220,8 +218,8 @@ sources:
       kind: file
       path: /etc/edutrack-ops/credentials/ops-mfa-encryption-key
     owner: root
-    group: root
-    mode: '0400'
+    group: edutrack-config-agent
+    mode: '0440'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api]
@@ -234,8 +232,8 @@ sources:
       kind: file
       path: /etc/edutrack-ops/credentials/ops-password-fingerprint-pepper
     owner: root
-    group: root
-    mode: '0400'
+    group: edutrack-config-agent
+    mode: '0440'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api]
@@ -248,8 +246,8 @@ sources:
       kind: file
       path: /etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac
     owner: root
-    group: root
-    mode: '0400'
+    group: edutrack-config-agent
+    mode: '0440'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.web]
@@ -262,39 +260,11 @@ sources:
       kind: file
       path: /etc/edutrack-ops/credentials/ops-sql-worker-hmac
     owner: root
-    group: root
-    mode: '0400'
+    group: edutrack-config-agent
+    mode: '0440'
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.sql_worker]
-  - id: ops.credentials.ops_sql_audit_encryption_key
-    appId: ops
-    pathLabel: /etc/edutrack-ops/credentials/ops-sql-audit-encryption-key
-    adapterId: systemd_credential_file
-    mutability: catalog_controlled
-    locator:
-      kind: file
-      path: /etc/edutrack-ops/credentials/ops-sql-audit-encryption-key
-    owner: root
-    group: root
-    mode: '0400'
-    maximumBytes: 4096
-    precedenceRank: 400
-    consumerIds: [ops.api]
-  - id: ops.credentials.production_read_database_url
-    appId: ops
-    pathLabel: /etc/edutrack-ops/credentials/production-read-database-url
-    adapterId: systemd_credential_file
-    mutability: catalog_controlled
-    locator:
-      kind: file
-      path: /etc/edutrack-ops/credentials/production-read-database-url
-    owner: root
-    group: root
-    mode: '0400'
-    maximumBytes: 8192
-    precedenceRank: 400
-    consumerIds: [ops.sql_worker]
 actions:
   - id: application.clear_apply_block
     description: Clear a blocked application after owner-approved remediation.

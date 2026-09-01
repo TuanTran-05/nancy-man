@@ -27,6 +27,10 @@ web console is deployed in a later phase.
    `/etc/edutrack-ops/credentials/`; each must be a regular file, mode `0400`,
    containing one nonempty value. systemd copies them into `%d` for the service;
    the API rejects symbolic links or group/world-readable credential files.
+   Before enabling the read-only Config Agent, apply the dedicated-group source
+   permissions in `ops-config-agent-readonly.md`; systemd's private credential
+   copies remain `root:root 0440` inside the API service regardless of the source
+   file group.
 3. Install the API, processor, notifier, migration, and SQL-worker systemd units, run `systemctl daemon-reload`, then use the
    explicit one-shot migration command once: `systemctl start` is **not** a
    migration. Run `systemctl start edutrack-ops-migrate.service` and inspect

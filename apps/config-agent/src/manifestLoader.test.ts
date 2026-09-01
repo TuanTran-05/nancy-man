@@ -17,7 +17,7 @@ describe('loadCatalogAndManifest', () => {
     const loaded = loadCatalogAndManifest({ catalogPath, manifestPath });
 
     expect(loaded.catalog.catalogVersion).toBe('2026-08-31');
-    expect(loaded.manifest.manifestVersion).toBe('2026-08-31');
+    expect(loaded.manifest.manifestVersion).toBe('2026-09-01');
     expect(loaded.catalogDigest).toBe(
       'sha256:1783d0cf20b045679dd584fad52b8995a2bd40cfa8f5e179fd99f4977d4c1bf6'
     );

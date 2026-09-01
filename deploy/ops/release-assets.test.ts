@@ -44,6 +44,9 @@ function build(directory: string, sourceSha = sha): string {
   const output = join(directory, 'verified-build');
   for (const file of [
     'apps/api/dist/apps/api/src/runtime/main.js',
+    'apps/api/dist/apps/api/src/cli/smoke-config-agent.js',
+    'apps/api/dist/bin/edutrack-config-agent-smoke',
+    'apps/config-agent/dist/apps/config-agent/src/index.js',
     'apps/notifier/dist/apps/notifier/src/runtime/main.js',
     'apps/processor/dist/apps/processor/src/runtime/main.js',
     'apps/sql-worker/dist/apps/sql-worker/src/index.js',
@@ -59,7 +62,7 @@ function build(directory: string, sourceSha = sha): string {
     mkdirSync(join(output, file, '..'), { recursive: true });
     writeFileSync(join(output, file), '{}\n');
   }
-  for (const name of ['api', 'notifier', 'processor', 'sql-worker', 'web']) {
+  for (const name of ['api', 'config-agent', 'notifier', 'processor', 'sql-worker', 'web']) {
     mkdirSync(join(output, 'apps', name), { recursive: true });
     writeFileSync(join(output, 'apps', name, 'package.json'), '{}\n');
   }
@@ -82,11 +85,16 @@ function sourceRepository(): { directory: string; sha: string; tree: string } {
   execFileSync('git', ['-C', directory, 'config', 'user.email', 'test@example.invalid']);
   execFileSync('git', ['-C', directory, 'config', 'user.name', 'Release Test']);
   for (const path of [
+    'config/variables/catalog.yaml',
     'deploy/ops/env/api.env.example',
     'deploy/ops/env/collector.env.example',
+    'deploy/ops/env/config-agent.env.example',
     'deploy/ops/env/sql-worker.env.example',
     'deploy/ops/env/web.env.example',
+    'deploy/ops/config-agent/manifest.yaml',
     'deploy/ops/nginx/man.thienuy.edu.vn-api.conf',
+    'deploy/ops/scripts/deploy-release.sh',
+    'deploy/ops/scripts/install-systemd-assets.sh',
     'deploy/ops/systemd/edutrack-ops-api.service',
     'deploy/ops/systemd/edutrack-ops-web.service',
     'deploy/ops/systemd/edutrack-ops-collector.service',
@@ -94,7 +102,11 @@ function sourceRepository(): { directory: string; sha: string; tree: string } {
     'deploy/ops/systemd/edutrack-ops-processor.service',
     'deploy/ops/systemd/edutrack-ops-notifier.service',
     'deploy/ops/systemd/edutrack-ops-sql-worker.service',
-    'deploy/ops/systemd/edutrack-ops-migrate.service'
+    'deploy/ops/systemd/edutrack-ops-migrate.service',
+    'deploy/ops/systemd/ops-config-agent.service',
+    'deploy/ops/systemd/ops-config-agent-cleanup.service',
+    'deploy/ops/systemd/ops-config-agent-cleanup.timer',
+    'deploy/ops/systemd/ops-config-agent.tmpfiles.conf'
   ]) {
     mkdirSync(join(directory, path, '..'), { recursive: true });
     writeFileSync(
@@ -212,6 +224,25 @@ describe('immutable Ops prepare and activate assets', () => {
     expect(lstatSync(join(release, 'apps', 'web', 'dist', 'server', 'web-entry.js')).isFile()).toBe(
       true
     );
+    for (const required of [
+      'apps/config-agent/dist/apps/config-agent/src/index.js',
+      'apps/api/dist/apps/api/src/cli/smoke-config-agent.js',
+      'apps/api/dist/bin/edutrack-config-agent-smoke',
+      'config/variables/catalog.yaml',
+      'deploy/ops/config-agent/manifest.yaml',
+      'deploy/ops/env/config-agent.env.example',
+      'deploy/ops/scripts/install-systemd-assets.sh',
+      'deploy/ops/scripts/deploy-release.sh',
+      'deploy/ops/systemd/ops-config-agent.service'
+    ]) {
+      expect(lstatSync(join(release, required)).isFile()).toBe(true);
+    }
+    for (const executable of [
+      'deploy/ops/scripts/install-systemd-assets.sh',
+      'deploy/ops/scripts/deploy-release.sh'
+    ]) {
+      expect(statSync(join(release, executable)).mode & 0o777).toBe(0o755);
+    }
     const marker = JSON.parse(readFileSync(join(release, '.release-source.json'), 'utf8'));
     expect(marker).toMatchObject({
       gitSha: sha,
@@ -635,7 +666,7 @@ describe('immutable Ops prepare and activate assets', () => {
       ).toThrow(/RELEASE_TEST_DIRECTORY_INVALID/u);
       expect(readdirSync(outside)).toEqual([]);
     }
-  });
+  }, 10_000);
 
   it('cleans its exact transaction directory when prior config validation fails', () => {
     const directory = root();
@@ -721,5 +752,5 @@ describe('immutable Ops prepare and activate assets', () => {
         name.startsWith('edutrack-ops-activate.')
       )
     ).toEqual([]);
-  });
+  }, 10_000);
 });

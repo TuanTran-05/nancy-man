@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json --pretty false && node scripts/copyMigrations.mjs",
+    "build": "tsc -p tsconfig.json --pretty false && node scripts/copyMigrations.mjs && install -D -m 0755 scripts/config-agent-smoke.sh dist/bin/edutrack-config-agent-smoke",
     "start": "node dist/apps/api/src/runtime/main.js",
     "migrate": "node dist/apps/api/src/cli/migrate.js",
     "bootstrap-owner": "node dist/apps/api/src/cli/bootstrapOwnerCommand.js"

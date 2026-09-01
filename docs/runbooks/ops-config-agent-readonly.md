@@ -29,6 +29,44 @@ install -d -m 0750 -o root -g edutrack-ops /etc/edutrack-ops
 install -d -m 0750 -o root -g edutrack-config-api /run/edutrack-config-agent
 ```
 
+Grant the non-root agent read access only to the manifest allowlist. Keep the
+configuration directory private, make the credential directory traversable by
+the dedicated agent group, and do not change credentials for gated SQL features
+that are absent while SQL Console is disabled:
+
+```bash
+chown root:edutrack-ops /etc/edutrack-ops
+chmod 0750 /etc/edutrack-ops
+chown root:edutrack-config-agent /etc/edutrack-ops/credentials
+chmod 0750 /etc/edutrack-ops/credentials
+chgrp edutrack-config-agent \
+  /etc/edutrack-ops/credentials/ops-database-url \
+  /etc/edutrack-ops/credentials/ops-session-pepper \
+  /etc/edutrack-ops/credentials/ops-rate-limit-pepper \
+  /etc/edutrack-ops/credentials/browser-context-edutrack-v1 \
+  /etc/edutrack-ops/credentials/ops-auth-session-pepper \
+  /etc/edutrack-ops/credentials/ops-mfa-encryption-key \
+  /etc/edutrack-ops/credentials/ops-password-fingerprint-pepper \
+  /etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac \
+  /etc/edutrack-ops/credentials/ops-sql-worker-hmac
+chmod 0440 \
+  /etc/edutrack-ops/credentials/ops-database-url \
+  /etc/edutrack-ops/credentials/ops-session-pepper \
+  /etc/edutrack-ops/credentials/ops-rate-limit-pepper \
+  /etc/edutrack-ops/credentials/browser-context-edutrack-v1 \
+  /etc/edutrack-ops/credentials/ops-auth-session-pepper \
+  /etc/edutrack-ops/credentials/ops-mfa-encryption-key \
+  /etc/edutrack-ops/credentials/ops-password-fingerprint-pepper \
+  /etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac \
+  /etc/edutrack-ops/credentials/ops-sql-worker-hmac
+chgrp deploy /srv/edutrack/shared/.env
+chmod 0640 /srv/edutrack/shared/.env
+```
+
+The original source credentials remain inaccessible to every other service
+group. The agent's own protocol, fingerprint, staging, and snapshot keys remain
+`root:root 0400` and reach the service only through systemd credentials.
+
 Create each key in a private temporary file. The commands redirect key bytes
 to disk and do not print them:
 

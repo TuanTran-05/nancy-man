@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 
 const systemdDirectory = new URL('./', import.meta.url);
 const environmentDirectory = new URL('../env/', import.meta.url);
@@ -88,7 +89,9 @@ describe('canonical Ops systemd assets', () => {
 
     expect(setting(agent, 'User')).toEqual(['edutrack-config-agent']);
     expect(setting(agent, 'Group')).toEqual(['edutrack-config-api']);
-    expect(setting(agent, 'SupplementaryGroups')).toEqual(['edutrack-config-agent']);
+    expect(setting(agent, 'SupplementaryGroups')).toEqual([
+      'edutrack-config-agent edutrack-ops deploy'
+    ]);
     expect(setting(agent, 'RuntimeDirectory')).toEqual(['edutrack-config-agent']);
     expect(setting(agent, 'RuntimeDirectoryMode')).toEqual(['0750']);
     expect(setting(agent, 'ExecStart')).toEqual([
@@ -178,10 +181,51 @@ describe('canonical Ops systemd assets', () => {
     );
   });
 
+  it('does not require gated SQL credentials while both SQL rollout gates are dark', async () => {
+    const [apiEnvironment, sqlWorkerEnvironment, manifestContents] = await Promise.all([
+      readFile(new URL('../env/api.env.example', import.meta.url), 'utf8'),
+      readFile(new URL('../env/sql-worker.env.example', import.meta.url), 'utf8'),
+      readFile(new URL('../config-agent/manifest.yaml', import.meta.url), 'utf8')
+    ]);
+    const manifest = parseYaml(manifestContents) as {
+      sources: Array<{ id: string; group: string; mode: string }>;
+    };
+    const mandatorySourceIds = manifest.sources.map((source) => source.id);
+
+    expect(apiEnvironment).toContain('OPS_SQL_WORKER_ENABLED=false');
+    expect(sqlWorkerEnvironment).toContain('OPS_SQL_READ_ENABLED=false');
+    expect(mandatorySourceIds).not.toContain('ops.credentials.ops_sql_audit_encryption_key');
+    expect(mandatorySourceIds).not.toContain('ops.credentials.production_read_database_url');
+    expect(manifest.sources.find((source) => source.id === 'edutrack.shared_env')).toMatchObject({
+      group: 'deploy',
+      mode: '0640'
+    });
+    for (const sourceId of [
+      'ops.credentials.ops_database_url',
+      'ops.credentials.ops_session_pepper',
+      'ops.credentials.ops_rate_limit_pepper',
+      'ops.credentials.browser_context_edutrack_v1',
+      'ops.credentials.ops_auth_session_pepper',
+      'ops.credentials.ops_mfa_encryption_key',
+      'ops.credentials.ops_password_fingerprint_pepper',
+      'ops.credentials.ops_legacy_monitoring_hmac',
+      'ops.credentials.ops_sql_worker_hmac'
+    ]) {
+      expect(manifest.sources.find((source) => source.id === sourceId)).toMatchObject({
+        group: 'edutrack-config-agent',
+        mode: '0440'
+      });
+    }
+  });
+
   it('contains the inactive install, signed negotiation, feature-flag, restart, and smoke sequence', async () => {
     const deploy = await readFile(new URL('../scripts/deploy-release.sh', import.meta.url), 'utf8');
     const install = await readFile(
       new URL('../scripts/install-systemd-assets.sh', import.meta.url),
+      'utf8'
+    );
+    const smokeLauncher = await readFile(
+      new URL('../../../apps/api/scripts/config-agent-smoke.sh', import.meta.url),
       'utf8'
     );
     expect(deploy.indexOf('install-systemd-assets.sh')).toBeGreaterThanOrEqual(0);
@@ -193,6 +237,12 @@ describe('canonical Ops systemd assets', () => {
     );
     expect(deploy.indexOf('OPS_VARIABLES_READ_ONLY_ENABLED=true')).toBeGreaterThan(
       deploy.indexOf('agent.capabilities')
+    );
+    expect(deploy.indexOf('enable "$AGENT_SERVICE"')).toBeGreaterThan(
+      deploy.indexOf('inventory.read')
+    );
+    expect(deploy.indexOf('OPS_VARIABLES_READ_ONLY_ENABLED=true')).toBeGreaterThan(
+      deploy.indexOf('enable "$AGENT_SERVICE"')
     );
     expect(deploy.indexOf('restart edutrack-ops-api.service')).toBeGreaterThan(
       deploy.indexOf('OPS_VARIABLES_READ_ONLY_ENABLED=true')
@@ -207,8 +257,13 @@ describe('canonical Ops systemd assets', () => {
     expect(install).toContain('systemd-analyze verify');
     expect(install).toContain('systemctl daemon-reload');
     expect(install).toContain('chmod 0400');
+    expect(install).toContain('chmod 0750 "$CONFIG_DIRECTORY" "$CREDENTIAL_DIRECTORY"');
+    expect(install).toContain('/usr/local/libexec/edutrack-config-agent-smoke');
     expect(install).not.toMatch(/cat\s+.*(?:env|credential)/iu);
     expect(install).not.toContain('printf "%s" "$value"');
+    expect(smokeLauncher).toContain(
+      '/usr/bin/node /srv/edutrack-ops/current/apps/api/dist/apps/api/src/cli/smoke-config-agent.js'
+    );
   });
 
   it('defines exactly the seven least-privilege service identities and entrypoints', async () => {

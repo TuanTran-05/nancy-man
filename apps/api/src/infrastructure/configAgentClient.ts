@@ -201,6 +201,7 @@ export class ConfigAgentClient {
     if (!capabilities.success) throw new ConfigAgentError('AGENT_PROTOCOL_INVALID');
     if (
       capabilities.data.protocolVersion !== (expected.protocolVersion ?? AGENT_PROTOCOL_VERSION) ||
+      capabilities.data.readOnly !== true ||
       !capabilities.data.supportedOperations.includes('inventory.read') ||
       (expected.requiredOperations ?? []).some(
         (operation) => !capabilities.data.supportedOperations.includes(operation)

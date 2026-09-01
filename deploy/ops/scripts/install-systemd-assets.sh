@@ -10,10 +10,12 @@ readonly CLEANUP_SERVICE_SOURCE="$ASSET_ROOT/systemd/ops-config-agent-cleanup.se
 readonly CLEANUP_TIMER_SOURCE="$ASSET_ROOT/systemd/ops-config-agent-cleanup.timer"
 readonly TMPFILES_SOURCE="$ASSET_ROOT/systemd/ops-config-agent.tmpfiles.conf"
 readonly ENV_EXAMPLE_SOURCE="$ASSET_ROOT/env/config-agent.env.example"
+readonly SMOKE_CLIENT_RELATIVE_BINARY="apps/api/dist/bin/edutrack-config-agent-smoke"
 readonly AGENT_RELATIVE_BINARY="apps/config-agent/dist/apps/config-agent/src/index.js"
 readonly MANIFEST_RELATIVE_PATH="deploy/ops/config-agent/manifest.yaml"
 readonly CATALOG_RELATIVE_PATH="config/variables/catalog.yaml"
 readonly AGENT_USER=edutrack-config-agent
+readonly CONFIG_GROUP=edutrack-ops
 readonly SOCKET_GROUP=edutrack-config-api
 readonly API_USER=edutrack-ops-api
 readonly PROTOCOL_CREDENTIAL=config-agent-protocol-hmac
@@ -65,6 +67,7 @@ readonly CLEANUP_SERVICE_DEST="$SYSTEMD_DIRECTORY/ops-config-agent-cleanup.servi
 readonly CLEANUP_TIMER_DEST="$SYSTEMD_DIRECTORY/ops-config-agent-cleanup.timer"
 readonly TMPFILES_DEST="$TMPFILES_DIRECTORY/ops-config-agent.conf"
 readonly ENV_EXAMPLE_DEST="$CONFIG_DIRECTORY/config-agent.env.example"
+readonly SMOKE_CLIENT_DEST="$ROOT/usr/local/libexec/edutrack-config-agent-smoke"
 readonly PROTOCOL_DEST="$CREDENTIAL_DIRECTORY/$PROTOCOL_CREDENTIAL"
 readonly FINGERPRINT_DEST="$CREDENTIAL_DIRECTORY/$FINGERPRINT_CREDENTIAL"
 readonly STAGING_DEST="$CREDENTIAL_DIRECTORY/$STAGING_CREDENTIAL"
@@ -75,6 +78,7 @@ readonly SNAPSHOT_DEST="$CREDENTIAL_DIRECTORY/$SNAPSHOT_CREDENTIAL"
 [[ -f "$CLEANUP_TIMER_SOURCE" && ! -L "$CLEANUP_TIMER_SOURCE" ]] || fail CONFIG_AGENT_CLEANUP_TIMER_ASSET_ABSENT
 [[ -f "$TMPFILES_SOURCE" && ! -L "$TMPFILES_SOURCE" ]] || fail CONFIG_AGENT_TMPFILES_ASSET_ABSENT
 [[ -f "$ENV_EXAMPLE_SOURCE" && ! -L "$ENV_EXAMPLE_SOURCE" ]] || fail CONFIG_AGENT_ENV_ASSET_ABSENT
+[[ -f "$RELEASE/$SMOKE_CLIENT_RELATIVE_BINARY" && ! -L "$RELEASE/$SMOKE_CLIENT_RELATIVE_BINARY" ]] || fail CONFIG_AGENT_SMOKE_CLIENT_ASSET_ABSENT
 [[ -f "$RELEASE/$AGENT_RELATIVE_BINARY" && ! -L "$RELEASE/$AGENT_RELATIVE_BINARY" ]] || fail CONFIG_AGENT_BINARY_ABSENT
 [[ -f "$RELEASE/$MANIFEST_RELATIVE_PATH" && ! -L "$RELEASE/$MANIFEST_RELATIVE_PATH" ]] || fail CONFIG_AGENT_MANIFEST_ABSENT
 [[ -f "$RELEASE/$CATALOG_RELATIVE_PATH" && ! -L "$RELEASE/$CATALOG_RELATIVE_PATH" ]] || fail CONFIG_AGENT_CATALOG_ABSENT
@@ -244,12 +248,14 @@ safe_tree() {
 }
 
 safe_tree "$RELEASE/apps/config-agent/dist" || fail CONFIG_AGENT_BINARY_TREE_INVALID
+safe_tree "$RELEASE/apps/api/dist/bin" || fail CONFIG_AGENT_SMOKE_CLIENT_TREE_INVALID
 
 if [[ "${EDUTRACK_OPS_CONFIG_AGENT_TEST_MODE:-}" == '1' ]]; then
   : > "$ROOT/.config-agent-users" 2>/dev/null || true
 else
   getent group "$SOCKET_GROUP" >/dev/null || groupadd --system "$SOCKET_GROUP"
   getent group "$AGENT_USER" >/dev/null || groupadd --system "$AGENT_USER"
+  getent group "$CONFIG_GROUP" >/dev/null || fail CONFIG_AGENT_CONFIG_GROUP_ABSENT
   id "$AGENT_USER" >/dev/null 2>&1 || useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin --gid "$AGENT_USER" "$AGENT_USER"
   id "$API_USER" >/dev/null 2>&1 || fail CONFIG_AGENT_API_USER_ABSENT
   usermod --append --groups "$SOCKET_GROUP" "$API_USER"
@@ -257,8 +263,12 @@ else
 fi
 
 mkdir -p -- "$AGENT_RELEASES" "$SYSTEMD_DIRECTORY" "$TMPFILES_DIRECTORY" "$CONFIG_DIRECTORY" "$CREDENTIAL_DIRECTORY"
-chmod 0755 "$AGENT_DIRECTORY" "$AGENT_RELEASES" "$SYSTEMD_DIRECTORY" "$TMPFILES_DIRECTORY" "$CONFIG_DIRECTORY"
-chmod 0750 "$CREDENTIAL_DIRECTORY"
+chmod 0755 "$AGENT_DIRECTORY" "$AGENT_RELEASES" "$SYSTEMD_DIRECTORY" "$TMPFILES_DIRECTORY"
+if [[ "${EDUTRACK_OPS_CONFIG_AGENT_TEST_MODE:-}" != '1' ]]; then
+  chown root:"$CONFIG_GROUP" "$CONFIG_DIRECTORY"
+  chown root:"$AGENT_USER" "$CREDENTIAL_DIRECTORY"
+fi
+chmod 0750 "$CONFIG_DIRECTORY" "$CREDENTIAL_DIRECTORY"
 
 stage="$(mktemp -d "$AGENT_RELEASES/.${VERSION}.XXXXXX")"
 cleanup() { rm -rf -- "${stage:-}"; }
@@ -291,6 +301,7 @@ atomic_install "$CLEANUP_SERVICE_SOURCE" "$CLEANUP_SERVICE_DEST" 0644
 atomic_install "$CLEANUP_TIMER_SOURCE" "$CLEANUP_TIMER_DEST" 0644
 atomic_install "$TMPFILES_SOURCE" "$TMPFILES_DEST" 0644
 atomic_install "$ENV_EXAMPLE_SOURCE" "$ENV_EXAMPLE_DEST" 0644
+atomic_install "$RELEASE/$SMOKE_CLIENT_RELATIVE_BINARY" "$SMOKE_CLIENT_DEST" 0755
 
 install_credential() {
   local source="$1" destination="$2" temporary
