@@ -37,8 +37,13 @@ export async function startCollectorLoop(input: {
       await input.cycle();
       if (!stopped) input.watchdog.progress();
     } catch (error) {
-      input.onFailure(error);
-      stop();
+      try {
+        input.onFailure(error);
+      } catch {
+        // A reporter failure must not leave the collector interval running.
+      } finally {
+        stop();
+      }
     } finally {
       running = false;
     }
