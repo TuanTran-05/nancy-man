@@ -5,6 +5,8 @@ umask 022
 SCRIPT_DIR="$(unset CDPATH; cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly INSTALLER="$SCRIPT_DIR/install-systemd-assets.sh"
+readonly TELEMETRY_ENVIRONMENT_CONFIGURER="$SCRIPT_DIR/configure-telemetry-environment.sh"
+readonly TELEMETRY_SPOOL_PROVISIONER="$SCRIPT_DIR/provision-telemetry-spool.sh"
 readonly CONFIG_DIRECTORY="${EDUTRACK_OPS_CONFIG_DIRECTORY:-/etc/edutrack-ops}"
 readonly API_SERVICE=edutrack-ops-api.service
 readonly AGENT_SERVICE=ops-config-agent.service
@@ -16,11 +18,15 @@ fail() { printf '%s\n' "$1" >&2; exit 1; }
 
 [[ -n "$RELEASE" && -d "$RELEASE" && ! -L "$RELEASE" ]] || fail CONFIG_AGENT_RELEASE_INVALID
 [[ -x "$INSTALLER" ]] || fail CONFIG_AGENT_INSTALLER_ABSENT
+[[ -x "$TELEMETRY_ENVIRONMENT_CONFIGURER" ]] || fail OPS_TELEMETRY_ENV_CONFIGURER_ABSENT
+[[ -x "$TELEMETRY_SPOOL_PROVISIONER" ]] || fail OPS_TELEMETRY_PROVISIONER_ABSENT
 
 # The installer is deliberately inactive: it stages the version, manifest, and unit but does
 # not enable or start the service. Production feature flags remain false until both signed reads
 # succeed as the API identity.
 "$INSTALLER" "$RELEASE"
+"$TELEMETRY_SPOOL_PROVISIONER"
+"$TELEMETRY_ENVIRONMENT_CONFIGURER" "$RELEASE"
 
 systemctl restart "$AGENT_SERVICE"
 

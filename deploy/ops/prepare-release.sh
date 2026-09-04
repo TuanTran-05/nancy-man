@@ -129,6 +129,7 @@ readonly DEPLOY_ASSETS=(
   deploy/ops/config-agent/manifest.yaml
   deploy/ops/nginx/man.thienuy.edu.vn-api.conf
   deploy/ops/scripts/deploy-release.sh
+  deploy/ops/scripts/configure-telemetry-environment.sh
   deploy/ops/scripts/install-systemd-assets.sh
   deploy/ops/systemd/edutrack-ops-api.service
   deploy/ops/systemd/edutrack-ops-web.service

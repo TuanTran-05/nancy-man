@@ -11,6 +11,7 @@ WorkingDirectory=/srv/edutrack-ops/current
 EnvironmentFile=/etc/edutrack-ops/api.env
 Environment=OPS_SECRET_DIRECTORY=%d
 LoadCredential=ops-database-url:/etc/edutrack-ops/credentials/ops-database-url
+LoadCredential=ops-telemetry-hmac:/etc/edutrack-ops/credentials/ops-telemetry-hmac
 ExecStart=/usr/bin/node apps/processor/dist/apps/processor/src/runtime/main.js
 Restart=on-failure
 RestartSec=5s
@@ -20,6 +21,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
+ReadWritePaths=/var/lib/edutrack-ops/telemetry/processor
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]

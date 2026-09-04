@@ -21,6 +21,7 @@ LoadCredential=ops-password-fingerprint-pepper:/etc/edutrack-ops/credentials/ops
 LoadCredential=ops-legacy-monitoring-hmac:/etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac
 LoadCredential=browser-context-edutrack-v1:/etc/edutrack-ops/credentials/browser-context-edutrack-v1
 LoadCredential=config-agent-protocol-hmac:/etc/edutrack-ops/credentials/config-agent-protocol-hmac
+LoadCredential=ops-telemetry-hmac:/etc/edutrack-ops/credentials/ops-telemetry-hmac
 ExecStart=/usr/bin/node apps/api/dist/apps/api/src/runtime/main.js
 Restart=on-failure
 RestartSec=5s
@@ -31,6 +32,7 @@ PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
 ReadWritePaths=/var/lib/edutrack-ops/object-store
+ReadWritePaths=/var/lib/edutrack-ops/telemetry/api
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]

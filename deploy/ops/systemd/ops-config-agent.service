@@ -31,6 +31,7 @@ LoadCredential=config-agent-protocol-hmac:/etc/edutrack-ops/credentials/config-a
 LoadCredential=config-agent-fingerprint-hmac:/etc/edutrack-ops/credentials/config-agent-fingerprint-hmac
 LoadCredential=config-agent-staging-key:/etc/edutrack-ops/credentials/config-agent-staging-key
 LoadCredential=config-agent-snapshot-key:/etc/edutrack-ops/credentials/config-agent-snapshot-key
+LoadCredential=ops-telemetry-hmac:/etc/edutrack-ops/credentials/ops-telemetry-hmac
 RuntimeDirectory=edutrack-config-agent
 RuntimeDirectoryMode=0750
 StateDirectory=edutrack-config-agent
@@ -72,6 +73,7 @@ LogRateLimitBurst=20
 
 # Mutation writes remain explicit and are constrained by the manifest.
 ReadWritePaths=/var/lib/edutrack-config-agent
+ReadWritePaths=/var/lib/edutrack-ops/telemetry/config-agent
 ReadWritePaths=/srv/edutrack/shared
 ReadWritePaths=/etc/edutrack-ops
 ReadWritePaths=/srv/edutrack/staging
