@@ -1,13 +1,12 @@
 import { FileSecretResolver } from '../../../../packages/security/src/fileSecretResolver.js';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { Pool } from 'pg';
 import {
-  createConfiguredRuntimeTelemetry,
   createRuntimeTelemetry,
   startRuntimeTelemetryMaintenance
 } from '../../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
 import { installNodeTelemetryLifecycle } from '../../../../packages/telemetry-sdk/src/nodeLifecycle.js';
+import { createSqlWorkerRuntimeTelemetry } from '../telemetry/runtimeTelemetry.js';
 
 import {
   assertProductionReadIdentity,
@@ -131,11 +130,9 @@ export async function startOpsSqlWorker(
     throw new Error('SQL worker telemetry credential is unavailable');
   }
   const telemetry = config.telemetry.enabled
-    ? createConfiguredRuntimeTelemetry({
+    ? createSqlWorkerRuntimeTelemetry({
         config: config.telemetry,
-        hmacSecret: telemetryHmac!,
-        service: 'edutrack-ops-sql-worker',
-        spoolDirectory: join(config.telemetry.spoolDirectory, 'sql-worker')
+        hmacSecret: telemetryHmac!
       })
     : createRuntimeTelemetry({
         enabled: false,

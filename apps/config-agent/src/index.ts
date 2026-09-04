@@ -1,7 +1,6 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { join } from 'node:path';
 
 import { createFingerprintKey } from './inventory/fingerprint.js';
 import { createInventoryService } from './inventory/inventoryService.js';
@@ -19,11 +18,11 @@ import {
   type AuthenticatedServer
 } from './protocol/authenticatedServer.js';
 import {
-  createConfiguredRuntimeTelemetry,
   createRuntimeTelemetry,
   startRuntimeTelemetryMaintenance
 } from '../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
 import { installNodeTelemetryLifecycle } from '../../../packages/telemetry-sdk/src/nodeLifecycle.js';
+import { createConfigAgentRuntimeTelemetry } from './telemetry/runtimeTelemetry.js';
 
 export type StartedConfigAgent = Readonly<{
   config: ConfigAgentRuntimeConfig;
@@ -133,11 +132,9 @@ export async function startConfigAgent(
     throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_READ_FAILED');
   }
   const telemetry = config.telemetry.enabled
-    ? createConfiguredRuntimeTelemetry({
+    ? createConfigAgentRuntimeTelemetry({
         config: config.telemetry,
-        hmacSecret: telemetrySecret!,
-        service: 'edutrack-ops-config-agent',
-        spoolDirectory: join(config.telemetry.spoolDirectory, 'config-agent')
+        hmacSecret: telemetrySecret!
       })
     : createRuntimeTelemetry({
         enabled: false,
