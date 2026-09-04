@@ -59,4 +59,27 @@ describe('node telemetry lifecycle', () => {
     expect(process.handlers.has('uncaughtException')).toBe(true);
     expect(process.handlers.has('unhandledRejection')).toBe(true);
   });
+
+  it('flushes before exiting successfully when systemd sends SIGTERM', async () => {
+    const process = processDouble() as ReturnType<typeof processDouble> & {
+      exit: (code?: number) => never;
+    };
+    const exits: number[] = [];
+    process.exit = ((code = 0) => {
+      exits.push(code);
+      throw new Error('exit');
+    }) as never;
+    let flushes = 0;
+    installNodeTelemetryLifecycle({
+      process,
+      captureException: () => undefined,
+      flush: async () => {
+        flushes += 1;
+      }
+    });
+
+    await expect(process.handlers.get('SIGTERM')?.()).rejects.toThrow('exit');
+    expect(flushes).toBe(1);
+    expect(exits).toEqual([0]);
+  });
 });

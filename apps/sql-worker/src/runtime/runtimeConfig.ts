@@ -1,5 +1,10 @@
 import { isAbsolute, normalize } from 'node:path';
 
+import {
+  readServerTelemetryRuntimeConfig,
+  type ServerTelemetryRuntimeConfig
+} from '../../../../packages/telemetry-sdk/src/serverRuntimeConfig.js';
+
 type Environment = Readonly<Record<string, string | undefined>>;
 
 type ReadConfiguration =
@@ -24,6 +29,8 @@ export type SqlWorkerRuntimeConfig = {
   secretDirectory: string;
   socketPath: string;
   hmacSecretReference: string;
+  telemetry: ServerTelemetryRuntimeConfig;
+  telemetryHmacPath?: string;
   read: ReadConfiguration;
   mutation: MutationConfiguration;
 };
@@ -94,10 +101,19 @@ export function readSqlWorkerRuntimeConfig(environment: Environment): SqlWorkerR
   ) {
     throw new Error('Raw production credentials are forbidden; use a credential reference instead');
   }
+  const telemetry = readServerTelemetryRuntimeConfig({
+    ...environment,
+    ...(environment.OPS_TELEMETRY_ENABLED === undefined ? { OPS_TELEMETRY_ENABLED: 'false' } : {})
+  });
+  const telemetryHmacPath = telemetry.enabled
+    ? absolutePath(environment, 'OPS_TELEMETRY_HMAC_FILE')
+    : undefined;
   return {
     secretDirectory: absolutePath(environment, 'OPS_SECRET_DIRECTORY'),
     socketPath: absolutePath(environment, 'OPS_SQL_SOCKET_PATH', '.sock'),
     hmacSecretReference: credential(environment, 'OPS_SQL_WORKER_HMAC_REFERENCE'),
+    telemetry,
+    ...(telemetryHmacPath ? { telemetryHmacPath } : {}),
     read: readConfiguration(environment),
     mutation: mutationConfiguration(environment)
   };

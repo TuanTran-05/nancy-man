@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { lstatSync, readFileSync } from 'node:fs';
 import { isValidOpsZaloSecret } from './security/zaloLink.js';
+import {
+  readServerTelemetryRuntimeConfig,
+  type ServerTelemetryRuntimeConfig
+} from '../../../../packages/telemetry-sdk/src/serverRuntimeConfig.js';
 
 export interface WebConfig {
   nodeEnv: string;
@@ -16,6 +20,8 @@ export interface WebConfig {
   zaloTimeoutMs: number;
   zaloLinkTtlSeconds: number;
   legacyMonitoringHmacFile: string;
+  telemetry?: ServerTelemetryRuntimeConfig;
+  telemetryHmacFile?: string;
 }
 
 export interface CollectorConfig {
@@ -33,6 +39,8 @@ export interface CollectorConfig {
   zaloRecipientKey: Buffer;
   zaloTimeoutMs: number;
   beszel: BeszelCollectorConfig;
+  telemetry?: ServerTelemetryRuntimeConfig;
+  telemetryHmacFile?: string;
 }
 
 export type BeszelCollectorConfig =
@@ -165,6 +173,7 @@ export function loadWebConfig(env: Env = process.env): WebConfig {
   if (dataKey.length !== 32 || dataKey.toString('base64') !== keyRaw) {
     throw new Error('OPS_DATA_KEY must encode exactly 32 bytes');
   }
+  const telemetry = readServerTelemetryRuntimeConfig(env);
   return {
     nodeEnv: env.NODE_ENV ?? 'development',
     dbPath: required(env, 'OPS_DB_PATH'),
@@ -178,12 +187,17 @@ export function loadWebConfig(env: Env = process.env): WebConfig {
     zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
     zaloTimeoutMs: positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000),
     zaloLinkTtlSeconds: positiveInteger(env, 'OPS_ZALO_LINK_TTL_SECONDS', 600),
-    legacyMonitoringHmacFile: required(env, 'OPS_LEGACY_MONITORING_HMAC_FILE')
+    legacyMonitoringHmacFile: required(env, 'OPS_LEGACY_MONITORING_HMAC_FILE'),
+    telemetry,
+    ...(telemetry.enabled
+      ? { telemetryHmacFile: required(env, 'OPS_TELEMETRY_HMAC_FILE') }
+      : {})
   };
 }
 
 export function loadCollectorConfig(env: Env = process.env): CollectorConfig {
   const nodeEnv = env.NODE_ENV ?? 'development';
+  const telemetry = readServerTelemetryRuntimeConfig(env);
   const config: CollectorConfig = {
     nodeEnv,
     dbPath: required(env, 'OPS_DB_PATH'),
@@ -198,7 +212,11 @@ export function loadCollectorConfig(env: Env = process.env): CollectorConfig {
     zaloChatHashSecret: requiredSecret(env, 'OPS_ZALO_CHAT_HASH_SECRET'),
     zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
     zaloTimeoutMs: positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000),
-    beszel: loadBeszelConfig(env)
+    beszel: loadBeszelConfig(env),
+    telemetry,
+    ...(telemetry.enabled
+      ? { telemetryHmacFile: required(env, 'OPS_TELEMETRY_HMAC_FILE') }
+      : {})
   };
   if (config.zaloTimeoutMs < 5000 || config.zaloTimeoutMs > 60000) {
     throw new Error('OPS_ALERT_ZALO_TIMEOUT_MS must be between 5000 and 60000');

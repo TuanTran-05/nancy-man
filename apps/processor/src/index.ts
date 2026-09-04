@@ -7,15 +7,25 @@ type ClaimedEnvelope = {
   envelopeId: string;
   receivedAt: Date;
   ingestClientId: string;
+  attemptCount?: number;
   envelope: TelemetryEnvelopeV1;
   identity?: { userRef: string; role: string; displayLabel: string; sessionHash: string };
 };
+
+const processorRetryLimit = 5;
 
 export async function runProcessorOnce(input: {
   workerId: string;
   queue: {
     claimNext: (workerId: string, now: Date) => Promise<ClaimedEnvelope | null>;
     markRetry: (envelopeId: string, now: Date) => Promise<void>;
+    deadLetter?: (input: {
+      envelopeId: string;
+      envelope: TelemetryEnvelopeV1;
+      attemptCount: number;
+      now: Date;
+      failureCode: 'PROCESSING_FAILED';
+    }) => Promise<void>;
   };
   repository: IssueProcessorRepository;
   sourceMaps?: {
@@ -25,8 +35,14 @@ export async function runProcessorOnce(input: {
       stack?: string;
     }) => Promise<{ stackFrames: string[] }>;
   };
+  telemetry?: {
+    captureException: (
+      error: unknown,
+      context: { code: string; source: 'job'; tags: Record<string, string> }
+    ) => unknown;
+  };
   now?: () => Date;
-}): Promise<{ processed: boolean; retried?: boolean }> {
+}): Promise<{ processed: boolean; retried?: boolean; deadLettered?: boolean }> {
   const now = input.now ?? (() => new Date());
   const claimed = await input.queue.claimNext(input.workerId, now());
   if (!claimed) return { processed: false };
@@ -44,7 +60,23 @@ export async function runProcessorOnce(input: {
       input.sourceMaps
     );
     return { processed: true };
-  } catch {
+  } catch (error) {
+    input.telemetry?.captureException(error, {
+      code: 'PROCESSOR_ENVELOPE_FAILED',
+      source: 'job',
+      tags: { envelopeId: claimed.envelopeId }
+    });
+    const attemptCount = (claimed.attemptCount ?? 0) + 1;
+    if (input.queue.deadLetter && attemptCount >= processorRetryLimit) {
+      await input.queue.deadLetter({
+        envelopeId: claimed.envelopeId,
+        envelope: claimed.envelope,
+        attemptCount,
+        now: now(),
+        failureCode: 'PROCESSING_FAILED'
+      });
+      return { processed: false, deadLettered: true };
+    }
     await input.queue.markRetry(claimed.envelopeId, now());
     return { processed: false, retried: true };
   }

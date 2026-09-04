@@ -4,11 +4,36 @@ import { loadWebConfig } from '../config.js';
 import { createOpsStore } from '../storage/store.js';
 import { createAuthService } from '../security/auth.js';
 import { createOpsApp } from './app.js';
+import {
+  createRuntimeTelemetry,
+  startRuntimeTelemetryMaintenance
+} from '../../../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
+import { installNodeTelemetryLifecycle } from '../../../../../packages/telemetry-sdk/src/nodeLifecycle.js';
+import { createWebRuntimeTelemetry } from '../telemetry/runtimeTelemetry.js';
 
 export function startWebServer() {
   const config = loadWebConfig(process.env);
   const legacyMonitoringHmac = readFileSync(config.legacyMonitoringHmacFile, 'utf8').trim();
   if (!legacyMonitoringHmac) throw new Error('Ops legacy monitoring HMAC is unavailable');
+  const telemetryHmac = config.telemetry?.enabled
+    ? readFileSync(config.telemetryHmacFile ?? '', 'utf8').trim()
+    : undefined;
+  if (config.telemetry?.enabled && !telemetryHmac) {
+    throw new Error('Ops web telemetry credential is unavailable');
+  }
+  const telemetry = config.telemetry?.enabled
+    ? createWebRuntimeTelemetry({ config: config.telemetry, hmacSecret: telemetryHmac! })
+    : createRuntimeTelemetry({
+        enabled: false,
+        release: '0000000000000000000000000000000000000000',
+        service: 'edutrack-ops-web',
+        transport: async () => undefined
+      });
+  const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
+  installNodeTelemetryLifecycle({
+    captureException: telemetry.captureException,
+    flush: telemetry.flush
+  });
   const store = createOpsStore(config.dbPath, undefined, config.zaloRecipientKey);
   const auth = createAuthService({ store, dataKey: config.dataKey });
   const app = createOpsApp({
@@ -29,9 +54,17 @@ export function startWebServer() {
         linkTtlSeconds: config.zaloLinkTtlSeconds
       }
     },
-    internalMonitoring: { secret: legacyMonitoringHmac }
+    internalMonitoring: { secret: legacyMonitoringHmac },
+    telemetry
   });
-  return app.listen(config.port, config.listenHost);
+  const server = app.listen(config.port, config.listenHost);
+  const flushTelemetryOnShutdown = () => {
+    stopTelemetryMaintenance();
+    void telemetry.flush().catch(() => undefined);
+  };
+  process.once('SIGTERM', flushTelemetryOnShutdown);
+  process.once('SIGINT', flushTelemetryOnShutdown);
+  return server;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) startWebServer();

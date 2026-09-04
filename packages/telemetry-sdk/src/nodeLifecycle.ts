@@ -2,6 +2,7 @@ import { normalizeException } from './exceptionCapture.js';
 
 type NodeProcess = {
   on: (event: string, listener: (...arguments_: unknown[]) => void | Promise<void>) => unknown;
+  exit?: (code?: number) => never;
   exitCode?: number;
 };
 
@@ -54,6 +55,10 @@ export function installNodeTelemetryLifecycle(input: {
   process.on('unhandledRejection', (reason) =>
     reportAndFail(reason, 'PROCESS_UNHANDLED_REJECTION')
   );
-  process.on('SIGTERM', () => boundedFlush(input.flush, timeoutMs));
-  process.on('SIGINT', () => boundedFlush(input.flush, timeoutMs));
+  const flushAndExit = async (): Promise<void> => {
+    await boundedFlush(input.flush, timeoutMs);
+    if (process.exit) process.exit(0);
+  };
+  process.on('SIGTERM', flushAndExit);
+  process.on('SIGINT', flushAndExit);
 }

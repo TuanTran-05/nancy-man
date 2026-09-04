@@ -13,6 +13,7 @@ const disabledConfig: SqlWorkerRuntimeConfig = {
   secretDirectory: '/run/credentials/edutrack-ops-sql-worker.service',
   socketPath: '/run/edutrack-ops/sql-worker.sock',
   hmacSecretReference: 'ops-sql-worker-hmac',
+  telemetry: { enabled: false },
   read: { enabled: false },
   mutation: { enabled: false }
 };

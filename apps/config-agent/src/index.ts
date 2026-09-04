@@ -1,6 +1,7 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
 
 import { createFingerprintKey } from './inventory/fingerprint.js';
 import { createInventoryService } from './inventory/inventoryService.js';
@@ -17,6 +18,12 @@ import {
   type AgentMutationHandlers,
   type AuthenticatedServer
 } from './protocol/authenticatedServer.js';
+import {
+  createConfiguredRuntimeTelemetry,
+  createRuntimeTelemetry,
+  startRuntimeTelemetryMaintenance
+} from '../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
+import { installNodeTelemetryLifecycle } from '../../../packages/telemetry-sdk/src/nodeLifecycle.js';
 
 export type StartedConfigAgent = Readonly<{
   config: ConfigAgentRuntimeConfig;
@@ -114,88 +121,129 @@ export async function startConfigAgent(
   dependencies: ConfigAgentStartDependencies = {}
 ): Promise<StartedConfigAgent> {
   const config = readConfigAgentRuntimeConfig(environment);
-  const loaded = loadCatalogAndManifest({
-    catalogPath: config.catalogPath,
-    manifestPath: config.manifestPath
-  });
-  const protocolKey = loadHmacCredential(config.protocolKeyPath);
-  const fingerprintKey = createFingerprintKey(
-    loadHmacCredential(config.fingerprintKeyPath),
-    config.fingerprintKeyVersion
-  );
-  let stagingKeys: EnvelopeKey[];
-  let snapshotKeys: EnvelopeKey[];
-  try {
-    [stagingKeys, snapshotKeys] = await Promise.all([
-      loadEnvelopeKeys([
-        {
-          path: config.stagingKeyPath,
-          purpose: 'staging',
-          keyId: config.stagingKeyId,
-          keyVersion: config.stagingKeyVersion
-        },
-        ...config.stagingAcceptedOldKeyIds.map((keyId, index) => ({
-          path: config.stagingAcceptedOldKeyPaths[index]!,
-          purpose: 'staging' as const,
-          keyId,
-          keyVersion: config.stagingKeyVersion
-        }))
-      ]),
-      loadEnvelopeKeys([
-        {
-          path: config.snapshotKeyPath,
-          purpose: 'snapshot',
-          keyId: config.snapshotKeyId,
-          keyVersion: config.snapshotKeyVersion
-        },
-        ...config.snapshotAcceptedOldKeyIds.map((keyId, index) => ({
-          path: config.snapshotAcceptedOldKeyPaths[index]!,
-          purpose: 'snapshot' as const,
-          keyId,
-          keyVersion: config.snapshotKeyVersion
-        }))
-      ])
-    ]);
-  } catch {
+  const telemetrySecret = config.telemetry.enabled
+    ? (() => {
+        const key = loadHmacCredential(config.telemetryHmacPath ?? '');
+        const secret = key.toString('utf8');
+        key.fill(0);
+        return secret;
+      })()
+    : undefined;
+  if (config.telemetry.enabled && !telemetrySecret) {
     throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_READ_FAILED');
   }
-  assertKeySeparation(protocolKey, fingerprintKey.secret, [...stagingKeys, ...snapshotKeys]);
-  const inventoryService = createInventoryService({
-    catalog: loaded.catalog,
-    manifest: loaded.manifest,
-    fingerprintKey
+  const telemetry = config.telemetry.enabled
+    ? createConfiguredRuntimeTelemetry({
+        config: config.telemetry,
+        hmacSecret: telemetrySecret!,
+        service: 'edutrack-ops-config-agent',
+        spoolDirectory: join(config.telemetry.spoolDirectory, 'config-agent')
+      })
+    : createRuntimeTelemetry({
+        enabled: false,
+        release: '0000000000000000000000000000000000000000',
+        service: 'edutrack-ops-config-agent',
+        transport: async () => undefined
+      });
+  const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
+  installNodeTelemetryLifecycle({
+    captureException: telemetry.captureException,
+    flush: telemetry.flush
   });
-  const configuredHandlers =
-    dependencies.changeHandlers ??
-    (config.draftEnabled || config.runtimeApplyEnabled || config.buildApplyEnabled
-      ? createRuntimeMutationHandlers({
-          config,
-          loaded,
-          fingerprintKey,
-          stagingKey: stagingKeys[0]!,
-          snapshotKey: snapshotKeys[0]!,
-          stagingKeys,
-          snapshotKeys
-        })
-      : undefined);
-  const changeHandlers = enabledChangeHandlers(config, configuredHandlers);
-  await changeHandlers?.ready?.();
-  const server = createAuthenticatedServer({
-    socketPath: config.socketPath,
-    socketGroup: config.socketGroup,
-    protocolKey,
-    protocolKeyId: config.protocolKeyId,
-    fingerprintKey,
-    loaded,
-    inventoryService,
-    ...(changeHandlers ? { changeHandlers } : {}),
-    clockSkewMs: config.clockSkewMs,
-    requestTtlMs: config.requestTtlMs,
-    ...(config.allowedPeerUid === undefined ? {} : { allowedPeerUid: config.allowedPeerUid }),
-    ...(config.allowedPeerGid === undefined ? {} : { allowedPeerGid: config.allowedPeerGid })
-  });
-  await server.start();
-  return { config, server };
+  try {
+    const loaded = loadCatalogAndManifest({
+      catalogPath: config.catalogPath,
+      manifestPath: config.manifestPath
+    });
+    const protocolKey = loadHmacCredential(config.protocolKeyPath);
+    const fingerprintKey = createFingerprintKey(
+      loadHmacCredential(config.fingerprintKeyPath),
+      config.fingerprintKeyVersion
+    );
+    let stagingKeys: EnvelopeKey[];
+    let snapshotKeys: EnvelopeKey[];
+    try {
+      [stagingKeys, snapshotKeys] = await Promise.all([
+        loadEnvelopeKeys([
+          {
+            path: config.stagingKeyPath,
+            purpose: 'staging',
+            keyId: config.stagingKeyId,
+            keyVersion: config.stagingKeyVersion
+          },
+          ...config.stagingAcceptedOldKeyIds.map((keyId, index) => ({
+            path: config.stagingAcceptedOldKeyPaths[index]!,
+            purpose: 'staging' as const,
+            keyId,
+            keyVersion: config.stagingKeyVersion
+          }))
+        ]),
+        loadEnvelopeKeys([
+          {
+            path: config.snapshotKeyPath,
+            purpose: 'snapshot',
+            keyId: config.snapshotKeyId,
+            keyVersion: config.snapshotKeyVersion
+          },
+          ...config.snapshotAcceptedOldKeyIds.map((keyId, index) => ({
+            path: config.snapshotAcceptedOldKeyPaths[index]!,
+            purpose: 'snapshot' as const,
+            keyId,
+            keyVersion: config.snapshotKeyVersion
+          }))
+        ])
+      ]);
+    } catch {
+      throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_READ_FAILED');
+    }
+    assertKeySeparation(protocolKey, fingerprintKey.secret, [...stagingKeys, ...snapshotKeys]);
+    const inventoryService = createInventoryService({
+      catalog: loaded.catalog,
+      manifest: loaded.manifest,
+      fingerprintKey
+    });
+    const configuredHandlers =
+      dependencies.changeHandlers ??
+      (config.draftEnabled || config.runtimeApplyEnabled || config.buildApplyEnabled
+        ? createRuntimeMutationHandlers({
+            config,
+            loaded,
+            fingerprintKey,
+            stagingKey: stagingKeys[0]!,
+            snapshotKey: snapshotKeys[0]!,
+            stagingKeys,
+            snapshotKeys
+          })
+        : undefined);
+    const changeHandlers = enabledChangeHandlers(config, configuredHandlers);
+    await changeHandlers?.ready?.();
+    const server = createAuthenticatedServer({
+      socketPath: config.socketPath,
+      socketGroup: config.socketGroup,
+      protocolKey,
+      protocolKeyId: config.protocolKeyId,
+      fingerprintKey,
+      loaded,
+      inventoryService,
+      ...(changeHandlers ? { changeHandlers } : {}),
+      clockSkewMs: config.clockSkewMs,
+      requestTtlMs: config.requestTtlMs,
+      ...(config.allowedPeerUid === undefined ? {} : { allowedPeerUid: config.allowedPeerUid }),
+      ...(config.allowedPeerGid === undefined ? {} : { allowedPeerGid: config.allowedPeerGid })
+    });
+    await server.start();
+    return { config, server };
+  } catch (error) {
+    telemetry.captureException(error, {
+      code: 'CONFIG_AGENT_STARTUP_FAILED',
+      source: 'process',
+      level: 'fatal'
+    });
+    await Promise.resolve();
+    await telemetry.flush().catch(() => undefined);
+    stopTelemetryMaintenance();
+    throw error;
+  }
 }
 
 async function main(): Promise<void> {

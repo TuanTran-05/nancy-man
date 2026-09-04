@@ -33,6 +33,12 @@ export interface CollectorDeps {
     now: Date
   ) => Promise<MonitorSample>;
   postgresProbe?: typeof probePostgres;
+  telemetry?: {
+    captureException: (
+      error: unknown,
+      context: { code: string; source: 'job'; tags: Record<string, string> }
+    ) => unknown;
+  };
 }
 
 function readLogLines(deps: CollectorDeps, source: string, path: string): string[] {
@@ -40,7 +46,16 @@ function readLogLines(deps: CollectorDeps, source: string, path: string): string
     const result = tailSinceCursor(path, deps.store.getCursor(source));
     deps.store.setCursor(source, result.cursor);
     return result.lines;
-  } catch {
+  } catch (error) {
+    try {
+      deps.telemetry?.captureException(error, {
+        code: 'COLLECTOR_LOG_READ_FAILED',
+        source: 'job',
+        tags: { logSource: source.slice(-120) }
+      });
+    } catch {
+      // Keep the monitoring cycle alive even when telemetry itself is unavailable.
+    }
     return [];
   }
 }

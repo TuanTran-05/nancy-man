@@ -3,6 +3,8 @@ export * from './browserSpool.js';
 export * from './exceptionCapture.js';
 export * from './ids.js';
 export * from './nodeLifecycle.js';
+export * from './runtimeTelemetry.js';
 export * from './serverSpool.js';
 export * from './server.js';
+export * from './serverRuntimeConfig.js';
 export * from './serverTransport.js';

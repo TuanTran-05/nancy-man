@@ -21,6 +21,18 @@ export interface OpsAppDependencies {
     nonceCapacity?: number;
     now?: () => Date;
   };
+  telemetry?: {
+    captureException: (
+      error: unknown,
+      context: {
+        code: string;
+        source: 'api';
+        route?: string;
+        method?: string;
+        status?: number;
+      }
+    ) => unknown;
+  };
 }
 
 export function createOpsApp(deps: OpsAppDependencies): Express {
@@ -86,5 +98,20 @@ export function createOpsApp(deps: OpsAppDependencies): Express {
     app.use(express.static(staticRoot, { index: 'index.html', etag: true, maxAge: '1h' }));
   }
   app.use((_request, response) => response.status(404).json({ error: 'not_found' }));
+  app.use((error: unknown, request: Request, response: express.Response, next: express.NextFunction) => {
+    try {
+      deps.telemetry?.captureException(error, {
+        code: 'OPS_WEB_UNHANDLED_EXCEPTION',
+        source: 'api',
+        route: request.path,
+        method: request.method,
+        status: 500
+      });
+    } catch {
+      // Reporting must not replace the safe response for the originating request.
+    }
+    if (response.headersSent) return next(error);
+    return response.status(500).json({ error: 'internal_error' });
+  });
   return app;
 }

@@ -1,5 +1,13 @@
 import { FileSecretResolver } from '../../../../packages/security/src/fileSecretResolver.js';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { Pool } from 'pg';
+import {
+  createConfiguredRuntimeTelemetry,
+  createRuntimeTelemetry,
+  startRuntimeTelemetryMaintenance
+} from '../../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
+import { installNodeTelemetryLifecycle } from '../../../../packages/telemetry-sdk/src/nodeLifecycle.js';
 
 import {
   assertProductionReadIdentity,
@@ -116,10 +124,47 @@ export async function startOpsSqlWorker(
   } = {}
 ): Promise<{ close: () => Promise<void> }> {
   const config = readSqlWorkerRuntimeConfig(input.environment ?? process.env);
+  const telemetryHmac = config.telemetry.enabled
+    ? (await readFile(config.telemetryHmacPath ?? '', 'utf8')).trim()
+    : undefined;
+  if (config.telemetry.enabled && !telemetryHmac) {
+    throw new Error('SQL worker telemetry credential is unavailable');
+  }
+  const telemetry = config.telemetry.enabled
+    ? createConfiguredRuntimeTelemetry({
+        config: config.telemetry,
+        hmacSecret: telemetryHmac!,
+        service: 'edutrack-ops-sql-worker',
+        spoolDirectory: join(config.telemetry.spoolDirectory, 'sql-worker')
+      })
+    : createRuntimeTelemetry({
+        enabled: false,
+        release: '0000000000000000000000000000000000000000',
+        service: 'edutrack-ops-sql-worker',
+        transport: async () => undefined
+      });
+  const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
+  installNodeTelemetryLifecycle({
+    captureException: telemetry.captureException,
+    flush: telemetry.flush
+  });
   const resolver =
     input.resolveSecret ??
     ((reference: string) => new FileSecretResolver(config.secretDirectory).resolve(reference));
-  const credentials = await resolveSqlWorkerCredentials({ config, resolveSecret: resolver });
+  let credentials: SqlWorkerCredentials;
+  try {
+    credentials = await resolveSqlWorkerCredentials({ config, resolveSecret: resolver });
+  } catch (error) {
+    telemetry.captureException(error, {
+      code: 'SQL_WORKER_CREDENTIALS_UNAVAILABLE',
+      source: 'process',
+      level: 'fatal'
+    });
+    await Promise.resolve();
+    await telemetry.flush().catch(() => undefined);
+    stopTelemetryMaintenance();
+    throw error;
+  }
   const nonceStore = createExpiringNonceStore();
   let readPool: ProductionReadPool | undefined;
   let mutationPool: ProductionMutationPool | undefined;
@@ -172,11 +217,21 @@ export async function startOpsSqlWorker(
     return {
       close: async () => {
         await server.close();
+        stopTelemetryMaintenance();
+        await telemetry.flush().catch(() => undefined);
         await readPool?.end();
         await mutationPool?.end();
       }
     };
   } catch (error) {
+    telemetry.captureException(error, {
+      code: 'SQL_WORKER_STARTUP_FAILED',
+      source: 'process',
+      level: 'fatal'
+    });
+    await Promise.resolve();
+    await telemetry.flush().catch(() => undefined);
+    stopTelemetryMaintenance();
     await readPool?.end().catch(() => undefined);
     await mutationPool?.end().catch(() => undefined);
     throw error;

@@ -1,6 +1,6 @@
 import { type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { parseCatalog } from '../../../../packages/config-contracts/src/catalog.js';
@@ -13,7 +13,8 @@ import { createPoolDatabase } from './poolDatabase.js';
 import { readOpsRuntimeConfig, type OpsRuntimeConfig } from './runtimeConfig.js';
 import {
   createConfiguredRuntimeTelemetry,
-  createRuntimeTelemetry
+  createRuntimeTelemetry,
+  startRuntimeTelemetryMaintenance
 } from '../telemetry/runtimeTelemetry.js';
 import { installNodeTelemetryLifecycle } from '../../../../packages/telemetry-sdk/src/nodeLifecycle.js';
 
@@ -176,64 +177,12 @@ export async function startOpsApi(
     config,
     resolveSecret: (ref) => resolver.resolve(ref)
   });
-  const configAgent = credentials.configAgent
-    ? new ConfigAgentClient({
-        socketPath: credentials.configAgent.socketPath,
-        hmacKey: credentials.configAgent.protocolHmacKey,
-        hmacKeyId: credentials.configAgent.protocolHmacKeyId,
-        connectTimeoutMs: credentials.configAgent.connectTimeoutMs,
-        readTimeoutMs: credentials.configAgent.readTimeoutMs,
-        totalTimeoutMs: credentials.configAgent.totalTimeoutMs,
-        maximumResponseBytes: credentials.configAgent.maximumResponseBytes
-      })
-    : undefined;
-  const catalog = configAgent
-    ? parseCatalog(
-        await readFile(
-          environment.OPS_VARIABLES_CATALOG_PATH ??
-            resolve(process.cwd(), 'config/variables/catalog.yaml'),
-          'utf8'
-        )
-      )
-    : undefined;
-  if (configAgent && catalog) {
-    const enabledAgentConfig = config.configAgent.enabled ? config.configAgent : null;
-    const requiredOperations = [
-      ...(enabledAgentConfig?.draftEnabled
-        ? (['change.validate', 'change.save', 'change.cancel', 'change.status'] as const)
-        : []),
-      ...(enabledAgentConfig &&
-      (enabledAgentConfig.runtimeApplyEnabled || enabledAgentConfig.buildApplyEnabled)
-        ? (['change.apply'] as const)
-        : []),
-      ...(enabledAgentConfig &&
-      (enabledAgentConfig.draftEnabled ||
-        enabledAgentConfig.runtimeApplyEnabled ||
-        enabledAgentConfig.buildApplyEnabled)
-        ? (['application.clearApplyBlock'] as const)
-        : [])
-    ];
-    const requiredStrategies = [
-      ...(enabledAgentConfig?.runtimeApplyEnabled
-        ? (['no_runtime_action', 'next_job', 'runtime_restart', 'credential_restart'] as const)
-        : []),
-      ...(enabledAgentConfig?.buildApplyEnabled ? (['build_redeploy'] as const) : [])
-    ];
-    await configAgent.negotiate({
-      manifestVersion: credentials.configAgent!.expectedManifestVersion,
-      catalogVersion: credentials.configAgent!.expectedCatalogVersion,
-      catalogDigest: credentials.configAgent!.expectedCatalogDigest,
-      requiredOperations,
-      requiredStrategies
-    });
-  }
-  const pool = getOpsPool(credentials.databaseUrl);
-  const database = createPoolDatabase(pool);
   const telemetry = config.telemetry.enabled
     ? createConfiguredRuntimeTelemetry({
         config: config.telemetry,
         hmacSecret: credentials.telemetryHmacSecret!,
-        service: 'edutrack-ops-api'
+        service: 'edutrack-ops-api',
+        spoolDirectory: join(config.telemetry.spoolDirectory, 'api')
       })
     : createRuntimeTelemetry({
         enabled: false,
@@ -241,10 +190,78 @@ export async function startOpsApi(
         service: 'edutrack-ops-api',
         transport: async () => undefined
       });
+  const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
   installNodeTelemetryLifecycle({
     captureException: telemetry.captureException,
     flush: telemetry.flush
   });
+  let configAgent: ConfigAgentClient | undefined;
+  let catalog: ReturnType<typeof parseCatalog> | undefined;
+  try {
+    configAgent = credentials.configAgent
+      ? new ConfigAgentClient({
+          socketPath: credentials.configAgent.socketPath,
+          hmacKey: credentials.configAgent.protocolHmacKey,
+          hmacKeyId: credentials.configAgent.protocolHmacKeyId,
+          connectTimeoutMs: credentials.configAgent.connectTimeoutMs,
+          readTimeoutMs: credentials.configAgent.readTimeoutMs,
+          totalTimeoutMs: credentials.configAgent.totalTimeoutMs,
+          maximumResponseBytes: credentials.configAgent.maximumResponseBytes
+        })
+      : undefined;
+    catalog = configAgent
+      ? parseCatalog(
+          await readFile(
+            environment.OPS_VARIABLES_CATALOG_PATH ??
+              resolve(process.cwd(), 'config/variables/catalog.yaml'),
+            'utf8'
+          )
+        )
+      : undefined;
+    if (configAgent && catalog) {
+      const enabledAgentConfig = config.configAgent.enabled ? config.configAgent : null;
+      const requiredOperations = [
+        ...(enabledAgentConfig?.draftEnabled
+          ? (['change.validate', 'change.save', 'change.cancel', 'change.status'] as const)
+          : []),
+        ...(enabledAgentConfig &&
+        (enabledAgentConfig.runtimeApplyEnabled || enabledAgentConfig.buildApplyEnabled)
+          ? (['change.apply'] as const)
+          : []),
+        ...(enabledAgentConfig &&
+        (enabledAgentConfig.draftEnabled ||
+          enabledAgentConfig.runtimeApplyEnabled ||
+          enabledAgentConfig.buildApplyEnabled)
+          ? (['application.clearApplyBlock'] as const)
+          : [])
+      ];
+      const requiredStrategies = [
+        ...(enabledAgentConfig?.runtimeApplyEnabled
+          ? (['no_runtime_action', 'next_job', 'runtime_restart', 'credential_restart'] as const)
+          : []),
+        ...(enabledAgentConfig?.buildApplyEnabled ? (['build_redeploy'] as const) : [])
+      ];
+      await configAgent.negotiate({
+        manifestVersion: credentials.configAgent!.expectedManifestVersion,
+        catalogVersion: credentials.configAgent!.expectedCatalogVersion,
+        catalogDigest: credentials.configAgent!.expectedCatalogDigest,
+        requiredOperations,
+        requiredStrategies
+      });
+    }
+  } catch (error) {
+    telemetry.captureException(error, {
+      code: 'CONFIG_AGENT_NEGOTIATION_FAILED',
+      source: 'api',
+      level: 'fatal'
+    });
+    await Promise.resolve();
+    await telemetry.flush().catch(() => undefined);
+    stopTelemetryMaintenance();
+    throw error;
+  }
+  const pool = getOpsPool(credentials.databaseUrl);
+  const database = createPoolDatabase(pool);
 
   try {
     await database.query('SELECT 1');
@@ -274,11 +291,23 @@ export async function startOpsApi(
     return {
       app: runtime.app,
       close: () => {
-        closing ??= closeServer(server).finally(() => pool.end());
+        closing ??= closeServer(server).finally(async () => {
+          stopTelemetryMaintenance();
+          await telemetry.flush().catch(() => undefined);
+          await pool.end();
+        });
         return closing;
       }
     };
   } catch (error) {
+    telemetry.captureException(error, {
+      code: 'API_STARTUP_FAILED',
+      source: 'api',
+      level: 'fatal'
+    });
+    await Promise.resolve();
+    await telemetry.flush().catch(() => undefined);
+    stopTelemetryMaintenance();
     await pool.end();
     throw error;
   }

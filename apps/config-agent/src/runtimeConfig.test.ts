@@ -7,6 +7,7 @@ import {
 } from './runtimeConfig.js';
 
 const environment = {
+  OPS_TELEMETRY_ENABLED: 'false',
   OPS_CONFIG_AGENT_SOCKET_PATH: '/run/edutrack-config-agent/agent.sock',
   OPS_CONFIG_AGENT_CATALOG_PATH: '/etc/edutrack-config-agent/catalog.yaml',
   OPS_CONFIG_AGENT_MANIFEST_PATH: '/etc/edutrack-config-agent/manifest.yaml',
@@ -80,7 +81,8 @@ describe('readConfigAgentRuntimeConfig', () => {
       allowedPeerGid: 1002,
       clockSkewMs: 60_000,
       requestTtlMs: 30_000,
-      maximumFrameBytes: MAXIMUM_FRAME_BYTES
+      maximumFrameBytes: MAXIMUM_FRAME_BYTES,
+      telemetry: { enabled: false }
     });
   });
 

@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createOpsStore } from '../storage/store.js';
@@ -83,6 +84,29 @@ const makeZaloFixture = () => {
 };
 
 describe('protected Ops HTTP API', () => {
+  it('captures the original terminal route error before returning a safe 500', async () => {
+    const fixture = makeFixture();
+    const captured: unknown[] = [];
+    const canonicalApi = express();
+    canonicalApi.get('/telemetry-test-throws', () => {
+      throw new Error('web route failure');
+    });
+    const app = createOpsApp({
+      store: fixture.store,
+      auth: createAuthService({ store: fixture.store, dataKey: Buffer.alloc(32, 7) }),
+      canonicalApi,
+      telemetry: {
+        captureException: (error) => captured.push(error)
+      }
+    });
+    try {
+      await request(app).get('/telemetry-test-throws').expect(500).expect({ error: 'internal_error' });
+      expect(captured).toEqual([expect.objectContaining({ message: 'web route failure' })]);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it('serves the SPA entrypoint for a direct MFA bootstrap request', async () => {
     const fixture = makeFixture();
     try {
