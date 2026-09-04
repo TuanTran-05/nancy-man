@@ -102,6 +102,11 @@ const expectedTrustRoot = [
     '0018_ops_config_application_blocks_partial_unique',
     '0018_ops_config_application_blocks_partial_unique.sql',
     '848472343435a458ac9e1b65472a5bcc6c9944703a55536f8eeb327bb3781f91'
+  ],
+  [
+    '0019_ops_runtime_telemetry_ingest_client',
+    '0019_ops_runtime_telemetry_ingest_client.sql',
+    'f7e025047a96df667c02ec7ee111d52139a7233089dfa94630f6701ad5910fbe'
   ]
 ] as const;
 
