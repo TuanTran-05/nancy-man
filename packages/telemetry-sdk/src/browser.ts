@@ -34,6 +34,7 @@ export function createBrowserTelemetry(input: {
       'requestId' | 'traceId' | 'route' | 'tags' | 'breadcrumbs'
     > & {
       eventId?: `EVT_${string}`;
+      source?: TelemetryEnvelopeV1['source'];
       level?: TelemetryEnvelopeV1['level'];
       code?: string;
       componentStack?: string;
@@ -46,6 +47,7 @@ export function createBrowserTelemetry(input: {
     captureException: async (error, context = {}) => {
       const {
         eventId: suppliedEventId,
+        source = 'browser',
         level = 'error',
         code = 'BROWSER_EXCEPTION',
         componentStack,
@@ -61,7 +63,7 @@ export function createBrowserTelemetry(input: {
         eventId,
         idempotencyKey: eventId,
         capturedAt: now().toISOString(),
-        source: 'browser',
+        source,
         level,
         error: {
           name: boundedText(exception.name, 120) ?? 'Error',

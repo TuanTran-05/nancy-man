@@ -3,6 +3,35 @@ import { describe, expect, it } from 'vitest';
 import { createExceptionCapture } from './exceptionCapture.js';
 
 describe('exception capture', () => {
+  it('reuses the Error event ID across capture helpers in one runtime', async () => {
+    const error = new Error('provider token expired');
+    const reports: string[] = [];
+    const first = createExceptionCapture({
+      createEventId: () => 'EVT_00000000000000000000000003',
+      capture: (_error, context) => {
+        reports.push(context.eventId);
+      }
+    });
+    const second = createExceptionCapture({
+      createEventId: () => 'EVT_00000000000000000000000004',
+      capture: (_error, context) => {
+        reports.push(context.eventId);
+      }
+    });
+
+    expect(first.captureOnce(error, { code: 'PROVIDER_FAILED' })).toBe(
+      'EVT_00000000000000000000000003'
+    );
+    expect(second.eventIdFor(error)).toBe('EVT_00000000000000000000000003');
+    expect(second.captureOnce(error, { code: 'REQUEST_FAILED' })).toBe(
+      'EVT_00000000000000000000000003'
+    );
+
+    await Promise.resolve();
+
+    expect(reports).toEqual(['EVT_00000000000000000000000003']);
+  });
+
   it('reports one event when the same Error reaches nested boundaries', async () => {
     const reports: Array<{ error: Error; eventId: string; code: string }> = [];
     const capture = createExceptionCapture({
@@ -55,9 +84,9 @@ describe('exception capture', () => {
       }
     });
 
-    expect(capture.captureOnce(new Error('application failure'), { code: 'APPLICATION_FAILED' })).toBe(
-      'EVT_00000000000000000000000002'
-    );
+    expect(
+      capture.captureOnce(new Error('application failure'), { code: 'APPLICATION_FAILED' })
+    ).toBe('EVT_00000000000000000000000002');
     await Promise.resolve();
   });
 });

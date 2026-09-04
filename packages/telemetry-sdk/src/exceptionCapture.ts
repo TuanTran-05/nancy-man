@@ -12,6 +12,14 @@ export type ExceptionCaptureContext = {
   tags?: Record<string, string>;
 };
 
+const eventIdProperty: unique symbol = Symbol('edutrackTelemetryEventId');
+const eventIds = new WeakMap<Error, `EVT_${string}`>();
+const delivered = new WeakSet<Error>();
+
+type IdentifiedException = Error & {
+  [eventIdProperty]?: `EVT_${string}`;
+};
+
 export function normalizeException(error: unknown): Error {
   if (error instanceof Error) return error;
   if (typeof error === 'string') return new Error(error);
@@ -34,12 +42,25 @@ export function createExceptionCapture(input: {
   ) => `EVT_${string}`;
   eventIdFor: (error: unknown) => `EVT_${string}` | undefined;
 } {
-  const eventIds = new WeakMap<Error, `EVT_${string}`>();
-  const delivered = new WeakSet<Error>();
   const nextEventId = input.createEventId ?? createEventId;
 
   const eventIdFor = (error: unknown): `EVT_${string}` | undefined =>
-    error instanceof Error ? eventIds.get(error) : undefined;
+    error instanceof Error
+      ? ((error as IdentifiedException)[eventIdProperty] ?? eventIds.get(error))
+      : undefined;
+
+  const storeEventId = (error: Error, eventId: `EVT_${string}`): void => {
+    try {
+      Object.defineProperty(error, eventIdProperty, {
+        configurable: false,
+        enumerable: false,
+        value: eventId,
+        writable: false
+      });
+    } catch {
+      eventIds.set(error, eventId);
+    }
+  };
 
   const reportCaptureFailure = (error: unknown): void => {
     try {
@@ -53,8 +74,8 @@ export function createExceptionCapture(input: {
     eventIdFor,
     captureOnce: (error, context) => {
       const exception = normalizeException(error);
-      const eventId = eventIds.get(exception) ?? nextEventId();
-      eventIds.set(exception, eventId);
+      const eventId = eventIdFor(exception) ?? nextEventId();
+      storeEventId(exception, eventId);
       if (delivered.has(exception)) return eventId;
 
       delivered.add(exception);

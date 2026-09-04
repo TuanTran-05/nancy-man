@@ -19,6 +19,30 @@ function processDouble(): {
 }
 
 describe('node telemetry lifecycle', () => {
+  it('accepts the Task 1 capture lifecycle surface and delegates fatal exit after flush', async () => {
+    const process = processDouble();
+    const events: string[] = [];
+    const lifecycle: string[] = [];
+
+    installNodeTelemetryLifecycle({
+      process,
+      capture: (error, context) => {
+        events.push(`${context.code}:${(error as Error).message}`);
+      },
+      flush: async () => {
+        lifecycle.push('flush');
+      },
+      exit: (code) => {
+        lifecycle.push(`exit:${code}`);
+      }
+    });
+
+    await process.handlers.get('unhandledRejection')?.(new Error('lost promise'));
+
+    expect(events).toEqual(['PROCESS_UNHANDLED_REJECTION:lost promise']);
+    expect(lifecycle).toEqual(['flush', 'exit:1']);
+  });
+
   it('captures an unhandled rejection, flushes telemetry, and marks the process failed', async () => {
     const process = processDouble();
     const captured: Array<{ error: Error; code: string }> = [];

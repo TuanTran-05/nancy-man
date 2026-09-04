@@ -92,12 +92,14 @@ describe('browser telemetry factory', () => {
     await telemetry.captureException(new Error('render failed'), {
       eventId: 'EVT_00000000000000000000000001',
       code: 'REACT_RENDER_FAILED',
+      source: 'provider',
       level: 'fatal',
       componentStack: 'at StudentPage'
     });
 
     expect(delivered[0]).toMatchObject({
       eventId: 'EVT_00000000000000000000000001',
+      source: 'provider',
       level: 'fatal',
       error: { code: 'REACT_RENDER_FAILED', componentStack: 'at StudentPage' }
     });
