@@ -20,6 +20,7 @@ const config = {
   },
   objectStoreDirectory: '/var/lib/edutrack-ops/object-store',
   browserCorsOrigins: ['https://thienuy.edu.vn'],
+  telemetry: { enabled: false as const },
   sqlWorker: { enabled: false as const },
   configAgent: { enabled: false as const }
 };

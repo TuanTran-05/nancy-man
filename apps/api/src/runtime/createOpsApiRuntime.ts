@@ -44,6 +44,7 @@ import {
 
 import { type TransactionalQueryDatabase } from './poolDatabase.js';
 import { type OpsRuntimeConfig } from './runtimeConfig.js';
+import type { RuntimeTelemetry } from '../telemetry/runtimeTelemetry.js';
 
 export type OpsRuntimeDatabase = TransactionalQueryDatabase;
 
@@ -61,6 +62,7 @@ export function createOpsApiRuntime(input: {
   mfaEncryptionKey: Buffer;
   sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
   configAgent?: { client: ConfigAgentClient; catalog: Catalog };
+  telemetry?: RuntimeTelemetry;
   resolveSecret: (reference: string) => Promise<string | null>;
 }): { app: ReturnType<typeof createOpsApi> } {
   const ingestStore = new PostgresIngestStore(input.database);
@@ -359,6 +361,7 @@ export function createOpsApiRuntime(input: {
   return {
     app: createOpsApi({
       ingest: { browser, server, browserCorsOrigins: input.config.browserCorsOrigins },
+      ...(input.telemetry ? { telemetry: input.telemetry } : {}),
       releases,
       auth: {
         service: new OpsAuthService({

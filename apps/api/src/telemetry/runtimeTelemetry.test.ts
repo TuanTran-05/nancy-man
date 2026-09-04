@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createRuntimeTelemetry } from './runtimeTelemetry.js';
+import { createConfiguredRuntimeTelemetry, createRuntimeTelemetry } from './runtimeTelemetry.js';
 
 describe('API runtime telemetry', () => {
   it('captures an original exception with a stable event ID and API context', async () => {
@@ -56,5 +56,40 @@ describe('API runtime telemetry', () => {
     expect(telemetry.healthy()).toBe(false);
     expect(telemetry.captureException(new Error('still respond'), { code: 'API_UNHANDLED_EXCEPTION' }))
       .toBeUndefined();
+  });
+
+  it('creates a durable reporter from signed runtime configuration', async () => {
+    const queued: unknown[] = [];
+    const telemetry = createConfiguredRuntimeTelemetry({
+      config: {
+        enabled: true,
+        endpoint: 'https://man.thienuy.edu.vn/api/v1/ingest/server',
+        keyId: 'edutrack-ops-api',
+        hmacSecretReference: 'ops-telemetry-hmac',
+        release: '0123456789abcdef0123456789abcdef01234567',
+        spoolRoot: '/var/lib/edutrack-ops/telemetry',
+        spoolDirectory: '/var/lib/edutrack-ops/telemetry/api'
+      },
+      hmacSecret: 'a'.repeat(32),
+      service: 'edutrack-ops-api',
+      spool: {
+        enqueue: async (envelope) => {
+          queued.push(envelope);
+          return { queued: true, evicted: 0 };
+        },
+        flush: async () => ({ delivered: 0, deferred: 1 })
+      }
+    });
+
+    telemetry.captureException(new Error('queued'), { code: 'API_UNHANDLED_EXCEPTION' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(telemetry.healthy()).toBe(true);
+    expect(queued).toEqual([
+      expect.objectContaining({
+        context: expect.objectContaining({ service: 'edutrack-ops-api' })
+      })
+    ]);
   });
 });

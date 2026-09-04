@@ -11,6 +11,11 @@ import { createOpsApiRuntime } from './createOpsApiRuntime.js';
 import { FileSecretResolver } from './fileSecretResolver.js';
 import { createPoolDatabase } from './poolDatabase.js';
 import { readOpsRuntimeConfig, type OpsRuntimeConfig } from './runtimeConfig.js';
+import {
+  createConfiguredRuntimeTelemetry,
+  createRuntimeTelemetry
+} from '../telemetry/runtimeTelemetry.js';
+import { installNodeTelemetryLifecycle } from '../../../../packages/telemetry-sdk/src/nodeLifecycle.js';
 
 type RuntimeCredentials = {
   databaseUrl: string;
@@ -20,6 +25,7 @@ type RuntimeCredentials = {
   authSessionPepper: string;
   passwordFingerprintPepper: string;
   legacyMonitoringHmacSecret: string;
+  telemetryHmacSecret?: string;
   mfaEncryptionKey: Buffer;
   sqlWorker?: { socketPath: string; hmacSecret: string; auditEncryptionKey: Buffer };
   configAgent?: {
@@ -71,6 +77,12 @@ export async function resolveRuntimeCredentials(input: {
   ) {
     throw new Error('Ops API runtime credentials are unavailable');
   }
+  const telemetryHmacSecret = input.config.telemetry.enabled
+    ? await input.resolveSecret(input.config.telemetry.hmacSecretReference)
+    : undefined;
+  if (input.config.telemetry.enabled && !telemetryHmacSecret) {
+    throw new Error('Ops API runtime credentials are unavailable');
+  }
   const mfaEncryptionKey = Buffer.from(mfaKey, 'base64url');
   if (mfaEncryptionKey.length !== 32)
     throw new Error('Ops API runtime credentials are unavailable');
@@ -103,6 +115,7 @@ export async function resolveRuntimeCredentials(input: {
       passwordFingerprintPepper,
       legacyMonitoringHmacSecret,
       mfaEncryptionKey,
+      ...(telemetryHmacSecret ? { telemetryHmacSecret } : {}),
       ...(configAgent ? { configAgent } : {})
     };
   }
@@ -123,6 +136,7 @@ export async function resolveRuntimeCredentials(input: {
     passwordFingerprintPepper,
     legacyMonitoringHmacSecret,
     mfaEncryptionKey,
+    ...(telemetryHmacSecret ? { telemetryHmacSecret } : {}),
     sqlWorker: {
       socketPath: input.config.sqlWorker.socketPath,
       hmacSecret: sqlWorkerHmac,
@@ -215,6 +229,22 @@ export async function startOpsApi(
   }
   const pool = getOpsPool(credentials.databaseUrl);
   const database = createPoolDatabase(pool);
+  const telemetry = config.telemetry.enabled
+    ? createConfiguredRuntimeTelemetry({
+        config: config.telemetry,
+        hmacSecret: credentials.telemetryHmacSecret!,
+        service: 'edutrack-ops-api'
+      })
+    : createRuntimeTelemetry({
+        enabled: false,
+        release: '0000000000000000000000000000000000000000',
+        service: 'edutrack-ops-api',
+        transport: async () => undefined
+      });
+  installNodeTelemetryLifecycle({
+    captureException: telemetry.captureException,
+    flush: telemetry.flush
+  });
 
   try {
     await database.query('SELECT 1');
@@ -236,6 +266,7 @@ export async function startOpsApi(
       mfaEncryptionKey: credentials.mfaEncryptionKey,
       ...(credentials.sqlWorker ? { sqlWorker: credentials.sqlWorker } : {}),
       ...(configAgent && catalog ? { configAgent: { client: configAgent, catalog } } : {}),
+      telemetry,
       resolveSecret: (ref) => resolver.resolve(ref)
     });
     const server = await listen(runtime.app, config.apiHost, config.apiPort);

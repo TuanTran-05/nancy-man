@@ -1,4 +1,4 @@
-import { isAbsolute, normalize } from 'node:path';
+import { isAbsolute, normalize, relative } from 'node:path';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -13,6 +13,18 @@ type SqlWorkerConfig =
       socketPath: string;
       hmacSecretReference: string;
       auditEncryptionKeyReference: string;
+    };
+
+type TelemetryConfig =
+  | { enabled: false }
+  | {
+      enabled: true;
+      endpoint: 'https://man.thienuy.edu.vn/api/v1/ingest/server';
+      keyId: string;
+      hmacSecretReference: string;
+      release: string;
+      spoolRoot: string;
+      spoolDirectory: string;
     };
 
 export type ConfigAgentRuntimeConfig =
@@ -49,6 +61,7 @@ export type OpsRuntimeConfig = {
   browserContextKey: BrowserContextKey;
   objectStoreDirectory: string;
   browserCorsOrigins: string[];
+  telemetry: TelemetryConfig;
   sqlWorker: SqlWorkerConfig;
   configAgent: ConfigAgentRuntimeConfig;
 };
@@ -209,6 +222,42 @@ function browserOrigins(environment: Environment): string[] {
   return [...uniqueOrigins];
 }
 
+function telemetry(environment: Environment): TelemetryConfig {
+  const enabled = requiredBoolean(environment, 'OPS_TELEMETRY_ENABLED');
+  if (!enabled) {
+    if (environment.NODE_ENV === 'production') {
+      throw new Error('OPS_TELEMETRY_ENABLED must be true in production');
+    }
+    return { enabled: false };
+  }
+  const endpoint = required(environment, 'OPS_TELEMETRY_INGEST_URL');
+  if (endpoint !== 'https://man.thienuy.edu.vn/api/v1/ingest/server') {
+    throw new Error('OPS_TELEMETRY_INGEST_URL must target the canonical server ingest endpoint');
+  }
+  const release = required(environment, 'OPS_TELEMETRY_RELEASE');
+  if (!/^[a-f0-9]{40}$/iu.test(release)) {
+    throw new Error('OPS_TELEMETRY_RELEASE must be a 40-character commit SHA');
+  }
+  const spoolRoot = requiredAbsolutePath(environment, 'OPS_TELEMETRY_SPOOL_ROOT');
+  const spoolDirectory = requiredAbsolutePath(environment, 'OPS_TELEMETRY_SPOOL_DIRECTORY');
+  const spoolRelativePath = relative(spoolRoot, spoolDirectory);
+  if (spoolRelativePath.startsWith('..') || isAbsolute(spoolRelativePath)) {
+    throw new Error('OPS_TELEMETRY_SPOOL_DIRECTORY must be inside OPS_TELEMETRY_SPOOL_ROOT');
+  }
+  return {
+    enabled: true,
+    endpoint: 'https://man.thienuy.edu.vn/api/v1/ingest/server',
+    keyId: requiredCredentialReference(environment, 'OPS_TELEMETRY_KEY_ID'),
+    hmacSecretReference: requiredCredentialReference(
+      environment,
+      'OPS_TELEMETRY_HMAC_SECRET_REFERENCE'
+    ),
+    release: release.toLowerCase(),
+    spoolRoot,
+    spoolDirectory
+  };
+}
+
 export function readOpsRuntimeConfig(environment: Environment): OpsRuntimeConfig {
   if (environment.OPS_DATABASE_URL) {
     throw new Error('OPS_DATABASE_URL is forbidden; use a credential reference instead');
@@ -268,6 +317,7 @@ export function readOpsRuntimeConfig(environment: Environment): OpsRuntimeConfig
     },
     objectStoreDirectory: requiredAbsolutePath(environment, 'OPS_OBJECT_STORE_DIRECTORY'),
     browserCorsOrigins: browserOrigins(environment),
+    telemetry: telemetry(environment),
     sqlWorker: sqlWorker(environment),
     configAgent: configAgent(environment)
   };

@@ -18,6 +18,13 @@ const validEnvironment = {
   OPS_BROWSER_CONTEXT_KEY_REFERENCE: 'browser-context-edutrack-v1',
   OPS_OBJECT_STORE_DIRECTORY: '/var/lib/edutrack-ops/object-store',
   OPS_BROWSER_CORS_ORIGINS: 'https://thienuy.edu.vn',
+  OPS_TELEMETRY_ENABLED: 'true',
+  OPS_TELEMETRY_INGEST_URL: 'https://man.thienuy.edu.vn/api/v1/ingest/server',
+  OPS_TELEMETRY_KEY_ID: 'edutrack-ops-api',
+  OPS_TELEMETRY_HMAC_SECRET_REFERENCE: 'ops-telemetry-hmac',
+  OPS_TELEMETRY_RELEASE: '0123456789abcdef0123456789abcdef01234567',
+  OPS_TELEMETRY_SPOOL_ROOT: '/var/lib/edutrack-ops/telemetry',
+  OPS_TELEMETRY_SPOOL_DIRECTORY: '/var/lib/edutrack-ops/telemetry/api',
   OPS_SQL_WORKER_ENABLED: 'false',
   OPS_VARIABLES_READ_ONLY_ENABLED: 'false'
 };
@@ -42,9 +49,28 @@ describe('readOpsRuntimeConfig', () => {
       },
       objectStoreDirectory: '/var/lib/edutrack-ops/object-store',
       browserCorsOrigins: ['https://thienuy.edu.vn'],
+      telemetry: {
+        enabled: true,
+        endpoint: 'https://man.thienuy.edu.vn/api/v1/ingest/server',
+        keyId: 'edutrack-ops-api',
+        hmacSecretReference: 'ops-telemetry-hmac',
+        release: '0123456789abcdef0123456789abcdef01234567',
+        spoolRoot: '/var/lib/edutrack-ops/telemetry',
+        spoolDirectory: '/var/lib/edutrack-ops/telemetry/api'
+      },
       sqlWorker: { enabled: false },
       configAgent: { enabled: false }
     });
+  });
+
+  it('requires signed telemetry configuration in production', () => {
+    const environment = { ...validEnvironment, NODE_ENV: 'production' } as Record<
+      string,
+      string | undefined
+    >;
+    delete environment.OPS_TELEMETRY_HMAC_SECRET_REFERENCE;
+
+    expect(() => readOpsRuntimeConfig(environment)).toThrow(/OPS_TELEMETRY_HMAC_SECRET_REFERENCE/);
   });
 
   it('refuses a non-loopback listener that would expose the Node API directly', () => {
