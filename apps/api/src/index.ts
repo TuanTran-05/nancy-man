@@ -25,6 +25,19 @@ export function createOpsApi(input: {
   variables?: Parameters<typeof createVariablesRouter>[0];
   configChanges?: Parameters<typeof createConfigChangeRouter>[0];
   trustedProxy?: string | readonly string[];
+  telemetry?: {
+    captureException: (
+      error: unknown,
+      context: {
+        code: string;
+        source: 'api';
+        route: string;
+        method: string;
+        status: 500;
+      }
+    ) => unknown;
+    healthy: () => boolean;
+  };
 }) {
   const app = express();
   app.disable('x-powered-by');
@@ -37,6 +50,10 @@ export function createOpsApi(input: {
       : false
   );
   app.get('/healthz', (_request, response) => {
+    if (input.telemetry && !input.telemetry.healthy()) {
+      response.status(503).json({ status: 'degraded', reason: 'telemetry_unavailable' });
+      return;
+    }
     response.status(200).json({ status: 'ok' });
   });
   app.use('/api/v1/ingest', createIngestRouter(input.ingest));
@@ -53,7 +70,18 @@ export function createOpsApi(input: {
     app.use('/api/v1/releases', createReleaseRouter(input.releases));
   }
 
-  const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {
+  const errorHandler: ErrorRequestHandler = (error, request, response, next) => {
+    try {
+      input.telemetry?.captureException(error, {
+        code: 'API_UNHANDLED_EXCEPTION',
+        source: 'api',
+        route: request.path,
+        method: request.method,
+        status: 500
+      });
+    } catch {
+      // Capturing must not interfere with the originating response.
+    }
     if (response.headersSent) {
       next(error);
       return;

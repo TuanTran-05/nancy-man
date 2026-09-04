@@ -68,4 +68,24 @@ describe('server telemetry factory', () => {
       error: { code: 'PROVIDER_FAILED' }
     });
   });
+
+  it('flushes the durable spool when the runtime requests replay', async () => {
+    let flushes = 0;
+    const telemetry = createServerTelemetry({
+      release: '0123456789abcdef0123456789abcdef01234567',
+      service: 'edutrack-api',
+      transport: async () => undefined,
+      spool: {
+        enqueue: async () => ({ queued: true, evicted: 0 }),
+        flush: async () => {
+          flushes += 1;
+          return { delivered: 0, deferred: 0 };
+        }
+      }
+    });
+
+    await telemetry.flush();
+
+    expect(flushes).toBe(1);
+  });
 });

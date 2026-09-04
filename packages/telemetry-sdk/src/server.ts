@@ -28,8 +28,16 @@ export function createServerTelemetry(input: {
       componentStack?: string;
     }
   ) => Promise<`EVT_${string}`>;
+  flush: () => Promise<void>;
 } {
   const now = input.now ?? (() => new Date());
+  const flush = async (): Promise<void> => {
+    if (!input.spool) return;
+    await input.spool.flush(async (queued) => {
+      await input.transport(queued);
+      return { acknowledgedIdempotencyKey: queued.idempotencyKey };
+    });
+  };
 
   return {
     captureException: async (error, context = {}) => {
@@ -71,12 +79,7 @@ export function createServerTelemetry(input: {
       }).envelope;
       if (input.spool) {
         await input.spool.enqueue(sanitizedEnvelope);
-        void input.spool
-          .flush(async (queued) => {
-            await input.transport(queued);
-            return { acknowledgedIdempotencyKey: queued.idempotencyKey };
-          })
-          .catch(() => undefined);
+        void flush().catch(() => undefined);
       } else {
         try {
           await input.transport(sanitizedEnvelope);
@@ -86,6 +89,7 @@ export function createServerTelemetry(input: {
       }
 
       return eventId;
-    }
+    },
+    flush
   };
 }
