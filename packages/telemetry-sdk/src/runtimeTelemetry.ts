@@ -36,11 +36,36 @@ export function createRuntimeTelemetry(input: {
     };
   }
 
+  let healthy = true;
+  const spool = input.spool
+    ? {
+        enqueue: async (
+          ...arguments_: Parameters<NonNullable<ServerTelemetryInput['spool']>['enqueue']>
+        ) => {
+          try {
+            return await input.spool!.enqueue(...arguments_);
+          } catch (error) {
+            healthy = false;
+            throw error;
+          }
+        },
+        flush: async (
+          ...arguments_: Parameters<NonNullable<ServerTelemetryInput['spool']>['flush']>
+        ) => {
+          try {
+            return await input.spool!.flush(...arguments_);
+          } catch (error) {
+            healthy = false;
+            throw error;
+          }
+        }
+      }
+    : undefined;
   const reporter = createServerTelemetry({
     release: input.release,
     service: input.service,
     transport: input.transport,
-    ...(input.spool ? { spool: input.spool } : {})
+    ...(spool ? { spool } : {})
   });
   const capture = createExceptionCapture({
     capture: async (error, context) => {
@@ -70,7 +95,7 @@ export function createRuntimeTelemetry(input: {
       await capture.flush();
       await reporter.flush();
     },
-    healthy: () => true
+    healthy: () => healthy
   };
 }
 

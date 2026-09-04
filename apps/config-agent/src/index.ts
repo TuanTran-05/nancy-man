@@ -145,7 +145,8 @@ export async function startConfigAgent(
   const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
   installNodeTelemetryLifecycle({
     captureException: telemetry.captureException,
-    flush: telemetry.flush
+    flush: telemetry.flush,
+    exit: (code) => process.exit(code)
   });
   try {
     const loaded = loadCatalogAndManifest({
@@ -190,7 +191,14 @@ export async function startConfigAgent(
           }))
         ])
       ]);
-    } catch {
+    } catch (error) {
+      telemetry.captureException(error, {
+        code: 'CONFIG_AGENT_ENVELOPE_KEY_LOAD_FAILED',
+        source: 'process',
+        level: 'fatal'
+      });
+      await Promise.resolve();
+      await telemetry.flush().catch(() => undefined);
       throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_READ_FAILED');
     }
     assertKeySeparation(protocolKey, fingerprintKey.secret, [...stagingKeys, ...snapshotKeys]);

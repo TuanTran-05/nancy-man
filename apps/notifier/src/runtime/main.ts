@@ -28,8 +28,6 @@ export async function startOpsNotifier(
   const config = readOpsRuntimeConfig(environment);
   const pollIntervalMs = readNotifierPollInterval(environment);
   const resolver = new FileSecretResolver(config.secretDirectory);
-  const databaseUrl = await resolver.resolve(config.databaseUrlReference);
-  if (!databaseUrl) throw new Error('Ops notifier credential is unavailable');
   const telemetryHmacSecret = config.telemetry.enabled
     ? await resolver.resolve(config.telemetry.hmacSecretReference)
     : undefined;
@@ -50,8 +48,22 @@ export async function startOpsNotifier(
   const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
   installNodeTelemetryLifecycle({
     captureException: telemetry.captureException,
-    flush: telemetry.flush
+    flush: telemetry.flush,
+    exit: (code) => process.exit(code)
   });
+
+  const databaseUrl = await resolver.resolve(config.databaseUrlReference);
+  if (!databaseUrl) {
+    const error = new Error('Ops notifier credential is unavailable');
+    telemetry.captureException(error, {
+      code: 'NOTIFIER_CREDENTIALS_UNAVAILABLE',
+      source: 'process',
+      level: 'fatal'
+    });
+    await telemetry.flush().catch(() => undefined);
+    stopTelemetryMaintenance();
+    throw error;
+  }
 
   const pool = getOpsPool(databaseUrl);
   const database = createPoolDatabase(pool);

@@ -143,7 +143,8 @@ export async function startOpsSqlWorker(
   const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
   installNodeTelemetryLifecycle({
     captureException: telemetry.captureException,
-    flush: telemetry.flush
+    flush: telemetry.flush,
+    exit: (code) => process.exit(code)
   });
   const resolver =
     input.resolveSecret ??

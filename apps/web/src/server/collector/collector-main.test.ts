@@ -44,6 +44,30 @@ describe('collector loop watchdog coupling', () => {
     expect(watchdog.progress).toHaveBeenCalledTimes(1);
   });
 
+  it('captures the rejected cycle before stopping the watchdog', async () => {
+    let scheduled: (() => void) | undefined;
+    const order: string[] = [];
+    const failure = new Error('collector cycle rejected');
+    await startCollectorLoop({
+      cycle: vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(failure),
+      watchdog: { progress: vi.fn(), stop: () => order.push('stop') },
+      schedule: (callback) => {
+        scheduled = callback;
+        return () => undefined;
+      },
+      onFailure: (error) => {
+        expect(error).toBe(failure);
+        order.push('capture');
+      }
+    });
+
+    scheduled?.();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(order).toEqual(['capture', 'stop']);
+  });
+
   it('does not report watchdog progress while a scheduled collection cycle is hung', async () => {
     let scheduled: (() => void) | undefined;
     const hung = deferred<void>();

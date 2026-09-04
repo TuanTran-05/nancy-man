@@ -37,8 +37,8 @@ export async function startCollectorLoop(input: {
       await input.cycle();
       if (!stopped) input.watchdog.progress();
     } catch (error) {
-      stop();
       input.onFailure(error);
+      stop();
     } finally {
       running = false;
     }
@@ -71,7 +71,8 @@ export async function startCollector(): Promise<void> {
   const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
   installNodeTelemetryLifecycle({
     captureException: telemetry.captureException,
-    flush: telemetry.flush
+    flush: telemetry.flush,
+    exit: (code) => process.exit(code)
   });
   const beszelProbe = config.beszel.enabled
     ? createBeszelProbe(createBeszelClient(config.beszel))

@@ -84,6 +84,23 @@ const makeZaloFixture = () => {
 };
 
 describe('protected Ops HTTP API', () => {
+  it('degrades readiness when required web telemetry is unavailable', async () => {
+    const fixture = makeFixture();
+    const app = createOpsApp({
+      store: fixture.store,
+      auth: createAuthService({ store: fixture.store, dataKey: Buffer.alloc(32, 7) }),
+      telemetry: { captureException: () => undefined, healthy: () => false }
+    });
+    try {
+      await request(app)
+        .get('/healthz')
+        .expect(503)
+        .expect({ status: 'degraded', reason: 'telemetry_unavailable' });
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it('captures the original terminal route error before returning a safe 500', async () => {
     const fixture = makeFixture();
     const captured: unknown[] = [];
@@ -96,7 +113,8 @@ describe('protected Ops HTTP API', () => {
       auth: createAuthService({ store: fixture.store, dataKey: Buffer.alloc(32, 7) }),
       canonicalApi,
       telemetry: {
-        captureException: (error) => captured.push(error)
+        captureException: (error) => captured.push(error),
+        healthy: () => true
       }
     });
     try {

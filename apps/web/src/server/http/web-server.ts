@@ -13,8 +13,6 @@ import { createWebRuntimeTelemetry } from '../telemetry/runtimeTelemetry.js';
 
 export function startWebServer() {
   const config = loadWebConfig(process.env);
-  const legacyMonitoringHmac = readFileSync(config.legacyMonitoringHmacFile, 'utf8').trim();
-  if (!legacyMonitoringHmac) throw new Error('Ops legacy monitoring HMAC is unavailable');
   const telemetryHmac = config.telemetry?.enabled
     ? readFileSync(config.telemetryHmacFile ?? '', 'utf8').trim()
     : undefined;
@@ -32,8 +30,21 @@ export function startWebServer() {
   const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
   installNodeTelemetryLifecycle({
     captureException: telemetry.captureException,
-    flush: telemetry.flush
+    flush: telemetry.flush,
+    exit: (code) => process.exit(code)
   });
+  const legacyMonitoringHmac = readFileSync(config.legacyMonitoringHmacFile, 'utf8').trim();
+  if (!legacyMonitoringHmac) {
+    const error = new Error('Ops legacy monitoring HMAC is unavailable');
+    telemetry.captureException(error, {
+      code: 'OPS_WEB_CREDENTIALS_UNAVAILABLE',
+      source: 'process',
+      level: 'fatal'
+    });
+    void telemetry.flush().catch(() => undefined);
+    stopTelemetryMaintenance();
+    throw error;
+  }
   const store = createOpsStore(config.dbPath, undefined, config.zaloRecipientKey);
   const auth = createAuthService({ store, dataKey: config.dataKey });
   const app = createOpsApp({

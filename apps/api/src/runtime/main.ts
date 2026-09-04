@@ -173,14 +173,16 @@ export async function startOpsApi(
 }> {
   const config = readOpsRuntimeConfig(environment);
   const resolver = new FileSecretResolver(config.secretDirectory);
-  const credentials = await resolveRuntimeCredentials({
-    config,
-    resolveSecret: (ref) => resolver.resolve(ref)
-  });
+  const telemetryHmacSecret = config.telemetry.enabled
+    ? await resolver.resolve(config.telemetry.hmacSecretReference)
+    : undefined;
+  if (config.telemetry.enabled && !telemetryHmacSecret) {
+    throw new Error('Ops API telemetry credential is unavailable');
+  }
   const telemetry = config.telemetry.enabled
     ? createConfiguredRuntimeTelemetry({
         config: config.telemetry,
-        hmacSecret: credentials.telemetryHmacSecret!,
+        hmacSecret: telemetryHmacSecret!,
         service: 'edutrack-ops-api',
         spoolDirectory: join(config.telemetry.spoolDirectory, 'api')
       })
@@ -193,8 +195,25 @@ export async function startOpsApi(
   const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
   installNodeTelemetryLifecycle({
     captureException: telemetry.captureException,
-    flush: telemetry.flush
+    flush: telemetry.flush,
+    exit: (code) => process.exit(code)
   });
+  let credentials: RuntimeCredentials;
+  try {
+    credentials = await resolveRuntimeCredentials({
+      config,
+      resolveSecret: (ref) => resolver.resolve(ref)
+    });
+  } catch (error) {
+    telemetry.captureException(error, {
+      code: 'API_CREDENTIALS_UNAVAILABLE',
+      source: 'process',
+      level: 'fatal'
+    });
+    await telemetry.flush().catch(() => undefined);
+    stopTelemetryMaintenance();
+    throw error;
+  }
   let configAgent: ConfigAgentClient | undefined;
   let catalog: ReturnType<typeof parseCatalog> | undefined;
   try {

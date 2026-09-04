@@ -112,16 +112,27 @@ export async function runCollectorCycle(
   if (beszelDue) {
     probePromises.push(
       deps.beszelProbe!(now)
-        .catch((): MonitorSample[] => [
-          {
-            monitor: 'beszel',
-            level: 'critical',
-            observedAt: now.toISOString(),
-            latencyMs: null,
-            details: { probeOk: false },
-            errorCode: 'beszel_unreachable'
+        .catch((error): MonitorSample[] => {
+          try {
+            deps.telemetry?.captureException(error, {
+              code: 'COLLECTOR_BESZEL_PROBE_FAILED',
+              source: 'job',
+              tags: { jobName: 'beszel_probe' }
+            });
+          } catch {
+            // Monitoring fallback must still produce its critical sample.
           }
-        ])
+          return [
+            {
+              monitor: 'beszel',
+              level: 'critical',
+              observedAt: now.toISOString(),
+              latencyMs: null,
+              details: { probeOk: false },
+              errorCode: 'beszel_unreachable'
+            }
+          ];
+        })
         .then((result) => {
           deps.lastBeszelAt = now.getTime();
           return result;

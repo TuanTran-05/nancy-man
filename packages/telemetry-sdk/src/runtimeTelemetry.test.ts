@@ -90,4 +90,32 @@ describe('server runtime telemetry facade', () => {
     expect(flush).toHaveBeenCalledTimes(2);
     expect(cancelled).toEqual(['timer']);
   });
+
+  it('becomes unhealthy after its durable spool rejects an enqueue or flush', async () => {
+    const enqueueFailure = new Error('spool unavailable');
+    const telemetry = createRuntimeTelemetry({
+      enabled: true,
+      release: config.release,
+      service: 'edutrack-ops-api',
+      transport: async () => undefined,
+      spool: {
+        enqueue: async () => {
+          throw enqueueFailure;
+        },
+        flush: async () => {
+          throw new Error('flush unavailable');
+        }
+      }
+    });
+
+    telemetry.captureException(new Error('request failed'), {
+      code: 'REQUEST_FAILED',
+      source: 'api'
+    });
+    await Promise.resolve();
+
+    expect(telemetry.healthy()).toBe(false);
+    await expect(telemetry.flush()).rejects.toThrow('flush unavailable');
+    expect(telemetry.healthy()).toBe(false);
+  });
 });
