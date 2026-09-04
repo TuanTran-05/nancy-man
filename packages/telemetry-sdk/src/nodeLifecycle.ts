@@ -39,6 +39,26 @@ function boundedFlush(flush: () => Promise<void>, timeoutMs: number): Promise<vo
   });
 }
 
+function boundedCapture(capture: () => unknown, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    let finished = false;
+    const finish = (): void => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = setTimeout(finish, timeoutMs);
+    try {
+      void Promise.resolve(capture())
+        .catch(() => undefined)
+        .finally(finish);
+    } catch {
+      finish();
+    }
+  });
+}
+
 export function installNodeTelemetryLifecycle(input: NodeTelemetryLifecycleInput): void {
   const process = input.process ?? (globalThis.process as unknown as NodeProcess);
   const capture = input.capture ?? input.captureException;
@@ -55,7 +75,10 @@ export function installNodeTelemetryLifecycle(input: NodeTelemetryLifecycleInput
       const exception = normalizeException(error);
       const eventId = eventIdForException(exception);
       if (!eventId) {
-        await Promise.resolve(capture(exception, { code, source: 'process', level: 'fatal' }));
+        await boundedCapture(
+          () => capture(exception, { code, source: 'process', level: 'fatal' }),
+          timeoutMs
+        );
       }
     } catch {
       // A lifecycle safety net cannot throw from another process error handler.

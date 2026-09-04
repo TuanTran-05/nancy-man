@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createExceptionCapture } from './exceptionCapture.js';
 import { installNodeTelemetryLifecycle } from './nodeLifecycle.js';
@@ -48,6 +48,42 @@ describe('node telemetry lifecycle', () => {
     await handled;
 
     expect(lifecycle).toEqual(['capture', 'flush', 'exit:1']);
+  });
+
+  it('continues to flush and terminate after a capture exceeds the lifecycle deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const process = processDouble();
+      const lifecycle: string[] = [];
+      let completed = false;
+
+      installNodeTelemetryLifecycle({
+        process,
+        capture: () => {
+          lifecycle.push('capture');
+          return new Promise<void>(() => undefined);
+        },
+        flush: async () => {
+          lifecycle.push('flush');
+        },
+        flushTimeoutMs: 100,
+        exit: (code) => {
+          lifecycle.push(`exit:${code}`);
+        }
+      });
+
+      const handled = process.handlers.get('unhandledRejection')?.(new Error('lost promise'));
+      void Promise.resolve(handled).then(() => {
+        completed = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(completed).toBe(true);
+      expect(lifecycle).toEqual(['capture', 'flush', 'exit:1']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('reuses an existing event ID without duplicate lifecycle delivery', async () => {
