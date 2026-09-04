@@ -32,29 +32,43 @@ export function createBrowserTelemetry(input: {
     context?: Pick<
       TelemetryEnvelopeV1['context'],
       'requestId' | 'traceId' | 'route' | 'tags' | 'breadcrumbs'
-    >
+    > & {
+      eventId?: `EVT_${string}`;
+      level?: TelemetryEnvelopeV1['level'];
+      code?: string;
+      componentStack?: string;
+    }
   ) => Promise<`EVT_${string}`>;
 } {
   const now = input.now ?? (() => new Date());
 
   return {
     captureException: async (error, context = {}) => {
-      const eventId = createEventId();
+      const {
+        eventId: suppliedEventId,
+        level = 'error',
+        code = 'BROWSER_EXCEPTION',
+        componentStack,
+        ...contextWithBreadcrumbs
+      } = context;
+      const eventId = suppliedEventId ?? createEventId();
       const exception = error instanceof Error ? error : new Error('Unknown browser error');
-      const { breadcrumbs, ...contextWithoutBreadcrumbs } = context;
+      const { breadcrumbs, ...contextWithoutBreadcrumbs } = contextWithBreadcrumbs;
       const stack = boundedText(exception.stack, 24_000);
+      const safeComponentStack = boundedText(componentStack, 8_000);
       const envelope: TelemetryEnvelopeV1 = {
         schemaVersion: 1,
         eventId,
         idempotencyKey: eventId,
         capturedAt: now().toISOString(),
         source: 'browser',
-        level: 'error',
+        level,
         error: {
           name: boundedText(exception.name, 120) ?? 'Error',
-          code: 'BROWSER_EXCEPTION',
+          code: boundedText(code, 120) ?? 'BROWSER_EXCEPTION',
           safeMessage: boundedText(exception.message, 2_000) ?? 'Browser error',
-          ...(stack ? { stack } : {})
+          ...(stack ? { stack } : {}),
+          ...(safeComponentStack ? { componentStack: safeComponentStack } : {})
         },
         context: {
           ...contextWithoutBreadcrumbs,

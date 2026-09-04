@@ -43,4 +43,29 @@ describe('server telemetry factory', () => {
     await expect(telemetry.captureException(new Error('offline event'))).resolves.toMatch(/^EVT_/);
     expect(queued).toHaveLength(1);
   });
+
+  it('preserves supplied event identity and error classification', async () => {
+    const delivered: Array<Record<string, unknown>> = [];
+    const telemetry = createServerTelemetry({
+      release: '0123456789abcdef0123456789abcdef01234567',
+      service: 'edutrack-api',
+      transport: async (envelope) => {
+        delivered.push(envelope as unknown as Record<string, unknown>);
+      }
+    });
+
+    await telemetry.captureException(new Error('provider failed'), {
+      eventId: 'EVT_00000000000000000000000000',
+      code: 'PROVIDER_FAILED',
+      source: 'provider',
+      level: 'warning'
+    });
+
+    expect(delivered[0]).toMatchObject({
+      eventId: 'EVT_00000000000000000000000000',
+      source: 'provider',
+      level: 'warning',
+      error: { code: 'PROVIDER_FAILED' }
+    });
+  });
 });

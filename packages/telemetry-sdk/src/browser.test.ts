@@ -78,4 +78,28 @@ describe('browser telemetry factory', () => {
     await expect(telemetry.captureException(new Error('offline event'))).resolves.toMatch(/^EVT_/);
     expect(queued).toHaveLength(1);
   });
+
+  it('preserves supplied event identity, classification, and component stack', async () => {
+    const delivered: Array<Record<string, unknown>> = [];
+    const telemetry = createBrowserTelemetry({
+      release: '0123456789abcdef0123456789abcdef01234567',
+      service: 'edutrack-web',
+      transport: async (envelope) => {
+        delivered.push(envelope as unknown as Record<string, unknown>);
+      }
+    });
+
+    await telemetry.captureException(new Error('render failed'), {
+      eventId: 'EVT_00000000000000000000000001',
+      code: 'REACT_RENDER_FAILED',
+      level: 'fatal',
+      componentStack: 'at StudentPage'
+    });
+
+    expect(delivered[0]).toMatchObject({
+      eventId: 'EVT_00000000000000000000000001',
+      level: 'fatal',
+      error: { code: 'REACT_RENDER_FAILED', componentStack: 'at StudentPage' }
+    });
+  });
 });
