@@ -1,4 +1,4 @@
-import { normalizeException } from './exceptionCapture.js';
+import { eventIdForException, normalizeException } from './exceptionCapture.js';
 
 type NodeProcess = {
   on: (event: string, listener: (...arguments_: unknown[]) => void | Promise<void>) => unknown;
@@ -52,7 +52,11 @@ export function installNodeTelemetryLifecycle(input: NodeTelemetryLifecycleInput
     code: 'PROCESS_UNCAUGHT_EXCEPTION' | 'PROCESS_UNHANDLED_REJECTION'
   ): Promise<void> => {
     try {
-      capture(normalizeException(error), { code, source: 'process', level: 'fatal' });
+      const exception = normalizeException(error);
+      const eventId = eventIdForException(exception);
+      if (!eventId) {
+        await Promise.resolve(capture(exception, { code, source: 'process', level: 'fatal' }));
+      }
     } catch {
       // A lifecycle safety net cannot throw from another process error handler.
     }
@@ -68,7 +72,6 @@ export function installNodeTelemetryLifecycle(input: NodeTelemetryLifecycleInput
   const flushAndExit = async (): Promise<void> => {
     await boundedFlush(input.flush, timeoutMs);
     if (input.exit) input.exit(0);
-    else process.exit?.(0);
   };
   process.on('SIGTERM', flushAndExit);
   process.on('SIGINT', flushAndExit);

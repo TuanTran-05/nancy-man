@@ -3,6 +3,34 @@ import { describe, expect, it } from 'vitest';
 import { createExceptionCapture } from './exceptionCapture.js';
 
 describe('exception capture', () => {
+  it('waits for an in-flight capture without surfacing telemetry delivery failure', async () => {
+    let releaseCapture: (() => void) | undefined;
+    const delivered: string[] = [];
+    const capture = createExceptionCapture({
+      createEventId: () => 'EVT_00000000000000000000000005',
+      capture: async () => {
+        await new Promise<void>((resolve) => {
+          releaseCapture = resolve;
+        });
+        delivered.push('captured');
+      }
+    });
+
+    capture.captureOnce(new Error('slow provider'), { code: 'PROVIDER_FAILED' });
+    let flushed = false;
+    const flush = capture.flush().then(() => {
+      flushed = true;
+    });
+
+    await Promise.resolve();
+    expect(flushed).toBe(false);
+
+    releaseCapture?.();
+    await flush;
+
+    expect(delivered).toEqual(['captured']);
+  });
+
   it('reuses the Error event ID across capture helpers in one runtime', async () => {
     const error = new Error('provider token expired');
     const reports: string[] = [];

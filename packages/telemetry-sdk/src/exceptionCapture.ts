@@ -20,6 +20,12 @@ type IdentifiedException = Error & {
   [eventIdProperty]?: `EVT_${string}`;
 };
 
+export function eventIdForException(error: unknown): `EVT_${string}` | undefined {
+  return error instanceof Error
+    ? ((error as IdentifiedException)[eventIdProperty] ?? eventIds.get(error))
+    : undefined;
+}
+
 export function normalizeException(error: unknown): Error {
   if (error instanceof Error) return error;
   if (typeof error === 'string') return new Error(error);
@@ -41,13 +47,10 @@ export function createExceptionCapture(input: {
     context: Omit<ExceptionCaptureContext, 'eventId'>
   ) => `EVT_${string}`;
   eventIdFor: (error: unknown) => `EVT_${string}` | undefined;
+  flush: () => Promise<void>;
 } {
   const nextEventId = input.createEventId ?? createEventId;
-
-  const eventIdFor = (error: unknown): `EVT_${string}` | undefined =>
-    error instanceof Error
-      ? ((error as IdentifiedException)[eventIdProperty] ?? eventIds.get(error))
-      : undefined;
+  const pendingCaptures = new Set<Promise<void>>();
 
   const storeEventId = (error: Error, eventId: `EVT_${string}`): void => {
     try {
@@ -71,18 +74,23 @@ export function createExceptionCapture(input: {
   };
 
   return {
-    eventIdFor,
+    eventIdFor: eventIdForException,
+    flush: async () => {
+      await Promise.all([...pendingCaptures]);
+    },
     captureOnce: (error, context) => {
       const exception = normalizeException(error);
-      const eventId = eventIdFor(exception) ?? nextEventId();
+      const eventId = eventIdForException(exception) ?? nextEventId();
       storeEventId(exception, eventId);
       if (delivered.has(exception)) return eventId;
 
       delivered.add(exception);
       try {
-        void Promise.resolve(input.capture(exception, { ...context, eventId })).catch(
+        const delivery = Promise.resolve(input.capture(exception, { ...context, eventId })).catch(
           reportCaptureFailure
         );
+        pendingCaptures.add(delivery);
+        void delivery.finally(() => pendingCaptures.delete(delivery));
       } catch (captureFailure) {
         reportCaptureFailure(captureFailure);
       }

@@ -12,7 +12,10 @@ type RuntimeTelemetryContext = Omit<ExceptionCaptureContext, 'eventId'> & {
 type ServerTelemetryInput = Parameters<typeof createServerTelemetry>[0];
 
 export type RuntimeTelemetry = {
-  captureException: (error: unknown, context: RuntimeTelemetryContext) => `EVT_${string}` | undefined;
+  captureException: (
+    error: unknown,
+    context: RuntimeTelemetryContext
+  ) => `EVT_${string}` | undefined;
   flush: () => Promise<void>;
   healthy: () => boolean;
 };
@@ -63,7 +66,10 @@ export function createRuntimeTelemetry(input: {
             : {})
       });
     },
-    flush: () => reporter.flush(),
+    flush: async () => {
+      await capture.flush();
+      await reporter.flush();
+    },
     healthy: () => true
   };
 }

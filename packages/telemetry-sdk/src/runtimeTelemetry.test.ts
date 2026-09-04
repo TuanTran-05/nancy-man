@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createConfiguredRuntimeTelemetry, startRuntimeTelemetryMaintenance } from './runtimeTelemetry.js';
+import {
+  createConfiguredRuntimeTelemetry,
+  createRuntimeTelemetry,
+  startRuntimeTelemetryMaintenance
+} from './runtimeTelemetry.js';
 
 const config = {
   enabled: true as const,
@@ -13,6 +17,38 @@ const config = {
 };
 
 describe('server runtime telemetry facade', () => {
+  it('waits for a pending capture enqueue before flushing the spool', async () => {
+    let releaseEnqueue: (() => void) | undefined;
+    const enqueue = vi.fn(async () => {
+      await new Promise<void>((resolve) => {
+        releaseEnqueue = resolve;
+      });
+      return { queued: true, evicted: 0 };
+    });
+    const flush = vi.fn(async () => ({ delivered: 0, deferred: 0 }));
+    const telemetry = createRuntimeTelemetry({
+      enabled: true,
+      release: config.release,
+      service: 'edutrack-ops-api',
+      transport: async () => undefined,
+      spool: { enqueue, flush }
+    });
+
+    telemetry.captureException(new Error('slow enqueue'), {
+      code: 'SERVER_EXCEPTION',
+      source: 'api'
+    });
+    const flushing = telemetry.flush();
+
+    await Promise.resolve();
+    expect(flush).not.toHaveBeenCalled();
+
+    releaseEnqueue?.();
+    await flushing;
+
+    expect(flush).toHaveBeenCalledTimes(2);
+  });
+
   it('uses a caller-scoped spool and captures the same Error only once', async () => {
     const enqueue = vi.fn(async () => ({ queued: true, evicted: 0 }));
     const flush = vi.fn(async () => ({ delivered: 0, deferred: 0 }));
