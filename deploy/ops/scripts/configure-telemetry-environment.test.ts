@@ -70,7 +70,7 @@ describe('configure telemetry environment', () => {
       if (hmacPath) expect(environment).toContain(`OPS_TELEMETRY_HMAC_FILE=${hmacPath}`);
     }
     expect(readFileSync(join(config, 'collector.env'), 'utf8')).toContain(
-      'OPS_PM2_ERROR_LOG_PATH=/srv/edutrack/shared/logs/app-error-0.log'
+      'OPS_PM2_ERROR_LOG_PATH=/srv/edutrack/shared/logs/app-error.log'
     );
   });
 

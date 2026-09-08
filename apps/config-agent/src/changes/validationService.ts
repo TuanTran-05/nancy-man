@@ -253,10 +253,10 @@ function parseSource(
     return parsed;
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof ValidationServiceError) throw error;
     fail('SOURCE_PARSE_FAILED');
   }
@@ -316,10 +316,10 @@ function validateValue(entry: CatalogEntry, value: string, catalog: Catalog): st
     }
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof ValidationServiceError) throw error;
     fail('VARIABLE_RULE_FAILED');
   }
@@ -447,9 +447,9 @@ export function createValidationService(options: ValidationServiceOptions) {
           existing = await readSource(source);
         } catch (error) {
           captureOpsException(error, {
-            code: 'UNHANDLED_OPS_EXCEPTION',
-            source: 'job',
-            status: 500,
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
           });
           if (error instanceof ValidationServiceError) throw error;
           const code = error instanceof Error && 'code' in error ? error.code : undefined;

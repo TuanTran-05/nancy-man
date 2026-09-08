@@ -228,7 +228,7 @@ export async function startCollector(): Promise<{ close: () => Promise<void> }> 
     captureOpsException(error, {
       code: 'COLLECTOR_STARTUP_FAILED',
       source: 'process',
-      level: 'fatal'
+      level: 'fatal',
     });
     await stopRuntimeTelemetry(true, error);
     throw error;

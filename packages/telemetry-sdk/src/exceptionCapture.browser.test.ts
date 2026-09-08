@@ -3,6 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { createBrowserExceptionCapture } from './exceptionCapture.browser.js';
 
 describe('browser exception capture ownership', () => {
+  it('allows a later browser capture to retry after the reporter rejects', async () => {
+    let attempts = 0;
+    const error = new Error('browser spool enqueue failed');
+    const capture = createBrowserExceptionCapture({
+      createEventId: () => 'EVT_00000000000000000000000015',
+      capture: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('browser spool unavailable');
+      }
+    });
+
+    capture.captureOnce(error, { code: 'BROWSER_REQUEST_FAILED', source: 'browser' });
+    await capture.flush();
+    capture.captureOnce(error, { code: 'BROWSER_REQUEST_FAILED', source: 'browser' });
+    await capture.flush();
+
+    expect(attempts).toBe(2);
+  });
+
   it('merges a provisional nested boundary into one terminal ErrorBoundary occurrence', async () => {
     const reports: Array<Record<string, unknown>> = [];
     const capture = createBrowserExceptionCapture({

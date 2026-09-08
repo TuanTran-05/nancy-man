@@ -49,22 +49,29 @@ function readLogLines(deps: CollectorDeps, source: string, path: string): string
     deps.store.setCursor(source, result.cursor);
     return result.lines;
   } catch (error) {
-    captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
     try {
-      deps.telemetry?.captureException(error, {
+      const failureContext = {
+        code: 'COLLECTOR_LOG_READ_FAILED',
+        source: 'job' as const,
+        tags: { logSource: source }
+      };
+      if (deps.telemetry) deps.telemetry.captureException(error, failureContext);
+      else
+        captureOpsException(error, {
+          code: 'COLLECTOR_LOG_READ_FAILED',
+          source: 'job',
+          tags: { logSource: source }
+        });
+    } catch (telemetryError) {
+      captureOpsException(error, {
         code: 'COLLECTOR_LOG_READ_FAILED',
         source: 'job',
-        tags: { logSource: source.slice(-120) }
+        tags: { logSource: source }
       });
-    } catch (error) {
-      captureOpsException(error, {
-        code: 'UNHANDLED_OPS_EXCEPTION',
-        source: 'job',
-        status: 500,
+      captureOpsException(telemetryError, {
+        code: 'TELEMETRY_REPORTER_FAILED',
+        source: 'process',
+        status: 500
       });
       // Keep the monitoring cycle alive even when telemetry itself is unavailable.
     }
@@ -125,22 +132,29 @@ export async function runCollectorCycle(
     probePromises.push(
       deps.beszelProbe!(now)
         .catch((error): MonitorSample[] => {
-          captureOpsException(error, {
-            code: 'UNHANDLED_PROMISE_REJECTION',
-            source: 'job',
-            status: 500,
-          });
           try {
-            deps.telemetry?.captureException(error, {
+            const failureContext = {
+              code: 'COLLECTOR_BESZEL_PROBE_FAILED',
+              source: 'job' as const,
+              tags: { jobName: 'beszel_probe' }
+            };
+            if (deps.telemetry) deps.telemetry.captureException(error, failureContext);
+            else
+              captureOpsException(error, {
+                code: 'COLLECTOR_BESZEL_PROBE_FAILED',
+                source: 'job',
+                tags: { jobName: 'beszel_probe' }
+              });
+          } catch (telemetryError) {
+            captureOpsException(error, {
               code: 'COLLECTOR_BESZEL_PROBE_FAILED',
               source: 'job',
               tags: { jobName: 'beszel_probe' }
             });
-          } catch (error) {
-            captureOpsException(error, {
-              code: 'UNHANDLED_PROMISE_REJECTION',
-              source: 'job',
-              status: 500,
+            captureOpsException(telemetryError, {
+              code: 'TELEMETRY_REPORTER_FAILED',
+              source: 'process',
+              status: 500
             });
             // Monitoring fallback must still produce its critical sample.
           }

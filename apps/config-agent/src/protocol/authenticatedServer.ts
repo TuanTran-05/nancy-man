@@ -156,10 +156,10 @@ function removeSocketIfSafe(socketPath: string): void {
     unlinkSync(socketPath);
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
     if (error instanceof ProtocolServerError) throw error;
     throw new ProtocolServerError('AGENT_SOCKET_INVALID');

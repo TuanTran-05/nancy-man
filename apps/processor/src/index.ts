@@ -68,16 +68,31 @@ export async function runProcessorOnce(input: {
     );
     return { processed: true };
   } catch (error) {
-    captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'process',
-      status: 500,
-    });
-    input.telemetry?.captureException(error, {
-      code: 'PROCESSOR_ENVELOPE_FAILED',
-      source: 'job',
-      tags: { envelopeId: claimed.envelopeId }
-    });
+    try {
+      const failureContext = {
+        code: 'PROCESSOR_ENVELOPE_FAILED',
+        source: 'job' as const,
+        tags: { envelopeId: claimed.envelopeId }
+      };
+      if (input.telemetry) input.telemetry.captureException(error, failureContext);
+      else
+        captureOpsException(error, {
+          code: 'PROCESSOR_ENVELOPE_FAILED',
+          source: 'job',
+          tags: { envelopeId: claimed.envelopeId }
+        });
+    } catch (telemetryError) {
+      captureOpsException(error, {
+        code: 'PROCESSOR_ENVELOPE_FAILED',
+        source: 'job',
+        tags: { envelopeId: claimed.envelopeId }
+      });
+      captureOpsException(telemetryError, {
+        code: 'TELEMETRY_REPORTER_FAILED',
+        source: 'process',
+        status: 500
+      });
+    }
     const attemptCount = (claimed.attemptCount ?? 0) + 1;
     if (input.queue.deadLetter && attemptCount >= maxAttempts) {
       await input.queue.deadLetter({

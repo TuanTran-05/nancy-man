@@ -2,6 +2,8 @@ type RuntimeCaptureContext = {
   code: string;
   source?: 'api' | 'browser' | 'database' | 'document_store' | 'job' | 'provider' | 'process';
   level?: 'fatal' | 'error' | 'warning';
+  /** Use only at a transparent rethrow whose outer owner will terminally capture this Error. */
+  deferUntilHandled?: boolean;
   requestId?: `REQ_${string}`;
   route?: string;
   method?: string;

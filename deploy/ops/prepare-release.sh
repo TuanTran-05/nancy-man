@@ -80,6 +80,7 @@ done
 for required in \
   apps/api/dist/bin/edutrack-config-agent-smoke \
   apps/api/dist/apps/api/src/cli/smoke-config-agent.js \
+  apps/api/dist/apps/api/src/cli/telemetry-canary.js \
   apps/api/dist/apps/api/src/runtime/main.js \
   apps/config-agent/dist/apps/config-agent/src/index.js \
   apps/notifier/dist/apps/notifier/src/runtime/main.js \

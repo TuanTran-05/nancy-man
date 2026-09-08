@@ -117,10 +117,10 @@ async function ensureDirectory(
     assertMetadata(details, mode, owner);
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'document_store',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'document_store',
+    status: 500,
+  });
     if (error instanceof ArtifactStorageError) throw error;
     fail('ARTIFACT_DIRECTORY_INVALID');
   }
@@ -270,10 +270,10 @@ export async function readSecureArtifact(
     return bytes;
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'document_store',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'document_store',
+    status: 500,
+  });
     if (error instanceof ArtifactStorageError) throw error;
     if ((error as NodeJS.ErrnoException).code === 'ELOOP') return fail('ARTIFACT_SYMLINK_REJECTED');
     return fail('ARTIFACT_METADATA_INVALID');
@@ -315,10 +315,10 @@ export async function writeAtomicSecureArtifact(
     await assertArtifactFile(target, owner);
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (!(error instanceof ArtifactStorageError) || error.code !== 'ARTIFACT_NOT_FOUND')
       throw error;
   }
@@ -379,10 +379,10 @@ export async function deleteSecureArtifact(
     await assertArtifactFile(path, owner);
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof ArtifactStorageError && error.code === 'ARTIFACT_NOT_FOUND') return false;
     throw error;
   }
@@ -402,10 +402,10 @@ export async function readArtifactIndex(
     await assertArtifactFile(path, owner);
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof ArtifactStorageError && error.code === 'ARTIFACT_NOT_FOUND') return [];
     throw error;
   }
@@ -458,10 +458,10 @@ async function readSecureIndexBytes(
     return bytes;
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'document_store',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'document_store',
+    status: 500,
+  });
     if (error instanceof ArtifactStorageError) throw error;
     if ((error as NodeJS.ErrnoException).code === 'ELOOP') return fail('ARTIFACT_SYMLINK_REJECTED');
     return fail('ARTIFACT_METADATA_INVALID');
@@ -499,10 +499,10 @@ async function writeAtomicIndex(
     await assertArtifactFile(path, owner);
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (!(error instanceof ArtifactStorageError) || error.code !== 'ARTIFACT_NOT_FOUND')
       throw error;
   }

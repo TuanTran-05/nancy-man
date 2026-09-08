@@ -24,6 +24,7 @@ type NodeTelemetryLifecycleInput = {
   process?: NodeProcess;
   flush: () => Promise<void>;
   flushTimeoutMs?: number;
+  handleSignals?: boolean;
   exit?: (code?: number) => void;
 } & (
   | { capture: LifecycleCapture; captureException?: LifecycleCapture }
@@ -34,6 +35,7 @@ type LifecycleBinding = {
   capture: LifecycleCapture;
   exit?: (code?: number) => void;
   flush: () => Promise<void>;
+  handleSignals: boolean;
   timeoutMs: number;
   token: symbol;
 };
@@ -85,6 +87,7 @@ export function installNodeTelemetryLifecycle(input: NodeTelemetryLifecycleInput
   const binding: LifecycleBinding = {
     capture,
     flush: input.flush,
+    handleSignals: input.handleSignals ?? true,
     timeoutMs,
     token: Symbol('nodeTelemetryLifecycle'),
     ...(input.exit ? { exit: input.exit } : {})
@@ -118,7 +121,7 @@ export function installNodeTelemetryLifecycle(input: NodeTelemetryLifecycleInput
       reportAndFail(reason, 'PROCESS_UNHANDLED_REJECTION');
     const flushAndExit = async (): Promise<void> => {
       const active = activeBinding();
-      if (!active) return;
+      if (!active || !active.handleSignals) return;
       await boundedFlush(active.flush, active.timeoutMs);
       if (active.exit) active.exit(0);
     };

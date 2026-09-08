@@ -443,37 +443,48 @@ function preemptingRethrowCaptureEdits(
   filePath: string
 ): TextEdit[] | undefined {
   if (!boundary.body || !ts.isBlock(boundary.body)) return undefined;
-  const statements = boundary.body.statements;
-  if (statements.length !== 2 || !ts.isExpressionStatement(statements[0])) return undefined;
-  const rethrow = statements[1];
   const errorName = boundaryErrorName(boundary);
-  if (
-    !errorName ||
-    !ts.isThrowStatement(rethrow) ||
-    !rethrow.expression ||
-    !ts.isIdentifier(unwrapExpression(rethrow.expression)) ||
-    (unwrapExpression(rethrow.expression) as ts.Identifier).text !== errorName
-  ) {
-    return undefined;
-  }
+  if (!errorName) return undefined;
   const facades = importedFacadeNames(sourceFile, filePath);
-  const facade = directStatementFacade(statements[0], facades);
-  if (facade !== 'captureOpsException' && facade !== 'captureBrowserException') return undefined;
-  const call = directCallFromExpression(statements[0].expression);
-  const capturedError = call?.arguments[0] ? unwrapExpression(call.arguments[0]) : undefined;
-  const context = call?.arguments[1] ? unwrapExpression(call.arguments[1]) : undefined;
-  if (
-    !capturedError ||
-    !ts.isIdentifier(capturedError) ||
-    capturedError.text !== errorName ||
-    !context ||
-    !ts.isObjectLiteralExpression(context) ||
-    context.properties.some(
-      (property) => staticObjectPropertyName(property) === 'deferUntilHandled'
-    )
-  ) {
-    return undefined;
-  }
+  const rethrows: ts.ThrowStatement[] = [];
+  const captures: Array<{ statement: ts.ExpressionStatement; call: ts.CallExpression; context: ts.ObjectLiteralExpression }> = [];
+  const visitBoundary = (node: ts.Node): void => {
+    if (node !== boundary.body && (ts.isCatchClause(node) || ts.isFunctionLike(node))) return;
+    if (ts.isThrowStatement(node) && node.expression) {
+      const expression = unwrapExpression(node.expression);
+      if (ts.isIdentifier(expression) && expression.text === errorName) rethrows.push(node);
+    }
+    if (ts.isExpressionStatement(node)) {
+      const facade = directStatementFacade(node, facades);
+      if (facade === 'captureOpsException' || facade === 'captureBrowserException') {
+        const call = directCallFromExpression(node.expression);
+        const capturedError = call?.arguments[0] ? unwrapExpression(call.arguments[0]) : undefined;
+        const context = call?.arguments[1] ? unwrapExpression(call.arguments[1]) : undefined;
+        if (
+          call &&
+          capturedError &&
+          ts.isIdentifier(capturedError) &&
+          capturedError.text === errorName &&
+          context &&
+          ts.isObjectLiteralExpression(context) &&
+          !context.properties.some(
+            (property) => staticObjectPropertyName(property) === 'deferUntilHandled'
+          )
+        ) {
+          captures.push({ statement: node, call, context });
+        }
+      }
+    }
+    ts.forEachChild(node, visitBoundary);
+  };
+  visitBoundary(boundary.body);
+  if (rethrows.length === 0) return undefined;
+  const rethrowPosition = Math.min(...rethrows.map((rethrow) => rethrow.getStart(sourceFile)));
+  const candidate = captures
+    .filter((capture) => capture.statement.getStart(sourceFile) < rethrowPosition)
+    .sort((left, right) => right.statement.getStart(sourceFile) - left.statement.getStart(sourceFile))[0];
+  if (!candidate) return undefined;
+  const context = candidate.context;
   const lastProperty = context.properties.at(-1);
   const insertion = lastProperty ? lastProperty.getEnd() : context.getStart(sourceFile) + 1;
   return [
@@ -1208,11 +1219,9 @@ export function migrateSource(sourceText: string, filePath: string): MigrationRe
           failed.set(findingKey(boundary.finding), candidateParseErrors[0]);
           continue;
         }
-        const remaining = scanSource(candidate, filePath);
         if (
           candidate !== migratedSource &&
-          !seenOutputs.has(candidate) &&
-          remaining.length < findings.length
+          !seenOutputs.has(candidate)
         ) {
           migratedSource = candidate;
           seenOutputs.add(candidate);
@@ -1307,17 +1316,6 @@ export function migrateSource(sourceText: string, filePath: string): MigrationRe
           unsupportedFinding(
             boundary.finding,
             'migration repeated output without covering the boundary'
-          )
-        );
-        continue;
-      }
-      const remaining = scanSource(candidate, filePath);
-      if (remaining.length >= findings.length) {
-        failed.set(
-          findingKey(boundary.finding),
-          unsupportedFinding(
-            boundary.finding,
-            `migration did not reduce uncovered boundaries (${findings.length} -> ${remaining.length})`
           )
         );
         continue;

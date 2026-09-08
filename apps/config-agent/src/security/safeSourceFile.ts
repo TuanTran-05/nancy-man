@@ -445,10 +445,10 @@ function readReleaseMetadata(path: string, releaseId: string, sourceId: string):
     }
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof SafeSourceError) throw error;
     fail('ACTIVE_RELEASE_METADATA_INVALID', sourceId);
   }

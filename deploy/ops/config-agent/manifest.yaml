@@ -2,6 +2,10 @@ manifestVersion: 2026-09-01
 catalogVersion: 2026-08-31
 catalogDigest: sha256:1783d0cf20b045679dd584fad52b8995a2bd40cfa8f5e179fd99f4977d4c1bf6
 readOnly: true
+# Migration 0021 is the trust root for source-specific telemetry clients:
+# edutrack-platform-runtime, edutrack-platform-browser, ops-web-public-key, and
+# thienuy-public. Browser records contain only public project keys and exact
+# HTTPS origins; the server HMAC remains in the root-owned credential source.
 build:
   repositoryRoot: /srv/edutrack/source
   releaseRoot: /srv/edutrack

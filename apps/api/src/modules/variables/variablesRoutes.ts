@@ -247,6 +247,7 @@ export function createVariablesRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
+        deferUntilHandled: true,
         requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
         method: () => request.method,
@@ -288,6 +289,7 @@ export function createVariablesRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
+        deferUntilHandled: true,
         requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
         method: () => request.method,
@@ -306,6 +308,7 @@ export function createVariablesRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
+        deferUntilHandled: true,
         requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
         method: () => request.method,
@@ -362,6 +365,7 @@ export function createVariablesRouter(input: {
         status: 500,
         requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        deferUntilHandled: true,
         method: () => request.method,
       });
       next(error);

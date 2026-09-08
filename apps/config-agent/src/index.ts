@@ -285,9 +285,9 @@ export async function startConfigAgent(
     return { config, server: installedServer };
   } catch (error) {
     captureOpsException(error, {
-      code: 'CONFIG_AGENT_STARTUP_FAILED',
-      source: 'process',
-      level: 'fatal'
+    code: 'CONFIG_AGENT_STARTUP_FAILED',
+    source: 'process',
+    level: 'fatal',
     });
     await stopRuntimeTelemetry();
     throw error;

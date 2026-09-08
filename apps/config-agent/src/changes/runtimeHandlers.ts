@@ -207,9 +207,9 @@ function lockFactory(root: string) {
             });
           } catch (error) {
             captureOpsException(error, {
-              code: 'UNHANDLED_OPS_EXCEPTION',
-              source: 'document_store',
-              status: 500,
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'document_store',
+            status: 500,
             });
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
             throw error;
@@ -217,9 +217,9 @@ function lockFactory(root: string) {
           acquired = true;
         } catch (error) {
           captureOpsException(error, {
-            code: 'UNHANDLED_OPS_EXCEPTION',
-            source: 'document_store',
-            status: 500,
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'document_store',
+          status: 500,
           });
           if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
           let ownerPid: number | undefined;
@@ -253,9 +253,9 @@ function lockFactory(root: string) {
       }
     } catch (error) {
       captureOpsException(error, {
-        code: 'UNHANDLED_OPS_EXCEPTION',
-        source: 'document_store',
-        status: 500,
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
       });
       release();
       throw error;

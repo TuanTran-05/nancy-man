@@ -135,6 +135,7 @@ export function runProvisionOpsUserEntrypoint(
       source: 'database' as const,
       level: 'fatal' as const
     },
+    handleProcessSignals: false,
     run:
       input.run ??
       (() => runProvisionOpsUser(environment, input.arguments ?? process.argv.slice(2))),

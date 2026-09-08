@@ -236,6 +236,7 @@ export function createConfigChangeRouter(input: {
         status: 500,
         requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        deferUntilHandled: true,
         method: () => request.method,
       });
       next(error);

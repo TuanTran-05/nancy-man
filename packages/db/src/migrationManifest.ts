@@ -115,6 +115,11 @@ export const opsMigrationTrustRoot: readonly MigrationTrustRootEntry[] = [
     id: '0020_ingest_processing_completed_at',
     fileName: '0020_ingest_processing_completed_at.sql',
     checksum: 'd329c6564c436bf6d14bfcba2b3e61de23ac340eaf6c6d281d47334853b206ac'
+  },
+  {
+    id: '0021_telemetry_source_clients',
+    fileName: '0021_telemetry_source_clients.sql',
+    checksum: 'df9008b87cbaad7026ec7633cecbdb2f5f9f60f4fa6403631edc47c57c01d3d3'
   }
 ];
 

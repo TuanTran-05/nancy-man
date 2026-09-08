@@ -111,7 +111,7 @@ export function startWebServer() {
     captureOpsException(error, {
       code: 'OPS_WEB_STARTUP_FAILED',
       source: 'process',
-      level: 'fatal'
+      level: 'fatal',
     });
     void stopRuntimeTelemetry();
     throw error;

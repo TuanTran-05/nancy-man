@@ -73,7 +73,13 @@ configure_environment() {
   set_value OPS_TELEMETRY_SPOOL_ROOT "$SPOOL_ROOT"
   set_value OPS_TELEMETRY_SPOOL_DIRECTORY "$SPOOL_ROOT"
   if [[ "$name" == collector.env ]]; then
-    set_value OPS_PM2_ERROR_LOG_PATH /srv/edutrack/shared/logs/app-error-0.log
+    set_value OPS_PM2_ERROR_LOG_PATH /srv/edutrack/shared/logs/app-error.log
+  fi
+  if [[ "$name" == web.env ]]; then
+    set_value VITE_OPS_BROWSER_TELEMETRY_ENABLED true
+    set_value VITE_OPS_BROWSER_INGEST_URL https://man.thienuy.edu.vn/api/v1/ingest/browser
+    set_value VITE_OPS_BROWSER_PROJECT_KEY ops-web-public-key
+    set_value VITE_APP_RELEASE_SHA "$RELEASE_SHA"
   fi
 
   mv -T -- "$temporary" "$path"

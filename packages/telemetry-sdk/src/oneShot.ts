@@ -76,6 +76,7 @@ type OpsTelemetryOneShotInput<Result> = {
   failureContext: OpsRuntimeCaptureContext;
   run: () => Result | Promise<Result>;
   onFailure?: (error: unknown) => void | Promise<void>;
+  handleProcessSignals?: boolean;
 };
 
 export function runOpsTelemetryOneShot<Result>(
@@ -91,6 +92,7 @@ export async function runOpsTelemetryOneShot<Result>(
   const disposeNodeTelemetryLifecycle = installNodeTelemetryLifecycle({
     captureException: captureOpsException,
     flush: input.telemetry.flush,
+    handleSignals: input.handleProcessSignals ?? true,
     exit: (code) => process.exit(code)
   });
   try {
@@ -146,6 +148,9 @@ export async function runConfiguredOpsTelemetryOneShot<Result>(
     telemetry,
     failureContext: input.failureContext,
     run: input.run,
+    ...(input.handleProcessSignals === undefined
+      ? {}
+      : { handleProcessSignals: input.handleProcessSignals }),
     ...(input.onFailure ? { onFailure: input.onFailure } : {})
   };
   return input.rethrow === false

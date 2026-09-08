@@ -246,4 +246,28 @@ describe('node telemetry lifecycle', () => {
     expect(flushes).toBe(1);
     expect(exits).toEqual([]);
   });
+
+  it('can leave interactive signal ownership to the command prompt', async () => {
+    const process = processDouble() as ReturnType<typeof processDouble> & {
+      exit: (code?: number) => never;
+    };
+    const exits: number[] = [];
+    let flushes = 0;
+    process.exit = ((code = 0) => {
+      exits.push(code);
+    }) as never;
+
+    installNodeTelemetryLifecycle({
+      process,
+      captureException: () => undefined,
+      flush: async () => {
+        flushes += 1;
+      },
+      handleSignals: false
+    });
+
+    await expect(process.handlers.get('SIGTERM')?.()).resolves.toBeUndefined();
+    expect(flushes).toBe(0);
+    expect(exits).toEqual([]);
+  });
 });

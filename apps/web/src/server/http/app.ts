@@ -118,14 +118,19 @@ export function createOpsApp(deps: OpsAppDependencies): Express {
           method: request.method,
           status: 500
         });
-      } catch (error) {
+      } catch (telemetryError) {
         captureOpsException(error, {
-          code: 'UNHANDLED_OPS_EXCEPTION',
+          code: 'OPS_WEB_UNHANDLED_EXCEPTION',
           source: 'api',
-          status: 500,
-          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
           route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
           method: () => request.method,
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined
+        });
+        captureOpsException(telemetryError, {
+          code: 'TELEMETRY_REPORTER_FAILED',
+          source: 'api',
+          status: 500,
         });
         // Reporting must not replace the safe response for the originating request.
       }

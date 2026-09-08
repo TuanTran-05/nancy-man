@@ -3,6 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { createExceptionCapture } from './exceptionCapture.js';
 
 describe('exception capture', () => {
+  it('allows a later capture to retry after the reporter rejects', async () => {
+    let attempts = 0;
+    const error = new Error('spool enqueue failed');
+    const capture = createExceptionCapture({
+      createEventId: () => 'EVT_00000000000000000000000001',
+      capture: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('spool unavailable');
+      }
+    });
+
+    capture.captureOnce(error, { code: 'REQUEST_FAILED' });
+    await capture.flush();
+    capture.captureOnce(error, { code: 'REQUEST_FAILED' });
+    await capture.flush();
+
+    expect(attempts).toBe(2);
+  });
+
   it('waits for an in-flight capture without surfacing telemetry delivery failure', async () => {
     let releaseCapture: (() => void) | undefined;
     const delivered: string[] = [];

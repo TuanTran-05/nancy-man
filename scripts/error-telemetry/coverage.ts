@@ -445,6 +445,16 @@ function isSafelyEvaluatedFacadeExpression(expression: ts.Expression): boolean {
   if (ts.isTypeOfExpression(unwrapped) || ts.isVoidExpression(unwrapped)) {
     return isSafelyEvaluatedFacadeExpression(unwrapped.expression);
   }
+  if (ts.isPropertyAccessExpression(unwrapped)) {
+    return isSafelyEvaluatedFacadeExpression(unwrapped.expression);
+  }
+  if (ts.isElementAccessExpression(unwrapped)) {
+    return (
+      isSafelyEvaluatedFacadeExpression(unwrapped.expression) &&
+      (!unwrapped.argumentExpression ||
+        isSafelyEvaluatedFacadeExpression(unwrapped.argumentExpression))
+    );
+  }
   return false;
 }
 
@@ -727,7 +737,7 @@ type Protection = 'none' | 'provisional' | 'uncertain' | 'generic' | 'exact' | '
 type FlowState = {
   aliases: Set<string>;
   protection: Protection;
-  terminalizedProvisionalOriginal?: boolean;
+  terminalizedOriginal?: boolean;
   waived?: boolean;
 };
 
@@ -766,7 +776,7 @@ function copyState(state: FlowState): FlowState {
   return {
     aliases: new Set(state.aliases),
     protection: state.protection,
-    terminalizedProvisionalOriginal: state.terminalizedProvisionalOriginal,
+    terminalizedOriginal: state.terminalizedOriginal,
     waived: state.waived
   };
 }
@@ -810,6 +820,33 @@ function directCallExpression(expression: ts.Expression): ts.CallExpression | un
     current = unwrapExpression(current.expression);
   }
   return ts.isCallExpression(current) ? current : undefined;
+}
+
+function isRuntimeCaptureMethod(call: ts.CallExpression, aliases: Set<string>): boolean {
+  const callee = unwrapExpression(call.expression);
+  const method =
+    ts.isPropertyAccessExpression(callee)
+      ? callee.name.text
+      : ts.isElementAccessExpression(callee)
+        ? staticElementAccessName(callee.argumentExpression)
+        : undefined;
+  return (
+    method === 'captureException' &&
+    call.arguments.length >= 2 &&
+    isAliasExpression(call.arguments[0], aliases)
+  );
+}
+
+function forwardsOriginalToNext(expression: ts.Expression, state: FlowState): boolean {
+  const call = directCallExpression(expression);
+  if (!call) return false;
+  const callee = unwrapExpression(call.expression);
+  return (
+    ts.isIdentifier(callee) &&
+    callee.text === 'next' &&
+    call.arguments.length > 0 &&
+    isAliasExpression(call.arguments[0], state.aliases)
+  );
 }
 
 function writtenBindingNames(node: ts.Node): Set<string> {
@@ -934,6 +971,7 @@ function captureProtection(
 ): CaptureProtection | undefined {
   const call = directCallExpression(expression);
   if (!call) return undefined;
+  const knownFacade = facadeForCall(call, context.sourceFile, context.boundaryBody, context.facades);
   const facade = validCaptureFacade(
     call,
     context.sourceFile,
@@ -951,25 +989,54 @@ function captureProtection(
       context.foreignAliases,
       context.facades
     );
+  const runtimeCapture = isRuntimeCaptureMethod(call, state.aliases);
   const protectsForeignError = !!foreignFacade;
-  if (!facade && !foreignFacade) return undefined;
   const preEntryHazard = call.arguments.some(
     (argument) => !isSafelyEvaluatedFacadeExpression(argument)
   );
   const aliasesAfterArguments = invalidateWrittenAliases(state, call).aliases;
-  if (protectsForeignError) {
+  const captureContext = call.arguments[1] ? unwrapExpression(call.arguments[1]) : undefined;
+  if (!facade && !foreignFacade && !runtimeCapture && knownFacade === undefined) {
+    return undefined;
+  }
+  if (!facade && !foreignFacade && !runtimeCapture) {
     return {
       state: {
         aliases: aliasesAfterArguments,
         protection: state.protection,
-        terminalizedProvisionalOriginal: state.terminalizedProvisionalOriginal,
+        terminalizedOriginal: state.terminalizedOriginal,
         waived: state.waived
       },
       preEntryHazard,
       unsafe: false
     };
   }
-  const captureContext = call.arguments[1] ? unwrapExpression(call.arguments[1]) : undefined;
+  if (protectsForeignError) {
+    return {
+      state: {
+        aliases: aliasesAfterArguments,
+        protection: state.protection,
+        terminalizedOriginal: state.terminalizedOriginal,
+        waived: state.waived
+      },
+      preEntryHazard,
+      unsafe: false
+    };
+  }
+  if (runtimeCapture) {
+    return {
+      state: {
+        aliases: aliasesAfterArguments,
+        protection: mayNeedTerminalProtection(state.protection) ? 'generic' : state.protection,
+        terminalizedOriginal:
+          state.terminalizedOriginal ||
+          (state.protection === 'none' || state.protection === 'provisional'),
+        waived: state.waived
+      },
+      preEntryHazard: false,
+      unsafe: false
+    };
+  }
   const deferMode = ts.isObjectLiteralExpression(captureContext)
     ? objectDeferMode(captureContext, 'deferUntilHandled')
     : 'uncertain';
@@ -989,9 +1056,10 @@ function captureProtection(
     state: {
       aliases: aliasesAfterArguments,
       protection,
-      terminalizedProvisionalOriginal:
-        state.terminalizedProvisionalOriginal ||
-        (state.protection === 'provisional' && deferMode !== 'provisional'),
+      terminalizedOriginal:
+        state.terminalizedOriginal ||
+        ((state.protection === 'none' || state.protection === 'provisional') &&
+          deferMode !== 'provisional'),
       waived: state.waived
     },
     preEntryHazard,
@@ -1009,7 +1077,7 @@ function containsTerminalizingOriginalCapture(
     if (terminalizes) return;
     if (ts.isCallExpression(child)) {
       const capture = captureProtection(child, state, context);
-      if (capture?.state.terminalizedProvisionalOriginal) {
+      if (capture?.state.terminalizedOriginal) {
         terminalizes = true;
         return;
       }
@@ -2078,8 +2146,33 @@ function analyzeExpression(
     };
   }
   const next = invalidateWrittenAliases(state, expression);
-  if (nestedCaptureMayTerminalizeOriginal(expression, state, context)) {
-    next.terminalizedProvisionalOriginal = true;
+  const nestedTerminalizes = nestedCaptureMayTerminalizeOriginal(expression, state, context);
+  if (nestedTerminalizes) {
+    next.terminalizedOriginal = true;
+  }
+  if (forwardsOriginalToNext(expression, state)) {
+    return {
+      states: [],
+      abrupt: [{ kind: 'throw', state: copyState(state), exactOriginal: true }],
+      unsafe: false
+    };
+  }
+  const simpleExpression = unwrapExpression(expression);
+  const preservesTerminalizedOriginal =
+    nestedTerminalizes ||
+    ts.isIdentifier(simpleExpression) ||
+    ts.isStringLiteral(simpleExpression) ||
+    ts.isNumericLiteral(simpleExpression) ||
+    ts.isNoSubstitutionTemplateLiteral(simpleExpression) ||
+    simpleExpression.kind === ts.SyntaxKind.TrueKeyword ||
+    simpleExpression.kind === ts.SyntaxKind.FalseKeyword ||
+    simpleExpression.kind === ts.SyntaxKind.NullKeyword;
+  if (
+    next.terminalizedOriginal &&
+    !isAliasExpression(expression, state.aliases) &&
+    !preservesTerminalizedOriginal
+  ) {
+    next.terminalizedOriginal = undefined;
   }
   const potentiallyThrowing = containsPotentiallyThrowingEvaluation(expression);
   return {
@@ -2871,11 +2964,26 @@ function analyzeStatement(
     const evaluated = statement.expression
       ? analyzeExpression(statement.expression, state, context)
       : { states: [copyState(state)], abrupt: [], unsafe: false };
+    const returningFromCatch = statement.parent === context.boundaryBody;
+    const returnStates = evaluated.states.map((next) => {
+      const returned = copyState(next);
+      if (returningFromCatch && returned.protection === 'provisional') {
+        returned.protection = 'owned';
+      }
+      return returned;
+    });
     return {
       states: [],
       abrupt: [
-        ...evaluated.abrupt,
-        ...evaluated.states.map(
+        ...evaluated.abrupt.filter(
+          (completion) =>
+            !(
+              returningFromCatch &&
+              state.protection === 'provisional' &&
+              completion.exactOriginal === false
+            )
+        ),
+        ...returnStates.map(
           (next): AbruptCompletion => ({
             kind: 'return',
             state: copyState(next),
@@ -3008,7 +3116,7 @@ function completionHasEvidence(completion: AbruptCompletion): boolean {
     completion.kind === 'throw' &&
     completion.exactOriginal === true &&
     (completion.state.protection === 'uncertain' ||
-      completion.state.terminalizedProvisionalOriginal)
+      completion.state.terminalizedOriginal)
   ) {
     return false;
   }

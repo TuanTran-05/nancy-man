@@ -81,14 +81,19 @@ export function createOpsApi(input: {
         method: request.method,
         status: 500
       });
-    } catch (error) {
+    } catch (telemetryError) {
       captureOpsException(error, {
-        code: 'UNHANDLED_OPS_EXCEPTION',
-        source: 'process',
-        status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        code: 'API_UNHANDLED_EXCEPTION',
+        source: 'api',
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
         method: () => request.method,
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined
+      });
+      captureOpsException(telemetryError, {
+        code: 'TELEMETRY_REPORTER_FAILED',
+        source: 'process',
+        status: 500,
       });
       // Capturing must not interfere with the originating response.
     }

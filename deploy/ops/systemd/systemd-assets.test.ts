@@ -11,10 +11,7 @@ const services = {
     executable: '/usr/bin/node apps/api/dist/apps/api/src/runtime/main.js',
     user: 'edutrack-ops-api',
     group: 'edutrack-ops-api',
-    writablePaths: [
-      '/var/lib/edutrack-ops/object-store',
-      '/var/lib/edutrack-ops/telemetry/api'
-    ]
+    writablePaths: ['/var/lib/edutrack-ops/object-store', '/var/lib/edutrack-ops/telemetry/api']
   },
   web: {
     executable: '/usr/bin/node dist/server/web-server.js',
@@ -51,7 +48,7 @@ const services = {
     executable: '/usr/bin/node apps/api/dist/apps/api/src/cli/migrate.js',
     user: 'edutrack-ops-migrate',
     group: 'edutrack-ops-migrate',
-    writablePaths: []
+    writablePaths: ['/var/lib/edutrack-ops/telemetry/migrate']
   }
 } as const;
 
@@ -86,6 +83,33 @@ function canConnectUnixSocket(input: {
 }
 
 describe('canonical Ops systemd assets', () => {
+  it('runs config-agent smoke commands in isolated credentialed transient units', async () => {
+    const deploy = await readFile(new URL('../scripts/deploy-release.sh', import.meta.url), 'utf8');
+
+    expect(deploy).toContain('/usr/bin/systemd-run');
+    expect(deploy).toContain('--uid="$API_IDENTITY"');
+    expect(deploy).toContain('--property="EnvironmentFile=$API_ENV"');
+    expect(deploy).toContain(
+      '--property="LoadCredential=config-agent-protocol-hmac:$CONFIG_DIRECTORY/credentials/config-agent-protocol-hmac"'
+    );
+    expect(deploy).toContain(
+      '--property="LoadCredential=ops-telemetry-hmac:$CONFIG_DIRECTORY/credentials/ops-telemetry-hmac"'
+    );
+    expect(deploy).toContain(
+      '--property="ReadWritePaths=/var/lib/edutrack-ops/telemetry/config-agent-smoke"'
+    );
+    expect(deploy).toContain('telemetry-canary');
+    expect(deploy).toContain(
+      '--property="LoadCredential=ops-database-url:$CONFIG_DIRECTORY/credentials/ops-database-url"'
+    );
+    expect(deploy).toContain(
+      '--property="ReadWritePaths=/var/lib/edutrack-ops/telemetry/telemetry-canary"'
+    );
+    expect(deploy).toContain('--property="RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6"');
+    expect(deploy).toContain('request_as_api agent.capabilities');
+    expect(deploy).toContain('request_as_api inventory.read');
+  });
+
   it('defines a private config agent with an API-only socket boundary', async () => {
     const agent = await readFile(new URL('ops-config-agent.service', systemdDirectory), 'utf8');
     const api = await unit('api');
@@ -395,7 +419,8 @@ describe('canonical Ops systemd assets', () => {
       notifier: '/var/lib/edutrack-ops/telemetry/notifier',
       web: '/var/lib/edutrack-ops/telemetry/web',
       collector: '/var/lib/edutrack-ops/telemetry/collector',
-      'sql-worker': '/var/lib/edutrack-ops/telemetry/sql-worker'
+      'sql-worker': '/var/lib/edutrack-ops/telemetry/sql-worker',
+      migrate: '/var/lib/edutrack-ops/telemetry/migrate'
     } as const;
 
     for (const [name, spoolDirectory] of Object.entries(telemetryServices)) {
@@ -412,6 +437,23 @@ describe('canonical Ops systemd assets', () => {
     expect(setting(agent, 'ReadWritePaths')).toContain(
       '/var/lib/edutrack-ops/telemetry/config-agent'
     );
+
+    const provision = await readFile(
+      new URL('../scripts/provision-telemetry-spool.sh', import.meta.url),
+      'utf8'
+    );
+    for (const entry of [
+      'edutrack-ops-migrate:edutrack-ops-migrate:migrate',
+      'edutrack-config-agent:edutrack-config-api:config-agent-cleanup',
+      'edutrack-ops-collector:edutrack-ops-shared:failsafe',
+      'edutrack-ops-api:edutrack-ops-api:bootstrap-owner',
+      'edutrack-ops-api:edutrack-ops-api:config-agent-smoke',
+      'edutrack-ops-api:edutrack-ops-api:telemetry-canary',
+      'edutrack-ops-web:edutrack-ops-shared:provision-user',
+      'edutrack-ops-collector:edutrack-ops-shared:beszel-smoke'
+    ]) {
+      expect(provision).toContain(entry);
+    }
   });
 
   it('keeps collector watchdog and failure notification under the collector identity', async () => {
@@ -430,7 +472,30 @@ describe('canonical Ops systemd assets', () => {
     expect(setting(failed, 'ExecStart')).toEqual([
       '/usr/bin/node apps/web/dist/server/failsafe-entry.js'
     ]);
-    expect(setting(failed, 'ReadWritePaths')).toEqual(['/srv/edutrack-ops/shared']);
+    expect(failed).toContain(
+      'LoadCredential=ops-telemetry-hmac:/etc/edutrack-ops/credentials/ops-telemetry-hmac'
+    );
+    expect(failed).toContain('Environment=OPS_TELEMETRY_HMAC_FILE=%d/ops-telemetry-hmac');
+    expect(setting(failed, 'ReadWritePaths')).toEqual([
+      '/srv/edutrack-ops/shared',
+      '/var/lib/edutrack-ops/telemetry/failsafe'
+    ]);
+  });
+
+  it('gives config-agent cleanup its own telemetry credential and spool', async () => {
+    const cleanup = await readFile(
+      new URL('ops-config-agent-cleanup.service', systemdDirectory),
+      'utf8'
+    );
+
+    expect(cleanup).toContain(
+      'LoadCredential=ops-telemetry-hmac:/etc/edutrack-ops/credentials/ops-telemetry-hmac'
+    );
+    expect(cleanup).toContain('Environment=OPS_TELEMETRY_HMAC_FILE=%d/ops-telemetry-hmac');
+    expect(setting(cleanup, 'ReadWritePaths')).toEqual([
+      '/var/lib/edutrack-config-agent',
+      '/var/lib/edutrack-ops/telemetry/config-agent-cleanup'
+    ]);
   });
 
   it('keeps checked-in web and collector environments as empty secret placeholders', async () => {

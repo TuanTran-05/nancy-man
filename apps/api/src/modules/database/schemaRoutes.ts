@@ -167,6 +167,7 @@ export function createSchemaRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'database',
         status: 500,
+        deferUntilHandled: true,
         requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
         method: () => request.method,

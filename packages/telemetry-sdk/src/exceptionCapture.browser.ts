@@ -108,10 +108,14 @@ function dispatchDeferredCapture(capture: DeferredCapture): void {
       capture.capture(capture.error, { ...capture.context, eventId: capture.eventId })
     ).then(() => undefined);
   } catch (error) {
+    delivered.delete(capture.occurrenceKey);
     reportCaptureFailure(capture, error);
     return;
   }
-  const contained = delivery.catch((error) => reportCaptureFailure(capture, error));
+  const contained = delivery.catch((error) => {
+    delivered.delete(capture.occurrenceKey);
+    reportCaptureFailure(capture, error);
+  });
   pendingCaptures.add(contained);
   void contained.then(
     () => pendingCaptures.delete(contained),

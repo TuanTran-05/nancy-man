@@ -126,7 +126,11 @@ export async function startOpsNotifier(
       }
     };
   } catch (error) {
-    captureOpsException(error, { code: startupCode, source: startupSource, level: 'fatal' });
+    captureOpsException(error, {
+      code: startupCode,
+      source: startupSource,
+      level: 'fatal',
+    });
     try {
       await pool?.end();
     } catch (cleanupError) {

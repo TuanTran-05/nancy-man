@@ -43,6 +43,7 @@ function config(databasePath: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
     NODE_ENV: 'test',
+    OPS_TELEMETRY_ENABLED: 'false',
     OPS_DB_PATH: databasePath,
     OPS_DATA_KEY: key,
     OPS_ALERT_ZALO_BOT_TOKEN: 'test-token',

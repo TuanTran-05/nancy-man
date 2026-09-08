@@ -206,10 +206,10 @@ export async function loadEnvelopeKey(credential: EnvelopeCredential): Promise<E
     });
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'document_store',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'document_store',
+    status: 500,
+  });
     if (error instanceof EnvelopeError) throw error;
     if ((error as NodeJS.ErrnoException).code === 'ELOOP') {
       return fail('ENVELOPE_CREDENTIAL_INVALID');

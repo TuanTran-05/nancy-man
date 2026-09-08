@@ -179,7 +179,7 @@ export async function startOpsSqlWorker(
     captureOpsException(error, {
       code: 'SQL_WORKER_CREDENTIALS_UNAVAILABLE',
       source: 'process',
-      level: 'fatal'
+      level: 'fatal',
     });
     await Promise.resolve();
     await stopRuntimeTelemetry();
@@ -240,11 +240,7 @@ export async function startOpsSqlWorker(
         closing ??= (async () => {
           let closeError: unknown;
           let hasCloseError = false;
-          const rememberCloseFailure = (
-            error: unknown,
-            _code: string,
-            _source: 'process' | 'database'
-          ): void => {
+          const rememberCloseFailure = (error: unknown): void => {
             if (!hasCloseError) {
               closeError = error;
               hasCloseError = true;
@@ -257,7 +253,7 @@ export async function startOpsSqlWorker(
               code: 'SQL_WORKER_SERVER_CLOSE_FAILED',
               source: 'process',
             });
-            rememberCloseFailure(error, 'SQL_WORKER_SERVER_CLOSE_FAILED', 'process');
+            rememberCloseFailure(error);
           }
           try {
             await readPool?.end();
@@ -266,7 +262,7 @@ export async function startOpsSqlWorker(
               code: 'SQL_WORKER_READ_POOL_CLOSE_FAILED',
               source: 'database'
             });
-            rememberCloseFailure(error, 'SQL_WORKER_READ_POOL_CLOSE_FAILED', 'database');
+            rememberCloseFailure(error);
           }
           try {
             await mutationPool?.end();
@@ -275,7 +271,7 @@ export async function startOpsSqlWorker(
               code: 'SQL_WORKER_MUTATION_POOL_CLOSE_FAILED',
               source: 'database'
             });
-            rememberCloseFailure(error, 'SQL_WORKER_MUTATION_POOL_CLOSE_FAILED', 'database');
+            rememberCloseFailure(error);
           } finally {
             await stopRuntimeTelemetry();
           }
@@ -288,7 +284,7 @@ export async function startOpsSqlWorker(
     captureOpsException(error, {
       code: 'SQL_WORKER_STARTUP_FAILED',
       source: 'process',
-      level: 'fatal'
+      level: 'fatal',
     });
     await Promise.resolve();
     try {

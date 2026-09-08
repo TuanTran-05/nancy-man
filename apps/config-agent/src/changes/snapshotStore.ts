@@ -96,10 +96,10 @@ function encodeValue(value: unknown): Buffer {
     return Buffer.from(serialized, 'utf8');
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof SnapshotStoreError) throw error;
     fail('SNAPSHOT_INVALID');
   }

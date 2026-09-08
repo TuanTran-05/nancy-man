@@ -45,6 +45,7 @@ function build(directory: string, sourceSha = sha): string {
   for (const file of [
     'apps/api/dist/apps/api/src/runtime/main.js',
     'apps/api/dist/apps/api/src/cli/smoke-config-agent.js',
+    'apps/api/dist/apps/api/src/cli/telemetry-canary.js',
     'apps/api/dist/bin/edutrack-config-agent-smoke',
     'apps/config-agent/dist/apps/config-agent/src/index.js',
     'apps/notifier/dist/apps/notifier/src/runtime/main.js',
@@ -228,6 +229,7 @@ describe('immutable Ops prepare and activate assets', () => {
     for (const required of [
       'apps/config-agent/dist/apps/config-agent/src/index.js',
       'apps/api/dist/apps/api/src/cli/smoke-config-agent.js',
+      'apps/api/dist/apps/api/src/cli/telemetry-canary.js',
       'apps/api/dist/bin/edutrack-config-agent-smoke',
       'config/variables/catalog.yaml',
       'deploy/ops/config-agent/manifest.yaml',

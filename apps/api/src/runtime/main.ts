@@ -259,7 +259,7 @@ export async function startOpsApi(
     captureOpsException(error, {
       code: 'API_CREDENTIALS_UNAVAILABLE',
       source: 'process',
-      level: 'fatal'
+      level: 'fatal',
     });
     await stopRuntimeTelemetry();
     throw error;
@@ -322,7 +322,7 @@ export async function startOpsApi(
     captureOpsException(error, {
       code: 'CONFIG_AGENT_NEGOTIATION_FAILED',
       source: 'api',
-      level: 'fatal'
+      level: 'fatal',
     });
     await Promise.resolve();
     await stopRuntimeTelemetry();
@@ -372,7 +372,7 @@ export async function startOpsApi(
     captureOpsException(error, {
       code: 'API_STARTUP_FAILED',
       source: 'api',
-      level: 'fatal'
+      level: 'fatal',
     });
     const startupPool = pool;
     await closeOpsApiResources({

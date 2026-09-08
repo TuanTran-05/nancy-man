@@ -119,6 +119,32 @@ describe('server runtime telemetry facade', () => {
     expect(telemetry.healthy()).toBe(false);
   });
 
+  it('retries the same Error after a durable enqueue rejection', async () => {
+    let attempts = 0;
+    const enqueue = vi.fn(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('spool enqueue unavailable');
+      return { queued: true, evicted: 0 };
+    });
+    const telemetry = createRuntimeTelemetry({
+      enabled: true,
+      release: config.release,
+      service: 'edutrack-ops-api',
+      transport: async () => undefined,
+      spool: {
+        enqueue,
+        flush: async () => ({ delivered: 0, deferred: 0 })
+      }
+    });
+    const error = new Error('request failed');
+
+    telemetry.captureException(error, { code: 'REQUEST_FAILED', source: 'api' });
+    await vi.waitFor(() => expect(enqueue).toHaveBeenCalledTimes(1));
+    await telemetry.flush();
+    telemetry.captureException(error, { code: 'REQUEST_FAILED', source: 'api' });
+    await vi.waitFor(() => expect(enqueue).toHaveBeenCalledTimes(2));
+  });
+
   it('degrades while durable records are deferred and recovers after they drain', async () => {
     const outcomes = [
       { delivered: 0, deferred: 1 },

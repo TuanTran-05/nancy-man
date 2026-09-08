@@ -201,10 +201,10 @@ function parseSource(
     return sourceAdapter(source).parse(bytes, { maximumBytes: source.maximumBytes });
   } catch (error) {
     captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
-    });
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof InventoryError) throw error;
     throw new InventoryError('INVENTORY_SOURCE_PARSE_FAILED');
   }
@@ -281,9 +281,9 @@ export function createInventoryService(options: InventoryServiceOptions): Invent
         sourceRead = await readSource(source);
       } catch (error) {
         captureOpsException(error, {
-          code: 'UNHANDLED_OPS_EXCEPTION',
-          source: 'job',
-          status: 500,
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
         });
         if (error instanceof InventoryError) throw error;
         throw new InventoryError('INVENTORY_SOURCE_READ_FAILED');

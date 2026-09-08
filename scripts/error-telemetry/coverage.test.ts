@@ -115,6 +115,24 @@ describe('error telemetry coverage', () => {
     expect(scanSource(source, 'apps/processor/src/jobs/worker.ts')).toEqual([]);
   });
 
+  it('treats a known facade capture of a different Error as safe work', () => {
+    const source = `${nodeImport}try { report(); } catch (telemetryError) {
+      captureOpsException(originalError, { code: 'ORIGINAL_FAILED', source: 'api' });
+      captureOpsException(telemetryError, { code: 'TELEMETRY_FAILED', source: 'process' });
+    }`;
+
+    expect(scanSource(source, 'apps/api/src/modules/exampleRoutes.ts')).toEqual([]);
+  });
+
+  it('recognizes an injected runtime capture as terminal ownership', () => {
+    const source = `try { work(); } catch (error) {
+      telemetry.captureException(error, failureContext);
+      return undefined;
+    }`;
+
+    expect(scanSource(source, 'apps/processor/src/index.ts')).toEqual([]);
+  });
+
   it('does not mistake replacement throws for propagation of the original Error', () => {
     expect(
       scanSource(
@@ -133,7 +151,23 @@ describe('error telemetry coverage', () => {
     ).toEqual([]);
   });
 
-  it('accepts a local facade capture before an exact rethrow', () => {
+  it('requires deferred ownership before forwarding a caught error to the outer handler', () => {
+    const terminal = `${nodeImport}try { work(); } catch (error) {
+      captureOpsException(error, { code: 'LOWER_GENERIC', source: 'api' });
+      next(error);
+    }`;
+    const provisional = terminal.replace(
+      "source: 'api'",
+      "source: 'api', deferUntilHandled: true"
+    );
+
+    expect(scanSource(terminal, 'apps/api/src/modules/exampleRoutes.ts')).toEqual([
+      expect.objectContaining({ rule: 'UNCAPTURED_CATCH' })
+    ]);
+    expect(scanSource(provisional, 'apps/api/src/modules/exampleRoutes.ts')).toEqual([]);
+  });
+
+  it('requires deferred ownership for a local facade capture before an exact rethrow', () => {
     const terminal = `${nodeImport}try { work(); } catch (error) {
       captureOpsException(error, { code: 'LOWER_GENERIC', source: 'database' });
       throw error;
@@ -147,7 +181,9 @@ describe('error telemetry coverage', () => {
       "source: 'database', deferUntilHandled: shouldDefer"
     );
 
-    expect(scanSource(terminal, 'apps/processor/src/jobs/worker.ts')).toEqual([]);
+    expect(scanSource(terminal, 'apps/processor/src/jobs/worker.ts')).toEqual([
+      expect.objectContaining({ rule: 'UNCAPTURED_CATCH' })
+    ]);
     expect(scanSource(provisional, 'apps/processor/src/jobs/worker.ts')).toEqual([]);
     expect(scanSource(uncertain, 'apps/processor/src/jobs/worker.ts')).toEqual([
       expect.objectContaining({ rule: 'UNCAPTURED_CATCH' })
@@ -183,7 +219,8 @@ describe('error telemetry coverage', () => {
 
     const first = migrateSource(source, 'apps/processor/src/jobs/worker.ts');
     expect(first.unsupported).toBeUndefined();
-    expect(first.sourceText).toBe(source);
+    expect(first.sourceText).toContain('deferUntilHandled: true');
+    expect(first.changed).toBe(true);
     expect(scanSource(first.sourceText, 'apps/processor/src/jobs/worker.ts')).toEqual([]);
     expect(migrateSource(first.sourceText, 'apps/processor/src/jobs/worker.ts')).toMatchObject({
       changed: false,
@@ -852,7 +889,7 @@ describe('error telemetry migrator regression matrix', () => {
     );
 
     expect(result.unsupported).toBeUndefined();
-    expect(result.sourceText).not.toContain('deferUntilHandled: true');
+    expect(result.sourceText).toContain('deferUntilHandled: true');
     expect(result.sourceText.match(/captureOpsException\(error, \{/gu)).toHaveLength(1);
     expect(scanSource(result.sourceText, 'apps/processor/src/jobs/recovery.ts')).toEqual([]);
   });

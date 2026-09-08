@@ -22,4 +22,12 @@ edutrack-ops-web:edutrack-ops-shared:web
 edutrack-ops-collector:edutrack-ops-shared:collector
 edutrack-ops-sql-worker:edutrack-ops-sql:sql-worker
 edutrack-config-agent:edutrack-config-api:config-agent
+edutrack-ops-migrate:edutrack-ops-migrate:migrate
+edutrack-config-agent:edutrack-config-api:config-agent-cleanup
+edutrack-ops-collector:edutrack-ops-shared:failsafe
+edutrack-ops-api:edutrack-ops-api:bootstrap-owner
+edutrack-ops-api:edutrack-ops-api:config-agent-smoke
+edutrack-ops-api:edutrack-ops-api:telemetry-canary
+edutrack-ops-web:edutrack-ops-shared:provision-user
+edutrack-ops-collector:edutrack-ops-shared:beszel-smoke
 SERVICES
