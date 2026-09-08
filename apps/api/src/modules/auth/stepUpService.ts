@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { randomUUID } from 'node:crypto';
 
 import { verifyTotp as verifyEncryptedTotp } from '../../../../../packages/security/src/mfa/totp.js';
@@ -154,7 +156,12 @@ export class StepUpService {
             token: input.token,
             timestamp: this.now().getTime()
           });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+        });
         valid = false;
       }
     }

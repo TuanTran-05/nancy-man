@@ -8,8 +8,5 @@ export { resolveSqlWorkerCredentials, startOpsSqlWorker } from './runtime/main.j
 
 const entrypoint = process.argv[1];
 if (entrypoint && import.meta.url === pathToFileURL(resolve(entrypoint)).href) {
-  void startOpsSqlWorker().catch(() => {
-    process.stderr.write('Ops SQL worker failed to start\n');
-    process.exitCode = 1;
-  });
+  await startOpsSqlWorker();
 }

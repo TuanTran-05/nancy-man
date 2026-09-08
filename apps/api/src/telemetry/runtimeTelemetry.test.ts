@@ -1,8 +1,33 @@
 import { describe, expect, it } from 'vitest';
 
 import { createConfiguredRuntimeTelemetry, createRuntimeTelemetry } from './runtimeTelemetry.js';
+import {
+  captureOpsException as capturePackageException,
+  installOpsRuntimeTelemetry
+} from '../../../../packages/telemetry-sdk/src/runtimeCaptureFacade.js';
+import { captureOpsException as captureApiException } from './runtimeTelemetry.js';
 
 describe('API runtime telemetry', () => {
+  it('shares the installed singleton between app-local and package canonical facades', () => {
+    const captured: unknown[] = [];
+    const dispose = installOpsRuntimeTelemetry({
+      captureException: (error) => {
+        captured.push(error);
+        return 'EVT_00000000000000000000000026';
+      },
+      healthy: () => true,
+      flush: async () => undefined
+    });
+    const appError = new Error('app failure');
+    const packageError = new Error('package failure');
+
+    captureApiException(appError, { code: 'APP_FAILED', source: 'api' });
+    capturePackageException(packageError, { code: 'PACKAGE_FAILED', source: 'database' });
+    dispose();
+
+    expect(captured).toEqual([appError, packageError]);
+  });
+
   it('captures an original exception with a stable event ID and API context', async () => {
     const delivered: unknown[] = [];
     const telemetry = createRuntimeTelemetry({
@@ -54,8 +79,9 @@ describe('API runtime telemetry', () => {
     });
 
     expect(telemetry.healthy()).toBe(false);
-    expect(telemetry.captureException(new Error('still respond'), { code: 'API_UNHANDLED_EXCEPTION' }))
-      .toBeUndefined();
+    expect(
+      telemetry.captureException(new Error('still respond'), { code: 'API_UNHANDLED_EXCEPTION' })
+    ).toBeUndefined();
   });
 
   it('creates a durable reporter from signed runtime configuration', async () => {
@@ -85,7 +111,7 @@ describe('API runtime telemetry', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(telemetry.healthy()).toBe(true);
+    expect(telemetry.healthy()).toBe(false);
     expect(queued).toEqual([
       expect.objectContaining({
         context: expect.objectContaining({ service: 'edutrack-ops-api' })

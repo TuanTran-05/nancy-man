@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import express, { type Router } from 'express';
 import { z } from 'zod';
 
@@ -39,13 +41,29 @@ export function createIncidentRouter(input: {
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'issues:read');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
       const rawLimit = Number(request.query.limit ?? '50');
       const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50;
       return response.status(200).json({ incidents: await input.incidents.list({ limit }) });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -71,7 +89,15 @@ export function createIncidentRouter(input: {
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'issues:write');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
       const incident = await input.incidents.create({
@@ -89,6 +115,14 @@ export function createIncidentRouter(input: {
           })
         : response.status(400).json({ code: 'INCIDENT_ISSUE_LINK_INVALID' });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -112,7 +146,15 @@ export function createIncidentRouter(input: {
         if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
         try {
           assertPermission(principal.role, 'issues:write');
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'api',
+            status: 500,
+            requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+            route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+            method: () => request.method,
+          });
           return response.status(403).json({ code: 'PERMISSION_DENIED' });
         }
         if (!input.incidents.linkIssue)
@@ -126,6 +168,14 @@ export function createIncidentRouter(input: {
           ? response.status(204).end()
           : response.status(404).json({ code: 'INCIDENT_OR_ISSUE_NOT_FOUND' });
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         next(error);
       }
     }

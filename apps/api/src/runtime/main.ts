@@ -12,8 +12,11 @@ import { FileSecretResolver } from './fileSecretResolver.js';
 import { createPoolDatabase } from './poolDatabase.js';
 import { readOpsRuntimeConfig, type OpsRuntimeConfig } from './runtimeConfig.js';
 import {
+  captureOpsException,
   createConfiguredRuntimeTelemetry,
   createRuntimeTelemetry,
+  flushRuntimeTelemetryFailOpen,
+  installOpsRuntimeTelemetry,
   startRuntimeTelemetryMaintenance
 } from '../telemetry/runtimeTelemetry.js';
 import { installNodeTelemetryLifecycle } from '../../../../packages/telemetry-sdk/src/nodeLifecycle.js';
@@ -164,6 +167,41 @@ function closeServer(server: Server): Promise<void> {
   );
 }
 
+export async function closeOpsApiResources(input: {
+  hasPrimaryFailure?: boolean;
+  primaryFailure?: unknown;
+  closeServer?: () => Promise<void>;
+  closePool?: () => Promise<void>;
+  stopTelemetry: () => Promise<void>;
+}): Promise<void> {
+  let hasFailure = input.hasPrimaryFailure === true;
+  let firstFailure = input.primaryFailure;
+  if (input.closeServer) {
+    try {
+      await input.closeServer();
+    } catch (error) {
+      captureOpsException(error, { code: 'API_SERVER_CLOSE_FAILED', source: 'process' });
+      if (!hasFailure) {
+        firstFailure = error;
+        hasFailure = true;
+      }
+    }
+  }
+  if (input.closePool) {
+    try {
+      await input.closePool();
+    } catch (error) {
+      captureOpsException(error, { code: 'API_DATABASE_CLOSE_FAILED', source: 'database' });
+      if (!hasFailure) {
+        firstFailure = error;
+        hasFailure = true;
+      }
+    }
+  }
+  await input.stopTelemetry();
+  if (hasFailure) throw firstFailure;
+}
+
 export async function startOpsApi(
   environment: NodeJS.ProcessEnv = process.env,
   overrides: { legacyMonitoringBaseUrl?: string; monitoringAllowedOrigin?: string } = {}
@@ -193,11 +231,24 @@ export async function startOpsApi(
         transport: async () => undefined
       });
   const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
-  installNodeTelemetryLifecycle({
-    captureException: telemetry.captureException,
+  const disposeRuntimeTelemetry = installOpsRuntimeTelemetry(telemetry);
+  const disposeNodeTelemetryLifecycle = installNodeTelemetryLifecycle({
+    captureException: captureOpsException,
     flush: telemetry.flush,
     exit: (code) => process.exit(code)
   });
+  let telemetryStopped = false;
+  const stopRuntimeTelemetry = async (): Promise<void> => {
+    if (telemetryStopped) return;
+    telemetryStopped = true;
+    stopTelemetryMaintenance();
+    try {
+      await flushRuntimeTelemetryFailOpen(telemetry);
+    } finally {
+      disposeNodeTelemetryLifecycle();
+      disposeRuntimeTelemetry();
+    }
+  };
   let credentials: RuntimeCredentials;
   try {
     credentials = await resolveRuntimeCredentials({
@@ -205,13 +256,12 @@ export async function startOpsApi(
       resolveSecret: (ref) => resolver.resolve(ref)
     });
   } catch (error) {
-    telemetry.captureException(error, {
+    captureOpsException(error, {
       code: 'API_CREDENTIALS_UNAVAILABLE',
       source: 'process',
       level: 'fatal'
     });
-    await telemetry.flush().catch(() => undefined);
-    stopTelemetryMaintenance();
+    await stopRuntimeTelemetry();
     throw error;
   }
   let configAgent: ConfigAgentClient | undefined;
@@ -269,20 +319,20 @@ export async function startOpsApi(
       });
     }
   } catch (error) {
-    telemetry.captureException(error, {
+    captureOpsException(error, {
       code: 'CONFIG_AGENT_NEGOTIATION_FAILED',
       source: 'api',
       level: 'fatal'
     });
     await Promise.resolve();
-    await telemetry.flush().catch(() => undefined);
-    stopTelemetryMaintenance();
+    await stopRuntimeTelemetry();
     throw error;
   }
-  const pool = getOpsPool(credentials.databaseUrl);
-  const database = createPoolDatabase(pool);
-
+  let pool: ReturnType<typeof getOpsPool> | undefined;
   try {
+    pool = getOpsPool(credentials.databaseUrl);
+    const runtimePool = pool;
+    const database = createPoolDatabase(runtimePool);
     await database.query('SELECT 1');
     const runtime = createOpsApiRuntime({
       config,
@@ -310,31 +360,39 @@ export async function startOpsApi(
     return {
       app: runtime.app,
       close: () => {
-        closing ??= closeServer(server).finally(async () => {
-          stopTelemetryMaintenance();
-          await telemetry.flush().catch(() => undefined);
-          await pool.end();
+        closing ??= closeOpsApiResources({
+          closeServer: () => closeServer(server),
+          closePool: () => runtimePool.end(),
+          stopTelemetry: stopRuntimeTelemetry
         });
         return closing;
       }
     };
   } catch (error) {
-    telemetry.captureException(error, {
+    captureOpsException(error, {
       code: 'API_STARTUP_FAILED',
       source: 'api',
       level: 'fatal'
     });
-    await Promise.resolve();
-    await telemetry.flush().catch(() => undefined);
-    stopTelemetryMaintenance();
-    await pool.end();
+    const startupPool = pool;
+    await closeOpsApiResources({
+      hasPrimaryFailure: true,
+      primaryFailure: error,
+      ...(startupPool ? { closePool: () => startupPool.end() } : {}),
+      stopTelemetry: stopRuntimeTelemetry
+    });
     throw error;
   }
 }
 
 const entrypoint = process.argv[1];
 if (entrypoint && import.meta.url === pathToFileURL(resolve(entrypoint)).href) {
-  void startOpsApi().catch(() => {
+  void startOpsApi().catch((error) => {
+    captureOpsException(error, {
+      code: 'UNHANDLED_PROMISE_REJECTION',
+      source: 'process',
+      status: 500,
+    });
     process.stderr.write('Ops API failed to start\n');
     process.exitCode = 1;
   });

@@ -61,7 +61,14 @@ function unpackPayload(
 }
 
 export class PostgresProcessorQueue {
-  constructor(private readonly database: QueryDatabase) {}
+  private readonly maxAttempts: number;
+
+  constructor(private readonly database: QueryDatabase, options: { maxAttempts?: number } = {}) {
+    this.maxAttempts = options.maxAttempts ?? 10;
+    if (!Number.isInteger(this.maxAttempts) || this.maxAttempts < 1 || this.maxAttempts > 100) {
+      throw new Error('Processor max attempts must be between 1 and 100');
+    }
+  }
 
   async claimNext(
     workerId: string,
@@ -115,7 +122,7 @@ export class PostgresProcessorQueue {
     const unpacked = unpackPayload(row.payload);
     if (!unpacked) {
       const attemptCount = Number(row.attemptCount) + 1;
-      if (attemptCount >= 5) {
+      if (attemptCount >= this.maxAttempts) {
         await this.deadLetterPayload({
           envelopeId: row.envelopeId,
           payload: { malformedPayload: true },
@@ -142,15 +149,16 @@ export class PostgresProcessorQueue {
     await this.database.query(
       `
         UPDATE ingest_processing
-        SET state = 'retrying',
+        SET state = CASE WHEN attempt_count + 1 >= $3 THEN 'dead_lettered' ELSE 'retrying' END,
             attempt_count = attempt_count + 1,
-            next_attempt_at = $2::timestamptz + INTERVAL '1 minute',
+            next_attempt_at = CASE WHEN attempt_count + 1 >= $3 THEN NULL ELSE $2::timestamptz + INTERVAL '1 minute' END,
             claimed_at = NULL,
             claimed_by = NULL,
-            last_error_code = 'PROCESSING_FAILED'
+            completed_at = CASE WHEN attempt_count + 1 >= $3 THEN $2::timestamptz ELSE NULL END,
+            last_error_code = CASE WHEN attempt_count + 1 >= $3 THEN 'PROCESSING_RETRY_LIMIT' ELSE 'PROCESSING_FAILED' END
         WHERE envelope_id = $1 AND state = 'claimed'
       `,
-      [envelopeId, now]
+      [envelopeId, now, this.maxAttempts]
     );
   }
 
@@ -201,12 +209,13 @@ export class PostgresProcessorQueue {
               next_attempt_at = NULL,
               claimed_at = NULL,
               claimed_by = NULL,
+              completed_at = $4::timestamptz,
               last_error_code = $3,
               last_error_detail = 'Processing retry limit reached'
           WHERE envelope_id = $1 AND state = 'claimed'
           RETURNING envelope_id AS "envelopeId"
         `,
-        [input.envelopeId, input.attemptCount, input.failureCode]
+        [input.envelopeId, input.attemptCount, input.failureCode, input.now]
       );
       if (!transitioned.rows[0]) return;
       await database.query(

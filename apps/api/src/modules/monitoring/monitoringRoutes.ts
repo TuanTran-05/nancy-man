@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import express, { type Request, type Response, type Router } from 'express';
 import { z } from 'zod';
 import type { OpsRole } from '../../../../../packages/security/src/sessions.js';
@@ -86,6 +88,12 @@ export function createMonitoringRouter(input: {
     try {
       response.status(200).json(await operation());
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+      });
       response.status(503).json({ code: errorCode(error) });
     }
   }
@@ -132,6 +140,14 @@ export function createMonitoringRouter(input: {
     try {
       response.status(201).json(await input.client.createZaloLinkCode(adapterPrincipal(value)));
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       response.status(503).json({ code: errorCode(error) });
     }
   });
@@ -142,6 +158,14 @@ export function createMonitoringRouter(input: {
       await input.client.disableZaloLink(adapterPrincipal(value));
       response.status(204).end();
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       response.status(503).json({ code: errorCode(error) });
     }
   });

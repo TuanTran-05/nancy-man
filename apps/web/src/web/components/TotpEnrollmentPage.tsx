@@ -1,3 +1,5 @@
+import { captureBrowserException } from '../telemetry/runtimeTelemetry.js';
+
 import { useEffect, useState, type FormEvent } from 'react';
 
 import { completeTotpEnrollment, startTotpEnrollment, type TotpEnrollment } from '../api.js';
@@ -33,7 +35,12 @@ export function TotpEnrollmentPage({ onComplete }: { onComplete: () => void }) {
     setError(null);
     try {
       setEnrollment(await startTotpEnrollment(context));
-    } catch {
+    } catch (error) {
+      void captureBrowserException(error, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       setError('Liên kết thiết lập không hợp lệ hoặc đã hết hạn.');
     } finally {
       setBusy(false);
@@ -66,7 +73,12 @@ export function TotpEnrollmentPage({ onComplete }: { onComplete: () => void }) {
       setEnrollment(null);
       setContext(null);
       onComplete();
-    } catch {
+    } catch (error) {
+      void captureBrowserException(error, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       setError('Không thể kích hoạt tài khoản. Hãy kiểm tra mã xác thực và thử lại.');
     } finally {
       setBusy(false);

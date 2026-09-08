@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { parse } from 'pgsql-ast-parser';
 
 type Result =
@@ -28,7 +30,12 @@ export function classifyReadOnlySql(sql: string): Result {
     if (isReadSelect(statements[0])) return { allowed: true, kind: 'select' };
     if (statements[0]?.type === 'show') return { allowed: true, kind: 'show' };
     return { allowed: false, code: 'SQL_READ_ONLY_REQUIRED' };
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'database',
+      status: 500,
+    });
     return { allowed: false, code: 'SQL_READ_ONLY_REQUIRED' };
   }
 }

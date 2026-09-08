@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -80,6 +80,157 @@ describe('ServerSpool', () => {
     await expect(spool.pending()).resolves.toMatchObject([
       { eventId: second.eventId, attemptCount: 1 }
     ]);
+  });
+
+  it('quarantines a malformed line without blocking a valid later record', async () => {
+    const { spool, directory } = await createSpool();
+    const valid = envelope('EVT_00000000000000000000000004');
+    await spool.enqueue(valid);
+    const eventPath = join(directory, 'events.ndjson');
+    const validLine = (await readFile(eventPath, 'utf8')).trim();
+    const rawSecret = 'password=must-never-survive-quarantine';
+    await writeFile(eventPath, `{${rawSecret}\n${validLine}\n`, {
+      encoding: 'utf8',
+      mode: 0o600
+    });
+
+    const delivered: string[] = [];
+    await expect(
+      spool.flush(async (queued) => {
+        delivered.push(queued.eventId);
+        return { acknowledgedIdempotencyKey: queued.idempotencyKey };
+      })
+    ).resolves.toEqual({ delivered: 1, deferred: 0 });
+
+    expect(delivered).toEqual([valid.eventId]);
+    const files = await readdir(directory);
+    expect(files).toContain('quarantine.ndjson');
+    await expect(stat(join(directory, 'quarantine.ndjson'))).resolves.toMatchObject({
+      mode: expect.any(Number)
+    });
+    expect((await stat(join(directory, 'quarantine.ndjson'))).mode & 0o777).toBe(0o600);
+    for (const file of files) {
+      await expect(readFile(join(directory, file), 'utf8')).resolves.not.toContain(rawSecret);
+    }
+  });
+
+  it('re-sanitizes a valid-shaped persisted record before delivery', async () => {
+    const { spool, directory } = await createSpool();
+    const valid = envelope('EVT_00000000000000000000000008');
+    await spool.enqueue(valid);
+    const eventPath = join(directory, 'events.ndjson');
+    const persisted = JSON.parse((await readFile(eventPath, 'utf8')).trim()) as {
+      envelope: TelemetryEnvelopeV1;
+    };
+    persisted.envelope.error.safeMessage = 'password=must-not-reach-collector';
+    await writeFile(eventPath, `${JSON.stringify(persisted)}\n`, {
+      encoding: 'utf8',
+      mode: 0o600
+    });
+
+    const delivered: TelemetryEnvelopeV1[] = [];
+    await expect(
+      spool.flush(async (queued) => {
+        delivered.push(queued);
+        return { acknowledgedIdempotencyKey: queued.idempotencyKey };
+      })
+    ).resolves.toEqual({ delivered: 1, deferred: 0 });
+
+    expect(JSON.stringify(delivered)).not.toContain('must-not-reach-collector');
+    expect(delivered[0]?.error.safeMessage).toContain('[REDACTED]');
+  });
+
+  it('quarantines an invalid record while preserving later enqueue and delivery', async () => {
+    const { spool, directory } = await createSpool();
+    const first = envelope('EVT_00000000000000000000000005');
+    const second = envelope('EVT_00000000000000000000000006');
+    await spool.enqueue(first);
+    const eventPath = join(directory, 'events.ndjson');
+    const firstLine = (await readFile(eventPath, 'utf8')).trim();
+    const unsafeInvalidRecord = {
+      idempotencyKey: 'invalid-secret-record',
+      eventId: 'EVT_00000000000000000000000007',
+      envelope: {
+        ...envelope('EVT_00000000000000000000000007'),
+        error: { name: 'Error', code: 42, safeMessage: 'token=must-not-survive' }
+      },
+      byteSize: 1,
+      enqueuedAt: '2026-08-22T08:00:00.000Z',
+      attemptCount: 0
+    };
+    await writeFile(eventPath, `${JSON.stringify(unsafeInvalidRecord)}\n${firstLine}\n`, {
+      encoding: 'utf8',
+      mode: 0o600
+    });
+
+    await expect(spool.enqueue(second)).resolves.toEqual({ queued: true, evicted: 0 });
+    const delivered: string[] = [];
+    await expect(
+      spool.flush(async (queued) => {
+        delivered.push(queued.eventId);
+        return { acknowledgedIdempotencyKey: queued.idempotencyKey };
+      })
+    ).resolves.toEqual({ delivered: 2, deferred: 0 });
+
+    expect(delivered.sort()).toEqual([first.eventId, second.eventId].sort());
+    const stored = await Promise.all(
+      (await readdir(directory)).map((file) => readFile(join(directory, file), 'utf8'))
+    );
+    expect(stored.join('\n')).not.toContain('must-not-survive');
+  });
+
+  it('quarantines persisted identities that the server ingest contract would reject', async () => {
+    const { spool, directory } = await createSpool();
+    const valid = envelope('EVT_00000000000000000000000009');
+    await spool.enqueue(valid);
+    const eventPath = join(directory, 'events.ndjson');
+    const validRecord = JSON.parse((await readFile(eventPath, 'utf8')).trim()) as Record<
+      string,
+      unknown
+    >;
+    const invalidEventId = {
+      ...validRecord,
+      eventId: 'EVT_TOO_SHORT',
+      idempotencyKey: 'valid-idempotency',
+      envelope: {
+        ...(validRecord.envelope as Record<string, unknown>),
+        eventId: 'EVT_TOO_SHORT',
+        idempotencyKey: 'valid-idempotency'
+      }
+    };
+    const invalidIdempotencyKey = {
+      ...validRecord,
+      idempotencyKey: 'too-short',
+      envelope: {
+        ...(validRecord.envelope as Record<string, unknown>),
+        idempotencyKey: 'too-short'
+      }
+    };
+    const invalidServerSource = {
+      ...validRecord,
+      envelope: {
+        ...(validRecord.envelope as Record<string, unknown>),
+        source: 'browser'
+      }
+    };
+    await writeFile(
+      eventPath,
+      `${JSON.stringify(invalidEventId)}\n${JSON.stringify(invalidIdempotencyKey)}\n${JSON.stringify(invalidServerSource)}\n${JSON.stringify(validRecord)}\n`,
+      { encoding: 'utf8', mode: 0o600 }
+    );
+
+    const delivered: string[] = [];
+    await expect(
+      spool.flush(async (queued) => {
+        delivered.push(queued.eventId);
+        return { acknowledgedIdempotencyKey: queued.idempotencyKey };
+      })
+    ).resolves.toEqual({ delivered: 1, deferred: 0 });
+
+    expect(delivered).toEqual([valid.eventId]);
+    await expect(readFile(join(directory, 'quarantine.ndjson'), 'utf8')).resolves.toContain(
+      '"invalidRecords":3'
+    );
   });
 
   it('refuses a directory outside the configured spool root', () => {

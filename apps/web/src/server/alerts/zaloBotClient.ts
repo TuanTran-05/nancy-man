@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { z } from 'zod';
 
 const responseSchema = z
@@ -49,13 +51,23 @@ export async function sendZaloText(
           signal: controller.signal
         }
       );
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       throw new ZaloDeliveryError('delivery_ambiguous', true, true);
     }
     let body: unknown = null;
     try {
       body = await response.json();
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       body = null;
     }
     if (response.status === 401) throw new ZaloDeliveryError('provider_auth_failed', false);

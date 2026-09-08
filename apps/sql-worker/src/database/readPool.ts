@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { executeReadOnly } from '../execution/readExecution.js';
 
 export type QueryDatabase = {
@@ -20,8 +22,13 @@ export function assertTlsProtectedPostgresUrl(databaseUrl: string): void {
   let parsed: URL;
   try {
     parsed = new URL(databaseUrl);
-  } catch {
-    throw new Error('Production read database URL must use PostgreSQL with TLS verify-full');
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
+    throw new Error('Production read database URL must use PostgreSQL with TLS verify-full', { cause: error });
   }
   if (
     (parsed.protocol !== 'postgresql:' && parsed.protocol !== 'postgres:') ||

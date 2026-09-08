@@ -104,6 +104,72 @@ describe('resolveSqlWorkerCredentials', () => {
 });
 
 describe('startOpsSqlWorker', () => {
+  it('captures a hostile pool-close rejection before flushing and preserves its identity', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ops-sql-worker-'));
+    const socketPath = join(directory, 'worker.sock');
+    const cleanupFailure = new Error('read pool refused to close');
+    const captured: Array<{ error: unknown; context: { code: string; source?: string } }> = [];
+    const order: string[] = [];
+    const worker = await startOpsSqlWorker({
+      environment: {
+        ...disabledEnvironment(socketPath),
+        OPS_SQL_READ_ENABLED: 'true',
+        OPS_PRODUCTION_READ_DATABASE_URL_REFERENCE: 'production-read-database-url',
+        OPS_PRODUCTION_READ_DATABASE_NAME: 'edutrack_production',
+        OPS_PRODUCTION_READ_ROLE: 'ops_production_reader'
+      },
+      resolveSecret: async (reference) =>
+        reference === 'ops-sql-worker-hmac'
+          ? 'shared-hmac'
+          : 'postgresql://reader:secret@db.internal/edutrack_production?sslmode=verify-full',
+      telemetry: {
+        captureException: (error, context) => {
+          order.push('capture');
+          captured.push({ error, context });
+          return 'EVT_00000000000000000000000000';
+        },
+        flush: async () => {
+          order.push('flush');
+        },
+        healthy: () => true
+      },
+      createReadPool: () => ({
+        query: async <T>() => ({
+          rows: [
+            {
+              role: 'ops_production_reader',
+              database: 'edutrack_production',
+              defaultTransactionReadOnly: 'on'
+            }
+          ] as T[]
+        }),
+        connect: async () => ({
+          query: async <T>() => ({ rows: [] as T[] }),
+          release: () => undefined
+        }),
+        end: async () => {
+          order.push('pool:end');
+          throw cleanupFailure;
+        }
+      })
+    });
+
+    try {
+      order.length = 0;
+      captured.length = 0;
+      await expect(worker.close()).rejects.toBe(cleanupFailure);
+      expect(captured).toEqual([
+        {
+          error: cleanupFailure,
+          context: { code: 'SQL_WORKER_READ_POOL_CLOSE_FAILED', source: 'database' }
+        }
+      ]);
+      expect(order).toEqual(['pool:end', 'capture', 'flush']);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('starts its Unix listener without opening a production database connection while reads are disabled', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ops-sql-worker-'));
     const socketPath = join(directory, 'worker.sock');

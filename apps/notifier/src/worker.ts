@@ -1,3 +1,5 @@
+import { captureOpsException } from './telemetry/runtimeTelemetry.js';
+
 import type { SafeAlert } from './channels/safeAlert.js';
 
 type Channel = {
@@ -41,7 +43,12 @@ export class NotificationWorker {
         ...(result.providerMessageId ? { providerMessageId: result.providerMessageId } : {})
       });
       return { delivered: true };
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       await this.input.repository.markFailed({
         deliveryId: input.id,
         failureCode: 'CHANNEL_DELIVERY_FAILED'

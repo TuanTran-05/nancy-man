@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { timingSafeEqual } from 'node:crypto';
 import type { Request, Response, Router } from 'express';
 import { z } from 'zod';
@@ -192,7 +194,17 @@ export function attachZaloRoutes(
           timeoutMs: deps.config.timeoutMs
         },
         'Đã liên kết bot Ops Console thành công. Bạn sẽ nhận được cảnh báo vận hành tại đây.'
-      ).catch(() => undefined);
+      ).catch((error) => {
+        captureOpsException(error, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
+        return undefined;
+      });
       response.status(200).json({ success: true });
       return;
     }

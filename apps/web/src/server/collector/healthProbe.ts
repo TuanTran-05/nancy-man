@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import type { MonitorSample } from '../../shared/models.js';
 
 export type AppProbeKind = 'liveness' | 'health';
@@ -29,7 +31,12 @@ export async function probeApp(
   let url: URL;
   try {
     url = validateLoopbackUrl(config.appUrl);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return {
       monitor: kind === 'liveness' ? 'app_liveness' : 'app_health',
       level: 'critical',
@@ -72,7 +79,12 @@ export async function probeApp(
       details,
       errorCode: null
     };
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return {
       monitor: kind === 'liveness' ? 'app_liveness' : 'app_health',
       level: 'critical',

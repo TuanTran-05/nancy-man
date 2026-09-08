@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry-sdk/src/runtimeCaptureFacade.js';
+
 import { constants } from 'node:fs';
 import { lstat, open } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
@@ -36,7 +38,12 @@ export class FileSecretResolver {
       } finally {
         await handle.close();
       }
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'document_store',
+        status: 500,
+      });
       return null;
     }
   }

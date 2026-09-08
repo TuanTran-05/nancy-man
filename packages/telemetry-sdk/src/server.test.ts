@@ -84,8 +84,22 @@ describe('server telemetry factory', () => {
       }
     });
 
-    await telemetry.flush();
+    await expect(telemetry.flush()).resolves.toEqual({ delivered: 0, deferred: 0 });
 
     expect(flushes).toBe(1);
+  });
+
+  it('returns the durable spool backlog outcome to its runtime owner', async () => {
+    const telemetry = createServerTelemetry({
+      release: '0123456789abcdef0123456789abcdef01234567',
+      service: 'edutrack-api',
+      transport: async () => undefined,
+      spool: {
+        enqueue: async () => ({ queued: true, evicted: 0 }),
+        flush: async () => ({ delivered: 0, deferred: 1 })
+      }
+    });
+
+    await expect(telemetry.flush()).resolves.toEqual({ delivered: 0, deferred: 1 });
   });
 });

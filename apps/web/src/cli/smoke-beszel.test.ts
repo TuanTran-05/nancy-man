@@ -8,7 +8,7 @@ import {
   systemdServicesListSchema
 } from '../server/beszel/contracts.js';
 import type { BeszelRawSnapshot } from '../server/beszel/client.js';
-import { smokeBeszelContract } from './smoke-beszel.js';
+import { runBeszelSmokeEntrypoint, smokeBeszelContract } from './smoke-beszel.js';
 
 const fixture = (name: string): unknown =>
   JSON.parse(
@@ -89,5 +89,40 @@ describe('Beszel contract smoke', () => {
         new Date('2026-08-24T02:41:00.000Z')
       )
     ).rejects.toThrow('beszel_metric_stale');
+  });
+
+  it('binds, captures, and flushes the standalone Beszel smoke process', async () => {
+    const failure = new Error('Beszel smoke failed');
+    const order: string[] = [];
+    const contexts: Array<Record<string, unknown>> = [];
+
+    await expect(
+      runBeszelSmokeEntrypoint({
+        telemetry: {
+          captureException: (error, context) => {
+            expect(error).toBe(failure);
+            contexts.push(context);
+            order.push('capture');
+            return 'EVT_00000000000000000000000024';
+          },
+          flush: async () => {
+            order.push('flush');
+          },
+          healthy: () => true
+        },
+        run: async () => {
+          throw failure;
+        }
+      })
+    ).rejects.toBe(failure);
+
+    expect(order).toEqual(['capture', 'flush']);
+    expect(contexts).toEqual([
+      expect.objectContaining({
+        code: 'BESZEL_SMOKE_FAILED',
+        source: 'provider',
+        level: 'fatal'
+      })
+    ]);
   });
 });

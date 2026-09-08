@@ -37,13 +37,19 @@ export function createRuntimeTelemetry(input: {
   }
 
   let healthy = true;
+  let undeliverable = false;
   const spool = input.spool
     ? {
         enqueue: async (
           ...arguments_: Parameters<NonNullable<ServerTelemetryInput['spool']>['enqueue']>
         ) => {
           try {
-            return await input.spool!.enqueue(...arguments_);
+            const result = await input.spool!.enqueue(...arguments_);
+            healthy = false;
+            if (!result.queued || result.evicted > 0) {
+              undeliverable = true;
+            }
+            return result;
           } catch (error) {
             healthy = false;
             throw error;
@@ -53,7 +59,14 @@ export function createRuntimeTelemetry(input: {
           ...arguments_: Parameters<NonNullable<ServerTelemetryInput['spool']>['flush']>
         ) => {
           try {
-            return await input.spool!.flush(...arguments_);
+            const result = await input.spool!.flush(...arguments_);
+            if (result.deferred > 0 || (undeliverable && result.delivered === 0)) {
+              healthy = false;
+            } else {
+              healthy = true;
+              undeliverable = false;
+            }
+            return result;
           } catch (error) {
             healthy = false;
             throw error;

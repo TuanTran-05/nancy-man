@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { createHash, randomUUID } from 'node:crypto';
 
 import type {
@@ -277,6 +279,11 @@ export class ConfigChangeService {
           reasonCode: event.reasonCode
         });
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+        });
         const refreshed = await this.input.repository.findById(record.id);
         if (!refreshed || refreshed.state !== event.state) throw error;
         current = refreshed;
@@ -320,7 +327,12 @@ export class ConfigChangeService {
         state: 'ROLLBACK_FAILED',
         seed: `${record.id}:dispatch:failed`
       });
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       const refreshed = await this.input.repository.findById(record.id);
       if (refreshed) current = refreshed;
       if (current.state === 'ROLLING_BACK') {
@@ -330,7 +342,12 @@ export class ConfigChangeService {
             state: 'ROLLBACK_FAILED',
             seed: `${record.id}:dispatch:failed:retry`
           });
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'api',
+            status: 500,
+          });
           const retry = await this.input.repository.findById(record.id);
           if (retry) current = retry;
         }
@@ -372,7 +389,12 @@ export class ConfigChangeService {
         const record = await this.input.repository.findById(body.changeId);
         if (record) await this.reconcileAgentStatus(record, result);
         if (terminalStates.has(result.state)) return;
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+        });
         // A restarting agent is not evidence of a failed run; the final timeout below
         // converts a permanently unreachable apply into a durable blocked state.
       }
@@ -462,6 +484,11 @@ export class ConfigChangeService {
       }
       return result;
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       if (error instanceof ConfigChangeServiceError) throw error;
       if (error instanceof Error && error.message.includes('CONFIG_SOURCE_CHANGED')) {
         throw new ConfigChangeServiceError('CONFIG_SOURCE_CHANGED');
@@ -535,9 +562,21 @@ export class ConfigChangeService {
         version: record.version + 1
       };
       const result = await this.input.agent.applyChange(actorFor(input.principal), input.body);
-      void this.monitorApply(input.principal, input.body).catch(() => undefined);
+      void this.monitorApply(input.principal, input.body).catch((error) => {
+        captureOpsException(error, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'api',
+          status: 500,
+        });
+        return undefined;
+      });
       return result;
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       if (databaseApplying) {
         await this.persistDispatchFailure(databaseApplyingRecord);
       }
@@ -564,7 +603,12 @@ export class ConfigChangeService {
       const record = requireOwnerRecord(await this.input.repository.findById(input.body.changeId));
       await this.reconcileAgentStatus(record, parsed);
       return parsed;
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       const record = requireOwnerRecord(await this.input.repository.findById(input.body.changeId));
       const events =
         (await this.input.repository.listEvents?.(input.body.changeId, input.body.afterEventId)) ??
@@ -598,6 +642,11 @@ export class ConfigChangeService {
       });
       return result;
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       if (error instanceof Error && error.message.includes('CONFIG_CHANGE_NOT_FOUND')) {
         throw new ConfigChangeServiceError('CONFIG_CHANGE_NOT_FOUND');
       }

@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import {
   closeSync,
   fstatSync,
@@ -142,6 +144,11 @@ function walkNoSymlink(filePath: string, sourceId: string): Stats {
     try {
       stat = lstatSync(current);
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       return mapFsError(error, sourceId, 'SOURCE_NOT_FOUND');
     }
     if (stat.isSymbolicLink()) fail('SOURCE_SYMLINK_REJECTED', sourceId);
@@ -150,6 +157,11 @@ function walkNoSymlink(filePath: string, sourceId: string): Stats {
   try {
     return lstatSync(filePath);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return mapFsError(error, sourceId, 'SOURCE_NOT_FOUND');
   }
 }
@@ -170,6 +182,11 @@ function openDescriptorRelative(
   try {
     directoryDescriptor = openSync(root, directoryFlags);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return mapFsError(error, sourceId, 'SOURCE_OPEN_FAILED');
   }
   try {
@@ -180,6 +197,11 @@ function openDescriptorRelative(
       try {
         childDescriptor = openSync(`/proc/self/fd/${directoryDescriptor}/${part}`, flags);
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
         return mapFsError(error, sourceId, 'SOURCE_OPEN_FAILED');
       }
       closeSync(directoryDescriptor);
@@ -187,16 +209,31 @@ function openDescriptorRelative(
       directoryDescriptor = childDescriptor;
     }
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     try {
       closeSync(directoryDescriptor);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       // Preserve the stable source error from the failed operation.
     }
     return mapFsError(error, sourceId, 'SOURCE_OPEN_FAILED');
   }
   try {
     closeSync(directoryDescriptor);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     // The descriptor is best-effort cleanup after an impossible empty path.
   }
   fail('SOURCE_OPEN_FAILED', sourceId);
@@ -230,6 +267,11 @@ export function readSafeSourceFile(options: SafeSourceReadOptions): SafeSourceRe
     try {
       opened = fstatSync(descriptor);
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       return mapFsError(error, sourceId, 'SOURCE_READ_FAILED');
     }
     if (!statIsIdentity(beforeOpen, opened)) {
@@ -255,6 +297,11 @@ export function readSafeSourceFile(options: SafeSourceReadOptions): SafeSourceRe
       try {
         count = readSync(descriptor, bytes, offset, bytes.length - offset, null);
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
         return mapFsError(error, sourceId, 'SOURCE_READ_FAILED');
       }
       if (count <= 0) fail('SOURCE_READ_FAILED', sourceId);
@@ -347,6 +394,11 @@ function readReleaseMetadata(path: string, releaseId: string, sourceId: string):
   try {
     stat = lstatSync(path);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     if ((error as NodeJS.ErrnoException).code === 'ENOENT')
       fail('ACTIVE_RELEASE_METADATA_MISSING', sourceId);
     return mapFsError(error, sourceId, 'ACTIVE_RELEASE_METADATA_INVALID');
@@ -369,6 +421,11 @@ function readReleaseMetadata(path: string, releaseId: string, sourceId: string):
     });
     metadataText = result.bytes.toString('utf8');
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     if (error instanceof SafeSourceError && error.code === 'SOURCE_NOT_FOUND') {
       fail('ACTIVE_RELEASE_METADATA_MISSING', sourceId);
     }
@@ -387,6 +444,11 @@ function readReleaseMetadata(path: string, releaseId: string, sourceId: string):
       fail('ACTIVE_RELEASE_METADATA_INVALID', sourceId);
     }
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     if (error instanceof SafeSourceError) throw error;
     fail('ACTIVE_RELEASE_METADATA_INVALID', sourceId);
   }
@@ -404,6 +466,11 @@ export function resolveActiveReleaseLink(
   try {
     currentStat = lstatSync(currentPath);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return mapFsError(error, sourceId, 'ACTIVE_RELEASE_CHANGED');
   }
   if (!currentStat.isSymbolicLink()) fail('ACTIVE_RELEASE_INVALID', sourceId);
@@ -411,6 +478,11 @@ export function resolveActiveReleaseLink(
   try {
     linkTarget = readlinkSync(currentPath);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return mapFsError(error, sourceId, 'ACTIVE_RELEASE_CHANGED');
   }
   options.testHooks?.afterLinkRead?.();
@@ -432,7 +504,12 @@ export function resolveActiveReleaseLink(
   let linkTargetAfter: string;
   try {
     linkTargetAfter = readlinkSync(currentPath);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     fail('ACTIVE_RELEASE_CHANGED', sourceId);
   }
   releaseStat = lstatSync(releasePath);

@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { createHash, randomUUID } from 'node:crypto';
 import {
   chmodSync,
@@ -140,7 +142,12 @@ function currentRelease(
   let releaseName: string;
   try {
     releaseName = basename(readlinkSync(current));
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     throw Object.assign(new Error('BUILD_SOURCE_UNAVAILABLE'), {
       code: 'BUILD_SOURCE_UNAVAILABLE'
     });
@@ -199,16 +206,31 @@ function lockFactory(root: string) {
               flag: 'wx'
             });
           } catch (error) {
+            captureOpsException(error, {
+              code: 'UNHANDLED_OPS_EXCEPTION',
+              source: 'document_store',
+              status: 500,
+            });
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
             throw error;
           }
           acquired = true;
         } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'document_store',
+            status: 500,
+          });
           if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
           let ownerPid: number | undefined;
           try {
             ownerPid = Number(readFileSync(join(lockPath, 'owner'), 'utf8').trim());
-          } catch {
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'UNHANDLED_OPS_EXCEPTION',
+              source: 'document_store',
+              status: 500,
+            });
             ownerPid = undefined;
           }
           let ownerAlive = false;
@@ -217,6 +239,11 @@ function lockFactory(root: string) {
               process.kill(ownerPid, 0);
               ownerAlive = true;
             } catch (probeError) {
+              captureOpsException(probeError, {
+                code: 'UNHANDLED_OPS_EXCEPTION',
+                source: 'job',
+                status: 500,
+              });
               ownerAlive = (probeError as NodeJS.ErrnoException).code !== 'ESRCH';
             }
           }
@@ -225,6 +252,11 @@ function lockFactory(root: string) {
         }
       }
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'document_store',
+        status: 500,
+      });
       release();
       throw error;
     }
@@ -378,8 +410,13 @@ export function createRuntimeMutationHandlers(
     let parsed: unknown;
     try {
       parsed = JSON.parse(readFileSync(journalPath, 'utf8')) as unknown;
-    } catch {
-      throw new Error('CONFIG_AGENT_JOURNAL_INVALID');
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'document_store',
+        status: 500,
+      });
+      throw new Error('CONFIG_AGENT_JOURNAL_INVALID', { cause: error });
     }
     if (!Array.isArray(parsed)) throw new Error('CONFIG_AGENT_JOURNAL_INVALID');
     const result: RecoveryRecord[] = [];
@@ -647,8 +684,13 @@ export function createRuntimeMutationHandlers(
           const marker = readFileSync(join(target, '.release-source.json'), 'utf8');
           if (Buffer.byteLength(marker, 'utf8') > 16_384) throw new Error('marker too large');
           parsed = JSON.parse(marker) as unknown;
-        } catch {
-          throw new Error('RELEASE_IDENTITY_UNAVAILABLE');
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'document_store',
+            status: 500,
+          });
+          throw new Error('RELEASE_IDENTITY_UNAVAILABLE', { cause: error });
         }
         if (
           !parsed ||
@@ -674,7 +716,12 @@ export function createRuntimeMutationHandlers(
         try {
           const response = await globalThis.fetch(target);
           return response.ok;
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'provider',
+            status: 500,
+          });
           return false;
         }
       },
@@ -683,7 +730,12 @@ export function createRuntimeMutationHandlers(
         try {
           const response = await globalThis.fetch(target || 'http://127.0.0.1:3100/healthz');
           return response.ok;
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'provider',
+            status: 500,
+          });
           return false;
         }
       }
@@ -967,21 +1019,38 @@ export function createRuntimeMutationHandlers(
             reasonCode: 'RECOVERY_ROLLBACK_COMPLETED'
           });
           return { state: 'ROLLED_BACK' };
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'job',
+            status: 500,
+          });
           await persistEvent({
             changeId: record.changeId,
             runId: record.runId,
             state: 'ROLLBACK_FAILED',
             sequence: (record.sequence ?? 0) + 2,
             reasonCode: 'RECOVERY_ROLLBACK_FAILED'
-          }).catch(() => undefined);
+          }).catch((error) => {
+            captureOpsException(error, {
+              code: 'UNHANDLED_PROMISE_REJECTION',
+              source: 'job',
+              status: 500,
+            });
+            return undefined;
+          });
           blockedApplications.add(change.appId);
           return { state: 'ROLLBACK_FAILED' };
         }
       }
     }
   });
-  const recoveryReady = recovery.reconcile().catch(() => {
+  const recoveryReady = recovery.reconcile().catch((error) => {
+    captureOpsException(error, {
+      code: 'UNHANDLED_PROMISE_REJECTION',
+      source: 'job',
+      status: 500,
+    });
     throw Object.assign(new Error('CONFIG_AGENT_RECOVERY_FAILED'), {
       code: 'CONFIG_AGENT_RECOVERY_FAILED'
     });
@@ -1060,7 +1129,14 @@ export function createRuntimeMutationHandlers(
           runId: request.runId,
           changeDigest: request.changeDigest
         })
-        .catch(() => undefined);
+        .catch((error) => {
+          captureOpsException(error, {
+            code: 'UNHANDLED_PROMISE_REJECTION',
+            source: 'job',
+            status: 500,
+          });
+          return undefined;
+        });
       return { changeId: request.changeId, runId: request.runId, state: 'APPLYING' as const };
     },
     cancel: async (request: ChangeCancelRequest) => {

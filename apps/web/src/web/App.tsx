@@ -1,3 +1,5 @@
+import { captureBrowserException } from './telemetry/runtimeTelemetry.js';
+
 import { useEffect, useState } from 'react';
 import { beginLogin, completeLogin, getSession, logout, type SessionInfo } from './api.js';
 import { OpsShell } from './components/OpsShell.js';
@@ -25,7 +27,12 @@ export function App() {
       .then((result) => {
         if (active) setSession(result);
       })
-      .catch(() => {
+      .catch((error) => {
+        void captureBrowserException(error, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname,
+        });
         if (active) setSession(null);
       })
       .finally(() => {
@@ -49,9 +56,14 @@ export function App() {
             const result = await beginLogin(credentials);
             setLoginError(null);
             return result;
-          } catch {
+          } catch (error) {
+            void captureBrowserException(error, {
+              code: 'UNHANDLED_BROWSER_EXCEPTION',
+              source: 'browser',
+              route: () => globalThis.location?.pathname,
+            });
             setLoginError('Thông tin đăng nhập không hợp lệ.');
-            throw new Error('LOGIN_FAILED');
+            throw new Error('LOGIN_FAILED', { cause: error });
           }
         }}
         onComplete={async (input) => {
@@ -60,9 +72,14 @@ export function App() {
             setSession(result);
             setLoginError(null);
             return result;
-          } catch {
+          } catch (error) {
+            void captureBrowserException(error, {
+              code: 'UNHANDLED_BROWSER_EXCEPTION',
+              source: 'browser',
+              route: () => globalThis.location?.pathname,
+            });
             setLoginError('Mã xác thực không hợp lệ.');
-            throw new Error('MFA_FAILED');
+            throw new Error('MFA_FAILED', { cause: error });
           }
         }}
       />

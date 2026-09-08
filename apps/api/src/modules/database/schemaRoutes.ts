@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import express, { type Router } from 'express';
 import { z } from 'zod';
 
@@ -136,7 +138,15 @@ export function createSchemaRouter(input: {
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'sql:read');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
       const worker = await input.worker.command({
@@ -153,6 +163,14 @@ export function createSchemaRouter(input: {
       if (!parsed.success) return response.status(503).json({ code: 'WORKER_SCHEMA_INVALID' });
       return response.status(200).json(parsed.data);
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });

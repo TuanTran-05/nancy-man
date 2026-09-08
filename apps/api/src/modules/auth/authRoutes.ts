@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { createHash } from 'node:crypto';
 
 import express, { type Request, type Router } from 'express';
@@ -148,6 +150,14 @@ export function createAuthRouter(input: {
         factors: result.factors
       });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -162,6 +172,14 @@ export function createAuthRouter(input: {
         ? response.status(200).json(result)
         : response.status(401).json({ code: 'ENROLLMENT_DENIED' });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -175,6 +193,14 @@ export function createAuthRouter(input: {
         ? response.status(204).end()
         : response.status(401).json({ code: 'ENROLLMENT_DENIED' });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -203,6 +229,14 @@ export function createAuthRouter(input: {
         absoluteExpiresAt: result.absoluteExpiresAt
       });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -221,7 +255,15 @@ export function createAuthRouter(input: {
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'sql:workspace');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
       const result = await input.sqlElevation.grant({
@@ -235,6 +277,14 @@ export function createAuthRouter(input: {
         absoluteExpiresAt: result.absoluteExpiresAt
       });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -255,6 +305,14 @@ export function createAuthRouter(input: {
         ...(principal.csrfToken ? { csrfToken: principal.csrfToken } : {})
       });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -277,6 +335,14 @@ export function createAuthRouter(input: {
       });
       return response.status(204).end();
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -300,7 +366,15 @@ export function createAuthRouter(input: {
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'accounts:write');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
       const metadata = requestMetadata(request, input.hashClientIp);
@@ -314,6 +388,14 @@ export function createAuthRouter(input: {
       });
       return response.status(200).json({ authorizedUntil: result.expiresAt });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });

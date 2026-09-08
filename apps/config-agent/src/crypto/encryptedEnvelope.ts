@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import {
   createCipheriv,
   createDecipheriv,
@@ -203,6 +205,11 @@ export async function loadEnvelopeKey(credential: EnvelopeCredential): Promise<E
       bytes: keyBytes
     });
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     if (error instanceof EnvelopeError) throw error;
     if ((error as NodeJS.ErrnoException).code === 'ELOOP') {
       return fail('ENVELOPE_CREDENTIAL_INVALID');
@@ -210,7 +217,14 @@ export async function loadEnvelopeKey(credential: EnvelopeCredential): Promise<E
     return fail('ENVELOPE_CREDENTIAL_READ_FAILED');
   } finally {
     keyBytes?.fill(0);
-    await handle?.close().catch(() => undefined);
+    await handle?.close().catch((error) => {
+      captureOpsException(error, {
+        code: 'UNHANDLED_PROMISE_REJECTION',
+        source: 'job',
+        status: 500,
+      });
+      return undefined;
+    });
   }
 }
 
@@ -308,7 +322,12 @@ function parseArtifact(artifact: Uint8Array): SerializedEnvelope {
   let parsed: unknown;
   try {
     parsed = JSON.parse(Buffer.from(artifact).toString('utf8')) as unknown;
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     fail('ENVELOPE_MALFORMED');
   }
   if (
@@ -396,7 +415,12 @@ export function decryptEnvelope(options: DecryptEnvelopeOptions): Buffer {
       decipher.update(Buffer.from(parsed.ciphertext, 'base64')),
       decipher.final()
     ]);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     fail('ENVELOPE_AUTH_FAILED');
   }
 }

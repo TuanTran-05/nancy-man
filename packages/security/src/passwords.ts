@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry-sdk/src/runtimeCaptureFacade.js';
+
 import { createHmac } from 'node:crypto';
 
 import argon2 from 'argon2';
@@ -103,7 +105,12 @@ export async function hashPassword(
 export async function verifyPassword(encodedHash: string, password: string): Promise<boolean> {
   try {
     return await argon2.verify(encodedHash, password);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'api',
+      status: 500,
+    });
     return false;
   }
 }

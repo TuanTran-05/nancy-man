@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 type PoolClient = {
   query: <T>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: T[] }>;
   release: () => void;
@@ -37,7 +39,19 @@ export function createPoolDatabase(pool: Pool): TransactionalQueryDatabase {
         await client.query('COMMIT');
         return result;
       } catch (error) {
-        await client.query('ROLLBACK').catch(() => undefined);
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'process',
+          status: 500,
+        });
+        await client.query('ROLLBACK').catch((error) => {
+          captureOpsException(error, {
+            code: 'UNHANDLED_PROMISE_REJECTION',
+            source: 'process',
+            status: 500,
+          });
+          return undefined;
+        });
         throw error;
       } finally {
         client.release();

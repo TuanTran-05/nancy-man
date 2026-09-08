@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { TextDecoder } from 'node:util';
 
 export type SourceAdapterId =
@@ -91,7 +93,12 @@ export function assertTextBytes(bytes: Uint8Array, maximumBytes = 1_048_576): Bu
   if (buffer.includes(0)) throw new SourceAdapterError('SOURCE_NUL_BYTE');
   try {
     new TextDecoder('utf-8', { fatal: true }).decode(buffer);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     throw new SourceAdapterError('SOURCE_UNSUPPORTED_ENCODING');
   }
   return buffer;
@@ -100,7 +107,12 @@ export function assertTextBytes(bytes: Uint8Array, maximumBytes = 1_048_576): Bu
 export function decodeUtf8(bytes: Uint8Array): string {
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     throw new SourceAdapterError('SOURCE_UNSUPPORTED_ENCODING');
   }
 }

@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createConnection, type Socket } from 'node:net';
 
@@ -417,7 +419,12 @@ export class ConfigAgentClient {
           let values: unknown[];
           try {
             values = decoder.push(chunk);
-          } catch {
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'UNHANDLED_OPS_EXCEPTION',
+              source: 'api',
+              status: 500,
+            });
             fail('AGENT_PROTOCOL_INVALID');
             return;
           }
@@ -432,7 +439,12 @@ export class ConfigAgentClient {
           clearTimeout(readTimer);
           try {
             decoder.finish();
-          } catch {
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'UNHANDLED_OPS_EXCEPTION',
+              source: 'api',
+              status: 500,
+            });
             fail('AGENT_TRAILING_FRAME');
             return;
           }
@@ -453,7 +465,12 @@ export class ConfigAgentClient {
             fail(connected ? 'AGENT_EMPTY_RESPONSE' : 'AGENT_CONNECT_FAILED');
           }
         });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+        });
         fail('AGENT_CONNECT_FAILED');
       }
 

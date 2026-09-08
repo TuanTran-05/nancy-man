@@ -118,4 +118,77 @@ describe('server runtime telemetry facade', () => {
     await expect(telemetry.flush()).rejects.toThrow('flush unavailable');
     expect(telemetry.healthy()).toBe(false);
   });
+
+  it('degrades while durable records are deferred and recovers after they drain', async () => {
+    const outcomes = [
+      { delivered: 0, deferred: 1 },
+      { delivered: 1, deferred: 0 }
+    ];
+    const telemetry = createRuntimeTelemetry({
+      enabled: true,
+      release: config.release,
+      service: 'edutrack-ops-api',
+      transport: async () => undefined,
+      spool: {
+        enqueue: async () => ({ queued: true, evicted: 0 }),
+        flush: async () => outcomes.shift() ?? { delivered: 0, deferred: 0 }
+      }
+    });
+
+    await telemetry.flush();
+    expect(telemetry.healthy()).toBe(false);
+
+    await telemetry.flush();
+    expect(telemetry.healthy()).toBe(true);
+  });
+
+  it('degrades when the spool cannot queue an occurrence', async () => {
+    const telemetry = createRuntimeTelemetry({
+      enabled: true,
+      release: config.release,
+      service: 'edutrack-ops-api',
+      transport: async () => undefined,
+      spool: {
+        enqueue: async () => ({ queued: false, evicted: 0 }),
+        flush: async () => ({ delivered: 0, deferred: 0 })
+      }
+    });
+
+    telemetry.captureException(new Error('oversized occurrence'), {
+      code: 'OVERSIZED_OCCURRENCE',
+      source: 'api'
+    });
+
+    await vi.waitFor(() => expect(telemetry.healthy()).toBe(false));
+  });
+
+  it('degrades on eviction and recovers when the retained spool drains', async () => {
+    let releaseFlush: (() => void) | undefined;
+    const flushGate = new Promise<void>((resolve) => {
+      releaseFlush = resolve;
+    });
+    const telemetry = createRuntimeTelemetry({
+      enabled: true,
+      release: config.release,
+      service: 'edutrack-ops-api',
+      transport: async () => undefined,
+      spool: {
+        enqueue: async () => ({ queued: true, evicted: 1 }),
+        flush: async () => {
+          await flushGate;
+          return { delivered: 1, deferred: 0 };
+        }
+      }
+    });
+
+    telemetry.captureException(new Error('spool pressure'), {
+      code: 'SPOOL_PRESSURE',
+      source: 'api'
+    });
+    await vi.waitFor(() => expect(telemetry.healthy()).toBe(false));
+
+    releaseFlush?.();
+    await telemetry.flush();
+    expect(telemetry.healthy()).toBe(true);
+  });
 });

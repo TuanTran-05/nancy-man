@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 export type HealthCheckDefinition = Readonly<{
   id: string;
   kind: 'process_stable' | 'http' | 'release_identity' | 'dependency' | 'agent_self' | 'api_health';
@@ -62,6 +64,11 @@ function timeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
         resolve(value);
       },
       (error: unknown) => {
+        captureOpsException(error, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'job',
+          status: 500,
+        });
         clearTimeout(timer);
         reject(error);
       }
@@ -256,7 +263,12 @@ export function createHealthCheckRunner(
           );
         }
       }
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'provider',
+        status: 500,
+      });
       return result(
         runId,
         definition.id,

@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import type { AlertDelivery, Incident } from '../../shared/models.js';
 import type { OpsStore, ZaloRecipientRecord } from '../storage/store.js';
 import { sendZaloText, type ZaloSendConfig, ZaloDeliveryError } from './zaloBotClient.js';
@@ -115,6 +117,11 @@ export function createAlertService(deps: AlertServiceDeps) {
         await sender({ botToken: deps.botToken, recipientId, timeoutMs: deps.timeoutMs }, text);
         deps.store.completeDelivery(delivery.id);
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+        });
         const failure =
           error instanceof ZaloDeliveryError
             ? error
@@ -148,7 +155,12 @@ export async function sendCollectorFailureNotice(
       const recipientId = decryptSecret(recipient.recipientCiphertext, config.recipientKey);
       if (!/^[A-Za-z0-9_.:-]{1,128}$/u.test(recipientId)) continue;
       await sendZaloText({ ...config, recipientId, fetchImpl }, text);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'provider',
+        status: 500,
+      });
       // The direct failsafe isolates malformed local state and provider failures per recipient.
     }
   }

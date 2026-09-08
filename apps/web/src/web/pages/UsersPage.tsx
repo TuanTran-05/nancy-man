@@ -1,3 +1,5 @@
+import { captureBrowserException } from '../telemetry/runtimeTelemetry.js';
+
 import { useEffect, useMemo, useState } from 'react';
 import {
   changeAccountRole,
@@ -98,6 +100,11 @@ export function UsersPage({
       setAccounts(result.accounts);
       setLoaded(true);
     } catch (caught) {
+      void captureBrowserException(caught, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       if ((caught as ApiError)?.status === 401) onUnauthorized();
       else setError(errorMessage(caught));
     }
@@ -133,6 +140,11 @@ export function UsersPage({
       await action();
       await refresh();
     } catch (caught) {
+      void captureBrowserException(caught, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       if ((caught as ApiError)?.status === 401) onUnauthorized();
       else setError(errorMessage(caught));
     } finally {
@@ -152,6 +164,11 @@ export function UsersPage({
       setDisplayName('');
       await refresh();
     } catch (caught) {
+      void captureBrowserException(caught, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       if ((caught as ApiError)?.status === 401) onUnauthorized();
       else setError(errorMessage(caught));
     } finally {

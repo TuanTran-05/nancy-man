@@ -1,3 +1,5 @@
+import { captureBrowserException } from '../telemetry/runtimeTelemetry.js';
+
 import { useState } from 'react';
 import { createZaloLinkCode, disableZaloLink, type ZaloLinkInfo } from '../api.js';
 
@@ -19,7 +21,12 @@ export function ZaloLinkPanel({
     try {
       const next = await createZaloLinkCode(csrfToken);
       setCode(next);
-    } catch {
+    } catch (error) {
+      void captureBrowserException(error, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       setError('Không tạo được mã liên kết.');
     } finally {
       setBusy(false);
@@ -32,7 +39,12 @@ export function ZaloLinkPanel({
       await disableZaloLink(csrfToken);
       setCode(null);
       await onChanged();
-    } catch {
+    } catch (error) {
+      void captureBrowserException(error, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       setError('Không thể hủy liên kết.');
     } finally {
       setBusy(false);

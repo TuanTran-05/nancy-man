@@ -60,8 +60,9 @@ describe('PostgresProcessorQueue', () => {
     });
 
     await queue.markRetry('env-1', new Date('2026-08-22T08:00:00.000Z'));
-    expect(queries[0]).toContain("SET state = 'retrying'");
+    expect(queries[0]).toContain("SET state = CASE");
     expect(queries[0]).toContain('attempt_count = attempt_count + 1');
+    expect(queries[0]).toContain("'dead_lettered'");
   });
 
   it('casts the claim release clock before subtracting an interval', async () => {
@@ -110,6 +111,7 @@ describe('PostgresProcessorQueue', () => {
     });
 
     expect(queries[0]).toContain("SET state = 'dead_lettered'");
+    expect(queries[0]).toContain('completed_at');
     expect(queries[1]).toContain('INSERT INTO ingest_dead_letters');
     expect(queries[1]).toContain('retry_count');
   });

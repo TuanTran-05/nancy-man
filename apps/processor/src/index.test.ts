@@ -62,7 +62,7 @@ describe('runProcessorOnce', () => {
           envelopeId: 'env-2',
           receivedAt: new Date('2026-09-04T00:00:00.000Z'),
           ingestClientId: 'client-1',
-          attemptCount: 4,
+          attemptCount: 9,
           envelope: {
             schemaVersion: 1,
             eventId: 'EVT_01K3ZABCDEF0123456789ABCDE',
@@ -106,7 +106,7 @@ describe('runProcessorOnce', () => {
     expect(result).toEqual({ processed: false, deadLettered: true });
     expect(captured).toEqual([expect.objectContaining({ message: 'database unavailable' })]);
     expect(deadLetters).toEqual([
-      expect.objectContaining({ envelopeId: 'env-2', attemptCount: 5, failureCode: 'PROCESSING_FAILED' })
+      expect.objectContaining({ envelopeId: 'env-2', attemptCount: 10, failureCode: 'PROCESSING_FAILED' })
     ]);
   });
 });

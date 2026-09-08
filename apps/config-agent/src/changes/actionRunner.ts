@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { spawn } from 'node:child_process';
 
 export type ProcessSpec = Readonly<{
@@ -104,10 +106,20 @@ function killProcessGroup(pid: number | undefined): void {
   if (pid === undefined) return;
   try {
     process.kill(-pid, 'SIGKILL');
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     try {
       process.kill(pid, 'SIGKILL');
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       // The process already exited.
     }
   }

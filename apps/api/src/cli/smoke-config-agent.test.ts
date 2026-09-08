@@ -5,7 +5,13 @@ import type {
   InventoryReadResponse
 } from '../../../../packages/config-contracts/src/agentProtocol.js';
 
-import { smokeConfigAgent, type ConfigAgentSmokeDependencies } from './smoke-config-agent.js';
+import {
+  resolveConfigAgentSmokeProtocolCredentialPath,
+  resolveConfigAgentSmokeTelemetryCredentialPath,
+  runConfigAgentSmokeEntrypoint,
+  smokeConfigAgent,
+  type ConfigAgentSmokeDependencies
+} from './smoke-config-agent.js';
 
 const expectations = {
   manifestVersion: '2026-09-01',
@@ -95,6 +101,19 @@ function dependencies(calls: string[]): ConfigAgentSmokeDependencies {
 }
 
 describe('smokeConfigAgent', () => {
+  it('resolves the protocol credential from the current systemd credential directory', () => {
+    expect(
+      resolveConfigAgentSmokeProtocolCredentialPath({
+        CREDENTIALS_DIRECTORY: '/run/credentials/edutrack-ops-config-agent-smoke.service'
+      })
+    ).toBe('/run/credentials/edutrack-ops-config-agent-smoke.service/config-agent-protocol-hmac');
+    expect(
+      resolveConfigAgentSmokeTelemetryCredentialPath({
+        CREDENTIALS_DIRECTORY: '/run/credentials/edutrack-ops-config-agent-smoke.service'
+      })
+    ).toBe('/run/credentials/edutrack-ops-config-agent-smoke.service/ops-telemetry-hmac');
+  });
+
   it('reports only negotiated read-only capability metadata', async () => {
     const calls: string[] = [];
 
@@ -152,5 +171,40 @@ describe('smokeConfigAgent', () => {
         'CONFIG_AGENT_SMOKE_USAGE'
       );
     }
+  });
+
+  it('binds, captures, and flushes the standalone config-agent smoke process', async () => {
+    const failure = new Error('smoke command failed');
+    const order: string[] = [];
+    const contexts: Array<Record<string, unknown>> = [];
+
+    await expect(
+      runConfigAgentSmokeEntrypoint({
+        telemetry: {
+          captureException: (error, context) => {
+            expect(error).toBe(failure);
+            contexts.push(context);
+            order.push('capture');
+            return 'EVT_00000000000000000000000021';
+          },
+          flush: async () => {
+            order.push('flush');
+          },
+          healthy: () => true
+        },
+        run: async () => {
+          throw failure;
+        }
+      })
+    ).rejects.toBe(failure);
+
+    expect(order).toEqual(['capture', 'flush']);
+    expect(contexts).toEqual([
+      expect.objectContaining({
+        code: 'CONFIG_AGENT_SMOKE_FAILED',
+        source: 'process',
+        level: 'fatal'
+      })
+    ]);
   });
 });

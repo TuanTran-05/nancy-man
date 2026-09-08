@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { isAbsolute, normalize } from 'node:path';
 
 import {
@@ -204,8 +206,13 @@ function browserOrigins(environment: Environment): string[] {
     let parsed: URL;
     try {
       parsed = new URL(origin);
-    } catch {
-      throw new Error('OPS_BROWSER_CORS_ORIGINS contains an invalid origin');
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'process',
+        status: 500,
+      });
+      throw new Error('OPS_BROWSER_CORS_ORIGINS contains an invalid origin', { cause: error });
     }
     if (parsed.protocol !== 'https:' || parsed.origin !== origin || uniqueOrigins.has(origin)) {
       throw new Error('OPS_BROWSER_CORS_ORIGINS must contain unique HTTPS origins only');

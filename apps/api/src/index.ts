@@ -1,3 +1,5 @@
+import { captureOpsException } from './telemetry/runtimeTelemetry.js';
+
 import express, { type ErrorRequestHandler } from 'express';
 
 import { createIngestRouter } from './modules/ingest/ingestRoutes.js';
@@ -79,7 +81,15 @@ export function createOpsApi(input: {
         method: request.method,
         status: 500
       });
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'process',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       // Capturing must not interfere with the originating response.
     }
     if (response.headersSent) {

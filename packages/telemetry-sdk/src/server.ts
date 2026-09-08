@@ -7,8 +7,10 @@ type TelemetrySpool = {
   enqueue: (envelope: TelemetryEnvelopeV1) => Promise<{ queued: boolean; evicted: number }>;
   flush: (
     deliver: (envelope: TelemetryEnvelopeV1) => Promise<{ acknowledgedIdempotencyKey: string }>
-  ) => Promise<unknown>;
+  ) => Promise<{ delivered: number; deferred: number }>;
 };
+
+type TelemetryFlushResult = { delivered: number; deferred: number };
 
 export function createServerTelemetry(input: {
   release: string;
@@ -28,12 +30,12 @@ export function createServerTelemetry(input: {
       componentStack?: string;
     }
   ) => Promise<`EVT_${string}`>;
-  flush: () => Promise<void>;
+  flush: () => Promise<TelemetryFlushResult>;
 } {
   const now = input.now ?? (() => new Date());
-  const flush = async (): Promise<void> => {
-    if (!input.spool) return;
-    await input.spool.flush(async (queued) => {
+  const flush = async (): Promise<TelemetryFlushResult> => {
+    if (!input.spool) return { delivered: 0, deferred: 0 };
+    return input.spool.flush(async (queued) => {
       await input.transport(queued);
       return { acknowledgedIdempotencyKey: queued.idempotencyKey };
     });

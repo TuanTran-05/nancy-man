@@ -22,7 +22,12 @@ import {
   startRuntimeTelemetryMaintenance
 } from '../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
 import { installNodeTelemetryLifecycle } from '../../../packages/telemetry-sdk/src/nodeLifecycle.js';
-import { createConfigAgentRuntimeTelemetry } from './telemetry/runtimeTelemetry.js';
+import {
+  captureOpsException,
+  createConfigAgentRuntimeTelemetry,
+  flushRuntimeTelemetryFailOpen,
+  installOpsRuntimeTelemetry
+} from './telemetry/runtimeTelemetry.js';
 
 export type StartedConfigAgent = Readonly<{
   config: ConfigAgentRuntimeConfig;
@@ -74,7 +79,12 @@ function loadCredential(path: string): Buffer {
   let key: Buffer;
   try {
     key = readFileSync(path);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'process',
+      status: 500,
+    });
     throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_READ_FAILED');
   }
   if (key.length === 0) throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_EMPTY');
@@ -143,11 +153,24 @@ export async function startConfigAgent(
         transport: async () => undefined
       });
   const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
-  installNodeTelemetryLifecycle({
-    captureException: telemetry.captureException,
+  const disposeRuntimeTelemetry = installOpsRuntimeTelemetry(telemetry);
+  const disposeNodeTelemetryLifecycle = installNodeTelemetryLifecycle({
+    captureException: captureOpsException,
     flush: telemetry.flush,
     exit: (code) => process.exit(code)
   });
+  let telemetryStopped = false;
+  const stopRuntimeTelemetry = async (): Promise<void> => {
+    if (telemetryStopped) return;
+    telemetryStopped = true;
+    stopTelemetryMaintenance();
+    try {
+      await flushRuntimeTelemetryFailOpen(telemetry);
+    } finally {
+      disposeNodeTelemetryLifecycle();
+      disposeRuntimeTelemetry();
+    }
+  };
   try {
     const loaded = loadCatalogAndManifest({
       catalogPath: config.catalogPath,
@@ -192,13 +215,11 @@ export async function startConfigAgent(
         ])
       ]);
     } catch (error) {
-      telemetry.captureException(error, {
+      captureOpsException(error, {
         code: 'CONFIG_AGENT_ENVELOPE_KEY_LOAD_FAILED',
         source: 'process',
         level: 'fatal'
       });
-      await Promise.resolve();
-      await telemetry.flush().catch(() => undefined);
       throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_READ_FAILED');
     }
     assertKeySeparation(protocolKey, fingerprintKey.secret, [...stagingKeys, ...snapshotKeys]);
@@ -237,16 +258,38 @@ export async function startConfigAgent(
       ...(config.allowedPeerGid === undefined ? {} : { allowedPeerGid: config.allowedPeerGid })
     });
     await server.start();
-    return { config, server };
+    let closing: Promise<void> | undefined;
+    const installedServer: AuthenticatedServer = {
+      ...server,
+      close: () => {
+        closing ??= (async () => {
+          let closeError: unknown;
+          let hasCloseError = false;
+          try {
+            await server.close();
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'CONFIG_AGENT_SERVER_CLOSE_FAILED',
+              source: 'process'
+            });
+            closeError = error;
+            hasCloseError = true;
+          } finally {
+            await stopRuntimeTelemetry();
+          }
+          if (hasCloseError) throw closeError;
+        })();
+        return closing;
+      }
+    };
+    return { config, server: installedServer };
   } catch (error) {
-    telemetry.captureException(error, {
+    captureOpsException(error, {
       code: 'CONFIG_AGENT_STARTUP_FAILED',
       source: 'process',
       level: 'fatal'
     });
-    await Promise.resolve();
-    await telemetry.flush().catch(() => undefined);
-    stopTelemetryMaintenance();
+    await stopRuntimeTelemetry();
     throw error;
   }
 }
@@ -255,6 +298,11 @@ async function main(): Promise<void> {
   try {
     await startConfigAgent();
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'process',
+      status: 500,
+    });
     const code =
       error instanceof ConfigAgentStartupError ||
       (error instanceof Error && 'code' in error && typeof error.code === 'string')
@@ -272,7 +320,12 @@ export function isConfigAgentEntrypoint(
   if (!entrypoint) return false;
   try {
     return moduleUrl === pathToFileURL(realpathSync(entrypoint)).href;
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'process',
+      status: 500,
+    });
     return false;
   }
 }

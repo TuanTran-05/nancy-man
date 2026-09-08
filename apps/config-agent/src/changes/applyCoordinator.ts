@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import type { SnapshotStore } from './snapshotStore.js';
 import { createApplyStateMachine, type ApplyState } from './applyStateMachine.js';
 import type { AtomicWriteOperation } from './atomicSourceWriter.js';
@@ -258,6 +260,11 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
         outcome: 'completed'
       };
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       const code = errorCode(error);
       if (!change || !machine) {
         throw error instanceof ApplyCoordinatorError
@@ -283,10 +290,20 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
             state: 'ROLLED_BACK',
             outcome: 'rolled_back'
           };
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'job',
+            status: 500,
+          });
           try {
             await emit(machine, change.changeId, input.runId, 'ROLLBACK_FAILED', 'ROLLBACK_FAILED');
-          } catch {
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'UNHANDLED_OPS_EXCEPTION',
+              source: 'job',
+              status: 500,
+            });
             // A failed journal write must not leak the original error or any value-bearing context.
           }
           await dependencies.onRollbackFailed?.({
@@ -321,15 +338,30 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
           state: 'ROLLED_BACK',
           outcome: 'rolled_back'
         };
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
         try {
           await dependencies.snapshotStore?.markRollbackFailed(snapshotId);
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'job',
+            status: 500,
+          });
           // Evidence retention is best effort; the failure callback remains mandatory.
         }
         try {
           await emit(machine, change.changeId, input.runId, 'ROLLBACK_FAILED', 'ROLLBACK_FAILED');
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'job',
+            status: 500,
+          });
           // A failed journal write must not leak the original error or any value-bearing context.
         }
         await dependencies.onRollbackFailed?.({
@@ -349,7 +381,12 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
       for (const release of releases.reverse()) {
         try {
           await release();
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'job',
+            status: 500,
+          });
           // Lock release is best effort after the value-free journal has been closed.
         }
       }

@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { lstat, mkdir, open, readdir, rename, unlink } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -102,13 +104,23 @@ async function ensureDirectory(
   assertAbsolutePath(path);
   try {
     await mkdir(path, { recursive: true, mode });
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     fail('ARTIFACT_DIRECTORY_INVALID');
   }
   try {
     const details = await lstat(path);
     assertMetadata(details, mode, owner);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     if (error instanceof ArtifactStorageError) throw error;
     fail('ARTIFACT_DIRECTORY_INVALID');
   }
@@ -199,6 +211,11 @@ async function assertArtifactFile(
   try {
     details = await lstat(path);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') fail('ARTIFACT_NOT_FOUND');
     fail('ARTIFACT_METADATA_INVALID');
   }
@@ -252,11 +269,23 @@ export async function readSecureArtifact(
     }
     return bytes;
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     if (error instanceof ArtifactStorageError) throw error;
     if ((error as NodeJS.ErrnoException).code === 'ELOOP') return fail('ARTIFACT_SYMLINK_REJECTED');
     return fail('ARTIFACT_METADATA_INVALID');
   } finally {
-    await handle?.close().catch(() => undefined);
+    await handle?.close().catch((error) => {
+      captureOpsException(error, {
+        code: 'UNHANDLED_PROMISE_REJECTION',
+        source: 'job',
+        status: 500,
+      });
+      return undefined;
+    });
   }
 }
 
@@ -285,6 +314,11 @@ export async function writeAtomicSecureArtifact(
   try {
     await assertArtifactFile(target, owner);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     if (!(error instanceof ArtifactStorageError) || error.code !== 'ARTIFACT_NOT_FOUND')
       throw error;
   }
@@ -307,9 +341,28 @@ export async function writeAtomicSecureArtifact(
     handle = undefined;
     await rename(temporary, target);
     await fsyncDirectory(parent);
-  } catch {
-    await handle?.close().catch(() => undefined);
-    await unlink(temporary).catch(() => undefined);
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
+    await handle?.close().catch((error) => {
+      captureOpsException(error, {
+        code: 'UNHANDLED_PROMISE_REJECTION',
+        source: 'job',
+        status: 500,
+      });
+      return undefined;
+    });
+    await unlink(temporary).catch((error) => {
+      captureOpsException(error, {
+        code: 'UNHANDLED_PROMISE_REJECTION',
+        source: 'document_store',
+        status: 500,
+      });
+      return undefined;
+    });
     fail('ARTIFACT_WRITE_FAILED');
   }
 }
@@ -325,6 +378,11 @@ export async function deleteSecureArtifact(
   try {
     await assertArtifactFile(path, owner);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     if (error instanceof ArtifactStorageError && error.code === 'ARTIFACT_NOT_FOUND') return false;
     throw error;
   }
@@ -343,6 +401,11 @@ export async function readArtifactIndex(
   try {
     await assertArtifactFile(path, owner);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     if (error instanceof ArtifactStorageError && error.code === 'ARTIFACT_NOT_FOUND') return [];
     throw error;
   }
@@ -350,7 +413,12 @@ export async function readArtifactIndex(
   let parsed: unknown;
   try {
     parsed = JSON.parse(bytes.toString('utf8')) as unknown;
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     fail('ARTIFACT_CORRUPT_INDEX');
   }
   if (!Array.isArray(parsed)) fail('ARTIFACT_CORRUPT_INDEX');
@@ -389,11 +457,23 @@ async function readSecureIndexBytes(
     }
     return bytes;
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     if (error instanceof ArtifactStorageError) throw error;
     if ((error as NodeJS.ErrnoException).code === 'ELOOP') return fail('ARTIFACT_SYMLINK_REJECTED');
     return fail('ARTIFACT_METADATA_INVALID');
   } finally {
-    await handle?.close().catch(() => undefined);
+    await handle?.close().catch((error) => {
+      captureOpsException(error, {
+        code: 'UNHANDLED_PROMISE_REJECTION',
+        source: 'job',
+        status: 500,
+      });
+      return undefined;
+    });
   }
 }
 
@@ -418,6 +498,11 @@ async function writeAtomicIndex(
   try {
     await assertArtifactFile(path, owner);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     if (!(error instanceof ArtifactStorageError) || error.code !== 'ARTIFACT_NOT_FOUND')
       throw error;
   }
@@ -439,9 +524,28 @@ async function writeAtomicIndex(
     handle = undefined;
     await rename(temporary, path);
     await fsyncDirectory(parent);
-  } catch {
-    await handle?.close().catch(() => undefined);
-    await unlink(temporary).catch(() => undefined);
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
+    await handle?.close().catch((error) => {
+      captureOpsException(error, {
+        code: 'UNHANDLED_PROMISE_REJECTION',
+        source: 'job',
+        status: 500,
+      });
+      return undefined;
+    });
+    await unlink(temporary).catch((error) => {
+      captureOpsException(error, {
+        code: 'UNHANDLED_PROMISE_REJECTION',
+        source: 'document_store',
+        status: 500,
+      });
+      return undefined;
+    });
     fail('ARTIFACT_WRITE_FAILED');
   }
 }

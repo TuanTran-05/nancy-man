@@ -1,3 +1,5 @@
+import { captureBrowserException } from '../telemetry/runtimeTelemetry.js';
+
 import { useCallback, useEffect, useState } from 'react';
 import type { DashboardOverview, Incident } from '../../shared/models.js';
 import {
@@ -45,6 +47,11 @@ export function OverviewPage({
       setOverview(nextOverview);
       setZaloLink(nextLink);
     } catch (error) {
+      void captureBrowserException(error, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       if (String(error).includes('401') || String(error).includes('UNAUTHENTICATED')) {
         onUnauthorized();
       }

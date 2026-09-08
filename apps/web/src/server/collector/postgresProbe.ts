@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { Client } from 'pg';
 import { z } from 'zod';
 import type { MonitorSample } from '../../shared/models.js';
@@ -77,6 +79,11 @@ export async function probePostgres(
       errorCode: null
     };
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'database',
+      status: 500,
+    });
     return {
       monitor: 'postgres',
       level: 'critical',
@@ -86,7 +93,14 @@ export async function probePostgres(
       errorCode: safeErrorCode(error)
     };
   } finally {
-    if (client) await client.end().catch(() => undefined);
+    if (client) await client.end().catch((error) => {
+      captureOpsException(error, {
+        code: 'UNHANDLED_PROMISE_REJECTION',
+        source: 'job',
+        status: 500,
+      });
+      return undefined;
+    });
   }
 }
 

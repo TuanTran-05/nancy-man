@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { parse } from 'pgsql-ast-parser';
 
 type MutationKind = 'insert' | 'update' | 'delete';
@@ -22,7 +24,12 @@ export function classifyMutationSql(sql: string): Result {
       requiresTypedConfirmation:
         (statement.type === 'update' || statement.type === 'delete') && !statement.where
     };
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'database',
+      status: 500,
+    });
     return { allowed: false, code: 'SQL_DML_REQUIRED' };
   }
 }

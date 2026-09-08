@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import express, { type Router } from 'express';
 import { z } from 'zod';
 
@@ -70,7 +72,15 @@ export function createSqlRouter(input: {
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'audit:read');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
       if (!input.history) return response.status(404).json({ code: 'SQL_HISTORY_UNAVAILABLE' });
@@ -78,6 +88,14 @@ export function createSqlRouter(input: {
       const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50;
       return response.status(200).json({ executions: await input.history.list({ limit }) });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -93,7 +111,15 @@ export function createSqlRouter(input: {
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'sql:workspace');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
       const { role } = principal;
@@ -106,6 +132,14 @@ export function createSqlRouter(input: {
       if (!worker.ok) return response.status(503).json({ code: worker.error.code });
       return response.status(200).json({ classification: worker.result });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -124,7 +158,15 @@ export function createSqlRouter(input: {
         if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
         try {
           assertPermission(principal.role, 'sql:workspace');
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'database',
+            status: 500,
+            requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+            route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+            method: () => request.method,
+          });
           return response.status(403).json({ code: 'PERMISSION_DENIED' });
         }
         const { role } = principal;
@@ -137,6 +179,14 @@ export function createSqlRouter(input: {
         if (!worker.ok) return response.status(503).json({ code: worker.error.code });
         return response.status(200).json({ classification: worker.result });
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         next(error);
       }
     }
@@ -156,7 +206,15 @@ export function createSqlRouter(input: {
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'sql:workspace');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
       const { role } = principal;
@@ -178,6 +236,14 @@ export function createSqlRouter(input: {
         result: preview.result
       });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });

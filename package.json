@@ -12,9 +12,11 @@
   ],
   "scripts": {
     "typecheck": "tsc -b --pretty false",
-    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
+    "lint": "npm run check:error-telemetry && eslint . --ext .ts,.tsx --max-warnings=0",
     "format:check": "prettier --check . --ignore-unknown",
     "test": "vitest run --passWithNoTests",
+    "check:error-telemetry": "node --experimental-strip-types scripts/error-telemetry/coverage.ts",
+    "migrate:error-telemetry": "node --experimental-strip-types scripts/error-telemetry/migrate.ts",
     "variables:coverage": "node --experimental-strip-types scripts/variables/catalogCoverage.ts",
     "build": "npm run build --workspaces --if-present",
     "bootstrap-owner": "npm run bootstrap-owner --workspace @edutrack-ops/api",

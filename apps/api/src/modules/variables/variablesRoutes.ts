@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { createHash } from 'node:crypto';
 
 import express, { type Request, type Response, type Router } from 'express';
@@ -138,7 +140,15 @@ export function createVariablesRouter(input: {
     }
     try {
       assertPermission(value.role, 'variables:read');
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       response.status(403).json({ code: 'PERMISSION_DENIED' });
       return null;
     }
@@ -215,7 +225,15 @@ export function createVariablesRouter(input: {
           code: 'SUCCESS'
         });
         return response.status(200).json({ unlockedUntil: grant.expiresAt });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         await appendAudit({
           actorUserId: value.userId,
           action: 'variables.unlock_failed',
@@ -225,6 +243,14 @@ export function createVariablesRouter(input: {
         return response.status(401).json({ code: 'MFA_DENIED' });
       }
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -237,7 +263,15 @@ export function createVariablesRouter(input: {
       if (current) {
         try {
           await input.stepUp.revoke(current);
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'api',
+            status: 500,
+            requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+            route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+            method: () => request.method,
+          });
           return response.status(401).json({ code: 'STEP_UP_REQUIRED' });
         }
         grants.delete(value.sessionId);
@@ -250,6 +284,14 @@ export function createVariablesRouter(input: {
       });
       return response.status(204).end();
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -260,6 +302,14 @@ export function createVariablesRouter(input: {
       if (!value) return;
       return response.status(200).json(await input.service.getCatalog());
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -272,7 +322,15 @@ export function createVariablesRouter(input: {
       if (!current) return response.status(401).json({ code: 'STEP_UP_REQUIRED' });
       try {
         await input.stepUp.authorize(current);
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         grants.delete(value.sessionId);
         await appendAudit({
           actorUserId: value.userId,
@@ -287,9 +345,25 @@ export function createVariablesRouter(input: {
           .status(200)
           .json(await input.service.read({ actor: actor(value, request, input.hashClientIp) }));
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(503).json({ code: stableError(error) });
       }
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });

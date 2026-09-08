@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { randomUUID } from 'node:crypto';
 import {
   chownSync,
@@ -106,7 +108,12 @@ function accountId(file: string, name: string, field: 0 | 2): number | undefined
         return Number(fields[field]);
       }
     }
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return undefined;
   }
   return undefined;
@@ -169,6 +176,11 @@ function parseSource(source: ManifestSource, bytes: Buffer, name: string): Parse
     if (!adapter) fail('SOURCE_ADAPTER_UNSUPPORTED');
     return adapter.parse(bytes, { maximumBytes: source.maximumBytes });
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     if (error instanceof AtomicSourceWriterError) throw error;
     fail('SOURCE_PARSE_FAILED');
   }
@@ -213,7 +225,12 @@ function assertTarget(path: string, sourceId: string, maximumBytes: number): Saf
   let stat: ReturnType<typeof lstatSync>;
   try {
     stat = lstatSync(path);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     fail('SOURCE_NOT_FOUND');
   }
   if (stat.isSymbolicLink()) fail('SOURCE_SYMLINK_REJECTED');
@@ -284,6 +301,11 @@ function writeFileAtomically(
       closeSync(parentDescriptor);
     }
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     if (error instanceof AtomicSourceWriterError) throw error;
     fail('SOURCE_WRITE_FAILED');
   } finally {
@@ -291,7 +313,12 @@ function writeFileAtomically(
     if (existsSync(temporary)) {
       try {
         unlinkSync(temporary);
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
         // Best-effort cleanup; the target was never replaced if this path remains.
       }
     }
@@ -311,6 +338,11 @@ export function createAtomicSourceWriter(options: AtomicSourceWriterOptions) {
         fail('SOURCE_HARD_LINK_REJECTED');
       return read;
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       if (error instanceof AtomicSourceWriterError) throw error;
       const code = error instanceof Error && 'code' in error ? error.code : undefined;
       if (code === 'SOURCE_HARD_LINK_REJECTED') fail('SOURCE_HARD_LINK_REJECTED');
@@ -368,6 +400,11 @@ export function createAtomicSourceWriter(options: AtomicSourceWriterOptions) {
         sourceFingerprint: fingerprintSource(options.fingerprintKey, source.id, after.bytes)
       };
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       if (error instanceof AtomicSourceWriterError) throw error;
       fail('SOURCE_POST_WRITE_VERIFY_FAILED');
     }

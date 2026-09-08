@@ -1,3 +1,5 @@
+import { captureOpsException } from './telemetry/runtimeTelemetry.js';
+
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
@@ -60,7 +62,12 @@ export function canonicalCatalogDigest(catalog: Catalog): string {
 function readText(path: string, readFile: ReadFile, code: ManifestLoadErrorCode): string {
   try {
     return readFile(path);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     throw new ManifestLoadError(code);
   }
 }
@@ -148,13 +155,23 @@ export function loadCatalogAndManifest(
   let catalog: Catalog;
   try {
     catalog = parseCatalog(catalogText);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     throw new ManifestLoadError('CONFIG_CATALOG_INVALID');
   }
   let manifest: AgentManifest;
   try {
     manifest = parseAgentManifest(manifestText);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     throw new ManifestLoadError('CONFIG_MANIFEST_INVALID');
   }
   validateCatalogDefinitionKeys(catalog);

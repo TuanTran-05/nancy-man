@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { createServer } from 'node:net';
 import { chmod, lstat, unlink } from 'node:fs/promises';
 import type {
@@ -15,6 +17,11 @@ async function removeStaleSocket(path: string): Promise<void> {
     }
     await unlink(path);
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
     throw error;
   }
@@ -73,12 +80,22 @@ export async function startWorkerProtocolServer(input: {
                 result: await input.handle(command)
               };
             } catch (error) {
+              captureOpsException(error, {
+                code: 'UNHANDLED_OPS_EXCEPTION',
+                source: 'job',
+                status: 500,
+              });
               response = commandFailure(command.commandId, error);
             }
           }
           socket.write(encodeFrame(response));
         }
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+        });
         socket.write(
           encodeFrame({
             protocolVersion: 1,

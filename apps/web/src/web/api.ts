@@ -1,3 +1,5 @@
+import { captureBrowserException } from './telemetry/runtimeTelemetry.js';
+
 import type {
   DashboardOverview,
   Incident,
@@ -196,7 +198,12 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
     try {
       const body = (await response.json()) as { code?: unknown };
       if (typeof body.code === 'string') code = body.code;
-    } catch {
+    } catch (error) {
+      void captureBrowserException(error, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       // The status remains the useful error when a proxy returns a non-JSON body.
     }
     const error = new Error(code ?? `HTTP_${response.status}`) as ApiError;
@@ -432,7 +439,12 @@ export function subscribeConfigChange(
   const receive = (event: MessageEvent<string>) => {
     try {
       onStatus(JSON.parse(event.data) as ConfigChangeStatus);
-    } catch {
+    } catch (error) {
+      void captureBrowserException(error, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       onError?.();
     }
   };

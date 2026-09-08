@@ -7,6 +7,7 @@ type Handler = (...arguments_: unknown[]) => void | Promise<void>;
 
 function processDouble(): {
   on: (event: string, handler: Handler) => void;
+  off: (event: string, handler: Handler) => void;
   handlers: Map<string, Handler>;
   exitCode?: number;
 } {
@@ -14,6 +15,9 @@ function processDouble(): {
   return {
     on: (event, handler) => {
       handlers.set(event, handler);
+    },
+    off: (event, handler) => {
+      if (handlers.get(event) === handler) handlers.delete(event);
     },
     handlers
   };
@@ -86,7 +90,7 @@ describe('node telemetry lifecycle', () => {
     }
   });
 
-  it('reuses an existing event ID without duplicate lifecycle delivery', async () => {
+  it('terminalizes an existing provisional event ID without duplicate lifecycle delivery', async () => {
     const process = processDouble();
     const reports: string[] = [];
     const lifecycleContexts: Array<{
@@ -103,7 +107,11 @@ describe('node telemetry lifecycle', () => {
     });
     const error = new Error('provider failed');
 
-    exceptionCapture.captureOnce(error, { code: 'PROVIDER_FAILED' });
+    exceptionCapture.captureOnce(error, {
+      code: 'PROVIDER_FAILED',
+      source: 'provider',
+      deferUntilHandled: true
+    });
     installNodeTelemetryLifecycle({
       process,
       capture: (capturedError, context) => {
@@ -115,7 +123,13 @@ describe('node telemetry lifecycle', () => {
 
     await process.handlers.get('uncaughtException')?.(error);
 
-    expect(lifecycleContexts).toEqual([]);
+    expect(lifecycleContexts).toEqual([
+      {
+        code: 'PROCESS_UNCAUGHT_EXCEPTION',
+        level: 'fatal',
+        source: 'process'
+      }
+    ]);
     expect(reports).toEqual(['EVT_00000000000000000000000006']);
   });
 
@@ -182,6 +196,33 @@ describe('node telemetry lifecycle', () => {
     expect(process.handlers).toHaveLength(firstHandlers.length);
     expect(process.handlers.has('uncaughtException')).toBe(true);
     expect(process.handlers.has('unhandledRejection')).toBe(true);
+  });
+
+  it('uses the newest binding, supports out-of-order disposal, and removes listeners', async () => {
+    const process = processDouble();
+    const captures: string[] = [];
+    const uninstallFirst = installNodeTelemetryLifecycle({
+      process,
+      captureException: () => {
+        captures.push('first');
+      },
+      flush: async () => undefined
+    });
+    const uninstallSecond = installNodeTelemetryLifecycle({
+      process,
+      captureException: () => {
+        captures.push('second');
+      },
+      flush: async () => undefined
+    });
+
+    uninstallFirst();
+    await process.handlers.get('unhandledRejection')?.(new Error('active failure'));
+    uninstallSecond();
+    uninstallSecond();
+
+    expect(captures).toEqual(['second']);
+    expect(process.handlers).toHaveLength(0);
   });
 
   it('flushes without taking termination ownership when systemd sends SIGTERM', async () => {

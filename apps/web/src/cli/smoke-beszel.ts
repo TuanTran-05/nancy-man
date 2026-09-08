@@ -1,3 +1,10 @@
+import { readFile } from 'node:fs/promises';
+
+import {
+  createOpsProcessRuntimeTelemetryFromEnvironment,
+  runConfiguredOpsTelemetryOneShot
+} from '../../../../packages/telemetry-sdk/src/oneShot.js';
+import type { RuntimeTelemetry } from '../../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
 import { loadCollectorConfig, type CollectorConfig } from '../server/config.js';
 import {
   BeszelClientError,
@@ -40,18 +47,57 @@ export async function smokeBeszelContract(
   };
 }
 
+export function runBeszelSmokeEntrypoint(
+  input: {
+    environment?: NodeJS.ProcessEnv;
+    telemetry?: RuntimeTelemetry;
+    run?: () => Promise<BeszelSmokeResult>;
+    onFailure?: (error: unknown) => void | Promise<void>;
+    rethrow?: boolean;
+  } = {}
+): Promise<BeszelSmokeResult | undefined> {
+  const environment = input.environment ?? process.env;
+  const common = {
+    createTelemetry: () =>
+      input.telemetry ??
+      createOpsProcessRuntimeTelemetryFromEnvironment({
+        environment,
+        resolveHmacSecret: async () => {
+          const hmacFile = environment.OPS_TELEMETRY_HMAC_FILE?.trim();
+          if (!hmacFile) throw new Error('OPS_TELEMETRY_HMAC_FILE is required');
+          return readFile(hmacFile, 'utf8');
+        },
+        service: 'edutrack-ops-beszel-smoke',
+        spoolName: 'beszel-smoke'
+      }),
+    failureContext: {
+      code: 'BESZEL_SMOKE_FAILED',
+      source: 'provider' as const,
+      level: 'fatal' as const
+    },
+    run: input.run ?? (() => smokeBeszelContract(loadCollectorConfig(environment))),
+    ...(input.onFailure ? { onFailure: input.onFailure } : {})
+  };
+  return input.rethrow === false
+    ? runConfiguredOpsTelemetryOneShot({ ...common, rethrow: false })
+    : runConfiguredOpsTelemetryOneShot({ ...common, rethrow: true });
+}
+
 if (process.argv[1]?.endsWith('/smoke-beszel.js')) {
-  Promise.resolve()
-    .then(() => smokeBeszelContract(loadCollectorConfig(process.env)))
-    .then((result) => {
+  void runBeszelSmokeEntrypoint({
+    rethrow: false,
+    run: async () => {
+      const result = await smokeBeszelContract(loadCollectorConfig(process.env));
       process.stdout.write(`${JSON.stringify(result)}\n`);
-    })
-    .catch((error: unknown) => {
+      return result;
+    },
+    onFailure: (error: unknown) => {
       const code =
         error instanceof BeszelClientError || error instanceof Error
           ? error.message
           : 'beszel_smoke_failed';
       process.stderr.write(`${/^[a-z0-9_]+$/u.test(code) ? code : 'beszel_smoke_failed'}\n`);
       process.exitCode = 1;
-    });
+    }
+  });
 }

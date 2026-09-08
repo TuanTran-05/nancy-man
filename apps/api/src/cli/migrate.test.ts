@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { runMigrationsWithLock, runMigrationsWithPinnedConnection } from './migrate.js';
+import {
+  runMigrationsWithLock,
+  runMigrationsWithPinnedConnection,
+  runOpsDatabaseMigrationEntrypoint
+} from './migrate.js';
 
 function createDatabase() {
   let locked = false;
@@ -103,5 +107,40 @@ describe('runMigrationsWithLock', () => {
     ).rejects.toThrow('migration failed');
 
     expect(released).toBe(true);
+  });
+
+  it('binds, captures, and flushes the standalone migration process before rejecting', async () => {
+    const failure = new Error('migration command failed');
+    const order: string[] = [];
+    const contexts: Array<Record<string, unknown>> = [];
+
+    await expect(
+      runOpsDatabaseMigrationEntrypoint({
+        telemetry: {
+          captureException: (error, context) => {
+            expect(error).toBe(failure);
+            contexts.push(context);
+            order.push('capture');
+            return 'EVT_00000000000000000000000018';
+          },
+          flush: async () => {
+            order.push('flush');
+          },
+          healthy: () => true
+        },
+        run: async () => {
+          throw failure;
+        }
+      })
+    ).rejects.toBe(failure);
+
+    expect(order).toEqual(['capture', 'flush']);
+    expect(contexts).toEqual([
+      expect.objectContaining({
+        code: 'OPS_DATABASE_MIGRATION_FAILED',
+        source: 'database',
+        level: 'fatal'
+      })
+    ]);
   });
 });
