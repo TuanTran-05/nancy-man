@@ -1,3 +1,5 @@
+import { captureBrowserException } from '../telemetry/runtimeTelemetry.js';
+
 import { useEffect, useState } from 'react';
 import type {
   DashboardOverview,
@@ -106,7 +108,12 @@ export function InfrastructureSection({
       (value) => {
         if (active) setHistoryState({ kind: 'ready', value });
       },
-      () => {
+      (error) => {
+        void captureBrowserException(error, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname,
+        });
         if (active) setHistoryState({ kind: 'error' });
       }
     );

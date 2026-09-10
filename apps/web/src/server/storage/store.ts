@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { schemaSql, SCHEMA_VERSION } from './schema.js';
@@ -328,6 +330,11 @@ export function createOpsStore(
     );
     db.exec('COMMIT');
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'api',
+      status: 500,
+    });
     db.exec('ROLLBACK');
     db.close();
     throw error;
@@ -338,6 +345,11 @@ export function createOpsStore(
       db.pragma('wal_checkpoint(TRUNCATE)');
       db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       db.close();
       throw error;
     }

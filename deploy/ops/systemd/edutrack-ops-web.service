@@ -12,6 +12,7 @@ WorkingDirectory=/srv/edutrack-ops/current/apps/web
 EnvironmentFile=/etc/edutrack-ops/web.env
 Environment=OPS_LEGACY_MONITORING_HMAC_FILE=%d/ops-legacy-monitoring-hmac
 LoadCredential=ops-legacy-monitoring-hmac:/etc/edutrack-ops/credentials/ops-legacy-monitoring-hmac
+LoadCredential=ops-telemetry-hmac:/etc/edutrack-ops/credentials/ops-telemetry-hmac
 ExecStart=/usr/bin/node dist/server/web-server.js
 Restart=on-failure
 RestartSec=5s
@@ -21,6 +22,7 @@ PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
 ReadWritePaths=/srv/edutrack-ops/shared
+ReadWritePaths=/var/lib/edutrack-ops/telemetry/web
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 CapabilityBoundingSet=
 LockPersonality=true

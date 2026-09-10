@@ -1,13 +1,17 @@
+import { randomUUID } from 'node:crypto';
+
 import type { TelemetryEnvelopeV1 } from '../../../../packages/contracts/src/telemetry.js';
 
 type QueryDatabase = {
   query: <T>(sql: string, parameters?: readonly unknown[]) => Promise<{ rows: T[] }>;
+  transaction?: <T>(operation: (database: QueryDatabase) => Promise<T>) => Promise<T>;
 };
 
 type ClaimedRow = {
   envelopeId: string;
   receivedAt: Date;
   ingestClientId: string;
+  attemptCount: number | string;
   payload: unknown;
 };
 
@@ -57,7 +61,14 @@ function unpackPayload(
 }
 
 export class PostgresProcessorQueue {
-  constructor(private readonly database: QueryDatabase) {}
+  private readonly maxAttempts: number;
+
+  constructor(private readonly database: QueryDatabase, options: { maxAttempts?: number } = {}) {
+    this.maxAttempts = options.maxAttempts ?? 10;
+    if (!Number.isInteger(this.maxAttempts) || this.maxAttempts < 1 || this.maxAttempts > 100) {
+      throw new Error('Processor max attempts must be between 1 and 100');
+    }
+  }
 
   async claimNext(
     workerId: string,
@@ -66,6 +77,7 @@ export class PostgresProcessorQueue {
     envelopeId: string;
     receivedAt: Date;
     ingestClientId: string;
+    attemptCount: number;
     envelope: TelemetryEnvelopeV1;
     identity?: SignedIdentity;
   } | null> {
@@ -77,6 +89,7 @@ export class PostgresProcessorQueue {
             processing.envelope_received_at,
             envelope.received_at,
             envelope.ingest_client_id,
+            processing.attempt_count,
             envelope.payload
           FROM ingest_processing AS processing
           JOIN ingest_envelopes AS envelope
@@ -99,6 +112,7 @@ export class PostgresProcessorQueue {
           next_envelope.envelope_id AS "envelopeId",
           next_envelope.received_at AS "receivedAt",
           next_envelope.ingest_client_id AS "ingestClientId",
+          next_envelope.attempt_count AS "attemptCount",
           next_envelope.payload
       `,
       [now, workerId]
@@ -107,13 +121,25 @@ export class PostgresProcessorQueue {
     if (!row) return null;
     const unpacked = unpackPayload(row.payload);
     if (!unpacked) {
-      await this.markRetry(row.envelopeId, now);
+      const attemptCount = Number(row.attemptCount) + 1;
+      if (attemptCount >= this.maxAttempts) {
+        await this.deadLetterPayload({
+          envelopeId: row.envelopeId,
+          payload: { malformedPayload: true },
+          attemptCount,
+          now,
+          failureCode: 'INGEST_PAYLOAD_INVALID'
+        });
+      } else {
+        await this.markRetry(row.envelopeId, now);
+      }
       return null;
     }
     return {
       envelopeId: row.envelopeId,
       receivedAt: new Date(row.receivedAt),
       ingestClientId: row.ingestClientId,
+      attemptCount: Number(row.attemptCount),
       envelope: unpacked.envelope,
       ...(unpacked.identity ? { identity: unpacked.identity } : {})
     };
@@ -123,15 +149,16 @@ export class PostgresProcessorQueue {
     await this.database.query(
       `
         UPDATE ingest_processing
-        SET state = 'retrying',
+        SET state = CASE WHEN attempt_count + 1 >= $3 THEN 'dead_lettered' ELSE 'retrying' END,
             attempt_count = attempt_count + 1,
-            next_attempt_at = $2::timestamptz + INTERVAL '1 minute',
+            next_attempt_at = CASE WHEN attempt_count + 1 >= $3 THEN NULL ELSE $2::timestamptz + INTERVAL '1 minute' END,
             claimed_at = NULL,
             claimed_by = NULL,
-            last_error_code = 'PROCESSING_FAILED'
+            completed_at = CASE WHEN attempt_count + 1 >= $3 THEN $2::timestamptz ELSE NULL END,
+            last_error_code = CASE WHEN attempt_count + 1 >= $3 THEN 'PROCESSING_RETRY_LIMIT' ELSE 'PROCESSING_FAILED' END
         WHERE envelope_id = $1 AND state = 'claimed'
       `,
-      [envelopeId, now]
+      [envelopeId, now, this.maxAttempts]
     );
   }
 
@@ -148,5 +175,72 @@ export class PostgresProcessorQueue {
       `,
       [now]
     );
+  }
+
+  async deadLetter(input: {
+    envelopeId: string;
+    envelope: TelemetryEnvelopeV1;
+    attemptCount: number;
+    now: Date;
+    failureCode: 'PROCESSING_FAILED';
+  }): Promise<void> {
+    await this.deadLetterPayload({
+      ...input,
+      payload: { envelope: input.envelope }
+    });
+  }
+
+  private async deadLetterPayload(input: {
+    envelopeId: string;
+    payload: object;
+    attemptCount: number;
+    now: Date;
+    failureCode: 'PROCESSING_FAILED' | 'INGEST_PAYLOAD_INVALID';
+  }): Promise<void> {
+    if (!this.database.transaction) {
+      throw new Error('Processor queue requires transactional database access for dead letters');
+    }
+    await this.database.transaction(async (database) => {
+      const transitioned = await database.query<{ envelopeId: string }>(
+        `
+          UPDATE ingest_processing
+          SET state = 'dead_lettered',
+              attempt_count = GREATEST(attempt_count, $2),
+              next_attempt_at = NULL,
+              claimed_at = NULL,
+              claimed_by = NULL,
+              completed_at = $4::timestamptz,
+              last_error_code = $3,
+              last_error_detail = 'Processing retry limit reached'
+          WHERE envelope_id = $1 AND state = 'claimed'
+          RETURNING envelope_id AS "envelopeId"
+        `,
+        [input.envelopeId, input.attemptCount, input.failureCode, input.now]
+      );
+      if (!transitioned.rows[0]) return;
+      await database.query(
+        `
+          INSERT INTO ingest_dead_letters (
+            id,
+            envelope_id,
+            received_at,
+            failure_code,
+            failure_detail,
+            payload,
+            retry_count,
+            metadata
+          ) VALUES ($1, $2, $3, $4, 'Processing retry limit reached', $5::jsonb, $6, $7::jsonb)
+        `,
+        [
+          randomUUID(),
+          input.envelopeId,
+          input.now,
+          input.failureCode,
+          JSON.stringify(input.payload),
+          input.attemptCount,
+          JSON.stringify({ service: 'edutrack-ops-processor' })
+        ]
+      );
+    });
   }
 }

@@ -2,6 +2,10 @@ manifestVersion: 2026-09-01
 catalogVersion: 2026-08-31
 catalogDigest: sha256:1783d0cf20b045679dd584fad52b8995a2bd40cfa8f5e179fd99f4977d4c1bf6
 readOnly: true
+# Migration 0021 is the trust root for source-specific telemetry clients:
+# edutrack-platform-runtime, edutrack-platform-browser, ops-web-public-key, and
+# thienuy-public. Browser records contain only public project keys and exact
+# HTTPS origins; the server HMAC remains in the root-owned credential source.
 build:
   repositoryRoot: /srv/edutrack/source
   releaseRoot: /srv/edutrack
@@ -39,6 +43,7 @@ apps:
       - ops.credentials.ops_password_fingerprint_pepper
       - ops.credentials.ops_legacy_monitoring_hmac
       - ops.credentials.ops_sql_worker_hmac
+      - ops.credentials.ops_telemetry_hmac
   - id: website
     displayName: Thien Uy Website
     sourceIds: []
@@ -266,6 +271,21 @@ sources:
     maximumBytes: 4096
     precedenceRank: 400
     consumerIds: [ops.api, ops.sql_worker]
+  - id: ops.credentials.ops_telemetry_hmac
+    appId: ops
+    pathLabel: /etc/edutrack-ops/credentials/ops-telemetry-hmac
+    adapterId: systemd_credential_file
+    mutability: catalog_controlled
+    locator:
+      kind: file
+      path: /etc/edutrack-ops/credentials/ops-telemetry-hmac
+    owner: root
+    group: edutrack-config-agent
+    mode: '0440'
+    maximumBytes: 4096
+    precedenceRank: 400
+    consumerIds:
+      [ops.api, ops.processor, ops.notifier, ops.web, ops.collector, ops.sql_worker]
 actions:
   - id: application.clear_apply_block
     description: Clear a blocked application after owner-approved remediation.

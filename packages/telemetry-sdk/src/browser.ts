@@ -1,7 +1,7 @@
 import type { TelemetryEnvelopeV1 } from '../../contracts/src/telemetry.js';
-import { sanitizeTelemetry } from '../../security/src/telemetry/sanitizer.js';
+import { sanitizeBrowserTelemetry } from '../../security/src/telemetry/sanitizer.browser.js';
 
-import { createEventId } from './ids.js';
+import { createBrowserEventId } from './ids.browser.js';
 
 const maximumBrowserEnvelopeBytes = 64 * 1024;
 
@@ -20,6 +20,18 @@ function boundedText(value: string | undefined, maximumLength: number): string |
   return value.slice(0, maximumLength);
 }
 
+function safeErrorText(
+  error: Error,
+  property: 'name' | 'message' | 'stack'
+): string | undefined {
+  try {
+    const value = error[property];
+    return typeof value === 'string' ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function createBrowserTelemetry(input: {
   release: string;
   service: string;
@@ -32,29 +44,45 @@ export function createBrowserTelemetry(input: {
     context?: Pick<
       TelemetryEnvelopeV1['context'],
       'requestId' | 'traceId' | 'route' | 'tags' | 'breadcrumbs'
-    >
+    > & {
+      eventId?: `EVT_${string}`;
+      source?: TelemetryEnvelopeV1['source'];
+      level?: TelemetryEnvelopeV1['level'];
+      code?: string;
+      componentStack?: string;
+    }
   ) => Promise<`EVT_${string}`>;
 } {
   const now = input.now ?? (() => new Date());
 
   return {
     captureException: async (error, context = {}) => {
-      const eventId = createEventId();
+      const {
+        eventId: suppliedEventId,
+        source = 'browser',
+        level = 'error',
+        code = 'BROWSER_EXCEPTION',
+        componentStack,
+        ...contextWithBreadcrumbs
+      } = context;
+      const eventId = suppliedEventId ?? createBrowserEventId();
       const exception = error instanceof Error ? error : new Error('Unknown browser error');
-      const { breadcrumbs, ...contextWithoutBreadcrumbs } = context;
-      const stack = boundedText(exception.stack, 24_000);
+      const { breadcrumbs, ...contextWithoutBreadcrumbs } = contextWithBreadcrumbs;
+      const stack = boundedText(safeErrorText(exception, 'stack'), 24_000);
+      const safeComponentStack = boundedText(componentStack, 8_000);
       const envelope: TelemetryEnvelopeV1 = {
         schemaVersion: 1,
         eventId,
         idempotencyKey: eventId,
         capturedAt: now().toISOString(),
-        source: 'browser',
-        level: 'error',
+        source,
+        level,
         error: {
-          name: boundedText(exception.name, 120) ?? 'Error',
-          code: 'BROWSER_EXCEPTION',
-          safeMessage: boundedText(exception.message, 2_000) ?? 'Browser error',
-          ...(stack ? { stack } : {})
+          name: boundedText(safeErrorText(exception, 'name'), 120) ?? 'Error',
+          code: boundedText(code, 120) ?? 'BROWSER_EXCEPTION',
+          safeMessage: boundedText(safeErrorText(exception, 'message'), 2_000) ?? 'Browser error',
+          ...(stack ? { stack } : {}),
+          ...(safeComponentStack ? { componentStack: safeComponentStack } : {})
         },
         context: {
           ...contextWithoutBreadcrumbs,
@@ -71,9 +99,7 @@ export function createBrowserTelemetry(input: {
         throw new Error('Browser telemetry envelope exceeds 64 KiB');
       }
 
-      const sanitizedEnvelope = sanitizeTelemetry(envelope, {
-        sessionPepper: 'browser-telemetry-session-id-not-provided'
-      }).envelope;
+      const sanitizedEnvelope = sanitizeBrowserTelemetry(envelope).envelope;
 
       if (
         new TextEncoder().encode(JSON.stringify(sanitizedEnvelope)).byteLength >

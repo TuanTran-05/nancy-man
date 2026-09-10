@@ -15,6 +15,7 @@ const base = {
   OPS_ZALO_LINK_CODE_PEPPER: 'p'.repeat(32),
   OPS_ZALO_CHAT_HASH_SECRET: 'h'.repeat(32),
   OPS_ZALO_RECIPIENT_KEY: Buffer.alloc(32, 8).toString('base64'),
+  OPS_TELEMETRY_ENABLED: 'false',
   OPS_LEGACY_MONITORING_HMAC_FILE:
     '/run/credentials/edutrack-ops-web.service/ops-legacy-monitoring-hmac'
 };
@@ -37,6 +38,19 @@ describe('ops configuration', () => {
 
   it('accepts a valid web config with a 32-byte key', () => {
     expect(loadWebConfig(base)).toMatchObject({ dbPath: ':memory:', port: 3101 });
+  });
+
+  it('requires enabled telemetry for production web and collector processes', () => {
+    expect(() =>
+      loadWebConfig({ ...base, NODE_ENV: 'production', OPS_TELEMETRY_ENABLED: 'false' })
+    ).toThrow('OPS_TELEMETRY_ENABLED must be true in production');
+    expect(() =>
+      loadCollectorConfig({
+        ...collectorBase,
+        NODE_ENV: 'production',
+        OPS_TELEMETRY_ENABLED: 'false'
+      })
+    ).toThrow('OPS_TELEMETRY_ENABLED must be true in production');
   });
 
   it('requires monitor URL, bot token and recipients for production collector', () =>

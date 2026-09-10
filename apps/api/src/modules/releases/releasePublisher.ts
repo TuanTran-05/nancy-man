@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { type NonceStore, verifyServerIngestRequest } from '../ingest/hmac.js';
 
 const maximumReleasePayloadBytes = 25 * 1024 * 1024;
@@ -53,7 +55,12 @@ function parseManifest(rawBody: string): ReleaseManifest | null {
   try {
     const parsed: unknown = JSON.parse(rawBody);
     return isManifest(parsed) ? parsed : null;
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'api',
+      status: 500,
+    });
     return null;
   }
 }
@@ -107,7 +114,12 @@ export function createReleasePublisherService(input: {
       try {
         const registered = await input.registerRelease(manifest);
         return { status: 201, accepted: true, releaseId: registered.releaseId };
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+        });
         return { status: 400, accepted: false, code: 'INVALID_RELEASE_MANIFEST' };
       }
     }

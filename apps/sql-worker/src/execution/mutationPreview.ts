@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { createHash } from 'node:crypto';
 
 import { classifyMutationSql } from './mutationClassification.js';
@@ -89,8 +91,20 @@ export async function previewMutation(input: {
     const affectedRows = mutation.rowCount ?? changes.length;
     if (affectedRows > 0 && changes.length === 0) throw new Error('ROW_JOURNAL_MISSING');
     return { affectedRows, changes, truncated: rows.length > maxChanges };
-  } catch {
-    if (transactionOpen) await input.database.query('ROLLBACK').catch(() => undefined);
-    throw new Error('SQL_MUTATION_PREVIEW_FAILED');
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'database',
+      status: 500,
+    });
+    if (transactionOpen) await input.database.query('ROLLBACK').catch((error) => {
+      captureOpsException(error, {
+        code: 'UNHANDLED_PROMISE_REJECTION',
+        source: 'database',
+        status: 500,
+      });
+      return undefined;
+    });
+    throw new Error('SQL_MUTATION_PREVIEW_FAILED', { cause: error });
   }
 }

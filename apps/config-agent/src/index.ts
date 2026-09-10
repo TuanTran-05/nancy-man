@@ -17,6 +17,17 @@ import {
   type AgentMutationHandlers,
   type AuthenticatedServer
 } from './protocol/authenticatedServer.js';
+import {
+  createRuntimeTelemetry,
+  startRuntimeTelemetryMaintenance
+} from '../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
+import { installNodeTelemetryLifecycle } from '../../../packages/telemetry-sdk/src/nodeLifecycle.js';
+import {
+  captureOpsException,
+  createConfigAgentRuntimeTelemetry,
+  flushRuntimeTelemetryFailOpen,
+  installOpsRuntimeTelemetry
+} from './telemetry/runtimeTelemetry.js';
 
 export type StartedConfigAgent = Readonly<{
   config: ConfigAgentRuntimeConfig;
@@ -68,7 +79,12 @@ function loadCredential(path: string): Buffer {
   let key: Buffer;
   try {
     key = readFileSync(path);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'process',
+      status: 500,
+    });
     throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_READ_FAILED');
   }
   if (key.length === 0) throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_EMPTY');
@@ -114,94 +130,179 @@ export async function startConfigAgent(
   dependencies: ConfigAgentStartDependencies = {}
 ): Promise<StartedConfigAgent> {
   const config = readConfigAgentRuntimeConfig(environment);
-  const loaded = loadCatalogAndManifest({
-    catalogPath: config.catalogPath,
-    manifestPath: config.manifestPath
-  });
-  const protocolKey = loadHmacCredential(config.protocolKeyPath);
-  const fingerprintKey = createFingerprintKey(
-    loadHmacCredential(config.fingerprintKeyPath),
-    config.fingerprintKeyVersion
-  );
-  let stagingKeys: EnvelopeKey[];
-  let snapshotKeys: EnvelopeKey[];
-  try {
-    [stagingKeys, snapshotKeys] = await Promise.all([
-      loadEnvelopeKeys([
-        {
-          path: config.stagingKeyPath,
-          purpose: 'staging',
-          keyId: config.stagingKeyId,
-          keyVersion: config.stagingKeyVersion
-        },
-        ...config.stagingAcceptedOldKeyIds.map((keyId, index) => ({
-          path: config.stagingAcceptedOldKeyPaths[index]!,
-          purpose: 'staging' as const,
-          keyId,
-          keyVersion: config.stagingKeyVersion
-        }))
-      ]),
-      loadEnvelopeKeys([
-        {
-          path: config.snapshotKeyPath,
-          purpose: 'snapshot',
-          keyId: config.snapshotKeyId,
-          keyVersion: config.snapshotKeyVersion
-        },
-        ...config.snapshotAcceptedOldKeyIds.map((keyId, index) => ({
-          path: config.snapshotAcceptedOldKeyPaths[index]!,
-          purpose: 'snapshot' as const,
-          keyId,
-          keyVersion: config.snapshotKeyVersion
-        }))
-      ])
-    ]);
-  } catch {
+  const telemetrySecret = config.telemetry.enabled
+    ? (() => {
+        const key = loadHmacCredential(config.telemetryHmacPath ?? '');
+        const secret = key.toString('utf8');
+        key.fill(0);
+        return secret;
+      })()
+    : undefined;
+  if (config.telemetry.enabled && !telemetrySecret) {
     throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_READ_FAILED');
   }
-  assertKeySeparation(protocolKey, fingerprintKey.secret, [...stagingKeys, ...snapshotKeys]);
-  const inventoryService = createInventoryService({
-    catalog: loaded.catalog,
-    manifest: loaded.manifest,
-    fingerprintKey
+  const telemetry = config.telemetry.enabled
+    ? createConfigAgentRuntimeTelemetry({
+        config: config.telemetry,
+        hmacSecret: telemetrySecret!
+      })
+    : createRuntimeTelemetry({
+        enabled: false,
+        release: '0000000000000000000000000000000000000000',
+        service: 'edutrack-ops-config-agent',
+        transport: async () => undefined
+      });
+  const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
+  const disposeRuntimeTelemetry = installOpsRuntimeTelemetry(telemetry);
+  const disposeNodeTelemetryLifecycle = installNodeTelemetryLifecycle({
+    captureException: captureOpsException,
+    flush: telemetry.flush,
+    exit: (code) => process.exit(code)
   });
-  const configuredHandlers =
-    dependencies.changeHandlers ??
-    (config.draftEnabled || config.runtimeApplyEnabled || config.buildApplyEnabled
-      ? createRuntimeMutationHandlers({
-          config,
-          loaded,
-          fingerprintKey,
-          stagingKey: stagingKeys[0]!,
-          snapshotKey: snapshotKeys[0]!,
-          stagingKeys,
-          snapshotKeys
-        })
-      : undefined);
-  const changeHandlers = enabledChangeHandlers(config, configuredHandlers);
-  await changeHandlers?.ready?.();
-  const server = createAuthenticatedServer({
-    socketPath: config.socketPath,
-    socketGroup: config.socketGroup,
-    protocolKey,
-    protocolKeyId: config.protocolKeyId,
-    fingerprintKey,
-    loaded,
-    inventoryService,
-    ...(changeHandlers ? { changeHandlers } : {}),
-    clockSkewMs: config.clockSkewMs,
-    requestTtlMs: config.requestTtlMs,
-    ...(config.allowedPeerUid === undefined ? {} : { allowedPeerUid: config.allowedPeerUid }),
-    ...(config.allowedPeerGid === undefined ? {} : { allowedPeerGid: config.allowedPeerGid })
-  });
-  await server.start();
-  return { config, server };
+  let telemetryStopped = false;
+  const stopRuntimeTelemetry = async (): Promise<void> => {
+    if (telemetryStopped) return;
+    telemetryStopped = true;
+    stopTelemetryMaintenance();
+    try {
+      await flushRuntimeTelemetryFailOpen(telemetry);
+    } finally {
+      disposeNodeTelemetryLifecycle();
+      disposeRuntimeTelemetry();
+    }
+  };
+  try {
+    const loaded = loadCatalogAndManifest({
+      catalogPath: config.catalogPath,
+      manifestPath: config.manifestPath
+    });
+    const protocolKey = loadHmacCredential(config.protocolKeyPath);
+    const fingerprintKey = createFingerprintKey(
+      loadHmacCredential(config.fingerprintKeyPath),
+      config.fingerprintKeyVersion
+    );
+    let stagingKeys: EnvelopeKey[];
+    let snapshotKeys: EnvelopeKey[];
+    try {
+      [stagingKeys, snapshotKeys] = await Promise.all([
+        loadEnvelopeKeys([
+          {
+            path: config.stagingKeyPath,
+            purpose: 'staging',
+            keyId: config.stagingKeyId,
+            keyVersion: config.stagingKeyVersion
+          },
+          ...config.stagingAcceptedOldKeyIds.map((keyId, index) => ({
+            path: config.stagingAcceptedOldKeyPaths[index]!,
+            purpose: 'staging' as const,
+            keyId,
+            keyVersion: config.stagingKeyVersion
+          }))
+        ]),
+        loadEnvelopeKeys([
+          {
+            path: config.snapshotKeyPath,
+            purpose: 'snapshot',
+            keyId: config.snapshotKeyId,
+            keyVersion: config.snapshotKeyVersion
+          },
+          ...config.snapshotAcceptedOldKeyIds.map((keyId, index) => ({
+            path: config.snapshotAcceptedOldKeyPaths[index]!,
+            purpose: 'snapshot' as const,
+            keyId,
+            keyVersion: config.snapshotKeyVersion
+          }))
+        ])
+      ]);
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'CONFIG_AGENT_ENVELOPE_KEY_LOAD_FAILED',
+        source: 'process',
+        level: 'fatal'
+      });
+      throw new ConfigAgentStartupError('CONFIG_AGENT_KEY_READ_FAILED');
+    }
+    assertKeySeparation(protocolKey, fingerprintKey.secret, [...stagingKeys, ...snapshotKeys]);
+    const inventoryService = createInventoryService({
+      catalog: loaded.catalog,
+      manifest: loaded.manifest,
+      fingerprintKey
+    });
+    const configuredHandlers =
+      dependencies.changeHandlers ??
+      (config.draftEnabled || config.runtimeApplyEnabled || config.buildApplyEnabled
+        ? createRuntimeMutationHandlers({
+            config,
+            loaded,
+            fingerprintKey,
+            stagingKey: stagingKeys[0]!,
+            snapshotKey: snapshotKeys[0]!,
+            stagingKeys,
+            snapshotKeys
+          })
+        : undefined);
+    const changeHandlers = enabledChangeHandlers(config, configuredHandlers);
+    await changeHandlers?.ready?.();
+    const server = createAuthenticatedServer({
+      socketPath: config.socketPath,
+      socketGroup: config.socketGroup,
+      protocolKey,
+      protocolKeyId: config.protocolKeyId,
+      fingerprintKey,
+      loaded,
+      inventoryService,
+      ...(changeHandlers ? { changeHandlers } : {}),
+      clockSkewMs: config.clockSkewMs,
+      requestTtlMs: config.requestTtlMs,
+      ...(config.allowedPeerUid === undefined ? {} : { allowedPeerUid: config.allowedPeerUid }),
+      ...(config.allowedPeerGid === undefined ? {} : { allowedPeerGid: config.allowedPeerGid })
+    });
+    await server.start();
+    let closing: Promise<void> | undefined;
+    const installedServer: AuthenticatedServer = {
+      ...server,
+      close: () => {
+        closing ??= (async () => {
+          let closeError: unknown;
+          let hasCloseError = false;
+          try {
+            await server.close();
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'CONFIG_AGENT_SERVER_CLOSE_FAILED',
+              source: 'process'
+            });
+            closeError = error;
+            hasCloseError = true;
+          } finally {
+            await stopRuntimeTelemetry();
+          }
+          if (hasCloseError) throw closeError;
+        })();
+        return closing;
+      }
+    };
+    return { config, server: installedServer };
+  } catch (error) {
+    captureOpsException(error, {
+    code: 'CONFIG_AGENT_STARTUP_FAILED',
+    source: 'process',
+    level: 'fatal',
+    });
+    await stopRuntimeTelemetry();
+    throw error;
+  }
 }
 
 async function main(): Promise<void> {
   try {
     await startConfigAgent();
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'process',
+      status: 500,
+    });
     const code =
       error instanceof ConfigAgentStartupError ||
       (error instanceof Error && 'code' in error && typeof error.code === 'string')
@@ -219,7 +320,12 @@ export function isConfigAgentEntrypoint(
   if (!entrypoint) return false;
   try {
     return moduleUrl === pathToFileURL(realpathSync(entrypoint)).href;
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'process',
+      status: 500,
+    });
     return false;
   }
 }

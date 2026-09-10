@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { readFileSync, statSync } from 'node:fs';
 import type { MonitorSample } from '../../shared/models.js';
 
@@ -33,7 +35,12 @@ export function probeAppProcess(config: ProcessProbeConfig, now: Date = new Date
       );
       if (Number.isFinite(startTicks) && Number.isFinite(systemUptime))
         uptimeSeconds = Math.max(0, systemUptime - startTicks / 100);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'document_store',
+        status: 500,
+      });
       uptimeSeconds = null;
     }
     return {
@@ -55,7 +62,12 @@ export function probeAppProcess(config: ProcessProbeConfig, now: Date = new Date
       },
       errorCode: null
     };
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     return {
       monitor: 'app_process',
       level: 'critical',

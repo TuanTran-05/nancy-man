@@ -79,4 +79,27 @@ describe('telemetry sanitizer', () => {
 
     expect(JSON.stringify(sanitized.envelope)).not.toContain('self');
   });
+
+  it('retains bounded HTTP method and status tags added by server runtime capture', () => {
+    const sanitized = sanitizeTelemetry(
+      {
+        schemaVersion: 1,
+        eventId: 'EVT_01K3EXAMPLE',
+        idempotencyKey: 'key',
+        capturedAt: '2026-08-22T03:14:00.000Z',
+        source: 'api',
+        level: 'error',
+        error: { name: 'Error', code: 'REQUEST_FAILED', safeMessage: 'failed' },
+        context: {
+          release: '0123456789abcdef0123456789abcdef01234567',
+          service: 'edutrack-ops-api',
+          environment: 'production',
+          tags: { method: 'POST', httpStatus: '500' }
+        }
+      },
+      { sessionPepper: 'telemetry-pepper' }
+    );
+
+    expect(sanitized.envelope.context.tags).toEqual({ method: 'POST', httpStatus: '500' });
+  });
 });

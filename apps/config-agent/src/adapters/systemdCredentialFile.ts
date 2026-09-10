@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { TextDecoder } from 'node:util';
 
 import {
@@ -36,7 +38,12 @@ function parseCredential(bytes: Uint8Array, options: CredentialParseOptions): Pa
   } else {
     try {
       value = new TextDecoder('utf-8', { fatal: true }).decode(sourceBytes);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       throw new SourceAdapterError('SOURCE_UNSUPPORTED_ENCODING');
     }
   }

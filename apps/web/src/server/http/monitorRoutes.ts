@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import type { Router, Response } from 'express';
 import { z } from 'zod';
 import type { OpsStore } from '../storage/store.js';
@@ -243,7 +245,13 @@ export function attachMonitorRoutes(router: Router, store: OpsStore, auth: AuthS
         now: new Date().toISOString()
       });
       response.json(incident);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+      });
       response.status(404).json({ error: 'incident_not_found' });
     }
   });

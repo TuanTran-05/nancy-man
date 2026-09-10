@@ -1,6 +1,10 @@
 import { isAbsolute, join, normalize } from 'node:path';
 
 import { MAX_FRAME_BYTES } from '../../../packages/config-contracts/src/framing.js';
+import {
+  readServerTelemetryRuntimeConfig,
+  type ServerTelemetryRuntimeConfig
+} from '../../../packages/telemetry-sdk/src/serverRuntimeConfig.js';
 
 export const MAXIMUM_FRAME_BYTES = MAX_FRAME_BYTES;
 
@@ -38,6 +42,8 @@ export type ConfigAgentRuntimeConfig = Readonly<{
   clockSkewMs: number;
   requestTtlMs: number;
   maximumFrameBytes: typeof MAXIMUM_FRAME_BYTES;
+  telemetry: ServerTelemetryRuntimeConfig;
+  telemetryHmacPath?: string;
   draftEnabled?: boolean;
   runtimeApplyEnabled?: boolean;
   buildApplyEnabled?: boolean;
@@ -309,6 +315,10 @@ export function readConfigAgentRuntimeConfig(
   const stagedDirectory = childDirectory(environment, stateDirectory, 'staged');
   const snapshotsDirectory = childDirectory(environment, stateDirectory, 'snapshots');
   const locksDirectory = childDirectory(environment, stateDirectory, 'locks');
+  const telemetry = readServerTelemetryRuntimeConfig(environment);
+  const telemetryHmacPath = telemetry.enabled
+    ? pathValue(environment, ['OPS_TELEMETRY_HMAC_FILE'])
+    : undefined;
 
   const result: ConfigAgentRuntimeConfig = {
     socketPath,
@@ -376,7 +386,9 @@ export function readConfigAgentRuntimeConfig(
       1_000,
       300_000
     ),
-    maximumFrameBytes: MAXIMUM_FRAME_BYTES
+    maximumFrameBytes: MAXIMUM_FRAME_BYTES,
+    telemetry,
+    ...(telemetryHmacPath ? { telemetryHmacPath } : {})
   };
   const draftEnabled = optionalBoolean(environment, [
     'OPS_VARIABLES_DRAFT_ENABLED',

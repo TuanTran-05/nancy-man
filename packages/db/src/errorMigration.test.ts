@@ -37,3 +37,19 @@ describe('Error Operations migration', () => {
     );
   });
 });
+
+describe('Ops runtime telemetry ingest client migration', () => {
+  it('provisions one active server client by secret reference without persisting a secret value', () => {
+    const runtimeTelemetryMigration = readFileSync(
+      new URL('../migrations/0019_ops_runtime_telemetry_ingest_client.sql', import.meta.url),
+      'utf8'
+    );
+
+    expect(runtimeTelemetryMigration).toContain("'edutrack-ops-runtime'");
+    expect(runtimeTelemetryMigration).toContain("'ops-telemetry-hmac'");
+    expect(runtimeTelemetryMigration).toContain("'server'");
+    expect(runtimeTelemetryMigration).toContain("'active'");
+    expect(runtimeTelemetryMigration).toContain('ON CONFLICT (client_name) DO UPDATE');
+    expect(runtimeTelemetryMigration).not.toMatch(/(?:secret|token|key)\s*=\s*['"][^'"]{16,}/iu);
+  });
+});

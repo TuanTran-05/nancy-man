@@ -1,3 +1,5 @@
+import { captureOpsException } from './telemetry/runtimeTelemetry.js';
+
 import { spawnSync } from 'node:child_process';
 
 type Environment = Record<string, string | undefined>;
@@ -25,7 +27,12 @@ export function startSystemdWatchdog(
   const safeSend = (message: string): void => {
     try {
       sender(message, socketPath);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       /* Notification failure must not stop collection. */
     }
   };

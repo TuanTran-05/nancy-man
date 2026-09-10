@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { readdirSync, statfsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { MonitorLevel } from '../../shared/models.js';
@@ -56,7 +58,12 @@ function loadBackupFiles(input: CronBackupInput): BackupFileInput[] {
           checksumPresent
         });
       }
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       // A missing or unreadable backup directory is represented as stale below.
     }
   }
@@ -96,7 +103,12 @@ export function parseCronAndBackupState(
       try {
         const stats = statfsSync(input.backupDir);
         return ((Number(stats.blocks) - Number(stats.bavail)) / Number(stats.blocks)) * 100;
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
         return null;
       }
     })();

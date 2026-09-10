@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { createHash, randomUUID } from 'node:crypto';
 import {
   encryptTotpSecret,
@@ -74,7 +76,12 @@ export class TotpEnrollmentService {
     if (!input.password || !this.input.passwordFingerprintPepper) return false;
     try {
       (this.input.validatePasswordPolicy ?? validatePasswordPolicy)({ password: input.password });
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       return false;
     }
     const tokenHash = createHash('sha256').update(input.token, 'utf8').digest('hex');
@@ -97,7 +104,12 @@ export class TotpEnrollmentService {
     let passwordHash: string;
     try {
       passwordHash = await (this.input.hashPassword ?? hashPassword)(input.password);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       return false;
     }
     const fingerprint = (this.input.passwordFingerprint ?? passwordFingerprint)(

@@ -1,4 +1,11 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { isAbsolute, normalize } from 'node:path';
+
+import {
+  readServerTelemetryRuntimeConfig,
+  type ServerTelemetryRuntimeConfig
+} from '../../../../packages/telemetry-sdk/src/serverRuntimeConfig.js';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -49,6 +56,7 @@ export type OpsRuntimeConfig = {
   browserContextKey: BrowserContextKey;
   objectStoreDirectory: string;
   browserCorsOrigins: string[];
+  telemetry: ServerTelemetryRuntimeConfig;
   sqlWorker: SqlWorkerConfig;
   configAgent: ConfigAgentRuntimeConfig;
 };
@@ -198,8 +206,13 @@ function browserOrigins(environment: Environment): string[] {
     let parsed: URL;
     try {
       parsed = new URL(origin);
-    } catch {
-      throw new Error('OPS_BROWSER_CORS_ORIGINS contains an invalid origin');
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'process',
+        status: 500,
+      });
+      throw new Error('OPS_BROWSER_CORS_ORIGINS contains an invalid origin', { cause: error });
     }
     if (parsed.protocol !== 'https:' || parsed.origin !== origin || uniqueOrigins.has(origin)) {
       throw new Error('OPS_BROWSER_CORS_ORIGINS must contain unique HTTPS origins only');
@@ -268,6 +281,7 @@ export function readOpsRuntimeConfig(environment: Environment): OpsRuntimeConfig
     },
     objectStoreDirectory: requiredAbsolutePath(environment, 'OPS_OBJECT_STORE_DIRECTORY'),
     browserCorsOrigins: browserOrigins(environment),
+    telemetry: readServerTelemetryRuntimeConfig(environment),
     sqlWorker: sqlWorker(environment),
     configAgent: configAgent(environment)
   };

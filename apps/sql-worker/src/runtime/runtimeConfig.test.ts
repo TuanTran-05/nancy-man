@@ -16,6 +16,7 @@ describe('readSqlWorkerRuntimeConfig', () => {
       secretDirectory: '/run/credentials/edutrack-ops-sql-worker.service',
       socketPath: '/run/edutrack-ops/sql-worker.sock',
       hmacSecretReference: 'ops-sql-worker-hmac',
+      telemetry: { enabled: false },
       read: { enabled: false },
       mutation: { enabled: false }
     });
@@ -34,6 +35,7 @@ describe('readSqlWorkerRuntimeConfig', () => {
       secretDirectory: '/run/credentials/edutrack-ops-sql-worker.service',
       socketPath: '/run/edutrack-ops/sql-worker.sock',
       hmacSecretReference: 'ops-sql-worker-hmac',
+      telemetry: { enabled: false },
       read: {
         enabled: true,
         databaseUrlReference: 'production-read-database-url',
@@ -57,6 +59,7 @@ describe('readSqlWorkerRuntimeConfig', () => {
       secretDirectory: '/run/credentials/edutrack-ops-sql-worker.service',
       socketPath: '/run/edutrack-ops/sql-worker.sock',
       hmacSecretReference: 'ops-sql-worker-hmac',
+      telemetry: { enabled: false },
       read: { enabled: false },
       mutation: {
         enabled: true,

@@ -17,6 +17,131 @@ vi.mock('node:fs', async (importOriginal) => {
 });
 
 describe('collector cron and backup monitors', () => {
+  it('captures the original Beszel probe error before converting it to a critical sample', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ops-collector-beszel-'));
+    const pidPath = join(directory, 'app.pid');
+    const errorLogPath = join(directory, 'app-error.log');
+    const cronLogPath = join(directory, 'cron.log');
+    writeFileSync(pidPath, String(process.pid));
+    writeFileSync(errorLogPath, '');
+    writeFileSync(cronLogPath, 'ops-cron job=nightly status=success\n');
+    const original = new Error('Beszel unavailable');
+    const captured: unknown[] = [];
+    const store = createOpsStore(join(directory, 'ops.sqlite'));
+    try {
+      await runCollectorCycle(
+        {
+          config: {
+            nodeEnv: 'test',
+            dbPath: join(directory, 'ops.sqlite'),
+            appUrl: 'http://127.0.0.1:3000',
+            postgresUrl: 'postgres://test',
+            pm2PidPath: pidPath,
+            pm2ErrorLogPath: errorLogPath,
+            cronLogPath,
+            backupDir: directory,
+            zaloBotToken: 'test',
+            recipientIds: [],
+            zaloChatHashSecret: 'test-chat-hash-secret-value-123456',
+            zaloRecipientKey: Buffer.alloc(32),
+            zaloTimeoutMs: 5000,
+            beszel: {
+              enabled: true,
+              baseUrl: 'http://127.0.0.1:8090',
+              username: 'ops-telemetry@thienuy.invalid',
+              passwordFile: join(directory, 'beszel-password'),
+              systemId: 'abc123def456ghi',
+              timeoutMs: 5000
+            }
+          },
+          store,
+          histories: new Map(),
+          telemetry: { captureException: (error) => captured.push(error) },
+          beszelProbe: async () => {
+            throw original;
+          },
+          appProbe: async (_config, kind, observedAt = new Date('2026-09-04T00:00:00.000Z')) => ({
+            monitor: kind === 'liveness' ? 'app_liveness' : 'app_health',
+            level: 'healthy',
+            observedAt: observedAt.toISOString(),
+            latencyMs: 1,
+            details: { probeOk: true },
+            errorCode: null
+          }),
+          postgresProbe: async (_config, observedAt = new Date('2026-09-04T00:00:00.000Z')) => ({
+            monitor: 'postgres',
+            level: 'healthy',
+            observedAt: observedAt.toISOString(),
+            latencyMs: 1,
+            details: { probeOk: true },
+            errorCode: null
+          })
+        },
+        new Date('2026-09-04T00:00:00.000Z')
+      );
+
+      expect(captured).toEqual([original]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reports a log-reader failure while continuing the collection cycle', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ops-collector-log-reader-'));
+    const pidPath = join(directory, 'app.pid');
+    const cronLogPath = join(directory, 'cron.log');
+    writeFileSync(pidPath, String(process.pid));
+    writeFileSync(cronLogPath, 'ops-cron job=nightly status=success\n');
+    const captured: unknown[] = [];
+    const store = createOpsStore(join(directory, 'ops.sqlite'));
+    try {
+      await runCollectorCycle(
+        {
+          config: {
+            nodeEnv: 'test',
+            dbPath: join(directory, 'ops.sqlite'),
+            appUrl: 'http://127.0.0.1:3000',
+            postgresUrl: 'postgres://test',
+            pm2PidPath: pidPath,
+            pm2ErrorLogPath: join(directory, 'missing-app-error.log'),
+            cronLogPath,
+            backupDir: directory,
+            zaloBotToken: 'test',
+            recipientIds: [],
+            zaloChatHashSecret: 'test-chat-hash-secret-value-123456',
+            zaloRecipientKey: Buffer.alloc(32),
+            zaloTimeoutMs: 5000,
+            beszel: { enabled: false }
+          },
+          store,
+          histories: new Map(),
+          telemetry: { captureException: (error) => captured.push(error) },
+          appProbe: async (_config, kind, observedAt = new Date('2026-09-04T00:00:00.000Z')) => ({
+            monitor: kind === 'liveness' ? 'app_liveness' : 'app_health',
+            level: 'healthy',
+            observedAt: observedAt.toISOString(),
+            latencyMs: 1,
+            details: { probeOk: true },
+            errorCode: null
+          }),
+          postgresProbe: async (_config, observedAt = new Date('2026-09-04T00:00:00.000Z')) => ({
+            monitor: 'postgres',
+            level: 'healthy',
+            observedAt: observedAt.toISOString(),
+            latencyMs: 1,
+            details: { probeOk: true },
+            errorCode: null
+          })
+        },
+        new Date('2026-09-04T00:00:00.000Z')
+      );
+
+      expect(captured).toEqual([expect.any(Error)]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     {
       label: 'nested JSON',

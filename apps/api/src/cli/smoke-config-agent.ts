@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { readFile } from 'node:fs/promises';
 
 import { parse as parseYaml } from 'yaml';
@@ -13,8 +15,14 @@ import {
   ConfigAgentError,
   type ConfigAgentExpectations
 } from '../infrastructure/configAgentClient.js';
+import { FileSecretResolver } from '../runtime/fileSecretResolver.js';
+import {
+  createOpsProcessRuntimeTelemetryFromEnvironment,
+  runConfiguredOpsTelemetryOneShot
+} from '../../../../packages/telemetry-sdk/src/oneShot.js';
+import type { RuntimeTelemetry } from '../../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
 
-const protocolCredentialPath =
+const defaultProtocolCredentialPath =
   '/run/credentials/edutrack-ops-api.service/config-agent-protocol-hmac';
 const manifestPath = '/srv/edutrack-ops/config-agent/current/deploy/ops/config-agent/manifest.yaml';
 const defaultProtocolKeyId = 'config-agent-2026-08-31';
@@ -52,6 +60,26 @@ export type ConfigAgentSmokeResult =
       sourceIds: string[];
     };
 
+export function resolveConfigAgentSmokeProtocolCredentialPath(
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): string {
+  const explicit = environment.OPS_CONFIG_AGENT_SMOKE_PROTOCOL_HMAC_FILE?.trim();
+  if (explicit) return explicit;
+  const credentialsDirectory = environment.CREDENTIALS_DIRECTORY?.trim().replace(/\/+$/u, '');
+  return credentialsDirectory
+    ? `${credentialsDirectory}/config-agent-protocol-hmac`
+    : defaultProtocolCredentialPath;
+}
+
+export function resolveConfigAgentSmokeTelemetryCredentialPath(
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): string | undefined {
+  const explicit = environment.OPS_TELEMETRY_HMAC_FILE?.trim();
+  if (explicit) return explicit;
+  const credentialsDirectory = environment.CREDENTIALS_DIRECTORY?.trim().replace(/\/+$/u, '');
+  return credentialsDirectory ? `${credentialsDirectory}/ops-telemetry-hmac` : undefined;
+}
+
 function usage(): never {
   throw new Error('CONFIG_AGENT_SMOKE_USAGE');
 }
@@ -86,8 +114,13 @@ async function loadExpectations(): Promise<ConfigAgentExpectations> {
   let manifest: unknown;
   try {
     manifest = parseYaml(await readFile(manifestPath, 'utf8'));
-  } catch {
-    throw new Error('CONFIG_AGENT_SMOKE_MANIFEST_INVALID');
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'process',
+      status: 500,
+    });
+    throw new Error('CONFIG_AGENT_SMOKE_MANIFEST_INVALID', { cause: error });
   }
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
     throw new Error('CONFIG_AGENT_SMOKE_MANIFEST_INVALID');
@@ -109,9 +142,16 @@ async function loadExpectations(): Promise<ConfigAgentExpectations> {
 async function createClient(socketPath: string): Promise<SmokeClient> {
   let hmacKey: string;
   try {
-    hmacKey = (await readFile(protocolCredentialPath, 'utf8')).trim();
-  } catch {
-    throw new Error('CONFIG_AGENT_SMOKE_CREDENTIAL_UNAVAILABLE');
+    hmacKey = (
+      await readFile(resolveConfigAgentSmokeProtocolCredentialPath(process.env), 'utf8')
+    ).trim();
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'process',
+      status: 500,
+    });
+    throw new Error('CONFIG_AGENT_SMOKE_CREDENTIAL_UNAVAILABLE', { cause: error });
   }
   if (!hmacKey || hmacKey.length > 4_096) {
     throw new Error('CONFIG_AGENT_SMOKE_CREDENTIAL_UNAVAILABLE');
@@ -162,12 +202,54 @@ export async function smokeConfigAgent(
   };
 }
 
+export function runConfigAgentSmokeEntrypoint(
+  input: {
+    arguments?: readonly string[];
+    environment?: NodeJS.ProcessEnv;
+    telemetry?: RuntimeTelemetry;
+    run?: () => Promise<ConfigAgentSmokeResult>;
+    onFailure?: (error: unknown) => void | Promise<void>;
+    rethrow?: boolean;
+  } = {}
+): Promise<ConfigAgentSmokeResult | undefined> {
+  const environment = input.environment ?? process.env;
+  const common = {
+    createTelemetry: () =>
+      input.telemetry ??
+      createOpsProcessRuntimeTelemetryFromEnvironment({
+        environment,
+        resolveHmacSecret: async (reference) => {
+          const hmacFile = resolveConfigAgentSmokeTelemetryCredentialPath(environment);
+          if (hmacFile) return readFile(hmacFile, 'utf8');
+          const secretDirectory = environment.OPS_SECRET_DIRECTORY?.trim();
+          if (!secretDirectory) throw new Error('OPS_TELEMETRY_HMAC_FILE is required');
+          return new FileSecretResolver(secretDirectory).resolve(reference);
+        },
+        service: 'edutrack-ops-config-agent-smoke',
+        spoolName: 'config-agent-smoke'
+      }),
+    failureContext: {
+      code: 'CONFIG_AGENT_SMOKE_FAILED',
+      source: 'process' as const,
+      level: 'fatal' as const
+    },
+    run: input.run ?? (() => smokeConfigAgent(input.arguments ?? process.argv.slice(2))),
+    ...(input.onFailure ? { onFailure: input.onFailure } : {})
+  };
+  return input.rethrow === false
+    ? runConfiguredOpsTelemetryOneShot({ ...common, rethrow: false })
+    : runConfiguredOpsTelemetryOneShot({ ...common, rethrow: true });
+}
+
 if (process.argv[1]?.endsWith('/smoke-config-agent.js')) {
-  smokeConfigAgent(process.argv.slice(2))
-    .then((result) => {
+  void runConfigAgentSmokeEntrypoint({
+    rethrow: false,
+    run: async () => {
+      const result = await smokeConfigAgent(process.argv.slice(2));
       process.stdout.write(`${JSON.stringify(result)}\n`);
-    })
-    .catch((error: unknown) => {
+      return result;
+    },
+    onFailure: (error: unknown) => {
       const code =
         error instanceof ConfigAgentError ||
         (error instanceof Error && /^CONFIG_AGENT_[A-Z0-9_]+$/u.test(error.message))
@@ -175,5 +257,6 @@ if (process.argv[1]?.endsWith('/smoke-config-agent.js')) {
           : 'CONFIG_AGENT_SMOKE_FAILED';
       process.stderr.write(`${code}\n`);
       process.exitCode = 1;
-    });
+    }
+  });
 }

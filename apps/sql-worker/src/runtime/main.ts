@@ -1,5 +1,18 @@
 import { FileSecretResolver } from '../../../../packages/security/src/fileSecretResolver.js';
+import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
+import {
+  createRuntimeTelemetry,
+  startRuntimeTelemetryMaintenance,
+  type RuntimeTelemetry
+} from '../../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
+import { installNodeTelemetryLifecycle } from '../../../../packages/telemetry-sdk/src/nodeLifecycle.js';
+import {
+  captureOpsException,
+  createSqlWorkerRuntimeTelemetry,
+  flushRuntimeTelemetryFailOpen,
+  installOpsRuntimeTelemetry
+} from '../telemetry/runtimeTelemetry.js';
 
 import {
   assertProductionReadIdentity,
@@ -113,13 +126,65 @@ export async function startOpsSqlWorker(
     resolveSecret?: (reference: string) => Promise<string | null>;
     createReadPool?: (databaseUrl: string) => ProductionReadPool;
     createMutationPool?: (databaseUrl: string) => ProductionMutationPool;
+    telemetry?: RuntimeTelemetry;
   } = {}
 ): Promise<{ close: () => Promise<void> }> {
   const config = readSqlWorkerRuntimeConfig(input.environment ?? process.env);
+  const telemetryHmac =
+    !input.telemetry && config.telemetry.enabled
+      ? (await readFile(config.telemetryHmacPath ?? '', 'utf8')).trim()
+      : undefined;
+  if (!input.telemetry && config.telemetry.enabled && !telemetryHmac) {
+    throw new Error('SQL worker telemetry credential is unavailable');
+  }
+  const telemetry =
+    input.telemetry ??
+    (config.telemetry.enabled
+      ? createSqlWorkerRuntimeTelemetry({
+          config: config.telemetry,
+          hmacSecret: telemetryHmac!
+        })
+      : createRuntimeTelemetry({
+          enabled: false,
+          release: '0000000000000000000000000000000000000000',
+          service: 'edutrack-ops-sql-worker',
+          transport: async () => undefined
+        }));
+  const stopTelemetryMaintenance = startRuntimeTelemetryMaintenance({ flush: telemetry.flush });
+  const disposeRuntimeTelemetry = installOpsRuntimeTelemetry(telemetry);
+  const disposeNodeTelemetryLifecycle = installNodeTelemetryLifecycle({
+    captureException: captureOpsException,
+    flush: telemetry.flush,
+    exit: (code) => process.exit(code)
+  });
+  let telemetryStopped = false;
+  const stopRuntimeTelemetry = async (): Promise<void> => {
+    if (telemetryStopped) return;
+    telemetryStopped = true;
+    stopTelemetryMaintenance();
+    try {
+      await flushRuntimeTelemetryFailOpen(telemetry);
+    } finally {
+      disposeNodeTelemetryLifecycle();
+      disposeRuntimeTelemetry();
+    }
+  };
   const resolver =
     input.resolveSecret ??
     ((reference: string) => new FileSecretResolver(config.secretDirectory).resolve(reference));
-  const credentials = await resolveSqlWorkerCredentials({ config, resolveSecret: resolver });
+  let credentials: SqlWorkerCredentials;
+  try {
+    credentials = await resolveSqlWorkerCredentials({ config, resolveSecret: resolver });
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'SQL_WORKER_CREDENTIALS_UNAVAILABLE',
+      source: 'process',
+      level: 'fatal',
+    });
+    await Promise.resolve();
+    await stopRuntimeTelemetry();
+    throw error;
+  }
   const nonceStore = createExpiringNonceStore();
   let readPool: ProductionReadPool | undefined;
   let mutationPool: ProductionMutationPool | undefined;
@@ -169,16 +234,77 @@ export async function startOpsSqlWorker(
       consumeNonce: async (nonce) => nonceStore.consume(nonce.replace(/^sql-worker:/, '')),
       handle
     });
+    let closing: Promise<void> | undefined;
     return {
-      close: async () => {
-        await server.close();
-        await readPool?.end();
-        await mutationPool?.end();
+      close: () => {
+        closing ??= (async () => {
+          let closeError: unknown;
+          let hasCloseError = false;
+          const rememberCloseFailure = (error: unknown): void => {
+            if (!hasCloseError) {
+              closeError = error;
+              hasCloseError = true;
+            }
+          };
+          try {
+            await server.close();
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'SQL_WORKER_SERVER_CLOSE_FAILED',
+              source: 'process',
+            });
+            rememberCloseFailure(error);
+          }
+          try {
+            await readPool?.end();
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'SQL_WORKER_READ_POOL_CLOSE_FAILED',
+              source: 'database'
+            });
+            rememberCloseFailure(error);
+          }
+          try {
+            await mutationPool?.end();
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'SQL_WORKER_MUTATION_POOL_CLOSE_FAILED',
+              source: 'database'
+            });
+            rememberCloseFailure(error);
+          } finally {
+            await stopRuntimeTelemetry();
+          }
+          if (hasCloseError) throw closeError;
+        })();
+        return closing;
       }
     };
   } catch (error) {
-    await readPool?.end().catch(() => undefined);
-    await mutationPool?.end().catch(() => undefined);
+    captureOpsException(error, {
+      code: 'SQL_WORKER_STARTUP_FAILED',
+      source: 'process',
+      level: 'fatal',
+    });
+    await Promise.resolve();
+    try {
+      await readPool?.end();
+    } catch (cleanupError) {
+      captureOpsException(cleanupError, {
+        code: 'SQL_WORKER_READ_POOL_CLOSE_FAILED',
+        source: 'database'
+      });
+    }
+    try {
+      await mutationPool?.end();
+    } catch (cleanupError) {
+      captureOpsException(cleanupError, {
+        code: 'SQL_WORKER_MUTATION_POOL_CLOSE_FAILED',
+        source: 'database'
+      });
+    } finally {
+      await stopRuntimeTelemetry();
+    }
     throw error;
   }
 }

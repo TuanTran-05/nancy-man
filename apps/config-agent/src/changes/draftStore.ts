@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import {
   deleteSecureArtifact,
   ensureStorageDirectories,
@@ -84,6 +86,11 @@ function encodeValue(value: unknown): Buffer {
     if (serialized === undefined) fail('DRAFT_INVALID');
     return Buffer.from(serialized, 'utf8');
   } catch (error) {
+    captureOpsException(error, {
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof DraftStoreError) throw error;
     fail('DRAFT_INVALID');
   }
@@ -102,7 +109,12 @@ export function decodeStoredValue<T>(plaintext: Uint8Array): T {
       }
       return value;
     }) as T;
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     fail('DRAFT_CORRUPT');
   }
 }
@@ -309,6 +321,11 @@ export class DraftStore {
       try {
         await readSecureArtifact(this.storage, directory, id);
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
         if (error instanceof Error && 'code' in error && error.code === 'ARTIFACT_NOT_FOUND') {
           return null;
         }

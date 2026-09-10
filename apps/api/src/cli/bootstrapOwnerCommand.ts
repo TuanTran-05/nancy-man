@@ -11,6 +11,11 @@ import {
   validatePasswordPolicy
 } from '../../../../packages/security/src/passwords.js';
 import { getOpsPool } from '../../../../packages/db/src/client.js';
+import {
+  createOpsProcessRuntimeTelemetryFromEnvironment,
+  runConfiguredOpsTelemetryOneShot
+} from '../../../../packages/telemetry-sdk/src/oneShot.js';
+import type { RuntimeTelemetry } from '../../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
 
 import { bootstrapOwner, type OwnerBootstrapRepository } from './bootstrapOwner.js';
 import { PostgresOwnerBootstrapRepository } from './postgresOwnerBootstrapRepository.js';
@@ -136,9 +141,9 @@ export async function readHiddenOwnerPassword(
   }
 }
 
-async function promptForOwnerInput(): Promise<void> {
+async function promptForOwnerInput(environment: NodeJS.ProcessEnv = process.env): Promise<void> {
   if (!input.isTTY || !output.isTTY) throw new Error('Owner bootstrap requires an interactive TTY');
-  const config = readOpsRuntimeConfig(process.env);
+  const config = readOpsRuntimeConfig(environment);
   const resolver = new FileSecretResolver(config.secretDirectory);
   const databaseUrl = await resolver.resolve(config.databaseUrlReference);
   const fingerprintPepper = await resolver.resolve(config.passwordFingerprintPepperReference);
@@ -175,10 +180,49 @@ async function promptForOwnerInput(): Promise<void> {
   }
 }
 
+export function runOwnerBootstrapEntrypoint(
+  input: {
+    environment?: NodeJS.ProcessEnv;
+    telemetry?: RuntimeTelemetry;
+    run?: () => Promise<void>;
+    onFailure?: (error: unknown) => void | Promise<void>;
+    rethrow?: boolean;
+  } = {}
+): Promise<void | undefined> {
+  const environment = input.environment ?? process.env;
+  const common = {
+    createTelemetry: () =>
+      input.telemetry ??
+      createOpsProcessRuntimeTelemetryFromEnvironment({
+        environment,
+        resolveHmacSecret: async (reference) => {
+          const secretDirectory = environment.OPS_SECRET_DIRECTORY?.trim();
+          if (!secretDirectory) throw new Error('OPS_SECRET_DIRECTORY is required');
+          return new FileSecretResolver(secretDirectory).resolve(reference);
+        },
+        service: 'edutrack-ops-bootstrap-owner',
+        spoolName: 'bootstrap-owner'
+      }),
+    failureContext: {
+      code: 'OWNER_BOOTSTRAP_FAILED',
+      source: 'database' as const,
+      level: 'fatal' as const
+    },
+    run: input.run ?? (() => promptForOwnerInput(environment)),
+    ...(input.onFailure ? { onFailure: input.onFailure } : {})
+  };
+  return input.rethrow === false
+    ? runConfiguredOpsTelemetryOneShot({ ...common, rethrow: false })
+    : runConfiguredOpsTelemetryOneShot({ ...common, rethrow: true });
+}
+
 const entrypoint = process.argv[1];
 if (entrypoint && import.meta.url === pathToFileURL(resolve(entrypoint)).href) {
-  void promptForOwnerInput().catch(() => {
-    process.stderr.write('Owner bootstrap failed\n');
-    process.exitCode = 1;
+  void runOwnerBootstrapEntrypoint({
+    rethrow: false,
+    onFailure: () => {
+      process.stderr.write('Owner bootstrap failed\n');
+      process.exitCode = 1;
+    }
   });
 }

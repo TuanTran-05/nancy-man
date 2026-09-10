@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { classifyReadOnlySql } from './readClassification.js';
 import { encodeBoundedRows } from './resultEncoding.js';
 
@@ -29,6 +31,11 @@ export async function executeReadOnly(input: {
       truncated: encoded.truncated || rows.length > maxRows
     };
   } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'database',
+      status: 500,
+    });
     await input.database.query('ROLLBACK');
     throw error;
   }

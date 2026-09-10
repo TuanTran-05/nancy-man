@@ -10,7 +10,7 @@
     "resolveJsonModule": true,
     "noUncheckedIndexedAccess": false,
     "exactOptionalPropertyTypes": false,
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vite/client", "vitest/globals"]
   },
   "include": [
     "src",
@@ -23,7 +23,8 @@
     "../../packages/contracts/src/**/*.ts",
     "../../packages/config-contracts/src/**/*.ts",
     "../../packages/db/src/**/*.ts",
-    "../../packages/security/src/**/*.ts"
+    "../../packages/security/src/**/*.ts",
+    "../../packages/telemetry-sdk/src/**/*.ts"
   ],
   "exclude": [
     "../api/src/**/*.test.ts",

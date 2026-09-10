@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { readFileSync } from 'node:fs';
 
 import {
@@ -85,7 +87,12 @@ function userId(name: string): number | undefined {
       const fields = line.split(':');
       if (fields[0] === name && fields[2] && /^[0-9]+$/u.test(fields[2])) return Number(fields[2]);
     }
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     return undefined;
   }
   return undefined;
@@ -98,7 +105,12 @@ function groupId(name: string): number | undefined {
       const fields = line.split(':');
       if (fields[0] === name && fields[2] && /^[0-9]+$/u.test(fields[2])) return Number(fields[2]);
     }
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     return undefined;
   }
   return undefined;
@@ -188,6 +200,11 @@ function parseSource(
     }
     return sourceAdapter(source).parse(bytes, { maximumBytes: source.maximumBytes });
   } catch (error) {
+    captureOpsException(error, {
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof InventoryError) throw error;
     throw new InventoryError('INVENTORY_SOURCE_PARSE_FAILED');
   }
@@ -223,7 +240,12 @@ function sourceMtime(metadata: SafeSourceMetadata): string | null {
   if (!Number.isFinite(metadata.mtimeMs) || metadata.mtimeMs < 0) return null;
   try {
     return new Date(metadata.mtimeMs).toISOString();
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return null;
   }
 }
@@ -243,7 +265,12 @@ export function createInventoryService(options: InventoryServiceOptions): Invent
     let validated: InventoryReadRequest;
     try {
       validated = InventoryReadRequestSchema.parse(request);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       throw new InventoryError('INVENTORY_REQUEST_INVALID');
     }
 
@@ -253,6 +280,11 @@ export function createInventoryService(options: InventoryServiceOptions): Invent
       try {
         sourceRead = await readSource(source);
       } catch (error) {
+        captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+        });
         if (error instanceof InventoryError) throw error;
         throw new InventoryError('INVENTORY_SOURCE_READ_FAILED');
       }

@@ -119,4 +119,22 @@ describe('PostgresIssueRepository', () => {
       ])
     );
   });
+
+  it('marks successfully processed envelopes with a terminal completion time', async () => {
+    const queries: string[] = [];
+    const repository = new PostgresIssueRepository(
+      transactionalDatabase(async <T>(sql: string) => {
+        queries.push(sql);
+        return { rows: [] as T[] };
+      })
+    );
+
+    await repository.withTransaction((transaction) => transaction.markProcessed('envelope-1'));
+
+    expect(queries).toEqual([
+      'BEGIN',
+      expect.stringContaining("state = 'processed', processed_at = now(), completed_at = now()"),
+      'COMMIT'
+    ]);
+  });
 });

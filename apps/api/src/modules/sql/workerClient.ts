@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { createHmac, randomUUID } from 'node:crypto';
 import { createConnection } from 'node:net';
 import type {
@@ -49,6 +51,11 @@ export class SqlWorkerClient {
             throw new Error('SQL_WORKER_RESPONSE_MISMATCH');
           resolve(response);
         } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'api',
+            status: 500,
+          });
           reject(error);
         }
       });

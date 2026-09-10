@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import type {
   AgentActor,
   InventoryReadResponse
@@ -88,6 +90,11 @@ export class VariablesService {
       });
       return response;
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       const code = agentErrorCode(error);
       await this.audit?.append({
         actorUserId: input.actor.userId,

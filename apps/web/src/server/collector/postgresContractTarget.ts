@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 export type PostgresContractEnvironment = Record<string, string | undefined>;
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
@@ -10,7 +12,12 @@ function normalizedHostname(target: URL): string {
 function decodedDatabaseName(target: URL): string | null {
   try {
     return decodeURIComponent(target.pathname.slice(1));
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return null;
   }
 }
@@ -31,8 +38,13 @@ function parseApprovedTarget(environment: PostgresContractEnvironment): string |
   let target: URL;
   try {
     target = new URL(raw);
-  } catch {
-    throw new Error('OPS_TEST_DATABASE_URL must be a valid PostgreSQL URL');
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
+    throw new Error('OPS_TEST_DATABASE_URL must be a valid PostgreSQL URL', { cause: error });
   }
   if (target.protocol !== 'postgres:' && target.protocol !== 'postgresql:')
     throw new Error('OPS_TEST_DATABASE_URL must use PostgreSQL');
@@ -58,7 +70,12 @@ function parseApprovedTarget(environment: PostgresContractEnvironment): string |
       if (decodedDatabaseName(runtimeTarget) === databaseName) return null;
       if (canonicalResourceIdentity(runtimeTarget) === canonicalResourceIdentity(target))
         return null;
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       // An invalid runtime value cannot authorize or identify a contract target.
     }
   }

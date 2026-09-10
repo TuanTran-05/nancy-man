@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import express, { type Router } from 'express';
 import { z } from 'zod';
 
@@ -42,13 +44,30 @@ export function createIssueRouter(input: {
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'issues:read');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
       const rawLimit = Number(request.query.limit ?? '50');
       const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50;
       return response.status(200).json({ issues: await input.inbox.list({ limit }) });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        deferUntilHandled: true,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -62,7 +81,15 @@ export function createIssueRouter(input: {
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
       try {
         assertPermission(principal.role, 'issues:read');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
       const detail = await input.inbox.detail?.(request.params.issueId);
@@ -70,6 +97,15 @@ export function createIssueRouter(input: {
         ? response.status(200).json(detail)
         : response.status(404).json({ code: 'ISSUE_NOT_FOUND' });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        deferUntilHandled: true,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -93,7 +129,15 @@ export function createIssueRouter(input: {
         if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
         try {
           assertPermission(principal.role, 'issues:write');
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'api',
+            status: 500,
+            requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+            route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+            method: () => request.method,
+          });
           return response.status(403).json({ code: 'PERMISSION_DENIED' });
         }
         if (
@@ -106,6 +150,15 @@ export function createIssueRouter(input: {
           return response.status(404).json({ code: 'ISSUE_NOT_FOUND' });
         return response.status(204).end();
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          deferUntilHandled: true,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         next(error);
       }
     }
@@ -130,7 +183,15 @@ export function createIssueRouter(input: {
         if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
         try {
           assertPermission(principal.role, 'issues:write');
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'api',
+            status: 500,
+            requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+            route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+            method: () => request.method,
+          });
           return response.status(403).json({ code: 'PERMISSION_DENIED' });
         }
         const created = await input.workflow.comment({
@@ -142,6 +203,15 @@ export function createIssueRouter(input: {
           ? response.status(204).end()
           : response.status(404).json({ code: 'ISSUE_NOT_FOUND' });
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          deferUntilHandled: true,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         next(error);
       }
     }
@@ -166,7 +236,15 @@ export function createIssueRouter(input: {
         if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
         try {
           assertPermission(principal.role, 'issues:write');
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'api',
+            status: 500,
+            requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+            route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+            method: () => request.method,
+          });
           return response.status(403).json({ code: 'PERMISSION_DENIED' });
         }
         const changed = await input.workflow.assign({
@@ -178,6 +256,15 @@ export function createIssueRouter(input: {
           ? response.status(204).end()
           : response.status(404).json({ code: 'ISSUE_NOT_FOUND_OR_ASSIGNEE_INVALID' });
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          deferUntilHandled: true,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         next(error);
       }
     }

@@ -1,3 +1,5 @@
+import { captureBrowserException } from '../telemetry/runtimeTelemetry.js';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   getVariableCatalog,
@@ -181,6 +183,11 @@ export function VariablesPage({
         setCatalog(nextCatalog);
         setItems(nextInventory.items);
       } catch (caught) {
+        void captureBrowserException(caught, {
+          code: 'UNHANDLED_BROWSER_EXCEPTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname,
+        });
         clearValues();
         setError(errorMessage(caught));
         if (isSessionUnauthorized(caught)) reportUnauthorized();
@@ -207,6 +214,11 @@ export function VariablesPage({
         setUnlockedUntil(deadline);
         await readInventory(false);
       } catch (caught) {
+        void captureBrowserException(caught, {
+          code: 'UNHANDLED_BROWSER_EXCEPTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname,
+        });
         clearValues();
         setError(errorMessage(caught));
         if (isSessionUnauthorized(caught)) reportUnauthorized();
@@ -220,6 +232,11 @@ export function VariablesPage({
     try {
       await lockVariables(session.csrfToken ?? '');
     } catch (caught) {
+      void captureBrowserException(caught, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       setError(errorMessage(caught));
       if (isSessionUnauthorized(caught)) reportUnauthorized();
     }
@@ -294,6 +311,11 @@ export function VariablesPage({
               : current
           );
         } catch (caught) {
+          void captureBrowserException(caught, {
+            code: 'UNHANDLED_BROWSER_EXCEPTION',
+            source: 'browser',
+            route: () => globalThis.location?.pathname,
+          });
           setError(errorMessage(caught));
         }
         return;
@@ -341,6 +363,11 @@ export function VariablesPage({
             : current
         );
       } catch (caught) {
+        void captureBrowserException(caught, {
+          code: 'UNHANDLED_BROWSER_EXCEPTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname,
+        });
         setError(errorMessage(caught));
       }
     },
@@ -395,6 +422,11 @@ export function VariablesPage({
           : current
       );
     } catch (caught) {
+      void captureBrowserException(caught, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       setError(errorMessage(caught));
     }
   }, [draftItems, inventoryVersions, session.csrfToken, staged]);
@@ -409,6 +441,11 @@ export function VariablesPage({
       );
       setStaged((current) => (current ? { ...current, state: result.state } : current));
     } catch (caught) {
+      void captureBrowserException(caught, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname,
+      });
       setError(errorMessage(caught));
     }
   }, [inventoryVersions, session.csrfToken, staged]);
@@ -442,6 +479,11 @@ export function VariablesPage({
             : current
         );
       } catch (caught) {
+        void captureBrowserException(caught, {
+          code: 'UNHANDLED_BROWSER_EXCEPTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname,
+        });
         setError(errorMessage(caught));
       }
     },

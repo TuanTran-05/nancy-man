@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { createHash } from 'node:crypto';
 import { SourceMapConsumer } from 'source-map';
 
@@ -40,7 +42,12 @@ function generatedFrames(stack: string): GeneratedFrame[] {
 function filename(value: string): string {
   try {
     return new URL(value).pathname.split('/').at(-1) ?? value;
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return value.split('/').at(-1) ?? value;
   }
 }

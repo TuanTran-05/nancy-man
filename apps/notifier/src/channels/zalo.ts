@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { formatSafeAlert, type SafeAlert } from './safeAlert.js';
 
 export function createZaloChannel(input: {
@@ -35,7 +37,14 @@ export function createZaloChannel(input: {
         if (!response.ok) {
           throw new Error(`Zalo notification failed with HTTP ${response.status}`);
         }
-        const responseBody: unknown = await response.json().catch(() => ({}));
+        const responseBody: unknown = await response.json().catch((error) => {
+          captureOpsException(error, {
+            code: 'UNHANDLED_PROMISE_REJECTION',
+            source: 'job',
+            status: 500,
+          });
+          return ({});
+        });
         const providerMessageId =
           typeof responseBody === 'object' && responseBody !== null && 'message_id' in responseBody
             ? String(responseBody.message_id).slice(0, 256)

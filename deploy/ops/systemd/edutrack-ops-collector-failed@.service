@@ -8,12 +8,15 @@ Group=edutrack-ops-shared
 UMask=0007
 WorkingDirectory=/srv/edutrack-ops/current
 EnvironmentFile=/etc/edutrack-ops/collector.env
+Environment=OPS_TELEMETRY_HMAC_FILE=%d/ops-telemetry-hmac
+LoadCredential=ops-telemetry-hmac:/etc/edutrack-ops/credentials/ops-telemetry-hmac
 ExecStart=/usr/bin/node apps/web/dist/server/failsafe-entry.js
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
 ReadWritePaths=/srv/edutrack-ops/shared
+ReadWritePaths=/var/lib/edutrack-ops/telemetry/failsafe
 RestrictAddressFamilies=AF_INET AF_INET6
 CapabilityBoundingSet=
 LockPersonality=true

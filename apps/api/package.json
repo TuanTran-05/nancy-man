@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json --pretty false && node scripts/copyMigrations.mjs && install -D -m 0755 scripts/config-agent-smoke.sh dist/bin/edutrack-config-agent-smoke",
     "start": "node dist/apps/api/src/runtime/main.js",
     "migrate": "node dist/apps/api/src/cli/migrate.js",
-    "bootstrap-owner": "node dist/apps/api/src/cli/bootstrapOwnerCommand.js"
+    "bootstrap-owner": "node dist/apps/api/src/cli/bootstrapOwnerCommand.js",
+    "telemetry-canary": "node dist/apps/api/src/cli/telemetry-canary.js"
   },
   "dependencies": {
     "express": "^5.2.1",

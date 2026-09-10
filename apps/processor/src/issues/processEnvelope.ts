@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import type { TelemetryEnvelopeV1 } from '../../../../packages/contracts/src/telemetry.js';
 
 import { fingerprintEvent } from './fingerprint.js';
@@ -87,7 +89,12 @@ export async function processEnvelope(
         stack: event.stackTrace
       });
       event = { ...event, stackFrames: symbolicated.stackFrames };
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       // Persist the sanitized generated stack; source-map failures must not drop an error occurrence.
     }
   }

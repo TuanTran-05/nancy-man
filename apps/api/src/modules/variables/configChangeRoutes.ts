@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { createHash } from 'node:crypto';
 
 import express, { type Request, type Response, type Router } from 'express';
@@ -169,7 +171,15 @@ export function createConfigChangeRouter(input: {
     }
     try {
       assertPermission(value.role, permission);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       response.status(403).json({ code: 'PERMISSION_DENIED' });
       return null;
     }
@@ -208,10 +218,27 @@ export function createConfigChangeRouter(input: {
           expiresAt: grant.expiresAt
         });
         response.status(200).json({ authorizedUntil: grant.expiresAt });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method,
+        });
         response.status(401).json({ code: 'MFA_DENIED' });
       }
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        deferUntilHandled: true,
+        method: () => request.method,
+      });
       next(error);
     }
   });
@@ -232,6 +259,14 @@ export function createConfigChangeRouter(input: {
       });
       response.status(201).json(result);
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       sendError(response, error);
     }
   });
@@ -254,6 +289,14 @@ export function createConfigChangeRouter(input: {
       });
       response.status(200).json(result);
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       sendError(response, error);
     }
   });
@@ -271,6 +314,14 @@ export function createConfigChangeRouter(input: {
         .status(200)
         .json(await input.service.validate({ principal: current.actor, body: parsed.data }));
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       sendError(response, error);
     }
   });
@@ -288,6 +339,14 @@ export function createConfigChangeRouter(input: {
         .status(200)
         .json(await input.service.save({ principal: current.actor, body: parsed.data }));
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       sendError(response, error);
     }
   });
@@ -313,6 +372,14 @@ export function createConfigChangeRouter(input: {
         .status(202)
         .json(await input.service.apply({ principal: current.actor, body: parsed.data }));
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       sendError(response, error);
     }
   });
@@ -327,6 +394,14 @@ export function createConfigChangeRouter(input: {
         .status(200)
         .json(await input.service.status({ principal: current.actor, body: parsed.data }));
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       sendError(response, error);
     }
   });
@@ -379,6 +454,14 @@ export function createConfigChangeRouter(input: {
         if (!response.writableEnded) response.end();
       }
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       if (!response.headersSent) sendError(response, error);
       else if (!response.writableEnded) response.end();
     }
@@ -397,6 +480,14 @@ export function createConfigChangeRouter(input: {
         .status(200)
         .json(await input.service.cancel({ principal: current.actor, body: parsed.data }));
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       sendError(response, error);
     }
   });
@@ -419,6 +510,14 @@ export function createConfigChangeRouter(input: {
         .status(200)
         .json(await input.service.clearApplyBlock({ principal: current.actor, body: parsed.data }));
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       sendError(response, error);
     }
   });

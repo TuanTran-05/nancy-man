@@ -3,6 +3,11 @@ import { pathToFileURL } from 'node:url';
 
 import { getOpsPool } from '../../../../packages/db/src/client.js';
 import { migrateOpsDatabase } from '../../../../packages/db/src/migrate.js';
+import {
+  createOpsProcessRuntimeTelemetryFromEnvironment,
+  runConfiguredOpsTelemetryOneShot
+} from '../../../../packages/telemetry-sdk/src/oneShot.js';
+import type { RuntimeTelemetry } from '../../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
 
 import { FileSecretResolver } from '../runtime/fileSecretResolver.js';
 import { readOpsRuntimeConfig } from '../runtime/runtimeConfig.js';
@@ -69,14 +74,54 @@ export async function runOpsDatabaseMigrations(
   }
 }
 
+export function runOpsDatabaseMigrationEntrypoint(
+  input: {
+    environment?: NodeJS.ProcessEnv;
+    telemetry?: RuntimeTelemetry;
+    run?: () => Promise<{ appliedMigrations: string[] }>;
+    onFailure?: (error: unknown) => void | Promise<void>;
+    rethrow?: boolean;
+  } = {}
+): Promise<{ appliedMigrations: string[] } | undefined> {
+  const environment = input.environment ?? process.env;
+  const common = {
+    createTelemetry: () =>
+      input.telemetry ??
+      createOpsProcessRuntimeTelemetryFromEnvironment({
+        environment,
+        resolveHmacSecret: async (reference) => {
+          const secretDirectory = environment.OPS_SECRET_DIRECTORY?.trim();
+          if (!secretDirectory) throw new Error('OPS_SECRET_DIRECTORY is required');
+          return new FileSecretResolver(secretDirectory).resolve(reference);
+        },
+        service: 'edutrack-ops-migrate',
+        spoolName: 'migrate'
+      }),
+    failureContext: {
+      code: 'OPS_DATABASE_MIGRATION_FAILED',
+      source: 'database' as const,
+      level: 'fatal' as const
+    },
+    run: input.run ?? (() => runOpsDatabaseMigrations(environment)),
+    ...(input.onFailure ? { onFailure: input.onFailure } : {})
+  };
+  return input.rethrow === false
+    ? runConfiguredOpsTelemetryOneShot({ ...common, rethrow: false })
+    : runConfiguredOpsTelemetryOneShot({ ...common, rethrow: true });
+}
+
 const entrypoint = process.argv[1];
 if (entrypoint && import.meta.url === pathToFileURL(resolve(entrypoint)).href) {
-  void runOpsDatabaseMigrations()
-    .then((result) =>
-      process.stdout.write(`Applied ${result.appliedMigrations.length} Ops migrations\n`)
-    )
-    .catch(() => {
+  void runOpsDatabaseMigrationEntrypoint({
+    rethrow: false,
+    run: async () => {
+      const result = await runOpsDatabaseMigrations();
+      process.stdout.write(`Applied ${result.appliedMigrations.length} Ops migrations\n`);
+      return result;
+    },
+    onFailure: () => {
       process.stderr.write('Ops database migration failed\n');
       process.exitCode = 1;
-    });
+    }
+  });
 }

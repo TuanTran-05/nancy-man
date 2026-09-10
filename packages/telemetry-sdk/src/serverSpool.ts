@@ -7,6 +7,7 @@ import { sanitizeTelemetry } from '../../security/src/telemetry/sanitizer.js';
 
 const maximumBytes = 64 * 1024 * 1024;
 const maximumAgeMilliseconds = 24 * 60 * 60 * 1_000;
+const ingestEventIdPattern = /^EVT_[0-9A-HJKMNP-TV-Z]{26}$/;
 
 export type ServerSpoolRecord = {
   idempotencyKey: string;
@@ -16,6 +17,13 @@ export type ServerSpoolRecord = {
   enqueuedAt: string;
   attemptCount: number;
   nextAttemptAt?: string;
+};
+
+type QuarantineSummary = {
+  schemaVersion: 1;
+  quarantinedAt: string;
+  malformedRecords: number;
+  invalidRecords: number;
 };
 
 function encodedSize(record: Omit<ServerSpoolRecord, 'byteSize'>): number {
@@ -30,6 +38,105 @@ function chronological(records: ServerSpoolRecord[]): ServerSpoolRecord[] {
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasOnlyStringValues(value: unknown): boolean {
+  return isRecord(value) && Object.values(value).every((entry) => typeof entry === 'string');
+}
+
+function isIngestEventId(value: unknown): value is `EVT_${string}` {
+  return typeof value === 'string' && ingestEventIdPattern.test(value);
+}
+
+function isIngestIdempotencyKey(value: unknown): value is string {
+  return typeof value === 'string' && value.length >= 16;
+}
+
+function isBreadcrumb(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.at === 'string' &&
+    typeof value.category === 'string' &&
+    typeof value.message === 'string'
+  );
+}
+
+function isEnvelope(value: unknown): value is TelemetryEnvelopeV1 {
+  if (!isRecord(value) || !isRecord(value.error) || !isRecord(value.context)) return false;
+  const source = value.source;
+  const level = value.level;
+  const error = value.error;
+  const context = value.context;
+  return (
+    value.schemaVersion === 1 &&
+    isIngestEventId(value.eventId) &&
+    isIngestIdempotencyKey(value.idempotencyKey) &&
+    typeof value.capturedAt === 'string' &&
+    Number.isFinite(Date.parse(value.capturedAt)) &&
+    (source === 'api' ||
+      source === 'database' ||
+      source === 'document_store' ||
+      source === 'job' ||
+      source === 'provider' ||
+      source === 'process' ||
+      source === 'deployment' ||
+      source === 'synthetic') &&
+    (level === 'fatal' || level === 'error' || level === 'warning') &&
+    typeof error.name === 'string' &&
+    typeof error.code === 'string' &&
+    typeof error.safeMessage === 'string' &&
+    (error.stack === undefined || typeof error.stack === 'string') &&
+    (error.componentStack === undefined || typeof error.componentStack === 'string') &&
+    typeof context.release === 'string' &&
+    typeof context.service === 'string' &&
+    context.environment === 'production' &&
+    (context.requestId === undefined || typeof context.requestId === 'string') &&
+    (context.traceId === undefined || typeof context.traceId === 'string') &&
+    (context.route === undefined || typeof context.route === 'string') &&
+    (context.telemetryContextToken === undefined ||
+      typeof context.telemetryContextToken === 'string') &&
+    (context.tags === undefined || hasOnlyStringValues(context.tags)) &&
+    (context.breadcrumbs === undefined ||
+      (Array.isArray(context.breadcrumbs) && context.breadcrumbs.every(isBreadcrumb)))
+  );
+}
+
+function normalizeSpoolRecord(value: unknown): ServerSpoolRecord | undefined {
+  if (!isRecord(value) || !isEnvelope(value.envelope)) return undefined;
+  if (
+    !isIngestIdempotencyKey(value.idempotencyKey) ||
+    !isIngestEventId(value.eventId) ||
+    value.eventId !== value.envelope.eventId ||
+    value.idempotencyKey !== value.envelope.idempotencyKey ||
+    !Number.isSafeInteger(value.byteSize) ||
+    Number(value.byteSize) < 0 ||
+    typeof value.enqueuedAt !== 'string' ||
+    !Number.isFinite(Date.parse(value.enqueuedAt)) ||
+    !Number.isSafeInteger(value.attemptCount) ||
+    Number(value.attemptCount) < 0 ||
+    (value.nextAttemptAt !== undefined &&
+      (typeof value.nextAttemptAt !== 'string' ||
+        !Number.isFinite(Date.parse(value.nextAttemptAt))))
+  ) {
+    return undefined;
+  }
+
+  const envelope = sanitizeTelemetry(value.envelope, {
+    sessionPepper: 'server-telemetry-session-id-not-provided'
+  }).envelope;
+  const withoutSize = {
+    idempotencyKey: envelope.idempotencyKey,
+    eventId: envelope.eventId,
+    envelope,
+    enqueuedAt: value.enqueuedAt,
+    attemptCount: Number(value.attemptCount),
+    ...(typeof value.nextAttemptAt === 'string' ? { nextAttemptAt: value.nextAttemptAt } : {})
+  };
+  return { ...withoutSize, byteSize: encodedSize(withoutSize) };
+}
+
 function isAllowedDirectory(allowedRoot: string, spoolDirectory: string): boolean {
   const pathToSpool = relative(allowedRoot, spoolDirectory);
   return pathToSpool === '' || (!pathToSpool.startsWith('..') && !isAbsolute(pathToSpool));
@@ -39,6 +146,7 @@ export class ServerSpool {
   private readonly allowedRoot: string;
   private readonly spoolDirectory: string;
   private readonly eventPath: string;
+  private readonly quarantinePath: string;
   private readonly lockPath: string;
   private readonly now: () => Date;
   private readonly random: () => string;
@@ -59,6 +167,7 @@ export class ServerSpool {
       throw new Error('Server spool directory must be inside the allowlisted root');
     }
     this.eventPath = join(this.spoolDirectory, 'events.ndjson');
+    this.quarantinePath = join(this.spoolDirectory, 'quarantine.ndjson');
     this.lockPath = join(this.spoolDirectory, '.events.lock');
     this.now = input.now ?? (() => new Date());
     this.random =
@@ -119,7 +228,7 @@ export class ServerSpool {
   }
 
   async pending(): Promise<ServerSpoolRecord[]> {
-    return chronological(await this.readRecords());
+    return this.withLock(async () => chronological(await this.readRecords()));
   }
 
   async flush(
@@ -202,16 +311,58 @@ export class ServerSpool {
   private async readRecords(): Promise<ServerSpoolRecord[]> {
     try {
       const content = await readFile(this.eventPath, 'utf8');
-      return content
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => JSON.parse(line) as ServerSpoolRecord);
+      const records: ServerSpoolRecord[] = [];
+      let malformedRecords = 0;
+      let invalidRecords = 0;
+      let normalized = false;
+
+      for (const line of content.split('\n').filter(Boolean)) {
+        let raw: unknown;
+        try {
+          raw = JSON.parse(line);
+        } catch {
+          malformedRecords += 1;
+          continue;
+        }
+        const record = normalizeSpoolRecord(raw);
+        if (!record) {
+          invalidRecords += 1;
+          continue;
+        }
+        records.push(record);
+        normalized ||= JSON.stringify(raw) !== JSON.stringify(record);
+      }
+
+      if (malformedRecords > 0 || invalidRecords > 0) {
+        await this.writeQuarantine({
+          schemaVersion: 1,
+          quarantinedAt: this.now().toISOString(),
+          malformedRecords,
+          invalidRecords
+        });
+        await this.writeRecords(records);
+      } else if (normalized) {
+        await this.writeRecords(records);
+      }
+      return records;
     } catch (error: unknown) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         return [];
       }
       throw error;
     }
+  }
+
+  private async writeQuarantine(summary: QuarantineSummary): Promise<void> {
+    const temporaryPath = join(this.spoolDirectory, `.quarantine.${this.random()}.tmp`);
+    await writeFile(temporaryPath, `${JSON.stringify(summary)}\n`, {
+      encoding: 'utf8',
+      mode: 0o600,
+      flag: 'wx'
+    });
+    await chmod(temporaryPath, 0o600);
+    await rename(temporaryPath, this.quarantinePath);
+    await chmod(this.quarantinePath, 0o600);
   }
 
   private async writeRecords(records: ServerSpoolRecord[]): Promise<void> {

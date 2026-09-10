@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { chmodSync, chownSync, lstatSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs';
 import net from 'node:net';
@@ -136,7 +138,12 @@ function groupId(name: string): number | undefined {
       const fields = line.split(':');
       if (fields[0] === name && fields[2] && /^[0-9]+$/u.test(fields[2])) return Number(fields[2]);
     }
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     return undefined;
   }
   return undefined;
@@ -148,6 +155,11 @@ function removeSocketIfSafe(socketPath: string): void {
     if (!stat.isSocket()) throw new ProtocolServerError('AGENT_SOCKET_INVALID');
     unlinkSync(socketPath);
   } catch (error) {
+    captureOpsException(error, {
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
     if (error instanceof ProtocolServerError) throw error;
     throw new ProtocolServerError('AGENT_SOCKET_INVALID');
@@ -161,7 +173,12 @@ function peerAllowed(socket: PeerAwareSocket, options: AuthenticatedServerOption
   let credentials: PeerCredentials;
   try {
     credentials = readPeerCredentials.call(socket);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500,
+    });
     return false;
   }
   return (
@@ -408,6 +425,11 @@ export function createAuthenticatedServer(
           signature: signatureFor(protocolKey, unsigned)
         });
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
         const unsigned = {
           version: 1,
           requestId: request.requestId,
@@ -443,7 +465,14 @@ export function createAuthenticatedServer(
     };
 
     socket.on('data', (chunk: Buffer) => {
-      chain = chain.then(() => handleChunk(chunk)).catch(() => reject());
+      chain = chain.then(() => handleChunk(chunk)).catch((error) => {
+        captureOpsException(error, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'job',
+          status: 500,
+        });
+        return reject();
+      });
     });
     socket.on('end', () => {
       chain = chain
@@ -451,11 +480,23 @@ export function createAuthenticatedServer(
           try {
             decoder.finish();
             if (!frameSeen || !responseSent) reject();
-          } catch {
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'UNHANDLED_PROMISE_REJECTION',
+              source: 'job',
+              status: 500,
+            });
             reject();
           }
         })
-        .catch(() => reject());
+        .catch((error) => {
+          captureOpsException(error, {
+            code: 'UNHANDLED_PROMISE_REJECTION',
+            source: 'job',
+            status: 500,
+          });
+          return reject();
+        });
     });
     socket.on('error', () => {
       closed = true;
@@ -489,6 +530,11 @@ export function createAuthenticatedServer(
           }
           resolve();
         } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'job',
+            status: 500,
+          });
           server.close();
           reject(
             error instanceof ProtocolServerError
@@ -512,7 +558,12 @@ export function createAuthenticatedServer(
     try {
       const stat = lstatSync(options.socketPath);
       if (stat.isSocket()) unlinkSync(options.socketPath);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       // The socket may already have been removed by the host supervisor.
     }
   }

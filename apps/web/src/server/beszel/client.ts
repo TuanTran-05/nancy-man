@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { readFileSync } from 'node:fs';
 import type { BeszelCollectorConfig } from '../config.js';
 import {
@@ -63,7 +65,12 @@ function isAbort(error: unknown, signal: AbortSignal): boolean {
 function parseBody(text: string): unknown {
   try {
     return JSON.parse(text) as unknown;
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'api',
+      status: 500,
+    });
     throw boundedError('beszel_invalid_json');
   }
 }
@@ -90,6 +97,11 @@ export function createBeszelClient(
     try {
       return await fetchImpl(url, { ...init, signal });
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       if (isAbort(error, signal)) throw boundedError('beszel_timeout');
       throw boundedError('beszel_unreachable');
     }
@@ -99,7 +111,12 @@ export function createBeszelClient(
     let body: string;
     try {
       body = await response.text();
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       throw boundedError('beszel_invalid_json');
     }
     return parseBody(body);
@@ -109,7 +126,12 @@ export function createBeszelClient(
     let password: string;
     try {
       password = readPassword(config.passwordFile).trim();
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       throw boundedError('beszel_unreachable');
     }
     if (!password) throw boundedError('beszel_auth_failed');
@@ -209,6 +231,11 @@ export function createBeszelClient(
         void authToken;
         return { hub: hub.data, system: system.data, stats: firstStats, services: services.data };
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+        });
         if (error instanceof BeszelClientError) throw error;
         if (isAbort(error, signal)) throw boundedError('beszel_timeout');
         throw boundedError('beszel_contract_invalid');

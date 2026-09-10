@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveRuntimeCredentials } from './main.js';
+import { closeOpsApiResources, resolveRuntimeCredentials } from './main.js';
+import { installOpsRuntimeTelemetry } from '../telemetry/runtimeTelemetry.js';
 
 const config = {
   apiHost: '127.0.0.1' as const,
@@ -20,6 +21,7 @@ const config = {
   },
   objectStoreDirectory: '/var/lib/edutrack-ops/object-store',
   browserCorsOrigins: ['https://thienuy.edu.vn'],
+  telemetry: { enabled: false as const },
   sqlWorker: { enabled: false as const },
   configAgent: { enabled: false as const }
 };
@@ -131,5 +133,49 @@ describe('resolveRuntimeCredentials', () => {
         protocolHmacKey: 'value-for-ops-config-agent-hmac'
       }
     });
+  });
+});
+
+describe('closeOpsApiResources', () => {
+  it('captures a hostile pool cleanup while telemetry is bound and preserves the primary error', async () => {
+    const primaryFailure = new Error('API startup failed');
+    const cleanupFailure = new Error('pool close failed');
+    const captured: unknown[] = [];
+    const order: string[] = [];
+    const disposeTelemetry = installOpsRuntimeTelemetry({
+      captureException: (error, context) => {
+        order.push('capture');
+        captured.push({ error, context });
+        return 'EVT_00000000000000000000000000';
+      },
+      flush: async () => undefined,
+      healthy: () => true
+    });
+
+    try {
+      await expect(
+        closeOpsApiResources({
+          hasPrimaryFailure: true,
+          primaryFailure,
+          closePool: async () => {
+            order.push('pool:end');
+            throw cleanupFailure;
+          },
+          stopTelemetry: async () => {
+            order.push('telemetry:stop');
+          }
+        })
+      ).rejects.toBe(primaryFailure);
+    } finally {
+      disposeTelemetry();
+    }
+
+    expect(captured).toEqual([
+      {
+        error: cleanupFailure,
+        context: { code: 'API_DATABASE_CLOSE_FAILED', source: 'database' }
+      }
+    ]);
+    expect(order).toEqual(['pool:end', 'capture', 'telemetry:stop']);
   });
 });

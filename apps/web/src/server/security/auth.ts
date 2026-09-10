@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { randomUUID } from 'node:crypto';
 import type { OpsStore, AccountRecord } from '../storage/store.js';
 import {
@@ -157,7 +159,12 @@ export function createAuthService(deps: AuthDependencies) {
         try {
           const seed = decryptSecret(account.totpSecretEnc, deps.dataKey);
           valid = verifyTotp(seed, input.totp, attemptedAt);
-        } catch {
+        } catch (error) {
+          captureOpsException(error, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'api',
+            status: 500,
+          });
           valid = false;
         }
       }

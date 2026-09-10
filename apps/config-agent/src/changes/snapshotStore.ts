@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import {
   deleteSecureArtifact,
   ensureStorageDirectories,
@@ -93,6 +95,11 @@ function encodeValue(value: unknown): Buffer {
     if (serialized === undefined) fail('SNAPSHOT_INVALID');
     return Buffer.from(serialized, 'utf8');
   } catch (error) {
+    captureOpsException(error, {
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof SnapshotStoreError) throw error;
     fail('SNAPSHOT_INVALID');
   }
@@ -186,7 +193,12 @@ export class SnapshotStore {
     });
     try {
       return decodeStoredValue<T>(plaintext);
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       fail('SNAPSHOT_CORRUPT');
     }
   }

@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { createHash, randomUUID } from 'node:crypto';
 import { link, lstat, mkdir, open, readFile, unlink } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
@@ -52,6 +54,11 @@ export class FileObjectStore {
     try {
       await unlink(temporaryPath);
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'document_store',
+        status: 500,
+      });
       if ((error as { code?: string }).code !== 'ENOENT') throw error;
     }
   }
@@ -82,10 +89,20 @@ export class FileObjectStore {
         await link(temporaryPath, objectPath);
         result = 'created';
       } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500,
+        });
         if ((error as { code?: string }).code !== 'EEXIST') throw error;
         result = await this.existingOutcome(objectPath, expectedChecksum);
       }
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'document_store',
+        status: 500,
+      });
       await this.removeTemporary(temporaryPath);
       throw error;
     }
@@ -101,6 +118,11 @@ export class FileObjectStore {
         throw new Error('Stored object is not a regular file');
       return await readFile(objectPath, 'utf8');
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'document_store',
+        status: 500,
+      });
       if ((error as { code?: string }).code === 'ENOENT') return null;
       throw error;
     }

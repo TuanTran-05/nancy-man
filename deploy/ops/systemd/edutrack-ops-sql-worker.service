@@ -11,6 +11,7 @@ WorkingDirectory=/srv/edutrack-ops/current
 EnvironmentFile=/etc/edutrack-ops/sql-worker.env
 Environment=OPS_SECRET_DIRECTORY=%d
 LoadCredential=ops-sql-worker-hmac:/etc/edutrack-ops/credentials/ops-sql-worker-hmac
+LoadCredential=ops-telemetry-hmac:/etc/edutrack-ops/credentials/ops-telemetry-hmac
 RuntimeDirectory=edutrack-ops
 RuntimeDirectoryMode=0750
 ExecStart=/usr/bin/node apps/sql-worker/dist/apps/sql-worker/src/index.js
@@ -23,6 +24,7 @@ PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
 ReadWritePaths=/run/edutrack-ops
+ReadWritePaths=/var/lib/edutrack-ops/telemetry/sql-worker
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]

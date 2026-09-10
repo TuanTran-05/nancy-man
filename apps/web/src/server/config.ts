@@ -1,6 +1,12 @@
+import { captureOpsException } from './telemetry/runtimeTelemetry.js';
+
 import { z } from 'zod';
 import { lstatSync, readFileSync } from 'node:fs';
 import { isValidOpsZaloSecret } from './security/zaloLink.js';
+import {
+  readServerTelemetryRuntimeConfig,
+  type ServerTelemetryRuntimeConfig
+} from '../../../../packages/telemetry-sdk/src/serverRuntimeConfig.js';
 
 export interface WebConfig {
   nodeEnv: string;
@@ -16,6 +22,8 @@ export interface WebConfig {
   zaloTimeoutMs: number;
   zaloLinkTtlSeconds: number;
   legacyMonitoringHmacFile: string;
+  telemetry?: ServerTelemetryRuntimeConfig;
+  telemetryHmacFile?: string;
 }
 
 export interface CollectorConfig {
@@ -33,6 +41,8 @@ export interface CollectorConfig {
   zaloRecipientKey: Buffer;
   zaloTimeoutMs: number;
   beszel: BeszelCollectorConfig;
+  telemetry?: ServerTelemetryRuntimeConfig;
+  telemetryHmacFile?: string;
 }
 
 export type BeszelCollectorConfig =
@@ -102,8 +112,13 @@ const requireLoopbackUrl = (env: Env, name: string): string => {
   let parsed: URL;
   try {
     parsed = new URL(value);
-  } catch {
-    throw new Error(`${name} must be a valid URL`);
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'api',
+      status: 500,
+    });
+    throw new Error(`${name} must be a valid URL`, { cause: error });
   }
   if (parsed.protocol !== 'http:' || parsed.hostname !== '127.0.0.1') {
     throw new Error(`${name} must use an http://127.0.0.1 URL`);
@@ -121,8 +136,13 @@ function loadBeszelConfig(env: Env): BeszelCollectorConfig {
   let parsed: URL;
   try {
     parsed = new URL(configuredUrl);
-  } catch {
-    throw new Error('OPS_BESZEL_URL must be exactly http://127.0.0.1:8090');
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'api',
+      status: 500,
+    });
+    throw new Error('OPS_BESZEL_URL must be exactly http://127.0.0.1:8090', { cause: error });
   }
   if (parsed.href !== 'http://127.0.0.1:8090/')
     throw new Error('OPS_BESZEL_URL must be exactly http://127.0.0.1:8090');
@@ -159,12 +179,18 @@ export function loadWebConfig(env: Env = process.env): WebConfig {
   let dataKey: Buffer;
   try {
     dataKey = Buffer.from(keyRaw, 'base64');
-  } catch {
-    throw new Error('OPS_DATA_KEY must be base64');
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'api',
+      status: 500,
+    });
+    throw new Error('OPS_DATA_KEY must be base64', { cause: error });
   }
   if (dataKey.length !== 32 || dataKey.toString('base64') !== keyRaw) {
     throw new Error('OPS_DATA_KEY must encode exactly 32 bytes');
   }
+  const telemetry = readServerTelemetryRuntimeConfig(env);
   return {
     nodeEnv: env.NODE_ENV ?? 'development',
     dbPath: required(env, 'OPS_DB_PATH'),
@@ -178,12 +204,17 @@ export function loadWebConfig(env: Env = process.env): WebConfig {
     zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
     zaloTimeoutMs: positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000),
     zaloLinkTtlSeconds: positiveInteger(env, 'OPS_ZALO_LINK_TTL_SECONDS', 600),
-    legacyMonitoringHmacFile: required(env, 'OPS_LEGACY_MONITORING_HMAC_FILE')
+    legacyMonitoringHmacFile: required(env, 'OPS_LEGACY_MONITORING_HMAC_FILE'),
+    telemetry,
+    ...(telemetry.enabled
+      ? { telemetryHmacFile: required(env, 'OPS_TELEMETRY_HMAC_FILE') }
+      : {})
   };
 }
 
 export function loadCollectorConfig(env: Env = process.env): CollectorConfig {
   const nodeEnv = env.NODE_ENV ?? 'development';
+  const telemetry = readServerTelemetryRuntimeConfig(env);
   const config: CollectorConfig = {
     nodeEnv,
     dbPath: required(env, 'OPS_DB_PATH'),
@@ -198,7 +229,11 @@ export function loadCollectorConfig(env: Env = process.env): CollectorConfig {
     zaloChatHashSecret: requiredSecret(env, 'OPS_ZALO_CHAT_HASH_SECRET'),
     zaloRecipientKey: requiredKey(env, 'OPS_ZALO_RECIPIENT_KEY'),
     zaloTimeoutMs: positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000),
-    beszel: loadBeszelConfig(env)
+    beszel: loadBeszelConfig(env),
+    telemetry,
+    ...(telemetry.enabled
+      ? { telemetryHmacFile: required(env, 'OPS_TELEMETRY_HMAC_FILE') }
+      : {})
   };
   if (config.zaloTimeoutMs < 5000 || config.zaloTimeoutMs > 60000) {
     throw new Error('OPS_ALERT_ZALO_TIMEOUT_MS must be between 5000 and 60000');

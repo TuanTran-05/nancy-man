@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry-sdk/src/runtimeCaptureFacade.js';
+
 import { opsMigrationManifest } from './migrationManifest.js';
 
 export type QueryResult<T> = { rows: T[] };
@@ -52,7 +54,12 @@ async function applyMigration(
   } catch (error) {
     try {
       await database.query('ROLLBACK');
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+      });
       // Preserve the original migration failure after a best-effort rollback.
     }
     throw error;

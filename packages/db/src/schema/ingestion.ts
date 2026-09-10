@@ -95,6 +95,7 @@ export const ingestProcessing = pgTable(
     claimedAt: timestamp('claimed_at', { withTimezone: true }),
     claimedBy: text('claimed_by'),
     processedAt: timestamp('processed_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
     lastErrorCode: text('last_error_code'),
     lastErrorDetail: text('last_error_detail')
   },

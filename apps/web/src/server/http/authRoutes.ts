@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import type { Request, Response, NextFunction, Router } from 'express';
 import { z } from 'zod';
 import type { createAuthService } from '../security/auth.js';
@@ -39,7 +41,13 @@ export function requireOpsSession(auth: AuthService) {
     try {
       request.opsSession = auth.requireSession(token);
       next();
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+      });
       response.status(401).json({ error: 'unauthorized' });
     }
   };
@@ -64,7 +72,15 @@ export function attachAuthRoutes(router: Router, auth: AuthService): void {
         csrfToken: session.csrfToken,
         expiresAt: session.expiresAt
       });
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       response.status(401).json({ error: 'Invalid credentials' });
     }
   });

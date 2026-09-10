@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { readFileSync } from 'node:fs';
 
 import {
@@ -160,7 +162,12 @@ function userId(name: string): number | undefined {
       const fields = line.split(':');
       if (fields[0] === name && fields[2] && /^[0-9]+$/u.test(fields[2])) return Number(fields[2]);
     }
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     return undefined;
   }
   return undefined;
@@ -172,7 +179,12 @@ function groupId(name: string): number | undefined {
       const fields = line.split(':');
       if (fields[0] === name && fields[2] && /^[0-9]+$/u.test(fields[2])) return Number(fields[2]);
     }
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500,
+    });
     return undefined;
   }
   return undefined;
@@ -240,6 +252,11 @@ function parseSource(
     if (!adapter.serialize(parsed).equals(bytes)) fail('SOURCE_PARSE_FAILED');
     return parsed;
   } catch (error) {
+    captureOpsException(error, {
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof ValidationServiceError) throw error;
     fail('SOURCE_PARSE_FAILED');
   }
@@ -298,6 +315,11 @@ function validateValue(entry: CatalogEntry, value: string, catalog: Catalog): st
         break;
     }
   } catch (error) {
+    captureOpsException(error, {
+    code: 'UNHANDLED_OPS_EXCEPTION',
+    source: 'job',
+    status: 500,
+  });
     if (error instanceof ValidationServiceError) throw error;
     fail('VARIABLE_RULE_FAILED');
   }
@@ -424,6 +446,11 @@ export function createValidationService(options: ValidationServiceOptions) {
         try {
           existing = await readSource(source);
         } catch (error) {
+          captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+          });
           if (error instanceof ValidationServiceError) throw error;
           const code = error instanceof Error && 'code' in error ? error.code : undefined;
           if (code === 'SOURCE_METADATA_DRIFT') fail('CONFIG_SOURCE_CHANGED');
@@ -492,7 +519,12 @@ export function createValidationService(options: ValidationServiceOptions) {
     for (const validator of options.crossVariableValidators ?? []) {
       try {
         validator({ appId: request.appId, items: request.items });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
         fail('CROSS_VARIABLE_RULE_FAILED');
       }
     }
@@ -514,7 +546,12 @@ export function createValidationService(options: ValidationServiceOptions) {
       if (!parsed) fail('SOURCE_PARSE_FAILED');
       try {
         proposedSourceBytes[source.id] = serializeUpdatedSource(parsed, operations);
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
         fail('SOURCE_PARSE_FAILED');
       }
     }
@@ -526,7 +563,12 @@ export function createValidationService(options: ValidationServiceOptions) {
           sourceIds: sourceList.map((source) => source.id),
           proposedSourceBytes
         });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
         fail('APPLICATION_VALIDATOR_FAILED');
       }
     }
@@ -566,7 +608,12 @@ export function createValidationService(options: ValidationServiceOptions) {
           items: persistedItems
         }
       });
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500,
+      });
       fail('VALIDATION_STORAGE_FAILED');
     }
     return {

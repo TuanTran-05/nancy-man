@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { createHash, randomUUID } from 'node:crypto';
 
 import { encryptEnvelope } from '../../../../../packages/security/src/encryption/envelope.js';
@@ -174,7 +176,12 @@ export class SqlReadPreviewService {
           ...(input.maxRows === undefined ? {} : { maxRows: input.maxRows })
         }
       });
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+      });
       return finishFailure('SQL_WORKER_UNAVAILABLE');
     }
     if (!worker.ok || !isPreviewResult(worker.result)) {

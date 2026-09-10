@@ -32,6 +32,86 @@ describe('createOpsApi', () => {
     }
   });
 
+  it('captures the original route exception before returning a generic 500', async () => {
+    const original = new Error('ingest store unavailable');
+    const captured: Array<{ error: unknown; context: Record<string, unknown> }> = [];
+    const app = createOpsApi({
+      ingest: {
+        browser: { ingest: async () => ({ status: 401, accepted: false, code: 'UNUSED' }) },
+        server: {
+          ingest: async () => {
+            throw original;
+          },
+          ingestBatch: async () => ({ status: 401, accepted: false, code: 'UNUSED' })
+        },
+        browserCorsOrigins: ['https://thienuy.edu.vn']
+      },
+      telemetry: {
+        captureException: (error, context) => captured.push({ error, context }),
+        healthy: () => true
+      }
+    });
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Expected TCP test server');
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/ingest/server`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toEqual({ accepted: false, code: 'INTERNAL_ERROR' });
+      expect(captured).toEqual([
+        {
+          error: original,
+          context: expect.objectContaining({
+            code: 'API_UNHANDLED_EXCEPTION',
+            route: '/api/v1/ingest/server',
+            method: 'POST'
+          })
+        }
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
+
+  it('degrades health when required telemetry is unavailable', async () => {
+    const app = createOpsApi({
+      ingest: {
+        browser: { ingest: async () => ({ status: 401, accepted: false, code: 'UNUSED' }) },
+        server: {
+          ingest: async () => ({ status: 401, accepted: false, code: 'UNUSED' }),
+          ingestBatch: async () => ({ status: 401, accepted: false, code: 'UNUSED' })
+        },
+        browserCorsOrigins: ['https://thienuy.edu.vn']
+      },
+      telemetry: {
+        captureException: () => undefined,
+        healthy: () => false
+      }
+    });
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Expected TCP test server');
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/healthz`);
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ status: 'degraded', reason: 'telemetry_unavailable' });
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+  });
+
   it('mounts the source-map release publisher separately from public telemetry ingestion', async () => {
     const app = createOpsApi({
       ingest: {

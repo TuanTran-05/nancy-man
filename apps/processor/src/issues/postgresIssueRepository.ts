@@ -216,7 +216,7 @@ class PostgresIssueOperations implements IssueProcessorOperations {
     await this.database.query(
       `
         UPDATE ingest_processing
-        SET state = 'processed', processed_at = now(), claimed_by = NULL
+        SET state = 'processed', processed_at = now(), completed_at = now(), claimed_by = NULL
         WHERE envelope_id = $1 AND state = 'claimed'
       `,
       [envelopeId]

@@ -45,6 +45,7 @@ function build(directory: string, sourceSha = sha): string {
   for (const file of [
     'apps/api/dist/apps/api/src/runtime/main.js',
     'apps/api/dist/apps/api/src/cli/smoke-config-agent.js',
+    'apps/api/dist/apps/api/src/cli/telemetry-canary.js',
     'apps/api/dist/bin/edutrack-config-agent-smoke',
     'apps/config-agent/dist/apps/config-agent/src/index.js',
     'apps/notifier/dist/apps/notifier/src/runtime/main.js',
@@ -94,6 +95,7 @@ function sourceRepository(): { directory: string; sha: string; tree: string } {
     'deploy/ops/config-agent/manifest.yaml',
     'deploy/ops/nginx/man.thienuy.edu.vn-api.conf',
     'deploy/ops/scripts/deploy-release.sh',
+    'deploy/ops/scripts/configure-telemetry-environment.sh',
     'deploy/ops/scripts/install-systemd-assets.sh',
     'deploy/ops/systemd/edutrack-ops-api.service',
     'deploy/ops/systemd/edutrack-ops-web.service',
@@ -227,10 +229,12 @@ describe('immutable Ops prepare and activate assets', () => {
     for (const required of [
       'apps/config-agent/dist/apps/config-agent/src/index.js',
       'apps/api/dist/apps/api/src/cli/smoke-config-agent.js',
+      'apps/api/dist/apps/api/src/cli/telemetry-canary.js',
       'apps/api/dist/bin/edutrack-config-agent-smoke',
       'config/variables/catalog.yaml',
       'deploy/ops/config-agent/manifest.yaml',
       'deploy/ops/env/config-agent.env.example',
+      'deploy/ops/scripts/configure-telemetry-environment.sh',
       'deploy/ops/scripts/install-systemd-assets.sh',
       'deploy/ops/scripts/deploy-release.sh',
       'deploy/ops/systemd/ops-config-agent.service'
@@ -238,6 +242,7 @@ describe('immutable Ops prepare and activate assets', () => {
       expect(lstatSync(join(release, required)).isFile()).toBe(true);
     }
     for (const executable of [
+      'deploy/ops/scripts/configure-telemetry-environment.sh',
       'deploy/ops/scripts/install-systemd-assets.sh',
       'deploy/ops/scripts/deploy-release.sh'
     ]) {

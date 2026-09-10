@@ -60,8 +60,9 @@ describe('PostgresProcessorQueue', () => {
     });
 
     await queue.markRetry('env-1', new Date('2026-08-22T08:00:00.000Z'));
-    expect(queries[0]).toContain("SET state = 'retrying'");
+    expect(queries[0]).toContain("SET state = CASE");
     expect(queries[0]).toContain('attempt_count = attempt_count + 1');
+    expect(queries[0]).toContain("'dead_lettered'");
   });
 
   it('casts the claim release clock before subtracting an interval', async () => {
@@ -75,5 +76,43 @@ describe('PostgresProcessorQueue', () => {
 
     await queue.releaseExpiredClaims(new Date('2026-08-22T08:00:00.000Z'));
     expect(queries[0]).toContain('claimed_at < $1::timestamptz - INTERVAL');
+  });
+
+  it('atomically records a terminal processing failure in the dead-letter queue', async () => {
+    const queries: string[] = [];
+    const database = {
+      query: async <T>(sql: string) => {
+        queries.push(sql);
+        if (sql.includes("SET state = 'dead_lettered'")) {
+          return { rows: [{ envelopeId: 'env-1' }] as T[] };
+        }
+        return { rows: [] as T[] };
+      },
+      transaction: async <T>(operation: (transaction: { query: typeof database.query }) => Promise<T>) =>
+        operation({ query: database.query })
+    };
+    const queue = new PostgresProcessorQueue(database);
+
+    await queue.deadLetter({
+      envelopeId: 'env-1',
+      envelope: {
+        schemaVersion: 1,
+        eventId: 'EVT_01K3ZABCDEF0123456789ABCDE',
+        idempotencyKey: 'idem-0123456789abcdef',
+        capturedAt: '2026-09-04T00:00:00.000Z',
+        source: 'api',
+        level: 'error',
+        error: { name: 'Error', code: 'SERVER_EXCEPTION', safeMessage: 'failed' },
+        context: { release: 'release', service: 'edutrack-api', environment: 'production' }
+      },
+      attemptCount: 5,
+      now: new Date('2026-09-04T00:00:00.000Z'),
+      failureCode: 'PROCESSING_FAILED'
+    });
+
+    expect(queries[0]).toContain("SET state = 'dead_lettered'");
+    expect(queries[0]).toContain('completed_at');
+    expect(queries[1]).toContain('INSERT INTO ingest_dead_letters');
+    expect(queries[1]).toContain('retry_count');
   });
 });

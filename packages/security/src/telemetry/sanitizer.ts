@@ -13,7 +13,14 @@ const allowedSources = new Set<TelemetrySource>([
   'deployment',
   'synthetic'
 ]);
-const allowedTagKeys = new Set(['studentId', 'classId', 'invoiceId', 'jobName']);
+const allowedTagKeys = new Set([
+  'studentId',
+  'classId',
+  'invoiceId',
+  'jobName',
+  'method',
+  'httpStatus'
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

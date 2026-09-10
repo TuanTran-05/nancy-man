@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import type { Request, Response, Router } from 'express';
 import { z } from 'zod';
 import {
@@ -150,7 +152,15 @@ export function attachInternalCanonicalRoutes(
           now: now().toISOString()
         })
       );
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method,
+      });
       response.status(404).json({ code: 'INCIDENT_NOT_FOUND' });
     }
   });

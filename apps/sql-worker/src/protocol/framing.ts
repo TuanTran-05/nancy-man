@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 const maxFrameBytes = 1_048_576;
 export function encodeFrame(value: unknown): Buffer {
   const body = Buffer.from(JSON.stringify(value), 'utf8');
@@ -19,8 +21,13 @@ export class FrameDecoder {
       this.buffer = this.buffer.subarray(size + 4);
       try {
         values.push(JSON.parse(body.toString('utf8')));
-      } catch {
-        throw new Error('WORKER_FRAME_INVALID_JSON');
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500,
+        });
+        throw new Error('WORKER_FRAME_INVALID_JSON', { cause: error });
       }
     }
     return values;

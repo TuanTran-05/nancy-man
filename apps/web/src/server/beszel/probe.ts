@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import type { MonitorSample } from '../../shared/models.js';
 import { BeszelClientError, type BeszelProbeErrorCode, type BeszelRawSnapshot } from './client.js';
 import { normalizeBeszelSnapshot } from './mapper.js';
@@ -64,6 +66,11 @@ export function createBeszelProbe(client: BeszelSnapshotReader) {
         return [failure(now, 'beszel_metric_stale')];
       return success(now, normalized);
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+      });
       return [failure(now, error instanceof BeszelClientError ? error.code : 'beszel_unreachable')];
     }
   };

@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import {
   createCipheriv,
   createDecipheriv,
@@ -48,7 +50,12 @@ export function verifyPassword(password: string, encoded: string): boolean {
       maxmem: 64 * 1024 * 1024
     });
     return timingSafeEqual(actual, expected);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'api',
+      status: 500,
+    });
     return false;
   }
 }

@@ -1,5 +1,11 @@
+import { readFile } from 'node:fs/promises';
 import { StringDecoder } from 'node:string_decoder';
 import { stdin as input, stdout as output } from 'node:process';
+import {
+  createOpsProcessRuntimeTelemetryFromEnvironment,
+  runConfiguredOpsTelemetryOneShot
+} from '../../../../packages/telemetry-sdk/src/oneShot.js';
+import type { RuntimeTelemetry } from '../../../../packages/telemetry-sdk/src/runtimeTelemetry.js';
 import { loadWebConfig } from '../server/config.js';
 import { provisionAccount, recoverAccount } from '../server/security/auth.js';
 import { generateTotpSeed } from '../server/security/totp.js';
@@ -74,12 +80,15 @@ export async function readHiddenPassword(
   }
 }
 
-export async function runProvisionOpsUser(): Promise<void> {
+export async function runProvisionOpsUser(
+  environment: NodeJS.ProcessEnv = process.env,
+  arguments_: readonly string[] = process.argv.slice(2)
+): Promise<void> {
   if (!input.isTTY || !output.isTTY)
     throw new Error('ops:provision-user requires an interactive TTY');
-  const config = loadWebConfig(process.env);
-  const recovery = process.argv[2] === '--recover';
-  const username = (recovery ? process.argv[3] : process.argv[2]) ?? '';
+  const config = loadWebConfig(environment);
+  const recovery = arguments_[0] === '--recover';
+  const username = (recovery ? arguments_[1] : arguments_[0]) ?? '';
   if (!username) throw new Error('Usage: ops:provision-user [--recover] <username>');
   const password = await readHiddenPassword();
   if (!password) throw new Error('Password is required');
@@ -97,9 +106,52 @@ export async function runProvisionOpsUser(): Promise<void> {
   }
 }
 
+export function runProvisionOpsUserEntrypoint(
+  input: {
+    environment?: NodeJS.ProcessEnv;
+    arguments?: readonly string[];
+    telemetry?: RuntimeTelemetry;
+    run?: () => Promise<void>;
+    onFailure?: (error: unknown) => void | Promise<void>;
+    rethrow?: boolean;
+  } = {}
+): Promise<void | undefined> {
+  const environment = input.environment ?? process.env;
+  const common = {
+    createTelemetry: () =>
+      input.telemetry ??
+      createOpsProcessRuntimeTelemetryFromEnvironment({
+        environment,
+        resolveHmacSecret: async () => {
+          const hmacFile = environment.OPS_TELEMETRY_HMAC_FILE?.trim();
+          if (!hmacFile) throw new Error('OPS_TELEMETRY_HMAC_FILE is required');
+          return readFile(hmacFile, 'utf8');
+        },
+        service: 'edutrack-ops-provision-user',
+        spoolName: 'provision-user'
+      }),
+    failureContext: {
+      code: 'OPS_USER_PROVISION_FAILED',
+      source: 'database' as const,
+      level: 'fatal' as const
+    },
+    handleProcessSignals: false,
+    run:
+      input.run ??
+      (() => runProvisionOpsUser(environment, input.arguments ?? process.argv.slice(2))),
+    ...(input.onFailure ? { onFailure: input.onFailure } : {})
+  };
+  return input.rethrow === false
+    ? runConfiguredOpsTelemetryOneShot({ ...common, rethrow: false })
+    : runConfiguredOpsTelemetryOneShot({ ...common, rethrow: true });
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runProvisionOpsUser().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : 'Provisioning failed');
-    process.exitCode = 1;
+  void runProvisionOpsUserEntrypoint({
+    rethrow: false,
+    onFailure: (error: unknown) => {
+      console.error(error instanceof Error ? error.message : 'Provisioning failed');
+      process.exitCode = 1;
+    }
   });
 }

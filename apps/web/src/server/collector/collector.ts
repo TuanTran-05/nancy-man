@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import type { CollectorConfig } from '../config.js';
 import type { OpsStore } from '../storage/store.js';
 import type { MonitorSample, MonitorName } from '../../shared/models.js';
@@ -33,6 +35,12 @@ export interface CollectorDeps {
     now: Date
   ) => Promise<MonitorSample>;
   postgresProbe?: typeof probePostgres;
+  telemetry?: {
+    captureException: (
+      error: unknown,
+      context: { code: string; source: 'job'; tags: Record<string, string> }
+    ) => unknown;
+  };
 }
 
 function readLogLines(deps: CollectorDeps, source: string, path: string): string[] {
@@ -40,7 +48,33 @@ function readLogLines(deps: CollectorDeps, source: string, path: string): string
     const result = tailSinceCursor(path, deps.store.getCursor(source));
     deps.store.setCursor(source, result.cursor);
     return result.lines;
-  } catch {
+  } catch (error) {
+    try {
+      const failureContext = {
+        code: 'COLLECTOR_LOG_READ_FAILED',
+        source: 'job' as const,
+        tags: { logSource: source }
+      };
+      if (deps.telemetry) deps.telemetry.captureException(error, failureContext);
+      else
+        captureOpsException(error, {
+          code: 'COLLECTOR_LOG_READ_FAILED',
+          source: 'job',
+          tags: { logSource: source }
+        });
+    } catch (telemetryError) {
+      captureOpsException(error, {
+        code: 'COLLECTOR_LOG_READ_FAILED',
+        source: 'job',
+        tags: { logSource: source }
+      });
+      captureOpsException(telemetryError, {
+        code: 'TELEMETRY_REPORTER_FAILED',
+        source: 'process',
+        status: 500
+      });
+      // Keep the monitoring cycle alive even when telemetry itself is unavailable.
+    }
     return [];
   }
 }
@@ -97,16 +131,44 @@ export async function runCollectorCycle(
   if (beszelDue) {
     probePromises.push(
       deps.beszelProbe!(now)
-        .catch((): MonitorSample[] => [
-          {
-            monitor: 'beszel',
-            level: 'critical',
-            observedAt: now.toISOString(),
-            latencyMs: null,
-            details: { probeOk: false },
-            errorCode: 'beszel_unreachable'
+        .catch((error): MonitorSample[] => {
+          try {
+            const failureContext = {
+              code: 'COLLECTOR_BESZEL_PROBE_FAILED',
+              source: 'job' as const,
+              tags: { jobName: 'beszel_probe' }
+            };
+            if (deps.telemetry) deps.telemetry.captureException(error, failureContext);
+            else
+              captureOpsException(error, {
+                code: 'COLLECTOR_BESZEL_PROBE_FAILED',
+                source: 'job',
+                tags: { jobName: 'beszel_probe' }
+              });
+          } catch (telemetryError) {
+            captureOpsException(error, {
+              code: 'COLLECTOR_BESZEL_PROBE_FAILED',
+              source: 'job',
+              tags: { jobName: 'beszel_probe' }
+            });
+            captureOpsException(telemetryError, {
+              code: 'TELEMETRY_REPORTER_FAILED',
+              source: 'process',
+              status: 500
+            });
+            // Monitoring fallback must still produce its critical sample.
           }
-        ])
+          return [
+            {
+              monitor: 'beszel',
+              level: 'critical',
+              observedAt: now.toISOString(),
+              latencyMs: null,
+              details: { probeOk: false },
+              errorCode: 'beszel_unreachable'
+            }
+          ];
+        })
         .then((result) => {
           deps.lastBeszelAt = now.getTime();
           return result;
