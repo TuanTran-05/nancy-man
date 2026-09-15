@@ -1061,27 +1061,20 @@ describe('Ops disposition ledger', () => {
 
   it('records an undeployed PostgreSQL migration plane without fabricating an empty capture', () => {
     const inputs = JSON.parse(readFileSync(REVIEWED_INPUT_PATH, 'utf8'));
+    const notDeployedInputs = {
+      ...inputs,
+      migrationBaseline: notDeployedMigrationBaseline
+    };
 
-    expect(validateOpsInputs(inputs).migrationBaseline).toEqual({
-      evidence: {
-        credentialResolver: 'not_deployed',
-        legacyRuntime: 'sqlite_web_collector_only',
-        postgresApiPlane: 'not_deployed'
-      },
-      requiredBeforeCutover: [
-        'deploy a credential-resolved canonical Ops PostgreSQL endpoint',
-        'capture sorted migration IDs through that resolver',
-        'persist only the approved ID list, count, and SHA-256 digest',
-        'reject cutover if capture is unavailable or migration history does not validate'
-      ],
-      state: 'not_deployed'
-    });
+    expect(validateOpsInputs(notDeployedInputs).migrationBaseline).toEqual(
+      notDeployedMigrationBaseline
+    );
 
     expect(() =>
       validateOpsInputs({
-        ...inputs,
+        ...notDeployedInputs,
         migrationBaseline: {
-          ...inputs.migrationBaseline,
+          ...notDeployedMigrationBaseline,
           ids: [],
           count: 0,
           sha256: '0'.repeat(64)
@@ -1123,5 +1116,87 @@ describe('Ops disposition ledger', () => {
     expect(recaptured.migrationBaseline).not.toHaveProperty('count');
     expect(recaptured.migrationBaseline).not.toHaveProperty('sha256');
     expect(validateOpsInputs(recaptured).migrationBaseline).toEqual(notDeployedMigrationBaseline);
+  });
+
+  it('validates captured migration baseline and rejects invalid variants', () => {
+    const reviewedInputs = JSON.parse(readFileSync(REVIEWED_INPUT_PATH, 'utf8'));
+    const validIds = ['0001_ops_foundation', '0002_telemetry_foundation'];
+    const validDigest = createHash('sha256')
+      .update(`${validIds.join('\n')}\n`)
+      .digest('hex');
+    const validCapturedBaseline = {
+      state: 'captured' as const,
+      evidence: {
+        credentialResolver: 'deployed' as const,
+        legacyRuntime: 'sqlite_web_collector_only' as const,
+        postgresApiPlane: 'deployed' as const
+      },
+      ids: validIds,
+      count: 2,
+      sha256: validDigest,
+      capturedAt: '2026-09-14T00:00:00.000Z',
+      requiredBeforeCutover: notDeployedMigrationBaseline.requiredBeforeCutover
+    };
+
+    const validInputs = {
+      ...reviewedInputs,
+      migrationBaseline: validCapturedBaseline
+    };
+    expect(validateOpsInputs(validInputs).migrationBaseline).toEqual(validCapturedBaseline);
+
+    // Unsorted
+    expect(() =>
+      validateOpsInputs({
+        ...validInputs,
+        migrationBaseline: {
+          ...validCapturedBaseline,
+          ids: ['0002_telemetry_foundation', '0001_ops_foundation']
+        }
+      })
+    ).toThrow('OPS_INPUTS_MIGRATION_ORDER_INVALID');
+
+    // Duplicate
+    expect(() =>
+      validateOpsInputs({
+        ...validInputs,
+        migrationBaseline: {
+          ...validCapturedBaseline,
+          ids: ['0001_ops_foundation', '0001_ops_foundation'],
+          count: 2
+        }
+      })
+    ).toThrow('OPS_INPUTS_MIGRATION_DUPLICATE');
+
+    // Count mismatch
+    expect(() =>
+      validateOpsInputs({
+        ...validInputs,
+        migrationBaseline: {
+          ...validCapturedBaseline,
+          count: 3
+        }
+      })
+    ).toThrow('OPS_INPUTS_MIGRATION_COUNT_MISMATCH');
+
+    // Digest mismatch
+    expect(() =>
+      validateOpsInputs({
+        ...validInputs,
+        migrationBaseline: {
+          ...validCapturedBaseline,
+          sha256: 'a'.repeat(64)
+        }
+      })
+    ).toThrow('OPS_INPUTS_MIGRATION_DIGEST_MISMATCH');
+
+    // Missing field
+    const missingField = structuredClone(validCapturedBaseline);
+    delete (missingField as Record<string, unknown>).capturedAt;
+    expect(() =>
+      validateOpsInputs({
+        ...validInputs,
+        migrationBaseline: missingField
+      })
+    ).toThrow('OPS_INPUTS_SCHEMA_INVALID');
   });
 });

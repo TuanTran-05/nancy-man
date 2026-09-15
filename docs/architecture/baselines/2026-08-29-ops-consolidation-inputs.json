@@ -7,18 +7,44 @@
   },
   "capturedAt": "2026-08-30T05:17:12.000Z",
   "migrationBaseline": {
+    "state": "captured",
     "evidence": {
-      "credentialResolver": "not_deployed",
+      "credentialResolver": "deployed",
       "legacyRuntime": "sqlite_web_collector_only",
-      "postgresApiPlane": "not_deployed"
+      "postgresApiPlane": "deployed"
     },
+    "ids": [
+      "0001_ops_foundation",
+      "0002_error_operations",
+      "0003_ingest_processing_state",
+      "0004_error_source_extensions",
+      "0005_error_issue_affected_users",
+      "0006_release_publishers",
+      "0007_ingest_nonces",
+      "0008_ingest_rate_limits",
+      "0009_alert_delivery_outbox",
+      "0010_ops_login_challenges",
+      "0011_ops_mfa_enrollment_tokens",
+      "0012_sql_execution_audit",
+      "0013_sql_session_elevations",
+      "0014_ops_account_administration",
+      "0015_ops_secret_elevations",
+      "0016_ops_secret_elevation_reuse",
+      "0017_ops_config_changes",
+      "0018_ops_config_application_blocks_partial_unique",
+      "0019_ops_runtime_telemetry_ingest_client",
+      "0020_ingest_processing_completed_at",
+      "0021_telemetry_source_clients"
+    ],
+    "count": 21,
+    "sha256": "81eeffb7fd077714c30a19682551a64e62cd021c88c1e1628f450179799875fd",
+    "capturedAt": "2026-09-15T17:44:56.000Z",
     "requiredBeforeCutover": [
       "deploy a credential-resolved canonical Ops PostgreSQL endpoint",
       "capture sorted migration IDs through that resolver",
       "persist only the approved ID list, count, and SHA-256 digest",
       "reject cutover if capture is unavailable or migration history does not validate"
-    ],
-    "state": "not_deployed"
+    ]
   },
   "embedded": {
     "gitSha": "5dff838be4f4b60232cf4a8c34b6292c35c489dc",

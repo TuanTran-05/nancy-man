@@ -29,13 +29,25 @@ Before a canonical Ops PostgreSQL cutover, an operator must:
 
 Until those steps produce a real metadata capture, cutover is fail-closed.
 
-`scripts/consolidation/opsDisposition.mjs --capture` currently recaptures
-only the frozen source universe and preserves the exact existing
-`not_deployed` discriminator. It must not turn that state into empty or
-invented capture data. Once the endpoint exists, an approved follow-up must
-introduce a reviewed `captured` baseline state with the authenticated ID list,
-count, and digest before this capture command is allowed to transition the
-record.
+`scripts/consolidation/opsDisposition.mjs --capture` recaptures
+the frozen source universe while preserving the reviewed `migrationBaseline` record:
+historically the exact `not_deployed` discriminator, and after the approved
+baseline transition, the reviewed `captured` state.
+
+### Captured baseline contract
+
+The approved `captured` transition records the live PostgreSQL migration state
+with the following exact field and digest contract:
+- `state`: `'captured'`
+- `evidence`: `{ credentialResolver: 'deployed', legacyRuntime: 'sqlite_web_collector_only', postgresApiPlane: 'deployed' }`
+- `ids`: strictly ordered, non-empty list of unique migration IDs matching `^\d{4}_[A-Za-z0-9_]+$`
+- `count`: positive integer equal to `ids.length`
+- `sha256`: 64-hex SHA-256 digest of the exact newline-terminated sorted IDs (`${ids.join('\n')}\n`)
+- `capturedAt`: ISO 8601 UTC timestamp
+- `requiredBeforeCutover`: preserves the canonical 4-tuple of cutover requirements
+
+`opsDisposition.mjs --capture` preserves the captured record after this reviewed transition.
+
 
 ## Runner behavior
 

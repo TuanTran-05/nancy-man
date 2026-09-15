@@ -96,7 +96,7 @@ const runtimeService = z.strictObject({
   subState: z.string().regex(/^[a-z][a-z-]*$/),
   fragmentScope: z.literal('system')
 });
-const migrationBaseline = z.strictObject({
+const notDeployedMigrationBaseline = z.strictObject({
   state: z.literal('not_deployed'),
   evidence: z.strictObject({
     credentialResolver: z.literal('not_deployed'),
@@ -110,6 +110,28 @@ const migrationBaseline = z.strictObject({
     z.literal('reject cutover if capture is unavailable or migration history does not validate')
   ])
 });
+const capturedMigrationBaseline = z.strictObject({
+  state: z.literal('captured'),
+  evidence: z.strictObject({
+    credentialResolver: z.literal('deployed'),
+    legacyRuntime: z.literal('sqlite_web_collector_only'),
+    postgresApiPlane: z.literal('deployed')
+  }),
+  ids: z.array(z.string().regex(/^\d{4}_[A-Za-z0-9_]+$/)).min(1),
+  count: z.number().int().positive(),
+  sha256: sha64,
+  capturedAt: z.string().datetime(),
+  requiredBeforeCutover: z.tuple([
+    z.literal('deploy a credential-resolved canonical Ops PostgreSQL endpoint'),
+    z.literal('capture sorted migration IDs through that resolver'),
+    z.literal('persist only the approved ID list, count, and SHA-256 digest'),
+    z.literal('reject cutover if capture is unavailable or migration history does not validate')
+  ])
+});
+const migrationBaseline = z.discriminatedUnion('state', [
+  notDeployedMigrationBaseline,
+  capturedMigrationBaseline
+]);
 const inputsSchema = z.strictObject({
   schemaVersion: z.literal(1),
   capturedAt: z.string().datetime(),
@@ -726,6 +748,23 @@ export function validateOpsInputs(value) {
   const universe = frozenUniverse(inputs);
   if (inputs.frozenUniverseSha256 !== hash(JSON.stringify(universe))) {
     fail('OPS_INPUTS_FROZEN_UNIVERSE_MISMATCH');
+  }
+  if (inputs.migrationBaseline.state === 'captured') {
+    const { ids, count, sha256 } = inputs.migrationBaseline;
+    if (new Set(ids).size !== ids.length) {
+      fail('OPS_INPUTS_MIGRATION_DUPLICATE');
+    }
+    for (let index = 1; index < ids.length; index += 1) {
+      if (compareText(ids[index - 1], ids[index]) >= 0) {
+        fail('OPS_INPUTS_MIGRATION_ORDER_INVALID');
+      }
+    }
+    if (count !== ids.length) {
+      fail('OPS_INPUTS_MIGRATION_COUNT_MISMATCH');
+    }
+    if (sha256 !== hash(`${ids.join('\n')}\n`)) {
+      fail('OPS_INPUTS_MIGRATION_DIGEST_MISMATCH');
+    }
   }
   assertSafeEvidenceJson(inputs);
   return inputs;
