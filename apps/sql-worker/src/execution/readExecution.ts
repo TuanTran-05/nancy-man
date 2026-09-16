@@ -34,7 +34,7 @@ export async function executeReadOnly(input: {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'database',
-      status: 500,
+      status: 500
     });
     await input.database.query('ROLLBACK');
     throw error;

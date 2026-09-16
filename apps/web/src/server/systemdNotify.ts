@@ -31,7 +31,7 @@ export function startSystemdWatchdog(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       /* Notification failure must not stop collection. */
     }

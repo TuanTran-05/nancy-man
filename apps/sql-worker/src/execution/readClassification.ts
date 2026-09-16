@@ -34,7 +34,7 @@ export function classifyReadOnlySql(sql: string): Result {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'database',
-      status: 500,
+      status: 500
     });
     return { allowed: false, code: 'SQL_READ_ONLY_REQUIRED' };
   }

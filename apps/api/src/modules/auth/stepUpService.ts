@@ -160,7 +160,7 @@ export class StepUpService {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
-          status: 500,
+          status: 500
         });
         valid = false;
       }

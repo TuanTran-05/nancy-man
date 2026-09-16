@@ -93,7 +93,7 @@ export class VariablesService {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       const code = agentErrorCode(error);
       await this.audit?.append({

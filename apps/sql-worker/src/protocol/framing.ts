@@ -25,7 +25,7 @@ export class FrameDecoder {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         throw new Error('WORKER_FRAME_INVALID_JSON', { cause: error });
       }

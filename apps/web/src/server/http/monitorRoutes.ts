@@ -250,7 +250,8 @@ export function attachMonitorRoutes(router: Router, store: OpsStore, auth: AuthS
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined
       });
       response.status(404).json({ error: 'incident_not_found' });
     }

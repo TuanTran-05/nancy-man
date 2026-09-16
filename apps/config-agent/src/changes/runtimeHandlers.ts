@@ -146,7 +146,7 @@ function currentRelease(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     throw Object.assign(new Error('BUILD_SOURCE_UNAVAILABLE'), {
       code: 'BUILD_SOURCE_UNAVAILABLE'
@@ -207,9 +207,9 @@ function lockFactory(root: string) {
             });
           } catch (error) {
             captureOpsException(error, {
-            code: 'UNHANDLED_OPS_EXCEPTION',
-            source: 'document_store',
-            status: 500,
+              code: 'UNHANDLED_OPS_EXCEPTION',
+              source: 'document_store',
+              status: 500
             });
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
             throw error;
@@ -217,9 +217,9 @@ function lockFactory(root: string) {
           acquired = true;
         } catch (error) {
           captureOpsException(error, {
-          code: 'UNHANDLED_OPS_EXCEPTION',
-          source: 'document_store',
-          status: 500,
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'document_store',
+            status: 500
           });
           if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
           let ownerPid: number | undefined;
@@ -229,7 +229,7 @@ function lockFactory(root: string) {
             captureOpsException(error, {
               code: 'UNHANDLED_OPS_EXCEPTION',
               source: 'document_store',
-              status: 500,
+              status: 500
             });
             ownerPid = undefined;
           }
@@ -242,7 +242,7 @@ function lockFactory(root: string) {
               captureOpsException(probeError, {
                 code: 'UNHANDLED_OPS_EXCEPTION',
                 source: 'job',
-                status: 500,
+                status: 500
               });
               ownerAlive = (probeError as NodeJS.ErrnoException).code !== 'ESRCH';
             }
@@ -253,9 +253,9 @@ function lockFactory(root: string) {
       }
     } catch (error) {
       captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'document_store',
-      status: 500,
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'document_store',
+        status: 500
       });
       release();
       throw error;
@@ -414,7 +414,7 @@ export function createRuntimeMutationHandlers(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'document_store',
-        status: 500,
+        status: 500
       });
       throw new Error('CONFIG_AGENT_JOURNAL_INVALID', { cause: error });
     }
@@ -688,7 +688,7 @@ export function createRuntimeMutationHandlers(
           captureOpsException(error, {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'document_store',
-            status: 500,
+            status: 500
           });
           throw new Error('RELEASE_IDENTITY_UNAVAILABLE', { cause: error });
         }
@@ -720,7 +720,7 @@ export function createRuntimeMutationHandlers(
           captureOpsException(error, {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'provider',
-            status: 500,
+            status: 500
           });
           return false;
         }
@@ -734,7 +734,7 @@ export function createRuntimeMutationHandlers(
           captureOpsException(error, {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'provider',
-            status: 500,
+            status: 500
           });
           return false;
         }
@@ -1023,7 +1023,7 @@ export function createRuntimeMutationHandlers(
           captureOpsException(error, {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'job',
-            status: 500,
+            status: 500
           });
           await persistEvent({
             changeId: record.changeId,
@@ -1035,7 +1035,7 @@ export function createRuntimeMutationHandlers(
             captureOpsException(error, {
               code: 'UNHANDLED_PROMISE_REJECTION',
               source: 'job',
-              status: 500,
+              status: 500
             });
             return undefined;
           });
@@ -1049,7 +1049,7 @@ export function createRuntimeMutationHandlers(
     captureOpsException(error, {
       code: 'UNHANDLED_PROMISE_REJECTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     throw Object.assign(new Error('CONFIG_AGENT_RECOVERY_FAILED'), {
       code: 'CONFIG_AGENT_RECOVERY_FAILED'
@@ -1133,7 +1133,7 @@ export function createRuntimeMutationHandlers(
           captureOpsException(error, {
             code: 'UNHANDLED_PROMISE_REJECTION',
             source: 'job',
-            status: 500,
+            status: 500
           });
           return undefined;
         });

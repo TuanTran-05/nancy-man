@@ -210,7 +210,7 @@ function browserOrigins(environment: Environment): string[] {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'process',
-        status: 500,
+        status: 500
       });
       throw new Error('OPS_BROWSER_CORS_ORIGINS contains an invalid origin', { cause: error });
     }

@@ -423,7 +423,7 @@ export class ConfigAgentClient {
             captureOpsException(error, {
               code: 'UNHANDLED_OPS_EXCEPTION',
               source: 'api',
-              status: 500,
+              status: 500
             });
             fail('AGENT_PROTOCOL_INVALID');
             return;
@@ -443,7 +443,7 @@ export class ConfigAgentClient {
             captureOpsException(error, {
               code: 'UNHANDLED_OPS_EXCEPTION',
               source: 'api',
-              status: 500,
+              status: 500
             });
             fail('AGENT_TRAILING_FRAME');
             return;
@@ -469,7 +469,7 @@ export class ConfigAgentClient {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
-          status: 500,
+          status: 500
         });
         fail('AGENT_CONNECT_FAILED');
       }

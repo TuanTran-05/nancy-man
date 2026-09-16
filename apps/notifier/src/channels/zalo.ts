@@ -41,9 +41,9 @@ export function createZaloChannel(input: {
           captureOpsException(error, {
             code: 'UNHANDLED_PROMISE_REJECTION',
             source: 'job',
-            status: 500,
+            status: 500
           });
-          return ({});
+          return {};
         });
         const providerMessageId =
           typeof responseBody === 'object' && responseBody !== null && 'message_id' in responseBody

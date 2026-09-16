@@ -91,7 +91,7 @@ function userId(name: string): number | undefined {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'document_store',
-      status: 500,
+      status: 500
     });
     return undefined;
   }
@@ -109,7 +109,7 @@ function groupId(name: string): number | undefined {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'document_store',
-      status: 500,
+      status: 500
     });
     return undefined;
   }
@@ -201,10 +201,10 @@ function parseSource(
     return sourceAdapter(source).parse(bytes, { maximumBytes: source.maximumBytes });
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'job',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     if (error instanceof InventoryError) throw error;
     throw new InventoryError('INVENTORY_SOURCE_PARSE_FAILED');
   }
@@ -244,7 +244,7 @@ function sourceMtime(metadata: SafeSourceMetadata): string | null {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     return null;
   }
@@ -269,7 +269,7 @@ export function createInventoryService(options: InventoryServiceOptions): Invent
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       throw new InventoryError('INVENTORY_REQUEST_INVALID');
     }
@@ -281,9 +281,9 @@ export function createInventoryService(options: InventoryServiceOptions): Invent
         sourceRead = await readSource(source);
       } catch (error) {
         captureOpsException(error, {
-        code: 'UNHANDLED_OPS_EXCEPTION',
-        source: 'job',
-        status: 500,
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500
         });
         if (error instanceof InventoryError) throw error;
         throw new InventoryError('INVENTORY_SOURCE_READ_FAILED');

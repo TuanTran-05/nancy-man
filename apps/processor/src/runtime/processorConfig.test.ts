@@ -29,7 +29,9 @@ describe('readProcessorMaxAttempts', () => {
 
   it('rejects retry limits outside the safe range', () => {
     for (const value of ['0', '101', '10.5', 'attempts', '']) {
-      expect(() => readProcessorMaxAttempts({ OPS_PROCESSOR_MAX_ATTEMPTS: value })).toThrow(/attempt/i);
+      expect(() => readProcessorMaxAttempts({ OPS_PROCESSOR_MAX_ATTEMPTS: value })).toThrow(
+        /attempt/i
+      );
     }
   });
 });

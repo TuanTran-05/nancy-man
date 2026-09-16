@@ -120,7 +120,7 @@ export function createAlertService(deps: AlertServiceDeps) {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
-          status: 500,
+          status: 500
         });
         const failure =
           error instanceof ZaloDeliveryError
@@ -159,7 +159,7 @@ export async function sendCollectorFailureNotice(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'provider',
-        status: 500,
+        status: 500
       });
       // The direct failsafe isolates malformed local state and provider failures per recipient.
     }

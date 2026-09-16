@@ -59,7 +59,7 @@ function parseManifest(rawBody: string): ReleaseManifest | null {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'api',
-      status: 500,
+      status: 500
     });
     return null;
   }
@@ -118,7 +118,7 @@ export function createReleasePublisherService(input: {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
-          status: 500,
+          status: 500
         });
         return { status: 400, accepted: false, code: 'INVALID_RELEASE_MANIFEST' };
       }

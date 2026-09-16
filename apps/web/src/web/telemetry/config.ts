@@ -28,7 +28,7 @@ export function readOpsBrowserTelemetryConfig(
     void captureBrowserException(error, {
       code: 'UNHANDLED_BROWSER_EXCEPTION',
       source: 'browser',
-      route: () => globalThis.location?.pathname,
+      route: () => globalThis.location?.pathname
     });
     throw new Error('Ops browser telemetry ingest URL is invalid', { cause: error });
   }

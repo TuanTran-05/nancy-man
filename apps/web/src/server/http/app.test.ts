@@ -118,7 +118,10 @@ describe('protected Ops HTTP API', () => {
       }
     });
     try {
-      await request(app).get('/telemetry-test-throws').expect(500).expect({ error: 'internal_error' });
+      await request(app)
+        .get('/telemetry-test-throws')
+        .expect(500)
+        .expect({ error: 'internal_error' });
       expect(captured).toEqual([expect.objectContaining({ message: 'web route failure' })]);
     } finally {
       fixture.cleanup();

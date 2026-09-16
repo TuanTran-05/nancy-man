@@ -39,7 +39,7 @@ export function probeAppProcess(config: ProcessProbeConfig, now: Date = new Date
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'document_store',
-        status: 500,
+        status: 500
       });
       uptimeSeconds = null;
     }
@@ -66,7 +66,7 @@ export function probeAppProcess(config: ProcessProbeConfig, now: Date = new Date
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'document_store',
-      status: 500,
+      status: 500
     });
     return {
       monitor: 'app_process',

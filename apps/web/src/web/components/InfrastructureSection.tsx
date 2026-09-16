@@ -112,7 +112,7 @@ export function InfrastructureSection({
         void captureBrowserException(error, {
           code: 'UNHANDLED_PROMISE_REJECTION',
           source: 'browser',
-          route: () => globalThis.location?.pathname,
+          route: () => globalThis.location?.pathname
         });
         if (active) setHistoryState({ kind: 'error' });
       }

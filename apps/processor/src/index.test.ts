@@ -106,7 +106,11 @@ describe('runProcessorOnce', () => {
     expect(result).toEqual({ processed: false, deadLettered: true });
     expect(captured).toEqual([expect.objectContaining({ message: 'database unavailable' })]);
     expect(deadLetters).toEqual([
-      expect.objectContaining({ envelopeId: 'env-2', attemptCount: 10, failureCode: 'PROCESSING_FAILED' })
+      expect.objectContaining({
+        envelopeId: 'env-2',
+        attemptCount: 10,
+        failureCode: 'PROCESSING_FAILED'
+      })
     ]);
   });
 });

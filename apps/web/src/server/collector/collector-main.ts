@@ -45,7 +45,7 @@ export async function startCollectorLoop(input: {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       try {
         input.onFailure(error);
@@ -53,7 +53,7 @@ export async function startCollectorLoop(input: {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         // A reporter failure must not leave the collector interval running.
       } finally {
@@ -103,7 +103,7 @@ export async function startCollector(): Promise<{ close: () => Promise<void> }> 
       captureOpsException(error, {
         code: 'UNHANDLED_PROMISE_REJECTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       return undefined;
     });
@@ -130,7 +130,7 @@ export async function startCollector(): Promise<{ close: () => Promise<void> }> 
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         rememberCleanupFailure(error, 'COLLECTOR_LOOP_CLOSE_FAILED');
       }
@@ -140,7 +140,7 @@ export async function startCollector(): Promise<{ close: () => Promise<void> }> 
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         rememberCleanupFailure(error, 'COLLECTOR_STORE_CLOSE_FAILED');
       }
@@ -215,7 +215,7 @@ export async function startCollector(): Promise<{ close: () => Promise<void> }> 
           captureOpsException(error, {
             code: 'UNHANDLED_PROMISE_REJECTION',
             source: 'job',
-            status: 500,
+            status: 500
           });
           return undefined;
         });
@@ -228,7 +228,7 @@ export async function startCollector(): Promise<{ close: () => Promise<void> }> 
     captureOpsException(error, {
       code: 'COLLECTOR_STARTUP_FAILED',
       source: 'process',
-      level: 'fatal',
+      level: 'fatal'
     });
     await stopRuntimeTelemetry(true, error);
     throw error;

@@ -63,7 +63,10 @@ function unpackPayload(
 export class PostgresProcessorQueue {
   private readonly maxAttempts: number;
 
-  constructor(private readonly database: QueryDatabase, options: { maxAttempts?: number } = {}) {
+  constructor(
+    private readonly database: QueryDatabase,
+    options: { maxAttempts?: number } = {}
+  ) {
     this.maxAttempts = options.maxAttempts ?? 10;
     if (!Number.isInteger(this.maxAttempts) || this.maxAttempts < 1 || this.maxAttempts > 100) {
       throw new Error('Processor max attempts must be between 1 and 100');

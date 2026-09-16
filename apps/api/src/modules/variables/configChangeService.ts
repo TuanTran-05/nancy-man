@@ -282,7 +282,7 @@ export class ConfigChangeService {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
-          status: 500,
+          status: 500
         });
         const refreshed = await this.input.repository.findById(record.id);
         if (!refreshed || refreshed.state !== event.state) throw error;
@@ -331,7 +331,7 @@ export class ConfigChangeService {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       const refreshed = await this.input.repository.findById(record.id);
       if (refreshed) current = refreshed;
@@ -346,7 +346,7 @@ export class ConfigChangeService {
           captureOpsException(error, {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'api',
-            status: 500,
+            status: 500
           });
           const retry = await this.input.repository.findById(record.id);
           if (retry) current = retry;
@@ -393,7 +393,7 @@ export class ConfigChangeService {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
-          status: 500,
+          status: 500
         });
         // A restarting agent is not evidence of a failed run; the final timeout below
         // converts a permanently unreachable apply into a durable blocked state.
@@ -487,7 +487,7 @@ export class ConfigChangeService {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       if (error instanceof ConfigChangeServiceError) throw error;
       if (error instanceof Error && error.message.includes('CONFIG_SOURCE_CHANGED')) {
@@ -566,7 +566,7 @@ export class ConfigChangeService {
         captureOpsException(error, {
           code: 'UNHANDLED_PROMISE_REJECTION',
           source: 'api',
-          status: 500,
+          status: 500
         });
         return undefined;
       });
@@ -575,7 +575,7 @@ export class ConfigChangeService {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       if (databaseApplying) {
         await this.persistDispatchFailure(databaseApplyingRecord);
@@ -607,7 +607,7 @@ export class ConfigChangeService {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       const record = requireOwnerRecord(await this.input.repository.findById(input.body.changeId));
       const events =
@@ -645,7 +645,7 @@ export class ConfigChangeService {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       if (error instanceof Error && error.message.includes('CONFIG_CHANGE_NOT_FOUND')) {
         throw new ConfigChangeServiceError('CONFIG_CHANGE_NOT_FOUND');

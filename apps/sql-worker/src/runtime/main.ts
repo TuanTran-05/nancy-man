@@ -179,7 +179,7 @@ export async function startOpsSqlWorker(
     captureOpsException(error, {
       code: 'SQL_WORKER_CREDENTIALS_UNAVAILABLE',
       source: 'process',
-      level: 'fatal',
+      level: 'fatal'
     });
     await Promise.resolve();
     await stopRuntimeTelemetry();
@@ -251,7 +251,7 @@ export async function startOpsSqlWorker(
           } catch (error) {
             captureOpsException(error, {
               code: 'SQL_WORKER_SERVER_CLOSE_FAILED',
-              source: 'process',
+              source: 'process'
             });
             rememberCloseFailure(error);
           }
@@ -284,7 +284,7 @@ export async function startOpsSqlWorker(
     captureOpsException(error, {
       code: 'SQL_WORKER_STARTUP_FAILED',
       source: 'process',
-      level: 'fatal',
+      level: 'fatal'
     });
     await Promise.resolve();
     try {

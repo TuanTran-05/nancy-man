@@ -112,7 +112,7 @@ function accountId(file: string, name: string, field: 0 | 2): number | undefined
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     return undefined;
   }
@@ -177,10 +177,10 @@ function parseSource(source: ManifestSource, bytes: Buffer, name: string): Parse
     return adapter.parse(bytes, { maximumBytes: source.maximumBytes });
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'job',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     if (error instanceof AtomicSourceWriterError) throw error;
     fail('SOURCE_PARSE_FAILED');
   }
@@ -229,7 +229,7 @@ function assertTarget(path: string, sourceId: string, maximumBytes: number): Saf
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     fail('SOURCE_NOT_FOUND');
   }
@@ -302,10 +302,10 @@ function writeFileAtomically(
     }
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'job',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     if (error instanceof AtomicSourceWriterError) throw error;
     fail('SOURCE_WRITE_FAILED');
   } finally {
@@ -317,7 +317,7 @@ function writeFileAtomically(
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         // Best-effort cleanup; the target was never replaced if this path remains.
       }
@@ -339,9 +339,9 @@ export function createAtomicSourceWriter(options: AtomicSourceWriterOptions) {
       return read;
     } catch (error) {
       captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500
       });
       if (error instanceof AtomicSourceWriterError) throw error;
       const code = error instanceof Error && 'code' in error ? error.code : undefined;
@@ -401,9 +401,9 @@ export function createAtomicSourceWriter(options: AtomicSourceWriterOptions) {
       };
     } catch (error) {
       captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500,
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500
       });
       if (error instanceof AtomicSourceWriterError) throw error;
       fail('SOURCE_POST_WRITE_VERIFY_FAILED');

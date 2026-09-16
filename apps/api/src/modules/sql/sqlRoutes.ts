@@ -77,9 +77,10 @@ export function createSqlRouter(input: {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
           status: 500,
-          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
           route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-          method: () => request.method,
+          method: () => request.method
         });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
@@ -93,9 +94,10 @@ export function createSqlRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -117,9 +119,10 @@ export function createSqlRouter(input: {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'database',
           status: 500,
-          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
           route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-          method: () => request.method,
+          method: () => request.method
         });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
@@ -138,9 +141,10 @@ export function createSqlRouter(input: {
         source: 'database',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -165,9 +169,12 @@ export function createSqlRouter(input: {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'database',
             status: 500,
-            requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+            requestId: () =>
+              typeof response.locals?.requestId === 'string'
+                ? response.locals.requestId
+                : undefined,
             route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-            method: () => request.method,
+            method: () => request.method
           });
           return response.status(403).json({ code: 'PERMISSION_DENIED' });
         }
@@ -186,9 +193,10 @@ export function createSqlRouter(input: {
           source: 'database',
           status: 500,
           deferUntilHandled: true,
-          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
           route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-          method: () => request.method,
+          method: () => request.method
         });
         next(error);
       }
@@ -214,9 +222,10 @@ export function createSqlRouter(input: {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'database',
           status: 500,
-          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
           route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-          method: () => request.method,
+          method: () => request.method
         });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
@@ -244,9 +253,10 @@ export function createSqlRouter(input: {
         source: 'database',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }

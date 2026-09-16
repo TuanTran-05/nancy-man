@@ -104,7 +104,10 @@ describe('createOpsApi', () => {
     try {
       const response = await fetch(`http://127.0.0.1:${address.port}/healthz`);
       expect(response.status).toBe(503);
-      await expect(response.json()).resolves.toEqual({ status: 'degraded', reason: 'telemetry_unavailable' });
+      await expect(response.json()).resolves.toEqual({
+        status: 'degraded',
+        reason: 'telemetry_unavailable'
+      });
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve()))

@@ -67,7 +67,7 @@ function timeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
         captureOpsException(error, {
           code: 'UNHANDLED_PROMISE_REJECTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         clearTimeout(timer);
         reject(error);
@@ -267,7 +267,7 @@ export function createHealthCheckRunner(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'provider',
-        status: 500,
+        status: 500
       });
       return result(
         runId,

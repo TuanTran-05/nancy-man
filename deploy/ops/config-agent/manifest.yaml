@@ -284,8 +284,7 @@ sources:
     mode: '0440'
     maximumBytes: 4096
     precedenceRank: 400
-    consumerIds:
-      [ops.api, ops.processor, ops.notifier, ops.web, ops.collector, ops.sql_worker]
+    consumerIds: [ops.api, ops.processor, ops.notifier, ops.web, ops.collector, ops.sql_worker]
 actions:
   - id: application.clear_apply_block
     description: Clear a blocked application after owner-approved remediation.

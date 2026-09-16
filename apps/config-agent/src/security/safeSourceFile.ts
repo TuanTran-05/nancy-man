@@ -147,7 +147,7 @@ function walkNoSymlink(filePath: string, sourceId: string): Stats {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       return mapFsError(error, sourceId, 'SOURCE_NOT_FOUND');
     }
@@ -160,7 +160,7 @@ function walkNoSymlink(filePath: string, sourceId: string): Stats {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     return mapFsError(error, sourceId, 'SOURCE_NOT_FOUND');
   }
@@ -185,7 +185,7 @@ function openDescriptorRelative(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     return mapFsError(error, sourceId, 'SOURCE_OPEN_FAILED');
   }
@@ -200,7 +200,7 @@ function openDescriptorRelative(
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         return mapFsError(error, sourceId, 'SOURCE_OPEN_FAILED');
       }
@@ -212,7 +212,7 @@ function openDescriptorRelative(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     try {
       closeSync(directoryDescriptor);
@@ -220,7 +220,7 @@ function openDescriptorRelative(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       // Preserve the stable source error from the failed operation.
     }
@@ -232,7 +232,7 @@ function openDescriptorRelative(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     // The descriptor is best-effort cleanup after an impossible empty path.
   }
@@ -270,7 +270,7 @@ export function readSafeSourceFile(options: SafeSourceReadOptions): SafeSourceRe
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       return mapFsError(error, sourceId, 'SOURCE_READ_FAILED');
     }
@@ -300,7 +300,7 @@ export function readSafeSourceFile(options: SafeSourceReadOptions): SafeSourceRe
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         return mapFsError(error, sourceId, 'SOURCE_READ_FAILED');
       }
@@ -397,7 +397,7 @@ function readReleaseMetadata(path: string, releaseId: string, sourceId: string):
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     if ((error as NodeJS.ErrnoException).code === 'ENOENT')
       fail('ACTIVE_RELEASE_METADATA_MISSING', sourceId);
@@ -424,7 +424,7 @@ function readReleaseMetadata(path: string, releaseId: string, sourceId: string):
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     if (error instanceof SafeSourceError && error.code === 'SOURCE_NOT_FOUND') {
       fail('ACTIVE_RELEASE_METADATA_MISSING', sourceId);
@@ -445,10 +445,10 @@ function readReleaseMetadata(path: string, releaseId: string, sourceId: string):
     }
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'job',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     if (error instanceof SafeSourceError) throw error;
     fail('ACTIVE_RELEASE_METADATA_INVALID', sourceId);
   }
@@ -469,7 +469,7 @@ export function resolveActiveReleaseLink(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     return mapFsError(error, sourceId, 'ACTIVE_RELEASE_CHANGED');
   }
@@ -481,7 +481,7 @@ export function resolveActiveReleaseLink(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     return mapFsError(error, sourceId, 'ACTIVE_RELEASE_CHANGED');
   }
@@ -508,7 +508,7 @@ export function resolveActiveReleaseLink(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     fail('ACTIVE_RELEASE_CHANGED', sourceId);
   }

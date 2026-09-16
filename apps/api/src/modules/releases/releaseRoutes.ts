@@ -49,9 +49,10 @@ export function createReleaseRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }

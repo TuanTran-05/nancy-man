@@ -21,7 +21,7 @@ if (telemetryConfig.enabled) {
     void captureBrowserException(error, {
       code: 'UNHANDLED_PROMISE_REJECTION',
       source: 'browser',
-      route: () => globalThis.location?.pathname,
+      route: () => globalThis.location?.pathname
     });
     return undefined;
   });

@@ -66,7 +66,7 @@ function readText(path: string, readFile: ReadFile, code: ManifestLoadErrorCode)
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'document_store',
-      status: 500,
+      status: 500
     });
     throw new ManifestLoadError(code);
   }
@@ -159,7 +159,7 @@ export function loadCatalogAndManifest(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     throw new ManifestLoadError('CONFIG_CATALOG_INVALID');
   }
@@ -170,7 +170,7 @@ export function loadCatalogAndManifest(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     throw new ManifestLoadError('CONFIG_MANIFEST_INVALID');
   }

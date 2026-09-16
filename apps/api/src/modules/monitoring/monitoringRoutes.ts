@@ -92,7 +92,8 @@ export function createMonitoringRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined
       });
       response.status(503).json({ code: errorCode(error) });
     }
@@ -144,9 +145,10 @@ export function createMonitoringRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       response.status(503).json({ code: errorCode(error) });
     }
@@ -162,9 +164,10 @@ export function createMonitoringRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       response.status(503).json({ code: errorCode(error) });
     }

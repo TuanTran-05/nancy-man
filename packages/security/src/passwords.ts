@@ -109,7 +109,7 @@ export async function verifyPassword(encodedHash: string, password: string): Pro
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'api',
-      status: 500,
+      status: 500
     });
     return false;
   }

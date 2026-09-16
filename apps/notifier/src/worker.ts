@@ -47,7 +47,7 @@ export class NotificationWorker {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       await this.input.repository.markFailed({
         deliveryId: input.id,

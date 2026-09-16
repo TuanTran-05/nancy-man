@@ -69,7 +69,7 @@ export function createBeszelProbe(client: BeszelSnapshotReader) {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       return [failure(now, error instanceof BeszelClientError ? error.code : 'beszel_unreachable')];
     }

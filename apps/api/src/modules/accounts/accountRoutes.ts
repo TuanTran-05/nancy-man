@@ -92,9 +92,10 @@ export function createAccountRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       response.status(403).json({ code: 'PERMISSION_DENIED' });
       return null;
@@ -123,7 +124,8 @@ export function createAccountRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined
       });
       const code = errorCode(error);
       response.status(statusFor(code)).json({ code });
@@ -142,9 +144,10 @@ export function createAccountRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -175,9 +178,10 @@ export function createAccountRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -206,9 +210,10 @@ export function createAccountRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -237,9 +242,10 @@ export function createAccountRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -265,9 +271,10 @@ export function createAccountRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -296,9 +303,10 @@ export function createAccountRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }

@@ -42,7 +42,7 @@ export class FileSecretResolver {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'document_store',
-        status: 500,
+        status: 500
       });
       return null;
     }

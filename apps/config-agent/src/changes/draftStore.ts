@@ -87,10 +87,10 @@ function encodeValue(value: unknown): Buffer {
     return Buffer.from(serialized, 'utf8');
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'job',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     if (error instanceof DraftStoreError) throw error;
     fail('DRAFT_INVALID');
   }
@@ -113,7 +113,7 @@ export function decodeStoredValue<T>(plaintext: Uint8Array): T {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     fail('DRAFT_CORRUPT');
   }
@@ -324,7 +324,7 @@ export class DraftStore {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         if (error instanceof Error && 'code' in error && error.code === 'ARTIFACT_NOT_FOUND') {
           return null;

@@ -26,7 +26,9 @@ describe('config-agent runtime telemetry', () => {
     await Promise.resolve();
 
     expect(enqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ context: expect.objectContaining({ service: 'edutrack-ops-config-agent' }) })
+      expect.objectContaining({
+        context: expect.objectContaining({ service: 'edutrack-ops-config-agent' })
+      })
     );
   });
 });

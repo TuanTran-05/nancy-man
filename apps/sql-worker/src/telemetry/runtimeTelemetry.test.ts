@@ -26,7 +26,9 @@ describe('SQL worker runtime telemetry', () => {
     await Promise.resolve();
 
     expect(enqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ context: expect.objectContaining({ service: 'edutrack-ops-sql-worker' }) })
+      expect.objectContaining({
+        context: expect.objectContaining({ service: 'edutrack-ops-sql-worker' })
+      })
     );
   });
 });

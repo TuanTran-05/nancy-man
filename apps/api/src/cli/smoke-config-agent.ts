@@ -118,7 +118,7 @@ async function loadExpectations(): Promise<ConfigAgentExpectations> {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'process',
-      status: 500,
+      status: 500
     });
     throw new Error('CONFIG_AGENT_SMOKE_MANIFEST_INVALID', { cause: error });
   }
@@ -149,7 +149,7 @@ async function createClient(socketPath: string): Promise<SmokeClient> {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'process',
-      status: 500,
+      status: 500
     });
     throw new Error('CONFIG_AGENT_SMOKE_CREDENTIAL_UNAVAILABLE', { cause: error });
   }

@@ -26,9 +26,11 @@ export function assertTlsProtectedPostgresUrl(databaseUrl: string): void {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
-    throw new Error('Production read database URL must use PostgreSQL with TLS verify-full', { cause: error });
+    throw new Error('Production read database URL must use PostgreSQL with TLS verify-full', {
+      cause: error
+    });
   }
   if (
     (parsed.protocol !== 'postgresql:' && parsed.protocol !== 'postgres:') ||

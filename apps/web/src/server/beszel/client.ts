@@ -69,7 +69,7 @@ function parseBody(text: string): unknown {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'api',
-      status: 500,
+      status: 500
     });
     throw boundedError('beszel_invalid_json');
   }
@@ -100,7 +100,7 @@ export function createBeszelClient(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       if (isAbort(error, signal)) throw boundedError('beszel_timeout');
       throw boundedError('beszel_unreachable');
@@ -115,7 +115,7 @@ export function createBeszelClient(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       throw boundedError('beszel_invalid_json');
     }
@@ -130,7 +130,7 @@ export function createBeszelClient(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       throw boundedError('beszel_unreachable');
     }
@@ -234,7 +234,7 @@ export function createBeszelClient(
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
-          status: 500,
+          status: 500
         });
         if (error instanceof BeszelClientError) throw error;
         if (isAbort(error, signal)) throw boundedError('beszel_timeout');

@@ -1,5 +1,8 @@
 import { getOpsPool } from '../../../../packages/db/src/client.js';
-import type { TelemetryEnvelopeV1, TelemetrySource } from '../../../../packages/contracts/src/telemetry.js';
+import type {
+  TelemetryEnvelopeV1,
+  TelemetrySource
+} from '../../../../packages/contracts/src/telemetry.js';
 import { createEventId } from '../../../../packages/telemetry-sdk/src/ids.js';
 import { createSignedServerTransport } from '../../../../packages/telemetry-sdk/src/serverTransport.js';
 import {
@@ -16,9 +19,7 @@ import { readOpsRuntimeConfig } from '../runtime/runtimeConfig.js';
 
 export type TelemetryCanaryEnvelope = TelemetryEnvelopeV1;
 
-export type TelemetryCanaryIngestResult =
-  | void
-  | { accepted?: boolean; eventId?: string };
+export type TelemetryCanaryIngestResult = void | { accepted?: boolean; eventId?: string };
 
 type TelemetryCanaryInput = {
   envelope?: TelemetryCanaryEnvelope;
@@ -79,7 +80,9 @@ export function createTelemetryCanaryEnvelope(input: {
   };
 }
 
-export async function runTelemetryCanary(input: TelemetryCanaryInput): Promise<TelemetryCanaryResult> {
+export async function runTelemetryCanary(
+  input: TelemetryCanaryInput
+): Promise<TelemetryCanaryResult> {
   const envelope =
     input.envelope ??
     createTelemetryCanaryEnvelope({
@@ -199,14 +202,16 @@ type CanaryMode =
 function parseArguments(arguments_: readonly string[]): CanaryMode {
   if (arguments_.length === 0 || arguments_[0] === '--server') {
     const service = arguments_[1] ?? 'edutrack-ops-api';
-    if (!/^[a-z0-9][a-z0-9-]{0,63}$/u.test(service)) throw new Error('TELEMETRY_CANARY_SERVICE_INVALID');
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/u.test(service))
+      throw new Error('TELEMETRY_CANARY_SERVICE_INVALID');
     return { kind: 'server', service };
   }
   if (arguments_[0] === '--browser' && arguments_.length === 4) {
     const projectKey = browserProjectKey(arguments_[1]!);
     const origin = browserOrigin(arguments_[2]!);
     const service = arguments_[3]!;
-    if (!/^[a-z0-9][a-z0-9-]{0,63}$/u.test(service)) throw new Error('TELEMETRY_CANARY_SERVICE_INVALID');
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/u.test(service))
+      throw new Error('TELEMETRY_CANARY_SERVICE_INVALID');
     return { kind: 'browser', projectKey, origin, service };
   }
   throw new Error('TELEMETRY_CANARY_USAGE');
@@ -303,7 +308,9 @@ export function runTelemetryCanaryEntrypoint(
       source: 'process' as const,
       level: 'error' as const
     },
-    run: input.run ?? (() => runConfiguredTelemetryCanary(environment, input.arguments ?? process.argv.slice(2)))
+    run:
+      input.run ??
+      (() => runConfiguredTelemetryCanary(environment, input.arguments ?? process.argv.slice(2)))
   };
   if (input.rethrow === false) {
     return runConfiguredOpsTelemetryOneShot({

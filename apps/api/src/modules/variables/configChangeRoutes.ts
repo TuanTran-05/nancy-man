@@ -176,9 +176,10 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       response.status(403).json({ code: 'PERMISSION_DENIED' });
       return null;
@@ -223,9 +224,10 @@ export function createConfigChangeRouter(input: {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
           status: 500,
-          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
           route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-          method: () => request.method,
+          method: () => request.method
         });
         response.status(401).json({ code: 'MFA_DENIED' });
       }
@@ -234,10 +236,11 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
         deferUntilHandled: true,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -263,9 +266,10 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       sendError(response, error);
     }
@@ -293,9 +297,10 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       sendError(response, error);
     }
@@ -318,9 +323,10 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       sendError(response, error);
     }
@@ -343,9 +349,10 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       sendError(response, error);
     }
@@ -376,9 +383,10 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       sendError(response, error);
     }
@@ -398,9 +406,10 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       sendError(response, error);
     }
@@ -458,9 +467,10 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       if (!response.headersSent) sendError(response, error);
       else if (!response.writableEnded) response.end();
@@ -484,9 +494,10 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       sendError(response, error);
     }
@@ -514,9 +525,10 @@ export function createConfigChangeRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       sendError(response, error);
     }

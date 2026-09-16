@@ -20,10 +20,7 @@ function boundedText(value: string | undefined, maximumLength: number): string |
   return value.slice(0, maximumLength);
 }
 
-function safeErrorText(
-  error: Error,
-  property: 'name' | 'message' | 'stack'
-): string | undefined {
+function safeErrorText(error: Error, property: 'name' | 'message' | 'stack'): string | undefined {
   try {
     const value = error[property];
     return typeof value === 'string' ? value : undefined;

@@ -46,7 +46,8 @@ export function requireOpsSession(auth: AuthService) {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined
       });
       response.status(401).json({ error: 'unauthorized' });
     }
@@ -77,9 +78,10 @@ export function attachAuthRoutes(router: Router, auth: AuthService): void {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       response.status(401).json({ error: 'Invalid credentials' });
     }

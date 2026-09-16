@@ -180,7 +180,7 @@ export class SqlReadPreviewService {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'database',
-        status: 500,
+        status: 500
       });
       return finishFailure('SQL_WORKER_UNAVAILABLE');
     }

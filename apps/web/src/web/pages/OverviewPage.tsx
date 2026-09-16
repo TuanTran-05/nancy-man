@@ -50,7 +50,7 @@ export function OverviewPage({
       void captureBrowserException(error, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       if (String(error).includes('401') || String(error).includes('UNAUTHENTICATED')) {
         onUnauthorized();

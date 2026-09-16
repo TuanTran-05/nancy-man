@@ -202,7 +202,7 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
       void captureBrowserException(error, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       // The status remains the useful error when a proxy returns a non-JSON body.
     }
@@ -443,7 +443,7 @@ export function subscribeConfigChange(
       void captureBrowserException(error, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       onError?.();
     }

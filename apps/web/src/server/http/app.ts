@@ -125,12 +125,13 @@ export function createOpsApp(deps: OpsAppDependencies): Express {
           route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
           method: () => request.method,
           status: 500,
-          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined
         });
         captureOpsException(telemetryError, {
           code: 'TELEMETRY_REPORTER_FAILED',
           source: 'api',
-          status: 500,
+          status: 500
         });
         // Reporting must not replace the safe response for the originating request.
       }

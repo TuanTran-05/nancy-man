@@ -55,7 +55,7 @@ export async function sendZaloText(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       throw new ZaloDeliveryError('delivery_ambiguous', true, true);
     }
@@ -66,7 +66,7 @@ export async function sendZaloText(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       body = null;
     }

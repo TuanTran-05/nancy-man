@@ -824,12 +824,11 @@ function directCallExpression(expression: ts.Expression): ts.CallExpression | un
 
 function isRuntimeCaptureMethod(call: ts.CallExpression, aliases: Set<string>): boolean {
   const callee = unwrapExpression(call.expression);
-  const method =
-    ts.isPropertyAccessExpression(callee)
-      ? callee.name.text
-      : ts.isElementAccessExpression(callee)
-        ? staticElementAccessName(callee.argumentExpression)
-        : undefined;
+  const method = ts.isPropertyAccessExpression(callee)
+    ? callee.name.text
+    : ts.isElementAccessExpression(callee)
+      ? staticElementAccessName(callee.argumentExpression)
+      : undefined;
   return (
     method === 'captureException' &&
     call.arguments.length >= 2 &&
@@ -971,7 +970,12 @@ function captureProtection(
 ): CaptureProtection | undefined {
   const call = directCallExpression(expression);
   if (!call) return undefined;
-  const knownFacade = facadeForCall(call, context.sourceFile, context.boundaryBody, context.facades);
+  const knownFacade = facadeForCall(
+    call,
+    context.sourceFile,
+    context.boundaryBody,
+    context.facades
+  );
   const facade = validCaptureFacade(
     call,
     context.sourceFile,
@@ -1030,7 +1034,8 @@ function captureProtection(
         protection: mayNeedTerminalProtection(state.protection) ? 'generic' : state.protection,
         terminalizedOriginal:
           state.terminalizedOriginal ||
-          (state.protection === 'none' || state.protection === 'provisional'),
+          state.protection === 'none' ||
+          state.protection === 'provisional',
         waived: state.waived
       },
       preEntryHazard: false,
@@ -3115,8 +3120,7 @@ function completionHasEvidence(completion: AbruptCompletion): boolean {
   if (
     completion.kind === 'throw' &&
     completion.exactOriginal === true &&
-    (completion.state.protection === 'uncertain' ||
-      completion.state.terminalizedOriginal)
+    (completion.state.protection === 'uncertain' || completion.state.terminalizedOriginal)
   ) {
     return false;
   }

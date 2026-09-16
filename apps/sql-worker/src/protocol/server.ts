@@ -20,7 +20,7 @@ async function removeStaleSocket(path: string): Promise<void> {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'document_store',
-      status: 500,
+      status: 500
     });
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
     throw error;
@@ -83,7 +83,7 @@ export async function startWorkerProtocolServer(input: {
               captureOpsException(error, {
                 code: 'UNHANDLED_OPS_EXCEPTION',
                 source: 'job',
-                status: 500,
+                status: 500
               });
               response = commandFailure(command.commandId, error);
             }
@@ -94,7 +94,7 @@ export async function startWorkerProtocolServer(input: {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'database',
-          status: 500,
+          status: 500
         });
         socket.write(
           encodeFrame({

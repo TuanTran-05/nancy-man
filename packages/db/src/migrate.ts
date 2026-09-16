@@ -58,7 +58,7 @@ async function applyMigration(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'database',
-        status: 500,
+        status: 500
       });
       // Preserve the original migration failure after a best-effort rollback.
     }

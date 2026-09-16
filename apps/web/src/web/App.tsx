@@ -31,7 +31,7 @@ export function App() {
         void captureBrowserException(error, {
           code: 'UNHANDLED_PROMISE_REJECTION',
           source: 'browser',
-          route: () => globalThis.location?.pathname,
+          route: () => globalThis.location?.pathname
         });
         if (active) setSession(null);
       })
@@ -60,7 +60,7 @@ export function App() {
             void captureBrowserException(error, {
               code: 'UNHANDLED_BROWSER_EXCEPTION',
               source: 'browser',
-              route: () => globalThis.location?.pathname,
+              route: () => globalThis.location?.pathname
             });
             setLoginError('Thông tin đăng nhập không hợp lệ.');
             throw new Error('LOGIN_FAILED', { cause: error });
@@ -76,7 +76,7 @@ export function App() {
             void captureBrowserException(error, {
               code: 'UNHANDLED_BROWSER_EXCEPTION',
               source: 'browser',
-              route: () => globalThis.location?.pathname,
+              route: () => globalThis.location?.pathname
             });
             setLoginError('Mã xác thực không hợp lệ.');
             throw new Error('MFA_FAILED', { cause: error });

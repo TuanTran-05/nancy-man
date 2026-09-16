@@ -186,7 +186,7 @@ export function VariablesPage({
         void captureBrowserException(caught, {
           code: 'UNHANDLED_BROWSER_EXCEPTION',
           source: 'browser',
-          route: () => globalThis.location?.pathname,
+          route: () => globalThis.location?.pathname
         });
         clearValues();
         setError(errorMessage(caught));
@@ -217,7 +217,7 @@ export function VariablesPage({
         void captureBrowserException(caught, {
           code: 'UNHANDLED_BROWSER_EXCEPTION',
           source: 'browser',
-          route: () => globalThis.location?.pathname,
+          route: () => globalThis.location?.pathname
         });
         clearValues();
         setError(errorMessage(caught));
@@ -235,7 +235,7 @@ export function VariablesPage({
       void captureBrowserException(caught, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       setError(errorMessage(caught));
       if (isSessionUnauthorized(caught)) reportUnauthorized();
@@ -314,7 +314,7 @@ export function VariablesPage({
           void captureBrowserException(caught, {
             code: 'UNHANDLED_BROWSER_EXCEPTION',
             source: 'browser',
-            route: () => globalThis.location?.pathname,
+            route: () => globalThis.location?.pathname
           });
           setError(errorMessage(caught));
         }
@@ -366,7 +366,7 @@ export function VariablesPage({
         void captureBrowserException(caught, {
           code: 'UNHANDLED_BROWSER_EXCEPTION',
           source: 'browser',
-          route: () => globalThis.location?.pathname,
+          route: () => globalThis.location?.pathname
         });
         setError(errorMessage(caught));
       }
@@ -425,7 +425,7 @@ export function VariablesPage({
       void captureBrowserException(caught, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       setError(errorMessage(caught));
     }
@@ -444,7 +444,7 @@ export function VariablesPage({
       void captureBrowserException(caught, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       setError(errorMessage(caught));
     }
@@ -482,7 +482,7 @@ export function VariablesPage({
         void captureBrowserException(caught, {
           code: 'UNHANDLED_BROWSER_EXCEPTION',
           source: 'browser',
-          route: () => globalThis.location?.pathname,
+          route: () => globalThis.location?.pathname
         });
         setError(errorMessage(caught));
       }

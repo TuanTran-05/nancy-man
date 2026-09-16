@@ -60,7 +60,7 @@ describe('PostgresProcessorQueue', () => {
     });
 
     await queue.markRetry('env-1', new Date('2026-08-22T08:00:00.000Z'));
-    expect(queries[0]).toContain("SET state = CASE");
+    expect(queries[0]).toContain('SET state = CASE');
     expect(queries[0]).toContain('attempt_count = attempt_count + 1');
     expect(queries[0]).toContain("'dead_lettered'");
   });
@@ -88,8 +88,9 @@ describe('PostgresProcessorQueue', () => {
         }
         return { rows: [] as T[] };
       },
-      transaction: async <T>(operation: (transaction: { query: typeof database.query }) => Promise<T>) =>
-        operation({ query: database.query })
+      transaction: async <T>(
+        operation: (transaction: { query: typeof database.query }) => Promise<T>
+      ) => operation({ query: database.query })
     };
     const queue = new PostgresProcessorQueue(database);
 

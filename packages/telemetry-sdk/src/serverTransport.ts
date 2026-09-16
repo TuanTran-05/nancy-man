@@ -24,9 +24,14 @@ function requestSignature(input: {
   rawBody: string;
 }): string {
   const bodyHash = createHash('sha256').update(input.rawBody, 'utf8').digest('hex');
-  const canonical = ['v1', 'POST', '/api/v1/ingest/server', input.timestamp, input.nonce, bodyHash].join(
-    '\n'
-  );
+  const canonical = [
+    'v1',
+    'POST',
+    '/api/v1/ingest/server',
+    input.timestamp,
+    input.nonce,
+    bodyHash
+  ].join('\n');
   return `v1=${createHmac('sha256', input.secret).update(canonical, 'utf8').digest('hex')}`;
 }
 
@@ -45,7 +50,8 @@ export function createSignedServerTransport(input: {
   const now = input.now ?? (() => new Date());
   const nonce = input.nonce ?? (() => randomBytes(24).toString('base64url'));
   const fetchImplementation = input.fetch ?? globalThis.fetch;
-  if (typeof fetchImplementation !== 'function') throw new Error('SERVER_TELEMETRY_FETCH_UNAVAILABLE');
+  if (typeof fetchImplementation !== 'function')
+    throw new Error('SERVER_TELEMETRY_FETCH_UNAVAILABLE');
 
   return async (envelope) => {
     const rawBody = JSON.stringify(envelope);

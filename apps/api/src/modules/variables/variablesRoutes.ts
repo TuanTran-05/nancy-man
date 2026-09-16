@@ -145,9 +145,10 @@ export function createVariablesRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       response.status(403).json({ code: 'PERMISSION_DENIED' });
       return null;
@@ -230,9 +231,10 @@ export function createVariablesRouter(input: {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
           status: 500,
-          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
           route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-          method: () => request.method,
+          method: () => request.method
         });
         await appendAudit({
           actorUserId: value.userId,
@@ -248,9 +250,10 @@ export function createVariablesRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -269,9 +272,12 @@ export function createVariablesRouter(input: {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'api',
             status: 500,
-            requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+            requestId: () =>
+              typeof response.locals?.requestId === 'string'
+                ? response.locals.requestId
+                : undefined,
             route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-            method: () => request.method,
+            method: () => request.method
           });
           return response.status(401).json({ code: 'STEP_UP_REQUIRED' });
         }
@@ -290,9 +296,10 @@ export function createVariablesRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -309,9 +316,10 @@ export function createVariablesRouter(input: {
         source: 'api',
         status: 500,
         deferUntilHandled: true,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }
@@ -330,9 +338,10 @@ export function createVariablesRouter(input: {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
           status: 500,
-          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
           route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-          method: () => request.method,
+          method: () => request.method
         });
         grants.delete(value.sessionId);
         await appendAudit({
@@ -352,9 +361,10 @@ export function createVariablesRouter(input: {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
           status: 500,
-          requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
           route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
-          method: () => request.method,
+          method: () => request.method
         });
         return response.status(503).json({ code: stableError(error) });
       }
@@ -363,10 +373,11 @@ export function createVariablesRouter(input: {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
         deferUntilHandled: true,
-        method: () => request.method,
+        method: () => request.method
       });
       next(error);
     }

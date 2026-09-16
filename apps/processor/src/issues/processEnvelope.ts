@@ -93,7 +93,7 @@ export async function processEnvelope(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       // Persist the sanitized generated stack; source-map failures must not drop an error occurrence.
     }

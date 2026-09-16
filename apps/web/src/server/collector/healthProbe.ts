@@ -35,7 +35,7 @@ export async function probeApp(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     return {
       monitor: kind === 'liveness' ? 'app_liveness' : 'app_health',
@@ -83,7 +83,7 @@ export async function probeApp(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     return {
       monitor: kind === 'liveness' ? 'app_liveness' : 'app_health',

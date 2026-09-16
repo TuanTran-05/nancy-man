@@ -103,7 +103,7 @@ export function UsersPage({
       void captureBrowserException(caught, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       if ((caught as ApiError)?.status === 401) onUnauthorized();
       else setError(errorMessage(caught));
@@ -143,7 +143,7 @@ export function UsersPage({
       void captureBrowserException(caught, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       if ((caught as ApiError)?.status === 401) onUnauthorized();
       else setError(errorMessage(caught));
@@ -167,7 +167,7 @@ export function UsersPage({
       void captureBrowserException(caught, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       if ((caught as ApiError)?.status === 401) onUnauthorized();
       else setError(errorMessage(caught));

@@ -42,7 +42,7 @@ function parseCredential(bytes: Uint8Array, options: CredentialParseOptions): Pa
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       throw new SourceAdapterError('SOURCE_UNSUPPORTED_ENCODING');
     }

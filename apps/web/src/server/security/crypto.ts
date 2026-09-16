@@ -54,7 +54,7 @@ export function verifyPassword(password: string, encoded: string): boolean {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'api',
-      status: 500,
+      status: 500
     });
     return false;
   }

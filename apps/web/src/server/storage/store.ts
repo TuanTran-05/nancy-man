@@ -333,7 +333,7 @@ export function createOpsStore(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'api',
-      status: 500,
+      status: 500
     });
     db.exec('ROLLBACK');
     db.close();
@@ -348,7 +348,7 @@ export function createOpsStore(
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       db.close();
       throw error;

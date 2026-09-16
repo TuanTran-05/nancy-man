@@ -97,7 +97,7 @@ export function assertTextBytes(bytes: Uint8Array, maximumBytes = 1_048_576): Bu
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     throw new SourceAdapterError('SOURCE_UNSUPPORTED_ENCODING');
   }
@@ -111,7 +111,7 @@ export function decodeUtf8(bytes: Uint8Array): string {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     throw new SourceAdapterError('SOURCE_UNSUPPORTED_ENCODING');
   }

@@ -82,7 +82,7 @@ export async function probePostgres(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'database',
-      status: 500,
+      status: 500
     });
     return {
       monitor: 'postgres',
@@ -93,14 +93,15 @@ export async function probePostgres(
       errorCode: safeErrorCode(error)
     };
   } finally {
-    if (client) await client.end().catch((error) => {
-      captureOpsException(error, {
-        code: 'UNHANDLED_PROMISE_REJECTION',
-        source: 'job',
-        status: 500,
+    if (client)
+      await client.end().catch((error) => {
+        captureOpsException(error, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'job',
+          status: 500
+        });
+        return undefined;
       });
-      return undefined;
-    });
   }
 }
 

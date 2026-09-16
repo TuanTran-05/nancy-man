@@ -95,16 +95,17 @@ export async function previewMutation(input: {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'database',
-      status: 500,
+      status: 500
     });
-    if (transactionOpen) await input.database.query('ROLLBACK').catch((error) => {
-      captureOpsException(error, {
-        code: 'UNHANDLED_PROMISE_REJECTION',
-        source: 'database',
-        status: 500,
+    if (transactionOpen)
+      await input.database.query('ROLLBACK').catch((error) => {
+        captureOpsException(error, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'database',
+          status: 500
+        });
+        return undefined;
       });
-      return undefined;
-    });
     throw new Error('SQL_MUTATION_PREVIEW_FAILED', { cause: error });
   }
 }

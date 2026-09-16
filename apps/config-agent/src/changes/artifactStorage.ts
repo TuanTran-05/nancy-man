@@ -108,7 +108,7 @@ async function ensureDirectory(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'document_store',
-      status: 500,
+      status: 500
     });
     fail('ARTIFACT_DIRECTORY_INVALID');
   }
@@ -117,10 +117,10 @@ async function ensureDirectory(
     assertMetadata(details, mode, owner);
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'document_store',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500
+    });
     if (error instanceof ArtifactStorageError) throw error;
     fail('ARTIFACT_DIRECTORY_INVALID');
   }
@@ -214,7 +214,7 @@ async function assertArtifactFile(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'document_store',
-      status: 500,
+      status: 500
     });
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') fail('ARTIFACT_NOT_FOUND');
     fail('ARTIFACT_METADATA_INVALID');
@@ -270,10 +270,10 @@ export async function readSecureArtifact(
     return bytes;
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'document_store',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500
+    });
     if (error instanceof ArtifactStorageError) throw error;
     if ((error as NodeJS.ErrnoException).code === 'ELOOP') return fail('ARTIFACT_SYMLINK_REJECTED');
     return fail('ARTIFACT_METADATA_INVALID');
@@ -282,7 +282,7 @@ export async function readSecureArtifact(
       captureOpsException(error, {
         code: 'UNHANDLED_PROMISE_REJECTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       return undefined;
     });
@@ -315,10 +315,10 @@ export async function writeAtomicSecureArtifact(
     await assertArtifactFile(target, owner);
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'job',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     if (!(error instanceof ArtifactStorageError) || error.code !== 'ARTIFACT_NOT_FOUND')
       throw error;
   }
@@ -345,13 +345,13 @@ export async function writeAtomicSecureArtifact(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'document_store',
-      status: 500,
+      status: 500
     });
     await handle?.close().catch((error) => {
       captureOpsException(error, {
         code: 'UNHANDLED_PROMISE_REJECTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       return undefined;
     });
@@ -359,7 +359,7 @@ export async function writeAtomicSecureArtifact(
       captureOpsException(error, {
         code: 'UNHANDLED_PROMISE_REJECTION',
         source: 'document_store',
-        status: 500,
+        status: 500
       });
       return undefined;
     });
@@ -379,10 +379,10 @@ export async function deleteSecureArtifact(
     await assertArtifactFile(path, owner);
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'job',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     if (error instanceof ArtifactStorageError && error.code === 'ARTIFACT_NOT_FOUND') return false;
     throw error;
   }
@@ -402,10 +402,10 @@ export async function readArtifactIndex(
     await assertArtifactFile(path, owner);
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'job',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     if (error instanceof ArtifactStorageError && error.code === 'ARTIFACT_NOT_FOUND') return [];
     throw error;
   }
@@ -417,7 +417,7 @@ export async function readArtifactIndex(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     fail('ARTIFACT_CORRUPT_INDEX');
   }
@@ -458,10 +458,10 @@ async function readSecureIndexBytes(
     return bytes;
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'document_store',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'document_store',
+      status: 500
+    });
     if (error instanceof ArtifactStorageError) throw error;
     if ((error as NodeJS.ErrnoException).code === 'ELOOP') return fail('ARTIFACT_SYMLINK_REJECTED');
     return fail('ARTIFACT_METADATA_INVALID');
@@ -470,7 +470,7 @@ async function readSecureIndexBytes(
       captureOpsException(error, {
         code: 'UNHANDLED_PROMISE_REJECTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       return undefined;
     });
@@ -499,10 +499,10 @@ async function writeAtomicIndex(
     await assertArtifactFile(path, owner);
   } catch (error) {
     captureOpsException(error, {
-    code: 'UNHANDLED_OPS_EXCEPTION',
-    source: 'job',
-    status: 500,
-  });
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     if (!(error instanceof ArtifactStorageError) || error.code !== 'ARTIFACT_NOT_FOUND')
       throw error;
   }
@@ -528,13 +528,13 @@ async function writeAtomicIndex(
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'document_store',
-      status: 500,
+      status: 500
     });
     await handle?.close().catch((error) => {
       captureOpsException(error, {
         code: 'UNHANDLED_PROMISE_REJECTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       return undefined;
     });
@@ -542,7 +542,7 @@ async function writeAtomicIndex(
       captureOpsException(error, {
         code: 'UNHANDLED_PROMISE_REJECTION',
         source: 'document_store',
-        status: 500,
+        status: 500
       });
       return undefined;
     });

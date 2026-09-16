@@ -62,7 +62,7 @@ function loadBackupFiles(input: CronBackupInput): BackupFileInput[] {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       // A missing or unreadable backup directory is represented as stale below.
     }
@@ -107,7 +107,7 @@ export function parseCronAndBackupState(
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         return null;
       }

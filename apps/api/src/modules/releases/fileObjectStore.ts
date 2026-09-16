@@ -57,7 +57,7 @@ export class FileObjectStore {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'document_store',
-        status: 500,
+        status: 500
       });
       if ((error as { code?: string }).code !== 'ENOENT') throw error;
     }
@@ -92,7 +92,7 @@ export class FileObjectStore {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
-          status: 500,
+          status: 500
         });
         if ((error as { code?: string }).code !== 'EEXIST') throw error;
         result = await this.existingOutcome(objectPath, expectedChecksum);
@@ -101,7 +101,7 @@ export class FileObjectStore {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'document_store',
-        status: 500,
+        status: 500
       });
       await this.removeTemporary(temporaryPath);
       throw error;
@@ -121,7 +121,7 @@ export class FileObjectStore {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'document_store',
-        status: 500,
+        status: 500
       });
       if ((error as { code?: string }).code === 'ENOENT') return null;
       throw error;

@@ -88,12 +88,13 @@ export function createOpsApi(input: {
         route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
         method: () => request.method,
         status: 500,
-        requestId: () => typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined
       });
       captureOpsException(telemetryError, {
         code: 'TELEMETRY_REPORTER_FAILED',
         source: 'process',
-        status: 500,
+        status: 500
       });
       // Capturing must not interfere with the originating response.
     }

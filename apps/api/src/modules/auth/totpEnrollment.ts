@@ -80,7 +80,7 @@ export class TotpEnrollmentService {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       return false;
     }
@@ -108,7 +108,7 @@ export class TotpEnrollmentService {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'api',
-        status: 500,
+        status: 500
       });
       return false;
     }

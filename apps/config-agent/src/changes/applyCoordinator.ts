@@ -263,7 +263,7 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       const code = errorCode(error);
       if (!change || !machine) {
@@ -294,7 +294,7 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
           captureOpsException(error, {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'job',
-            status: 500,
+            status: 500
           });
           try {
             await emit(machine, change.changeId, input.runId, 'ROLLBACK_FAILED', 'ROLLBACK_FAILED');
@@ -302,7 +302,7 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
             captureOpsException(error, {
               code: 'UNHANDLED_OPS_EXCEPTION',
               source: 'job',
-              status: 500,
+              status: 500
             });
             // A failed journal write must not leak the original error or any value-bearing context.
           }
@@ -342,7 +342,7 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'job',
-          status: 500,
+          status: 500
         });
         try {
           await dependencies.snapshotStore?.markRollbackFailed(snapshotId);
@@ -350,7 +350,7 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
           captureOpsException(error, {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'job',
-            status: 500,
+            status: 500
           });
           // Evidence retention is best effort; the failure callback remains mandatory.
         }
@@ -360,7 +360,7 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
           captureOpsException(error, {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'job',
-            status: 500,
+            status: 500
           });
           // A failed journal write must not leak the original error or any value-bearing context.
         }
@@ -385,7 +385,7 @@ export function createApplyCoordinator(dependencies: ApplyCoordinatorDependencie
           captureOpsException(error, {
             code: 'UNHANDLED_OPS_EXCEPTION',
             source: 'job',
-            status: 500,
+            status: 500
           });
           // Lock release is best effort after the value-free journal has been closed.
         }

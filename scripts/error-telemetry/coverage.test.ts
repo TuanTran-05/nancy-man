@@ -156,10 +156,7 @@ describe('error telemetry coverage', () => {
       captureOpsException(error, { code: 'LOWER_GENERIC', source: 'api' });
       next(error);
     }`;
-    const provisional = terminal.replace(
-      "source: 'api'",
-      "source: 'api', deferUntilHandled: true"
-    );
+    const provisional = terminal.replace("source: 'api'", "source: 'api', deferUntilHandled: true");
 
     expect(scanSource(terminal, 'apps/api/src/modules/exampleRoutes.ts')).toEqual([
       expect.objectContaining({ rule: 'UNCAPTURED_CATCH' })
@@ -878,7 +875,7 @@ describe('error telemetry migrator regression matrix', () => {
 
     expect(result.unsupported).toBeUndefined();
     expect(result.changed).toBe(true);
-    expect(result.sourceText).toContain("captureOpsException(error, {");
+    expect(result.sourceText).toContain('captureOpsException(error, {');
     expect(scanSource(result.sourceText, 'apps/processor/src/jobs/recovery.ts')).toEqual([]);
   });
 
@@ -994,7 +991,9 @@ describe('error telemetry migrator regression matrix', () => {
 
       expect(result.changedFiles).toEqual(['apps/processor/src/jobs/a-safe.ts']);
       expect(result.unsupported).not.toHaveLength(0);
-      expect(scanSource(readFileSync(safe, 'utf8'), 'apps/processor/src/jobs/a-safe.ts')).toEqual([]);
+      expect(scanSource(readFileSync(safe, 'utf8'), 'apps/processor/src/jobs/a-safe.ts')).toEqual(
+        []
+      );
       expect(readFileSync(unsafe, 'utf8')).toBe(unsafeSource);
     } finally {
       rmSync(root, { recursive: true, force: true });

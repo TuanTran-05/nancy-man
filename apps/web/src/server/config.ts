@@ -116,7 +116,7 @@ const requireLoopbackUrl = (env: Env, name: string): string => {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'api',
-      status: 500,
+      status: 500
     });
     throw new Error(`${name} must be a valid URL`, { cause: error });
   }
@@ -140,7 +140,7 @@ function loadBeszelConfig(env: Env): BeszelCollectorConfig {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'api',
-      status: 500,
+      status: 500
     });
     throw new Error('OPS_BESZEL_URL must be exactly http://127.0.0.1:8090', { cause: error });
   }
@@ -183,7 +183,7 @@ export function loadWebConfig(env: Env = process.env): WebConfig {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'api',
-      status: 500,
+      status: 500
     });
     throw new Error('OPS_DATA_KEY must be base64', { cause: error });
   }
@@ -206,9 +206,7 @@ export function loadWebConfig(env: Env = process.env): WebConfig {
     zaloLinkTtlSeconds: positiveInteger(env, 'OPS_ZALO_LINK_TTL_SECONDS', 600),
     legacyMonitoringHmacFile: required(env, 'OPS_LEGACY_MONITORING_HMAC_FILE'),
     telemetry,
-    ...(telemetry.enabled
-      ? { telemetryHmacFile: required(env, 'OPS_TELEMETRY_HMAC_FILE') }
-      : {})
+    ...(telemetry.enabled ? { telemetryHmacFile: required(env, 'OPS_TELEMETRY_HMAC_FILE') } : {})
   };
 }
 
@@ -231,9 +229,7 @@ export function loadCollectorConfig(env: Env = process.env): CollectorConfig {
     zaloTimeoutMs: positiveInteger(env, 'OPS_ALERT_ZALO_TIMEOUT_MS', 10000),
     beszel: loadBeszelConfig(env),
     telemetry,
-    ...(telemetry.enabled
-      ? { telemetryHmacFile: required(env, 'OPS_TELEMETRY_HMAC_FILE') }
-      : {})
+    ...(telemetry.enabled ? { telemetryHmacFile: required(env, 'OPS_TELEMETRY_HMAC_FILE') } : {})
   };
   if (config.zaloTimeoutMs < 5000 || config.zaloTimeoutMs > 60000) {
     throw new Error('OPS_ALERT_ZALO_TIMEOUT_MS must be between 5000 and 60000');

@@ -447,7 +447,11 @@ function preemptingRethrowCaptureEdits(
   if (!errorName) return undefined;
   const facades = importedFacadeNames(sourceFile, filePath);
   const rethrows: ts.ThrowStatement[] = [];
-  const captures: Array<{ statement: ts.ExpressionStatement; call: ts.CallExpression; context: ts.ObjectLiteralExpression }> = [];
+  const captures: Array<{
+    statement: ts.ExpressionStatement;
+    call: ts.CallExpression;
+    context: ts.ObjectLiteralExpression;
+  }> = [];
   const visitBoundary = (node: ts.Node): void => {
     if (node !== boundary.body && (ts.isCatchClause(node) || ts.isFunctionLike(node))) return;
     if (ts.isThrowStatement(node) && node.expression) {
@@ -482,7 +486,9 @@ function preemptingRethrowCaptureEdits(
   const rethrowPosition = Math.min(...rethrows.map((rethrow) => rethrow.getStart(sourceFile)));
   const candidate = captures
     .filter((capture) => capture.statement.getStart(sourceFile) < rethrowPosition)
-    .sort((left, right) => right.statement.getStart(sourceFile) - left.statement.getStart(sourceFile))[0];
+    .sort(
+      (left, right) => right.statement.getStart(sourceFile) - left.statement.getStart(sourceFile)
+    )[0];
   if (!candidate) return undefined;
   const context = candidate.context;
   const lastProperty = context.properties.at(-1);
@@ -1219,10 +1225,7 @@ export function migrateSource(sourceText: string, filePath: string): MigrationRe
           failed.set(findingKey(boundary.finding), candidateParseErrors[0]);
           continue;
         }
-        if (
-          candidate !== migratedSource &&
-          !seenOutputs.has(candidate)
-        ) {
+        if (candidate !== migratedSource && !seenOutputs.has(candidate)) {
           migratedSource = candidate;
           seenOutputs.add(candidate);
           migratedBoundaries += 1;

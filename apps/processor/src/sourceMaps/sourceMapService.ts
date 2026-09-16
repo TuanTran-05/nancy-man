@@ -46,7 +46,7 @@ function filename(value: string): string {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     return value.split('/').at(-1) ?? value;
   }

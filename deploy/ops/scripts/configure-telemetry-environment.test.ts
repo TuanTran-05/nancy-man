@@ -49,7 +49,9 @@ describe('configure telemetry environment', () => {
   it('atomically configures every runtime environment with the attested release and scoped credential', () => {
     const { root, config, release } = fixture();
 
-    expect(run(root, config, release)).toContain(`OPS_TELEMETRY_ENV_CONFIGURED release=${releaseSha}`);
+    expect(run(root, config, release)).toContain(
+      `OPS_TELEMETRY_ENV_CONFIGURED release=${releaseSha}`
+    );
 
     for (const [name, hmacPath] of [
       ['api.env', undefined],
@@ -66,7 +68,9 @@ describe('configure telemetry environment', () => {
       expect(environment).toContain('OPS_TELEMETRY_KEY_ID=edutrack-ops-runtime');
       expect(environment).toContain('OPS_TELEMETRY_HMAC_SECRET_REFERENCE=ops-telemetry-hmac');
       expect(environment).toContain(`OPS_TELEMETRY_RELEASE=${releaseSha}`);
-      expect(environment).toContain('OPS_TELEMETRY_SPOOL_DIRECTORY=/var/lib/edutrack-ops/telemetry');
+      expect(environment).toContain(
+        'OPS_TELEMETRY_SPOOL_DIRECTORY=/var/lib/edutrack-ops/telemetry'
+      );
       if (hmacPath) expect(environment).toContain(`OPS_TELEMETRY_HMAC_FILE=${hmacPath}`);
     }
     expect(readFileSync(join(config, 'collector.env'), 'utf8')).toContain(

@@ -1,16 +1,21 @@
 # Ops migration integrity
 
-## Current production-baseline state
+## Released-source baseline state
 
-The consolidation input record currently declares `migrationBaseline.state` as
-`not_deployed`. This is a discriminated state, not an empty PostgreSQL
-migration history: the live legacy Ops plane is SQLite web/collector only, and
-there is no deployed canonical Ops PostgreSQL API/migration service or
-credential resolver.
+The parent of released Ops SHA
+`8096aa24bb13f524394b4a5cdb9415ce82ee4004` historically recorded
+`migrationBaseline.state` as `not_deployed`. That released SHA records the
+subsequent checked-in `captured` baseline: 21 canonical migration IDs and the
+recorded SHA-256 digest
+`81eeffb7fd077714c30a19682551a64e62cd021c88c1e1628f450179799875fd`.
 
-The record intentionally contains no PostgreSQL migration IDs, count, or
-digest. Treat a missing capture as a blocking condition, never as proof that
-the PostgreSQL history is empty.
+This is repository evidence of the reviewed baseline transition, not a fresh
+database query or an assertion about live production state today. The captured
+record remains subject to the exact field, ordering, count, and digest contract
+below. Treat any missing or invalid capture as a blocking condition, never as
+proof that the PostgreSQL history is empty. A later remediation candidate must
+preserve this chronology and must not retroactively describe the released SHA
+as formatting-clean.
 
 ## Mandatory cutover preflight
 

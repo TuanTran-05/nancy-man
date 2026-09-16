@@ -16,7 +16,7 @@ function decodedDatabaseName(target: URL): string | null {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     return null;
   }
@@ -42,7 +42,7 @@ function parseApprovedTarget(environment: PostgresContractEnvironment): string |
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     throw new Error('OPS_TEST_DATABASE_URL must be a valid PostgreSQL URL', { cause: error });
   }
@@ -74,7 +74,7 @@ function parseApprovedTarget(environment: PostgresContractEnvironment): string |
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       // An invalid runtime value cannot authorize or identify a contract target.
     }

@@ -110,7 +110,7 @@ function killProcessGroup(pid: number | undefined): void {
     captureOpsException(error, {
       code: 'UNHANDLED_OPS_EXCEPTION',
       source: 'job',
-      status: 500,
+      status: 500
     });
     try {
       process.kill(pid, 'SIGKILL');
@@ -118,7 +118,7 @@ function killProcessGroup(pid: number | undefined): void {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'job',
-        status: 500,
+        status: 500
       });
       // The process already exited.
     }

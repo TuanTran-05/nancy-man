@@ -129,7 +129,7 @@ export async function startOpsNotifier(
     captureOpsException(error, {
       code: startupCode,
       source: startupSource,
-      level: 'fatal',
+      level: 'fatal'
     });
     try {
       await pool?.end();
@@ -160,7 +160,7 @@ if (entrypoint && import.meta.url === pathToFileURL(resolve(entrypoint)).href) {
       captureOpsException(error, {
         code: 'UNHANDLED_PROMISE_REJECTION',
         source: 'process',
-        status: 500,
+        status: 500
       });
       process.exitCode = 1;
     });

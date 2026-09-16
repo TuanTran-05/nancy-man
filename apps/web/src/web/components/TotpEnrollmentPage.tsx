@@ -39,7 +39,7 @@ export function TotpEnrollmentPage({ onComplete }: { onComplete: () => void }) {
       void captureBrowserException(error, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       setError('Liên kết thiết lập không hợp lệ hoặc đã hết hạn.');
     } finally {
@@ -77,7 +77,7 @@ export function TotpEnrollmentPage({ onComplete }: { onComplete: () => void }) {
       void captureBrowserException(error, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
-        route: () => globalThis.location?.pathname,
+        route: () => globalThis.location?.pathname
       });
       setError('Không thể kích hoạt tài khoản. Hãy kiểm tra mã xác thực và thử lại.');
     } finally {

@@ -42,13 +42,13 @@ export function createPoolDatabase(pool: Pool): TransactionalQueryDatabase {
         captureOpsException(error, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'process',
-          status: 500,
+          status: 500
         });
         await client.query('ROLLBACK').catch((error) => {
           captureOpsException(error, {
             code: 'UNHANDLED_PROMISE_REJECTION',
             source: 'process',
-            status: 500,
+            status: 500
           });
           return undefined;
         });
