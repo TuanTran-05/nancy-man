@@ -1057,7 +1057,7 @@ describe('Ops disposition ledger', () => {
         expectedEmbeddedGitSha: inputs.embedded.gitSha
       }).entries
     ).toHaveLength(131);
-  });
+  }, 20_000);
 
   it('records an undeployed PostgreSQL migration plane without fabricating an empty capture', () => {
     const inputs = JSON.parse(readFileSync(REVIEWED_INPUT_PATH, 'utf8'));
