@@ -51,7 +51,7 @@ export function planIssueAlerts(input: {
         { kind: 'new', deliverAt: now, dedupKey: `${issue.id}:new`, recipientTier: 'on_call' }
       ];
     }
-    if (issue.severity === 'high') {
+    if (issue.severity === 'high' || issue.severity === 'medium' || issue.severity === 'low') {
       const deliverAt = new Date(now.getTime() + 5 * 60 * 1_000);
       return [
         {

@@ -290,4 +290,53 @@ describe('monitor state machine', () => {
       ).transition
     ).toBeNull();
   });
+
+  it('evaluates error monitor warnings, critical bursts, and recovery', () => {
+    const errorSample = (
+      level: MonitorSample['level'],
+      details: Record<string, unknown> = {},
+      errorCode: string | null = null
+    ): MonitorSample => ({
+      monitor: 'errors',
+      level,
+      observedAt: '2026-08-23T00:00:00Z',
+      latencyMs: 0,
+      details,
+      errorCode
+    });
+
+    // An error log line triggers warning and opens an incident
+    const warning = errorSample('warning', { fingerprint: 'abc1234567890', safeExcerpt: 'some error' });
+    const evalWarning = evaluateMonitor([], warning);
+    expect(evalWarning.level).toBe('warning');
+    expect(evalWarning.transition).toBe('opened');
+    expect(evalWarning.dedupeKey).toBe('errors:error_abc123456789');
+
+    // A burst of >= 10 errors elevates to critical
+    const burst = errorSample('warning', { fingerprint: 'abc1234567890', fingerprintCount5m: 10 });
+    const evalBurst = evaluateMonitor([warning], burst);
+    expect(evalBurst.level).toBe('critical');
+    expect(evalBurst.transition).toBe('changed');
+    expect(evalBurst.dedupeKey).toBe('errors:error_fingerprint_burst');
+
+    // A fatal line triggers critical immediately
+    const fatal = errorSample('warning', { isFatal: true });
+    const evalFatal = evaluateMonitor([], fatal);
+    expect(evalFatal.level).toBe('critical');
+    expect(evalFatal.transition).toBe('opened');
+    expect(evalFatal.dedupeKey).toBe('errors:fatal_log_line');
+
+    // Recovery after two healthy samples
+    const storedWarning: MonitorSample = {
+      ...warning,
+      details: { ...warning.details, effectiveLevel: 'warning', conditionHealthy: false }
+    };
+    const healthy1: MonitorSample = errorSample('healthy', {
+      effectiveLevel: 'warning',
+      conditionHealthy: true
+    });
+    const healthy2: MonitorSample = errorSample('healthy', { conditionHealthy: true });
+    const evalRecovered = evaluateMonitor([storedWarning, healthy1], healthy2);
+    expect(evalRecovered.transition).toBe('recovered');
+  });
 });

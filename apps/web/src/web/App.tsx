@@ -6,6 +6,7 @@ import { OpsShell } from './components/OpsShell.js';
 import { LoginForm } from './components/LoginForm.js';
 import { TotpEnrollmentPage } from './components/TotpEnrollmentPage.js';
 import { OverviewPage } from './pages/OverviewPage.js';
+import { IssuesPage } from './pages/IssuesPage.js';
 import { UsersPage } from './pages/UsersPage.js';
 import { VariablesPage } from './pages/VariablesPage.js';
 import { navigate, useOpsRoute } from './routing.js';
@@ -100,6 +101,8 @@ export function App() {
     >
       {route === '/' ? (
         <OverviewPage session={session} onUnauthorized={() => setSession(null)} />
+      ) : route === '/issues' ? (
+        <IssuesPage session={session} onUnauthorized={() => setSession(null)} />
       ) : route === '/users' ? (
         <UsersPage session={session} onUnauthorized={() => setSession(null)} />
       ) : route === '/variables' ? (

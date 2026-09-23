@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createOpsStore } from '../storage/store.js';
-import { createAlertService } from './alertService.js';
+import { createAlertService, formatAlertText, parseAlertDetails } from './alertService.js';
 import type { CollectorTransition } from '../collector/collector.js';
 import { encryptSecret } from '../security/crypto.js';
 
@@ -119,5 +119,71 @@ describe('alert outbox', () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+
+  describe('formatAlertText and parseAlertDetails', () => {
+    it('formats a detailed warning message for an API error', () => {
+      const text = formatAlertText({
+        level: 'critical',
+        monitor: 'errors',
+        occurrenceCount: 1,
+        observedAt: '2026-09-18T14:00:01Z',
+        recovered: false,
+        dedupeKey: 'errors:error_api_503',
+        safeSummary:
+          '[API_ERROR] POST /api/audit/esp-identity-health 503 internal_error: Internal server error (eventId: EVT_123)'
+      });
+
+      expect(text).toContain('CRITICAL: Ops Console');
+      expect(text).toContain('Monitor: errors');
+      expect(text).toContain('Trạng thái: critical');
+      expect(text).toContain('Lỗi: Internal server error');
+      expect(text).toContain('Mã lỗi: 503 internal_error');
+      expect(text).toContain('Route: POST /api/audit/esp-identity-health');
+      expect(text).toContain('Số lần: 1');
+      expect(text).toContain('https://man.thienuy.edu.vn');
+    });
+
+    it('formats a detailed recovered message with start, end times and duration', () => {
+      const text = formatAlertText({
+        level: 'warning',
+        monitor: 'errors',
+        occurrenceCount: 1,
+        observedAt: '2026-09-18T15:22:30.506Z',
+        recovered: true,
+        openedAt: '2026-09-18T15:22:00.497Z',
+        recoveredAt: '2026-09-18T15:22:30.506Z',
+        dedupeKey: 'errors:error_73648f2886b0',
+        safeSummary: '(Use `node --trace-deprecation ...` to show where the warning was created)'
+      });
+
+      expect(text).toContain('RECOVERED: Ops Console');
+      expect(text).toContain('Monitor: errors');
+      expect(text).toContain('Trạng thái: recovered');
+      expect(text).toContain('Sự cố đã khắc phục: Cảnh báo Deprecation trong Node.js / pg driver');
+      expect(text).toContain('Mã lỗi: error_73648f2886b0');
+      expect(text).toContain('Thời gian bắt đầu:');
+      expect(text).toContain('Thời điểm phục hồi:');
+      expect(text).toContain('Thời gian gián đoạn: 30s');
+      expect(text).toContain('https://man.thienuy.edu.vn');
+    });
+
+    it('formats postgres and infrastructure monitor alerts with dedicated targets', () => {
+      const text = formatAlertText({
+        level: 'critical',
+        monitor: 'postgres',
+        occurrenceCount: 3,
+        observedAt: '2026-09-18T15:00:00Z',
+        recovered: false,
+        dedupeKey: 'postgres:postgres_unreachable',
+        safeSummary: 'postgres critical'
+      });
+
+      expect(text).toContain('CRITICAL: Ops Console');
+      expect(text).toContain('Monitor: postgres');
+      expect(text).toContain('Lỗi: Không thể kết nối cơ sở dữ liệu PostgreSQL');
+      expect(text).toContain('Mã lỗi: postgres_unreachable');
+      expect(text).toContain('Cơ sở dữ liệu PostgreSQL (127.0.0.1:5432)');
+    });
   });
 });

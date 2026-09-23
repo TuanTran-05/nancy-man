@@ -351,9 +351,13 @@ export function evaluateMonitor(history: MonitorSample[], sample: MonitorSample)
     level = 'warning';
     reason = 'connections_warning';
   }
-  if (['backup', 'cron'].includes(monitor) && sample.level !== 'healthy') {
+  if (['backup', 'cron', 'errors'].includes(monitor) && sample.level !== 'healthy') {
     level = sample.level;
-    reason = sample.errorCode ?? `${monitor}_failure`;
+    reason =
+      sample.errorCode ??
+      (monitor === 'errors' && details.fingerprint
+        ? `error_${String(details.fingerprint).slice(0, 12)}`
+        : `${monitor}_failure`);
   }
   if (
     monitor === 'errors' &&

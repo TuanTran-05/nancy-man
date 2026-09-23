@@ -38,6 +38,13 @@ export function OpsShell({
         </button>
         <button
           type="button"
+          className={activeRoute === '/issues' ? 'nav-active' : undefined}
+          onClick={() => navigate('/issues')}
+        >
+          Sự cố & Lỗi
+        </button>
+        <button
+          type="button"
           className={activeRoute === '/variables' ? 'nav-active' : undefined}
           onClick={() => navigate('/variables')}
         >

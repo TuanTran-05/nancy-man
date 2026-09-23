@@ -96,7 +96,7 @@ export function createOpsApp(deps: OpsAppDependencies): Express {
   if (deps.canonicalApi) app.use(deps.canonicalApi);
   if (deps.staticDir) {
     const staticRoot = resolve(deps.staticDir);
-    app.get('/bootstrap/mfa', (_request, response, next) => {
+    app.get(['/variables', '/users', '/issues', '/bootstrap/mfa'], (_request, response, next) => {
       response.sendFile(
         resolve(staticRoot, 'index.html'),
         { etag: true, maxAge: '1h' },

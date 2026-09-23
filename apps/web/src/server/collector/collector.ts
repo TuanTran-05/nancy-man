@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+
 import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
 
 import type { CollectorConfig } from '../config.js';
@@ -201,6 +203,12 @@ export async function runCollectorCycle(
       });
     }
     if (evaluation.level === 'warning' || evaluation.level === 'critical') {
+      const activeSummary =
+        sample.monitor === 'errors' && sample.details.safeExcerpt
+          ? String(sample.details.safeExcerpt).slice(0, 500)
+          : sample.errorCode
+            ? `${sample.monitor}: ${sample.errorCode}`.slice(0, 500)
+            : evaluation.safeSummary;
       const incident = deps.store.upsertIncident({
         dedupeKey: evaluation.transition === 'recovered' ? previousDedupe : evaluation.dedupeKey,
         monitor: sample.monitor,
@@ -210,7 +218,7 @@ export async function runCollectorCycle(
         acknowledgedAt: null,
         acknowledgedBy: null,
         note: null,
-        safeSummary: evaluation.safeSummary,
+        safeSummary: activeSummary,
         now: sample.observedAt
       });
       if (evaluation.transition)
@@ -221,7 +229,7 @@ export async function runCollectorCycle(
           level: evaluation.level,
           transition: evaluation.transition,
           dedupeKey: incident.dedupeKey,
-          safeSummary: evaluation.safeSummary,
+          safeSummary: incident.safeSummary,
           occurrenceCount: incident.occurrenceCount
         });
     } else if (evaluation.transition === 'recovered') {
@@ -244,7 +252,7 @@ export async function runCollectorCycle(
         level: incident.level,
         transition: 'recovered',
         dedupeKey: incident.dedupeKey,
-        safeSummary: evaluation.safeSummary,
+        safeSummary: incident.safeSummary,
         occurrenceCount: incident.occurrenceCount
       });
     }
@@ -252,8 +260,21 @@ export async function runCollectorCycle(
 
   for (const sample of samples) evaluateAndCollect(sample);
 
-  const errorLines = readLogLines(deps, deps.config.pm2ErrorLogPath, deps.config.pm2ErrorLogPath);
-  const redacted = errorLines.map(redactLogLine);
+  const actualErrorLogPath =
+    deps.config.pm2ErrorLogPath.endsWith('.log') && !existsSync(deps.config.pm2ErrorLogPath)
+      ? deps.config.pm2ErrorLogPath.replace(/\.log$/, '-0.log')
+      : deps.config.pm2ErrorLogPath;
+  const errorLines = readLogLines(deps, deps.config.pm2ErrorLogPath, actualErrorLogPath);
+  const ignoredPatterns = [
+    /DeprecationWarning/i,
+    /(?:^|\s)\(Use `node/i,
+    /\[WARN\]/i,
+    /\[INFO\]/i
+  ];
+  const filteredLines = errorLines.filter(
+    (line) => !ignoredPatterns.some((pattern) => pattern.test(line))
+  );
+  const redacted = filteredLines.map(redactLogLine);
   const fingerprintCounts = new Map<string, number>();
   for (const line of redacted)
     fingerprintCounts.set(line.fingerprint, (fingerprintCounts.get(line.fingerprint) ?? 0) + 1);

@@ -58,4 +58,42 @@ describe('alert policy', () => {
       })
     ]);
   });
+
+  it('aggregates a new Medium issue for five minutes', () => {
+    const issue = {
+      id: 'ISS_01K3ZABCDEF0123456789ABCDE',
+      severity: 'medium' as const,
+      status: 'new' as const,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      occurrenceCount: 1
+    };
+
+    expect(planIssueAlerts({ issue, now, event: 'created' })).toEqual([
+      expect.objectContaining({
+        kind: 'digest',
+        deliverAt: new Date('2026-08-22T08:05:00.000Z'),
+        dedupKey: `${issue.id}:digest:2026-08-22T08:05`
+      })
+    ]);
+  });
+
+  it('aggregates a new Low severity issue for five minutes', () => {
+    const issue = {
+      id: 'ISS_01K3ZLOW000000000000000000',
+      severity: 'low' as const,
+      status: 'new' as const,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      occurrenceCount: 1
+    };
+
+    expect(planIssueAlerts({ issue, now, event: 'created' })).toEqual([
+      expect.objectContaining({
+        kind: 'digest',
+        deliverAt: new Date('2026-08-22T08:05:00.000Z'),
+        dedupKey: `${issue.id}:digest:2026-08-22T08:05`
+      })
+    ]);
+  });
 });

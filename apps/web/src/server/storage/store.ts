@@ -379,6 +379,10 @@ export function createOpsStore(
       const summary = cap(input.safeSummary, 500) ?? '';
       if (active) {
         const nextState = input.state;
+        const updatedSummary =
+          nextState === 'recovered' && active.safe_summary
+            ? (active.safe_summary as string)
+            : summary || (active.safe_summary as string);
         db.prepare(
           `UPDATE incidents SET level = ?, state = ?, occurrence_count = occurrence_count + 1,
             last_seen_at = ?, recovered_at = ?, safe_summary = ? WHERE id = ?`
@@ -387,7 +391,7 @@ export function createOpsStore(
           nextState,
           input.now,
           nextState === 'recovered' ? (input.recoveredAt ?? input.now) : null,
-          summary,
+          updatedSummary,
           active.id
         );
         return incidentFromRow(

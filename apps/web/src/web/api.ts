@@ -461,3 +461,68 @@ export const cancelConfigChange = (changeId: string, csrfToken: string) =>
     method: 'DELETE',
     headers: { 'X-Ops-CSRF': csrfToken }
   });
+
+export interface InboxIssue {
+  id: string;
+  fingerprint: string;
+  title: string;
+  errorCode: string | null;
+  source: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  status: 'new' | 'acknowledged' | 'investigating' | 'resolved' | 'ignored' | 'regressed';
+  firstSeenAt: string;
+  lastSeenAt: string;
+  occurrenceCount: number;
+  affectedUserCount: number;
+}
+
+export interface IssueEvent {
+  eventId: string;
+  occurredAt: string;
+  source: string;
+  severity: string;
+  userReference?: string;
+  route?: string;
+  method?: string;
+  httpStatus?: number;
+  errorCode?: string;
+  exceptionType?: string;
+  safeMessage?: string;
+  stackTrace?: string;
+  componentStack?: string;
+  requestId?: string;
+}
+
+export interface IssueActivity {
+  id: string;
+  activityType: string;
+  occurredAt: string;
+  comment?: string;
+  metadata?: unknown;
+  actorUserId?: string;
+  actorDisplayName?: string;
+}
+
+export interface IssueDetail {
+  issue: InboxIssue;
+  events: IssueEvent[];
+  activities: IssueActivity[];
+}
+
+export const getIssues = (limit = 50) =>
+  request<{ issues: InboxIssue[] }>(`/api/v1/issues?limit=${limit}`);
+
+export const getIssueDetail = (issueId: string) =>
+  request<IssueDetail>(`/api/v1/issues/${encodeURIComponent(issueId)}`);
+
+export const updateIssueStatus = (
+  issueId: string,
+  status: 'acknowledged' | 'investigating' | 'resolved' | 'ignored',
+  csrfToken: string
+) =>
+  request<void>(`/api/v1/issues/${encodeURIComponent(issueId)}/status`, {
+    method: 'PATCH',
+    headers: { 'X-Ops-CSRF': csrfToken },
+    body: JSON.stringify({ status })
+  });
+

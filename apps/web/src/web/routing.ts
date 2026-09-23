@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
 
-export type OpsRoute = '/' | '/variables' | '/users' | '/bootstrap/mfa';
+export type OpsRoute = '/' | '/variables' | '/users' | '/issues' | '/bootstrap/mfa';
 
 function normalizePath(pathname: string): OpsRoute {
-  if (pathname === '/variables' || pathname === '/users' || pathname === '/bootstrap/mfa') {
+  if (
+    pathname === '/variables' ||
+    pathname === '/users' ||
+    pathname === '/issues' ||
+    pathname === '/bootstrap/mfa'
+  ) {
     return pathname;
   }
   return '/';
