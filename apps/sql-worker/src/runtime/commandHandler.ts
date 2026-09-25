@@ -5,6 +5,18 @@ import type {
   WorkerCommand
 } from '../../../../packages/contracts/src/workerProtocol.js';
 import type { DatabaseSchemaSnapshot } from '../../../../packages/contracts/src/databaseSchema.js';
+import type {
+  DatabaseRelatedRowsRequest,
+  DatabaseRowsRequest
+} from '../../../../packages/contracts/src/databaseExplorer.js';
+import {
+  databaseExplorerCommandSchemas,
+  databaseRelatedRowsPayloadSchema,
+  databaseRowsPayloadSchema,
+  databaseSchemaPayloadSchema,
+  databaseTargetsPayloadSchema
+} from '../../../../packages/contracts/src/databaseExplorerSchemas.js';
+import type { ZodType } from 'zod';
 
 import { classifyReadOnlySql } from '../execution/readClassification.js';
 import { classifyMutationSql } from '../execution/mutationClassification.js';
@@ -33,18 +45,44 @@ type MutationWorker =
     };
 
 type ExplorerWorker =
-  | { enabled: false }
+  | { enabled: false; targets?: () => Promise<unknown> }
   | {
       enabled: true;
+      targets?: () => Promise<unknown>;
       schema: (targetId: DatabaseTargetId) => Promise<unknown>;
-      rows: (payload: unknown, actor: SqlWorkerActor) => Promise<unknown>;
-      relatedRows: (payload: unknown, actor: SqlWorkerActor) => Promise<unknown>;
+      rows: (payload: DatabaseRowsRequest, actor: SqlWorkerActor) => Promise<unknown>;
+      relatedRows: (payload: DatabaseRelatedRowsRequest, actor: SqlWorkerActor) => Promise<unknown>;
     };
 
 export class SqlWorkerCommandError extends Error {
   constructor(readonly code: string) {
     super(code);
   }
+}
+
+function parseExplorerPayload<T>(
+  schema: ZodType<T>,
+  payload: unknown,
+  requiresTargetId = false
+): T {
+  const payloadRecord =
+    payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : undefined;
+  const hasTargetId = payloadRecord !== undefined && 'targetId' in payloadRecord;
+  const targetId = hasTargetId ? payloadRecord.targetId : undefined;
+  if ((requiresTargetId && !hasTargetId) || (hasTargetId && !isDatabaseTargetId(targetId))) {
+    throw new SqlWorkerCommandError('DATABASE_TARGET_INVALID');
+  }
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) throw new SqlWorkerCommandError('WORKER_COMMAND_INVALID');
+  return parsed.data;
+}
+
+function validateExplorerResult<T>(schema: ZodType<T>, result: unknown): T {
+  const parsed = schema.safeParse(result);
+  if (!parsed.success) throw new SqlWorkerCommandError('WORKER_RESULT_INVALID');
+  return parsed.data;
 }
 
 function readPayload(payload: unknown): { sql: string; maxRows?: number } {
@@ -158,16 +196,25 @@ export function createSqlWorkerCommandHandler(input: {
         actorSessionId: command.actor.sessionId
       });
     }
+    if (command.kind === 'database.targets') {
+      if (!input.explorer?.targets) {
+        throw new SqlWorkerCommandError('DATABASE_EXPLORER_DISABLED');
+      }
+      parseExplorerPayload(databaseTargetsPayloadSchema, command.payload);
+      return validateExplorerResult(
+        databaseExplorerCommandSchemas['database.targets'].result,
+        await input.explorer.targets()
+      );
+    }
     if (command.kind === 'database.schema') {
       if (!input.explorer || !input.explorer.enabled) {
         throw new SqlWorkerCommandError('DATABASE_EXPLORER_DISABLED');
       }
-      const payload = command.payload as { targetId?: unknown } | undefined;
-      const targetId = payload?.targetId;
-      if (!isDatabaseTargetId(targetId)) {
-        throw new SqlWorkerCommandError('DATABASE_TARGET_INVALID');
-      }
-      return input.explorer.schema(targetId);
+      const payload = parseExplorerPayload(databaseSchemaPayloadSchema, command.payload, true);
+      return validateExplorerResult(
+        databaseExplorerCommandSchemas['database.schema'].result,
+        await input.explorer.schema(payload.targetId)
+      );
     }
     if (command.kind === 'database.rows') {
       if (command.actor.role === 'ops_viewer') {
@@ -176,7 +223,15 @@ export function createSqlWorkerCommandHandler(input: {
       if (!input.explorer || !input.explorer.enabled) {
         throw new SqlWorkerCommandError('DATABASE_EXPLORER_DISABLED');
       }
-      return input.explorer.rows(command.payload, command.actor);
+      const payload = parseExplorerPayload(
+        databaseRowsPayloadSchema,
+        command.payload,
+        true
+      ) as unknown as DatabaseRowsRequest;
+      return validateExplorerResult(
+        databaseExplorerCommandSchemas['database.rows'].result,
+        await input.explorer.rows(payload, command.actor)
+      );
     }
     if (command.kind === 'database.relatedRows') {
       if (command.actor.role === 'ops_viewer') {
@@ -185,7 +240,15 @@ export function createSqlWorkerCommandHandler(input: {
       if (!input.explorer || !input.explorer.enabled) {
         throw new SqlWorkerCommandError('DATABASE_EXPLORER_DISABLED');
       }
-      return input.explorer.relatedRows(command.payload, command.actor);
+      const payload = parseExplorerPayload(
+        databaseRelatedRowsPayloadSchema,
+        command.payload,
+        true
+      ) as unknown as DatabaseRelatedRowsRequest;
+      return validateExplorerResult(
+        databaseExplorerCommandSchemas['database.relatedRows'].result,
+        await input.explorer.relatedRows(payload, command.actor)
+      );
     }
     throw new SqlWorkerCommandError('WORKER_COMMAND_UNSUPPORTED');
   };

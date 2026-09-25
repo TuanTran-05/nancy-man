@@ -17,6 +17,7 @@ export type WorkerCommand = {
     | 'sql.previewRead'
     | 'sql.previewMutation'
     | 'sql.cancel'
+    | 'database.targets'
     | 'database.schema'
     | 'database.rows'
     | 'database.relatedRows';

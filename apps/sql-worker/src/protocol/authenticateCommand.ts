@@ -16,7 +16,9 @@ export async function authenticateWorkerCommand(input: {
   now?: Date;
 }): Promise<boolean> {
   const isSchemaRead =
-    input.command.kind === 'schema.read' || input.command.kind === 'database.schema';
+    input.command.kind === 'schema.read' ||
+    input.command.kind === 'database.targets' ||
+    input.command.kind === 'database.schema';
   const isMaintainer =
     input.command.actor.role === 'ops_maintainer' || input.command.actor.role === 'ops_owner';
   if (!isSchemaRead && !isMaintainer) return false;

@@ -8,6 +8,8 @@ import type { SqlWorkerRuntimeConfig } from './runtimeConfig.js';
 import { resolveSqlWorkerCredentials, startOpsSqlWorker } from './main.js';
 import { signWorkerCommand } from '../protocol/authenticateCommand.js';
 import { encodeFrame, FrameDecoder } from '../protocol/framing.js';
+import { readProductionSchema } from '../schema/introspectSchema.js';
+import { DATABASE_POLICY_VERSION } from '../../../../packages/security/src/database/columnPolicy.js';
 
 const disabledConfig: SqlWorkerRuntimeConfig = {
   secretDirectory: '/run/credentials/edutrack-ops-sql-worker.service',
@@ -557,6 +559,495 @@ describe('startOpsSqlWorker', () => {
     expect(opsPoolClosed).toBe(true);
   });
 });
+
+describe('database explorer worker commands', () => {
+  it('serves live schema, masked rows, and related rows from only the requested target', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ops-sql-worker-explorer-'));
+    const socketPath = join(directory, 'worker.sock');
+    const opsCounters = createExplorerFixtureCounters();
+    const eduCounters = createExplorerFixtureCounters();
+    const opsPool = createExplorerFixturePool(
+      'ops',
+      'ops_database_browser',
+      'edutrack_ops',
+      opsCounters
+    );
+    const eduPool = createExplorerFixturePool(
+      'edutrack_production',
+      'ops_database_browser',
+      'edutrack_production',
+      eduCounters
+    );
+    const structuralConnection = await opsPool.connect();
+    const structuralSchema = await readProductionSchema({ database: structuralConnection });
+    structuralConnection.release();
+    opsCounters.connections = 0;
+    opsCounters.catalogQueries.length = 0;
+    opsCounters.rowQueries.length = 0;
+    const policyApproval = JSON.stringify({
+      version: DATABASE_POLICY_VERSION,
+      targets: { ops: structuralSchema.checksum }
+    });
+    let now = 25_000;
+    const worker = await startOpsSqlWorker({
+      environment: explorerEnvironment(socketPath, false),
+      resolveSecret: async (reference) => {
+        if (reference === 'ops-sql-worker-hmac') return 'shared-hmac';
+        if (reference === 'cursor-key-ref') return Buffer.alloc(32, 13).toString('base64');
+        if (reference === 'policy-approval-ref') return policyApproval;
+        if (reference === 'ops-url-ref')
+          return 'postgresql://reader:secret@ops-db/edutrack_ops?sslmode=verify-full';
+        return null;
+      },
+      createExplorerPool: (targetId) => (targetId === 'ops' ? opsPool : eduPool),
+      now: () => now,
+      probeExplorerTarget: async () => undefined
+    });
+
+    try {
+      const targets = await sendWorkerCommand(socketPath, 'database.targets', {}, 'ops_viewer');
+      expect(targets).toMatchObject({
+        ok: true,
+        result: [
+          { id: 'edutrack_production', status: 'disabled', readOnly: true },
+          { id: 'ops', status: 'available', readOnly: true }
+        ]
+      });
+
+      const viewerRows = await sendWorkerCommand(
+        socketPath,
+        'database.rows',
+        {
+          targetId: 'ops',
+          schema: 'public',
+          relation: 'students',
+          pageSize: 25,
+          filters: [],
+          piiMode: 'masked'
+        },
+        'ops_viewer'
+      );
+      expect(viewerRows).toMatchObject({
+        ok: false,
+        error: { code: 'WORKER_COMMAND_DENIED' }
+      });
+      expect(opsCounters.connections).toBe(0);
+
+      const malformedPayload = await sendWorkerCommand(socketPath, 'database.schema', {
+        targetId: 'ops',
+        unexpected: true
+      });
+      expect(malformedPayload).toMatchObject({
+        ok: false,
+        error: { code: 'WORKER_COMMAND_INVALID' }
+      });
+
+      const invalidTarget = await sendWorkerCommand(socketPath, 'database.schema', {
+        targetId: 'arbitrary_database'
+      });
+      expect(invalidTarget).toMatchObject({
+        ok: false,
+        error: { code: 'DATABASE_TARGET_INVALID' }
+      });
+
+      const schemaResponse = await sendWorkerCommand(socketPath, 'database.schema', {
+        targetId: 'ops'
+      });
+      const liveSnapshot = (
+        schemaResponse as {
+          result: {
+            checksum: string;
+            policyVersion: string;
+            schemas: Array<{ relations: Array<{ name: string; dataAvailable: boolean }> }>;
+          };
+        }
+      ).result;
+      expect(liveSnapshot.checksum).toBe(structuralSchema.checksum);
+      expect(liveSnapshot.policyVersion).toBe(DATABASE_POLICY_VERSION);
+      expect(
+        liveSnapshot.schemas[0]?.relations.find((relation) => relation.name === 'students')
+          ?.dataAvailable
+      ).toBe(true);
+      expect(schemaResponse).toMatchObject({
+        ok: true,
+        result: {
+          targetId: 'ops',
+          targetLabel: 'Ops Database',
+          schemas: [
+            {
+              name: 'public',
+              relations: expect.arrayContaining([expect.objectContaining({ name: 'students' })])
+            }
+          ]
+        }
+      });
+
+      const rowsResponse = await sendWorkerCommand(socketPath, 'database.rows', {
+        targetId: 'ops',
+        schema: 'public',
+        relation: 'students',
+        pageSize: 25,
+        filters: [],
+        piiMode: 'masked'
+      });
+      expect(rowsResponse).toMatchObject({
+        ok: true,
+        result: {
+          targetId: 'ops',
+          schema: 'public',
+          relation: 'students',
+          rows: [
+            {
+              cells: {
+                id: { state: 'value', value: 'student-1' },
+                email: { state: 'masked', display: 's***@example.edu' }
+              }
+            }
+          ]
+        }
+      });
+      const rowRef = (rowsResponse as { result: { rows: Array<{ rowRef: string }> } }).result
+        .rows[0]!.rowRef;
+
+      const relatedResponse = await sendWorkerCommand(socketPath, 'database.relatedRows', {
+        targetId: 'ops',
+        schema: 'public',
+        relation: 'students',
+        constraint: 'attendance_student_fkey',
+        rowRef,
+        pageSize: 25,
+        piiMode: 'masked'
+      });
+      expect(relatedResponse).toMatchObject({
+        ok: true,
+        result: {
+          targetId: 'ops',
+          schema: 'public',
+          relation: 'attendance',
+          rows: [{ cells: { id: { state: 'value', value: 'attendance-1' } } }]
+        }
+      });
+      expect(opsCounters.catalogQueries.length).toBeGreaterThan(0);
+      expect(
+        opsCounters.rowQueries.some(({ sql }) => sql.includes('FROM "public"."attendance"'))
+      ).toBe(true);
+      expect(eduCounters.connections).toBe(0);
+      expect(eduCounters.catalogQueries).toEqual([]);
+      now += 1_000;
+    } finally {
+      await worker.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refreshes and recovers each enabled target independently through the signed status command', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ops-sql-worker-health-'));
+    const socketPath = join(directory, 'worker.sock');
+    const ended: string[] = [];
+    const probeCalls: string[] = [];
+    let now = 1_000;
+    let opsHealthy = true;
+    const worker = await startOpsSqlWorker({
+      environment: explorerEnvironment(socketPath, true),
+      resolveSecret: async (reference) => {
+        if (reference === 'ops-sql-worker-hmac') return 'shared-hmac';
+        if (reference === 'cursor-key-ref') return Buffer.alloc(32, 13).toString('base64');
+        if (reference === 'policy-approval-ref') return '{}';
+        if (reference === 'edu-url-ref')
+          return 'postgresql://reader:secret@edutrack/edutrack_production?sslmode=verify-full';
+        if (reference === 'ops-url-ref')
+          return 'postgresql://reader:secret@ops-db/edutrack_ops?sslmode=verify-full';
+        return null;
+      },
+      createExplorerPool: (targetId) => ({
+        query: async <T>() => ({
+          rows: [
+            {
+              role: 'ops_database_browser',
+              database: targetId === 'ops' ? 'edutrack_ops' : 'edutrack_production',
+              defaultTransactionReadOnly: 'on'
+            }
+          ] as T[]
+        }),
+        connect: async () => {
+          throw new Error('status command opened a reader connection');
+        },
+        end: async () => {
+          ended.push(targetId);
+        }
+      }),
+      now: () => now,
+      probeExplorerTarget: async (targetId) => {
+        probeCalls.push(targetId);
+        if (targetId === 'ops' && !opsHealthy) throw new Error('Ops database is offline');
+      }
+    });
+
+    try {
+      await expect(
+        sendWorkerCommand(socketPath, 'database.targets', {}, 'ops_viewer')
+      ).resolves.toMatchObject({
+        ok: true,
+        result: [
+          { id: 'edutrack_production', status: 'available' },
+          { id: 'ops', status: 'available' }
+        ]
+      });
+      now += 5_000;
+      opsHealthy = false;
+      await expect(sendWorkerCommand(socketPath, 'database.targets', {})).resolves.toMatchObject({
+        ok: true,
+        result: [
+          { id: 'edutrack_production', status: 'available' },
+          { id: 'ops', status: 'unavailable' }
+        ]
+      });
+      await sendWorkerCommand(socketPath, 'database.targets', {});
+      expect(probeCalls).toEqual(['edutrack_production', 'ops']);
+
+      now += 5_000;
+      opsHealthy = true;
+      await expect(sendWorkerCommand(socketPath, 'database.targets', {})).resolves.toMatchObject({
+        ok: true,
+        result: [
+          { id: 'edutrack_production', status: 'available' },
+          { id: 'ops', status: 'available' }
+        ]
+      });
+      expect(probeCalls).toEqual(['edutrack_production', 'ops', 'edutrack_production', 'ops']);
+    } finally {
+      await worker.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+    expect(ended.sort()).toEqual(['edutrack_production', 'ops']);
+  });
+});
+
+function createExplorerFixtureCounters() {
+  return {
+    connections: 0,
+    catalogQueries: [] as string[],
+    rowQueries: [] as Array<{ sql: string; values?: readonly unknown[] }>
+  };
+}
+
+function createExplorerFixturePool(
+  targetId: 'edutrack_production' | 'ops',
+  role: string,
+  database: string,
+  counters: ReturnType<typeof createExplorerFixtureCounters>
+) {
+  return {
+    query: async <T>(sql: string) => {
+      if (sql.includes('current_user::text')) {
+        return {
+          rows: [{ role, database, defaultTransactionReadOnly: 'on' }] as T[]
+        };
+      }
+      return { rows: [] as T[] };
+    },
+    connect: async () => {
+      counters.connections++;
+      return {
+        query: async <T>(sql: string, values?: readonly unknown[]) => {
+          if (sql.includes('catalog:')) counters.catalogQueries.push(sql);
+          if (sql.includes('FROM "public".')) counters.rowQueries.push({ sql, values });
+          if (sql.includes('catalog:schemas')) {
+            return { rows: [{ schemaName: 'public' }] as T[] };
+          }
+          if (sql.includes('catalog:relations')) {
+            return {
+              rows: [
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  kind: 'table',
+                  rowSecurityEnabled: false,
+                  forceRowSecurity: false
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'attendance',
+                  kind: 'table',
+                  rowSecurityEnabled: false,
+                  forceRowSecurity: false
+                }
+              ] as T[]
+            };
+          }
+          if (sql.includes('catalog:columns')) {
+            return {
+              rows: [
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  columnName: 'id',
+                  dataType: 'text',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  columnName: 'email',
+                  dataType: 'text',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'attendance',
+                  columnName: 'id',
+                  dataType: 'text',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'attendance',
+                  columnName: 'student_id',
+                  dataType: 'text',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                }
+              ] as T[]
+            };
+          }
+          if (sql.includes('catalog:constraints')) {
+            return {
+              rows: [
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  constraintName: 'students_pkey',
+                  kind: 'primary_key',
+                  columns: ['id'],
+                  referencedSchema: null,
+                  referencedRelation: null,
+                  referencedColumns: [],
+                  deferrable: false,
+                  initiallyDeferred: false
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'attendance',
+                  constraintName: 'attendance_pkey',
+                  kind: 'primary_key',
+                  columns: ['id'],
+                  referencedSchema: null,
+                  referencedRelation: null,
+                  referencedColumns: [],
+                  deferrable: false,
+                  initiallyDeferred: false
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'attendance',
+                  constraintName: 'attendance_student_fkey',
+                  kind: 'foreign_key',
+                  columns: ['student_id'],
+                  referencedSchema: 'public',
+                  referencedRelation: 'students',
+                  referencedColumns: ['id'],
+                  deferrable: false,
+                  initiallyDeferred: false
+                }
+              ] as T[]
+            };
+          }
+          if (
+            sql.includes('catalog:indexes') ||
+            sql.includes('catalog:triggers') ||
+            sql.includes('catalog:policies') ||
+            sql.includes('catalog:estimated_rows') ||
+            sql.includes('catalog:enum_columns')
+          ) {
+            return { rows: [] as T[] };
+          }
+          if (sql.includes('FROM "public"."students"')) {
+            return {
+              rows: [{ id: 'student-1', email: 'sam@example.edu' }] as T[]
+            };
+          }
+          if (sql.includes('FROM "public"."attendance"')) {
+            return {
+              rows: [{ id: 'attendance-1', student_id: 'student-1' }] as T[]
+            };
+          }
+          return { rows: [] as T[] };
+        },
+        release: () => undefined
+      };
+    },
+    end: async () => undefined,
+    targetId
+  };
+}
+
+function explorerEnvironment(socketPath: string, enableEduTrack: boolean) {
+  return {
+    ...disabledEnvironment(socketPath),
+    OPS_DATABASE_EXPLORER_ENABLED: 'true',
+    OPS_DATABASE_CURSOR_KEY_REFERENCE: 'cursor-key-ref',
+    OPS_DATABASE_POLICY_APPROVAL_REFERENCE: 'policy-approval-ref',
+    OPS_DATABASE_EDUTRACK_ENABLED: String(enableEduTrack),
+    ...(enableEduTrack
+      ? {
+          OPS_DATABASE_EDUTRACK_URL_REFERENCE: 'edu-url-ref',
+          OPS_DATABASE_EDUTRACK_NAME: 'edutrack_production',
+          OPS_DATABASE_EDUTRACK_ROLE: 'ops_database_browser'
+        }
+      : {}),
+    OPS_DATABASE_OPS_ENABLED: 'true',
+    OPS_DATABASE_OPS_URL_REFERENCE: 'ops-url-ref',
+    OPS_DATABASE_OPS_NAME: 'edutrack_ops',
+    OPS_DATABASE_OPS_ROLE: 'ops_database_browser'
+  };
+}
+
+let nextWorkerCommand = 0;
+async function sendWorkerCommand(
+  socketPath: string,
+  kind: string,
+  payload: unknown,
+  role: 'ops_viewer' | 'ops_maintainer' = 'ops_maintainer'
+): Promise<unknown> {
+  const commandNumber = ++nextWorkerCommand;
+  const unsigned = {
+    protocolVersion: 1 as const,
+    commandId: `cmd_explorer_${commandNumber}`,
+    issuedAt: new Date().toISOString(),
+    nonce: `nonce_explorer_${commandNumber}_0123456789`,
+    actor: { userId: 'usr_explorer', sessionId: 'ses_explorer', role },
+    kind,
+    payload
+  };
+  const command = {
+    ...unsigned,
+    signature: signWorkerCommand(unsigned as never, 'shared-hmac')
+  };
+  return new Promise((resolve, reject) => {
+    const socket = createConnection(socketPath);
+    const decoder = new FrameDecoder();
+    socket.on('connect', () => socket.write(encodeFrame(command)));
+    socket.on('data', (chunk) => {
+      const [value] = decoder.push(chunk);
+      if (value) {
+        socket.end();
+        resolve(value);
+      }
+    });
+    socket.on('error', reject);
+  });
+}
 
 function disabledEnvironment(socketPath: string) {
   return {

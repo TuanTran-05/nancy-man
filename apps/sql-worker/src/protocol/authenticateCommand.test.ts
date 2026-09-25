@@ -72,5 +72,16 @@ describe('authenticateWorkerCommand', () => {
         consumeNonce: async () => true
       })
     ).toBe(false);
+
+    const targets = { ...base, kind: 'database.targets' as const, nonce: 'viewer-targets' };
+    const signedTargets = { ...targets, signature: signWorkerCommand(targets, 'secret') };
+    expect(
+      await authenticateWorkerCommand({
+        command: signedTargets,
+        secret: 'secret',
+        now: new Date(base.issuedAt),
+        consumeNonce: async () => true
+      })
+    ).toBe(true);
   });
 });

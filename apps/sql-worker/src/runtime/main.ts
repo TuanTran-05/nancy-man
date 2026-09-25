@@ -24,10 +24,15 @@ import {
   createMutationPreviewer
 } from '../database/mutationPool.js';
 import { createProductionSchemaReader } from '../schema/introspectSchema.js';
+import { createExplorerSchemaReader } from '../explorer/schemaReader.js';
+import { readDatabaseRows } from '../explorer/rowReader.js';
+import { readRelatedRows } from '../explorer/relatedRowReader.js';
+import type { DatabasePolicyApproval } from '../explorer/policyApproval.js';
 import { startWorkerProtocolServer } from '../protocol/server.js';
 import { createSqlWorkerCommandHandler } from './commandHandler.js';
 import { createExpiringNonceStore } from './nonceStore.js';
 import type { DatabaseTargetId } from '../../../../packages/contracts/src/databaseExplorer.js';
+import type { DatabaseExplorerSchemaSnapshot } from '../../../../packages/contracts/src/databaseExplorer.js';
 import { createTargetRegistry, type TargetEntry } from '../database/targetRegistry.js';
 import { isValidCursorKey } from '../explorer/cursorCodec.js';
 import type { DatabaseTargetConfig, SqlWorkerRuntimeConfig } from './runtimeConfig.js';
@@ -119,6 +124,25 @@ function createExplorerTargetPool(targetId: string, databaseUrl: string): Produc
   });
 }
 
+function parsePolicyApproval(serialized: string): DatabasePolicyApproval | undefined {
+  try {
+    const value: unknown = JSON.parse(serialized);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    const candidate = value as { version?: unknown; targets?: unknown };
+    if (
+      typeof candidate.version !== 'string' ||
+      !candidate.targets ||
+      typeof candidate.targets !== 'object' ||
+      Array.isArray(candidate.targets)
+    ) {
+      return undefined;
+    }
+    return candidate as DatabasePolicyApproval;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function resolveSqlWorkerCredentials(input: {
   config: SqlWorkerRuntimeConfig;
   resolveSecret: (reference: string) => Promise<string | null>;
@@ -198,6 +222,8 @@ export async function startOpsSqlWorker(
     createReadPool?: (databaseUrl: string) => ProductionReadPool;
     createMutationPool?: (databaseUrl: string) => ProductionMutationPool;
     createExplorerPool?: (targetId: DatabaseTargetId, databaseUrl: string) => ProductionReadPool;
+    now?: () => number;
+    probeExplorerTarget?: (targetId: DatabaseTargetId) => Promise<void>;
     telemetry?: RuntimeTelemetry;
   } = {}
 ): Promise<{ close: () => Promise<void> }> {
@@ -261,6 +287,12 @@ export async function startOpsSqlWorker(
   let readPool: ProductionReadPool | undefined;
   let mutationPool: ProductionMutationPool | undefined;
   const explorerPools: ProductionReadPool[] = [];
+  const registryOptions = {
+    ...(input.now ? { now: input.now } : {}),
+    ...(input.probeExplorerTarget
+      ? { probe: (target: { id: DatabaseTargetId }) => input.probeExplorerTarget!(target.id) }
+      : {})
+  };
   try {
     const workerInput: Parameters<typeof createSqlWorkerCommandHandler>[0] = {
       read: { enabled: false },
@@ -301,6 +333,7 @@ export async function startOpsSqlWorker(
       };
     }
     if (credentials.explorer.enabled) {
+      const explorerCredentials = credentials.explorer;
       const targetEntries: TargetEntry[] = [];
       const setupTarget = async (
         targetId: DatabaseTargetId,
@@ -353,15 +386,70 @@ export async function startOpsSqlWorker(
       );
       await setupTarget('ops', 'Ops Database', credentials.explorer.targets.ops);
 
-      const registry = createTargetRegistry(targetEntries);
+      const registry = createTargetRegistry(targetEntries, registryOptions);
+      const policyApproval = parsePolicyApproval(explorerCredentials.policyApproval);
+      const schemaReaders = new Map<
+        DatabaseTargetId,
+        () => Promise<DatabaseExplorerSchemaSnapshot>
+      >();
+      for (const entry of registry.all()) {
+        if (entry.status !== 'available') continue;
+        schemaReaders.set(
+          entry.id,
+          createExplorerSchemaReader({
+            target: entry,
+            getPolicyApproval: () => policyApproval
+          })
+        );
+      }
+      const schemaReader = async (
+        targetId: DatabaseTargetId
+      ): Promise<DatabaseExplorerSchemaSnapshot> => {
+        const target = registry.get(targetId);
+        const reader = schemaReaders.get(target.id);
+        if (!reader) {
+          throw Object.assign(new Error('DATABASE_TARGET_UNAVAILABLE'), {
+            code: 'DATABASE_TARGET_UNAVAILABLE'
+          });
+        }
+        return reader();
+      };
       workerInput.explorer = {
         enabled: true,
-        schema: async (targetId: DatabaseTargetId) => {
-          const target = registry.get(targetId);
-          return { targetId: target.id, targetLabel: target.label, schemas: [] };
+        targets: () => registry.summaries(),
+        schema: schemaReader,
+        rows: async (request) => {
+          const target = registry.get(request.targetId);
+          const snapshot = await schemaReader(target.id);
+          return readDatabaseRows({
+            target,
+            snapshot,
+            cursorKey: explorerCredentials.cursorKey,
+            request
+          });
         },
-        rows: async () => ({ rows: [] }),
-        relatedRows: async () => ({ rows: [] })
+        relatedRows: async (request) => {
+          const target = registry.get(request.targetId);
+          const snapshot = await schemaReader(target.id);
+          return readRelatedRows({
+            target,
+            snapshot,
+            cursorKey: explorerCredentials.cursorKey,
+            request
+          });
+        }
+      };
+    } else {
+      const registry = createTargetRegistry(
+        [
+          { id: 'edutrack_production', label: 'EduTrack Production', status: 'disabled' },
+          { id: 'ops', label: 'Ops Database', status: 'disabled' }
+        ],
+        registryOptions
+      );
+      workerInput.explorer = {
+        enabled: false,
+        targets: () => registry.summaries()
       };
     }
     const handle = createSqlWorkerCommandHandler(workerInput);
