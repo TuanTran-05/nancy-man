@@ -571,6 +571,87 @@ describe('readRelatedRows', () => {
     expect(relatedSelect?.values).toEqual([true]);
   });
 
+  it('round-trips bytea FK claims as binary parameters without exposing their plaintext', async () => {
+    const expectedBytes = Buffer.concat([
+      Buffer.from('bytea-traversal-marker', 'utf8'),
+      Buffer.from([0x00, 0xff])
+    ]);
+    const executed: Array<{ sql: string; values: readonly unknown[] }> = [];
+    const target = createMockTarget({
+      queryHandler: async (sql, values) => {
+        executed.push({ sql, values: values ?? [] });
+        if (sql.includes('FROM "public"."attendance"')) {
+          return {
+            rows: [
+              {
+                id: 'att-bytea',
+                tenant_id: 'tenant-bytea',
+                student_id: 'student-bytea',
+                binary_key: expectedBytes
+              },
+              {
+                id: 'att-oversized-bytea',
+                tenant_id: 'tenant-bytea',
+                student_id: 'student-bytea',
+                binary_key: Buffer.alloc(5000, 7)
+              }
+            ]
+          };
+        }
+        return {
+          rows: [
+            {
+              id: 'student-bytea',
+              tenant_id: 'tenant-bytea',
+              email: 'bytea@example.test',
+              binary_key: expectedBytes
+            }
+          ]
+        };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(target);
+    addSelectableColumn(snapshot, 'attendance', 'binary_key', 'bytea');
+    addSelectableColumn(snapshot, 'students', 'binary_key', 'bytea');
+    snapshot.edges.push({
+      constraint: 'attendance_binary_fkey',
+      from: { schema: 'public', relation: 'attendance', columns: ['binary_key'] },
+      to: { schema: 'public', relation: 'students', columns: ['binary_key'] }
+    });
+    const sourceRows = await readDatabaseRows({
+      target,
+      snapshot,
+      cursorKey,
+      request: {
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'attendance',
+        pageSize: 25,
+        filters: [],
+        piiMode: 'masked'
+      }
+    });
+    const rowRef = sourceRows.rows[0]?.rowRef;
+    expect(sourceRows.rows).toHaveLength(2);
+    expect(rowRef).toBeTruthy();
+    expect(sourceRows.rows[1]?.rowRef).toBeNull();
+    expect(sourceRows.rows[1]?.cells.binary_key?.state).toBe('value');
+    expect(rowRef).not.toContain('bytea-traversal-marker');
+
+    await readRelatedRows({
+      target,
+      snapshot,
+      cursorKey,
+      request: relatedRequest('attendance', rowRef!, 'attendance_binary_fkey')
+    });
+    const relatedSelect = executed.find(({ sql }) => sql.includes('FROM "public"."students"'));
+
+    expect(relatedSelect?.sql).toContain('"binary_key" = $1');
+    expect(relatedSelect?.values).toHaveLength(1);
+    expect(Buffer.isBuffer(relatedSelect?.values[0])).toBe(true);
+    expect((relatedSelect?.values[0] as Buffer).equals(expectedBytes)).toBe(true);
+  });
+
   it('rejects a blocked target FK column before any relation SELECT', async () => {
     const relationSelects: string[] = [];
     const target = createMockTarget({

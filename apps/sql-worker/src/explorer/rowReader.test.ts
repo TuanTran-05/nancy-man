@@ -467,6 +467,7 @@ describe('readDatabaseRows', () => {
     });
 
     expect(response.rows).toHaveLength(3);
+    expect(response.truncated).toBe(false);
     expect(response.rows.map((row) => row.cells.id)).toEqual([
       { state: 'value', value: 'many-claims' },
       { state: 'value', value: 'large-claim' },
@@ -477,9 +478,99 @@ describe('readDatabaseRows', () => {
     expect(response.rows[2]?.rowRef).toBeTruthy();
     expect(response.rows[0]?.cells[claimColumns[0]!]?.state).toBe('masked');
     expect(response.rows[1]?.cells[claimColumns[0]!]?.state).toBe('masked');
-    expect(response.truncated).toBe(false);
     expect(JSON.stringify(response)).not.toContain('many-marker-');
     expect(JSON.stringify(response)).not.toContain('large-marker-');
+  });
+
+  it('keeps the page when structured FK claims cannot be bounded without serialization', async () => {
+    let objectToJsonCalls = 0;
+    let arrayToJsonCalls = 0;
+    const objectClaim = {
+      toJSON() {
+        objectToJsonCalls++;
+        return { marker: 'structured-object-marker', payload: 'o'.repeat(5000) };
+      }
+    };
+    const arrayClaim = Object.assign(['structured-array-marker'], {
+      toJSON() {
+        arrayToJsonCalls++;
+        return ['structured-array-marker', 'a'.repeat(5000)];
+      }
+    });
+    const claimColumns = ['email_fk_object', 'email_fk_array'];
+    const mock = createMockTarget({
+      queryHandler: async () => ({
+        rows: [
+          { id: 'object-claim', email: 'object@example.test', [claimColumns[0]!]: objectClaim },
+          { id: 'array-claim', email: 'array@example.test', [claimColumns[1]!]: arrayClaim },
+          {
+            id: 'normal-claim',
+            email: 'normal@example.test',
+            [claimColumns[0]!]: 'normal-object@example.test',
+            [claimColumns[1]!]: 'normal-array@example.test'
+          }
+        ]
+      })
+    });
+    const snapshot = await createSnapshotForTarget(mock.target);
+    const students = snapshot.schemas[0]?.relations.find(
+      (relation) => relation.name === 'students'
+    );
+    students?.columns.push(
+      ...claimColumns.map((name) => ({
+        name,
+        dataType: 'text',
+        nullable: true,
+        hasDefault: false,
+        identity: null,
+        generated: false,
+        classification: 'pii' as const,
+        selectable: true,
+        filterOperators: ['eq' as const]
+      }))
+    );
+    snapshot.edges = claimColumns.map((column, index) => ({
+      constraint: `students_structured_fk_${index}`,
+      from: { schema: 'public', relation: 'students', columns: [column] },
+      to: { schema: 'public', relation: `accounts_${index}`, columns: [`email_${index}`] }
+    }));
+
+    const response = await readDatabaseRows({
+      target: mock.target,
+      snapshot,
+      cursorKey,
+      request: {
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'students',
+        pageSize: 25,
+        filters: [],
+        piiMode: 'masked'
+      }
+    });
+
+    expect(response.rows).toHaveLength(3);
+    expect(response.truncated).toBe(false);
+    expect(response.rows.map((row) => row.cells.id)).toEqual([
+      { state: 'value', value: 'object-claim' },
+      { state: 'value', value: 'array-claim' },
+      { state: 'value', value: 'normal-claim' }
+    ]);
+    expect(response.rows[0]?.rowRef).toBeNull();
+    expect(response.rows[1]?.rowRef).toBeNull();
+    expect(response.rows[2]?.rowRef).toBeTruthy();
+    expect(response.rows[0]?.cells[claimColumns[0]!]).toEqual({
+      state: 'masked',
+      display: '••••••'
+    });
+    expect(response.rows[1]?.cells[claimColumns[1]!]).toEqual({
+      state: 'masked',
+      display: '••••••'
+    });
+    expect(objectToJsonCalls).toBe(0);
+    expect(arrayToJsonCalls).toBe(0);
+    expect(JSON.stringify(response)).not.toContain('structured-object-marker');
+    expect(JSON.stringify(response)).not.toContain('structured-array-marker');
   });
 
   it('reveals PII values when piiMode is revealed', async () => {

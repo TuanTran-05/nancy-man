@@ -12,6 +12,16 @@ export const CURSOR_EXPIRY_MS = 5 * 60 * 1000;
 const ENVELOPE_VERSION = 'v2';
 const TOKEN_KINDS = ['cursor', 'row-ref'] as const;
 type TokenKind = (typeof TOKEN_KINDS)[number];
+const ROW_REF_BINARY_TAG = '$databaseExplorerBinaryV1';
+const ROW_REF_PREFLIGHT_PLAINTEXT_BYTES =
+  Math.floor(
+    (MAX_CURSOR_BYTES -
+      Buffer.byteLength(
+        [ENVELOPE_VERSION, 'row-ref', '0'.repeat(16), '', '0'.repeat(22)].join('.'),
+        'utf8'
+      )) *
+      0.75
+  ) - 16;
 type Context = {
   targetId: DatabaseTargetId;
   schema: string;
@@ -154,7 +164,7 @@ function validateCursor(value: unknown): value is CursorData {
   });
 }
 
-function validateRowRef(value: unknown): value is RowRefData {
+function validateRowRefShape(value: unknown): value is RowRefData {
   if (!validateContext(value) || !value || typeof value !== 'object') return false;
   const rowRef = value as Partial<RowRefData>;
   if (
@@ -168,6 +178,173 @@ function validateRowRef(value: unknown): value is RowRefData {
   }
   const keys = Object.entries(rowRef.keys);
   return keys.length > 0 && keys.every(([column]) => column.length > 0);
+}
+
+function isRowRefScalar(value: unknown): value is null | boolean | number | string {
+  return (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'boolean' ||
+    (typeof value === 'number' && Number.isFinite(value))
+  );
+}
+
+function validateRowRef(value: unknown): value is RowRefData {
+  if (!validateRowRefShape(value)) return false;
+  return Object.values(value.keys).every(
+    (claim) => isRowRefScalar(claim) || Buffer.isBuffer(claim)
+  );
+}
+
+function jsonStringByteLength(value: string, maximumBytes: number): number | null {
+  let bytes = 2; // surrounding JSON quotes
+  if (bytes > maximumBytes) return null;
+
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (
+      code === 0x22 ||
+      code === 0x5c ||
+      code === 0x08 ||
+      code === 0x09 ||
+      code === 0x0a ||
+      code === 0x0c ||
+      code === 0x0d
+    ) {
+      bytes += 2;
+    } else if (code <= 0x1f) {
+      bytes += 6;
+    } else if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index++;
+      } else {
+        bytes += 6;
+      }
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      bytes += 6;
+    } else if (code <= 0x7f) {
+      bytes += 1;
+    } else if (code <= 0x7ff) {
+      bytes += 2;
+    } else {
+      bytes += 3;
+    }
+    if (bytes > maximumBytes) return null;
+  }
+
+  return bytes;
+}
+
+function jsonValueByteLength(value: unknown, maximumBytes: number): number | null {
+  if (value === null) return maximumBytes >= 4 ? 4 : null;
+  if (typeof value === 'boolean') {
+    const bytes = value ? 4 : 5;
+    return maximumBytes >= bytes ? bytes : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const bytes = Buffer.byteLength(JSON.stringify(value), 'utf8');
+    return maximumBytes >= bytes ? bytes : null;
+  }
+  if (typeof value === 'string') return jsonStringByteLength(value, maximumBytes);
+  if (Buffer.isBuffer(value)) {
+    const base64Bytes = Math.ceil(value.byteLength / 3) * 4;
+    const tagBytes =
+      2 + Buffer.byteLength(JSON.stringify(ROW_REF_BINARY_TAG), 'utf8') + 1 + 2 + base64Bytes;
+    return maximumBytes >= tagBytes ? tagBytes : null;
+  }
+  return null;
+}
+
+function jsonObjectByteLength(
+  properties: Array<[string, number]>,
+  maximumBytes: number
+): number | null {
+  let bytes = 2; // braces
+  for (let index = 0; index < properties.length; index++) {
+    const property = properties[index]!;
+    const separatorBytes = index > 0 ? 1 : 0;
+    if (bytes + separatorBytes > maximumBytes) return null;
+    const keyBytes = jsonStringByteLength(property[0], maximumBytes - bytes - separatorBytes - 1);
+    if (keyBytes === null) return null;
+    bytes += separatorBytes + keyBytes + 1 + property[1]; // comma, key, colon, value
+    if (bytes > maximumBytes) return null;
+  }
+  return bytes;
+}
+
+function estimateRowRefPlaintextBytes(rowRef: RowRefData): number | null {
+  const budget = ROW_REF_PREFLIGHT_PLAINTEXT_BYTES;
+  let keysBytes = 2; // braces
+  let keyCount = 0;
+  for (const [column, claim] of Object.entries(rowRef.keys)) {
+    const separatorBytes = keyCount > 0 ? 1 : 0;
+    const columnBytes = jsonStringByteLength(column, budget - keysBytes - separatorBytes - 2);
+    if (columnBytes === null) return null;
+    const claimBytes = jsonValueByteLength(
+      claim,
+      budget - keysBytes - separatorBytes - columnBytes - 2
+    );
+    if (claimBytes === null) return null;
+    keysBytes += separatorBytes + columnBytes + 1 + claimBytes;
+    if (keysBytes > budget) return null;
+    keyCount++;
+  }
+
+  const fixedProperties: Array<[string, number]> = [
+    ['version', 1],
+    ['targetId', jsonStringByteLength(rowRef.targetId, budget) ?? budget + 1],
+    ['schema', jsonStringByteLength(rowRef.schema, budget) ?? budget + 1],
+    ['relation', jsonStringByteLength(rowRef.relation, budget) ?? budget + 1],
+    ['checksum', jsonStringByteLength(rowRef.checksum, budget) ?? budget + 1],
+    ['issuedAt', jsonValueByteLength(rowRef.issuedAt, budget) ?? budget + 1],
+    ['expiresAt', jsonValueByteLength(rowRef.expiresAt, budget) ?? budget + 1],
+    ['keys', keysBytes]
+  ];
+  return jsonObjectByteLength(fixedProperties, budget);
+}
+
+function rowRefPayloadForEncryption(rowRef: RowRefData): unknown {
+  const keys = Object.fromEntries(
+    Object.entries(rowRef.keys).map(([column, claim]) => [
+      column,
+      Buffer.isBuffer(claim) ? { [ROW_REF_BINARY_TAG]: claim.toString('base64') } : claim
+    ])
+  );
+  return { ...rowRef, keys };
+}
+
+function reviveRowRefPayload(value: unknown): RowRefData | null {
+  if (!validateRowRefShape(value)) return null;
+  const keys: Record<string, unknown> = {};
+  for (const [column, claim] of Object.entries(value.keys)) {
+    if (isRowRefScalar(claim)) {
+      keys[column] = claim;
+      continue;
+    }
+    if (!claim || typeof claim !== 'object' || Array.isArray(claim)) return null;
+    const entries = Object.entries(claim);
+    if (
+      entries.length !== 1 ||
+      entries[0]?.[0] !== ROW_REF_BINARY_TAG ||
+      typeof entries[0]?.[1] !== 'string'
+    ) {
+      return null;
+    }
+    const base64 = entries[0][1];
+    const bytes = Buffer.from(base64, 'base64');
+    if (bytes.toString('base64') !== base64) return null;
+    keys[column] = bytes;
+  }
+  return { ...value, keys };
+}
+
+function rowRefTokenOverheadBytes(): number {
+  return Buffer.byteLength(
+    [ENVELOPE_VERSION, 'row-ref', '0'.repeat(16), '', '0'.repeat(22)].join('.'),
+    'utf8'
+  );
 }
 
 function seal(kind: TokenKind, value: CursorData | RowRefData, key: string): string;
@@ -186,7 +363,9 @@ function seal(
   if (!validateContext(value)) throw cursorError();
   let plaintext: string;
   try {
-    plaintext = JSON.stringify(value);
+    plaintext = JSON.stringify(
+      kind === 'row-ref' ? rowRefPayloadForEncryption(value as RowRefData) : value
+    );
   } catch {
     throw cursorError();
   }
@@ -196,10 +375,13 @@ function seal(
   const remainder = plaintextBytes % 3;
   const ciphertextTextBytes =
     Math.floor(plaintextBytes / 3) * 4 + (remainder === 0 ? 0 : remainder + 1);
-  const tokenOverheadBytes = Buffer.byteLength(
-    [ENVELOPE_VERSION, kind, '0'.repeat(16), '', '0'.repeat(22)].join('.'),
-    'utf8'
-  );
+  const tokenOverheadBytes =
+    kind === 'row-ref'
+      ? rowRefTokenOverheadBytes()
+      : Buffer.byteLength(
+          [ENVELOPE_VERSION, kind, '0'.repeat(16), '', '0'.repeat(22)].join('.'),
+          'utf8'
+        );
   if (tokenOverheadBytes + ciphertextTextBytes > MAX_CURSOR_BYTES) {
     if (returnNullOnOversize) return null;
     throw cursorError();
@@ -319,18 +501,14 @@ export function decodeCursor(input: {
 }
 
 export function encodeRowRef(rowRef: RowRefData, key: string): string {
-  if (!validateRowRef(rowRef)) throw cursorError();
-  return seal('row-ref', rowRef, key);
+  const encoded = encodeRowRefIfWithinLimit(rowRef, key);
+  if (encoded === null) throw cursorError();
+  return encoded;
 }
 
 export function encodeRowRefIfWithinLimit(rowRef: RowRefData, key: string): string | null {
-  if (!validateRowRef(rowRef)) throw cursorError();
-  let claimValueBytes = 0;
-  for (const value of Object.values(rowRef.keys)) {
-    if (typeof value === 'string') claimValueBytes += Buffer.byteLength(value, 'utf8');
-    else if (Buffer.isBuffer(value)) claimValueBytes += value.byteLength;
-    if (claimValueBytes > MAX_CURSOR_BYTES) return null;
-  }
+  if (!validateRowRefShape(rowRef)) throw cursorError();
+  if (estimateRowRefPlaintextBytes(rowRef) === null) return null;
   return seal('row-ref', rowRef, key, true);
 }
 
@@ -340,12 +518,13 @@ export function decodeRowRef(input: {
   expected: Context;
   now?: () => Date;
 }): RowRefData {
-  const rowRef = open({
+  const opened = open({
     token: input.encodedRowRef,
     kind: 'row-ref',
     key: input.key,
     expected: input.expected
   });
+  const rowRef = reviveRowRefPayload(opened);
   if (!validateRowRef(rowRef)) throw cursorError();
   assertNotExpired(rowRef, (input.now ?? (() => new Date()))());
   assertContextMatches(rowRef, input.expected);
