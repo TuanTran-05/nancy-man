@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createProductionSchemaReader, readProductionSchema } from './introspectSchema.js';
+import {
+  createProductionSchemaReader,
+  readProductionSchema,
+  readProductionSchemaInCurrentTransaction
+} from './introspectSchema.js';
 
 type QueryCall = { sql: string; values?: readonly unknown[] };
 
@@ -131,6 +135,53 @@ function createCatalogDatabase() {
 }
 
 describe('readProductionSchema', () => {
+  it('serializes catalog queries on the checked-out connection', async () => {
+    let inFlight = 0;
+    let maximumInFlight = 0;
+    const queryOrder: string[] = [];
+    const database = {
+      query: async <T>(sql: string) => {
+        const queryName = sql.match(/catalog:([a-z]+)/)?.[1];
+        if (queryName) queryOrder.push(queryName);
+        inFlight += 1;
+        maximumInFlight = Math.max(maximumInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        inFlight -= 1;
+
+        if (sql.includes('catalog:schemas')) {
+          return { rows: [{ schemaName: 'public' }] as T[] };
+        }
+        if (sql.includes('catalog:relations')) {
+          return {
+            rows: [
+              {
+                schemaName: 'public',
+                relationName: 'explorer_rows',
+                kind: 'table',
+                rowSecurityEnabled: false,
+                forceRowSecurity: false
+              }
+            ] as T[]
+          };
+        }
+        return { rows: [] as T[] };
+      }
+    };
+
+    await readProductionSchemaInCurrentTransaction({ database });
+
+    expect(maximumInFlight).toBe(1);
+    expect(queryOrder).toEqual([
+      'schemas',
+      'relations',
+      'columns',
+      'constraints',
+      'indexes',
+      'triggers',
+      'policies'
+    ]);
+  });
+
   it('returns a stable, structural snapshot without source expressions or function bodies', async () => {
     const { calls, database } = createCatalogDatabase();
 

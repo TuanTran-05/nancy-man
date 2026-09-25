@@ -157,7 +157,7 @@ if [ "$RUNTIME" = compose ]; then
   COMPOSE_PROJECT="edx-explorer-$(openssl rand -hex 8)"
   cp "$INIT_SQL" "$TEMP_ROOT/database-explorer-test-init.sql"
   cp "$FIXTURE_SQL" "$TEMP_ROOT/database-explorer-test-fixtures.sql"
-  chmod 0600 "$TEMP_ROOT/database-explorer-test-init.sql" "$TEMP_ROOT/database-explorer-test-fixtures.sql"
+  chmod 0644 "$TEMP_ROOT/database-explorer-test-init.sql" "$TEMP_ROOT/database-explorer-test-fixtures.sql"
   export DATABASE_EXPLORER_TEST_ROOT="$TEMP_ROOT"
   export DATABASE_EXPLORER_TEST_PROJECT="$COMPOSE_PROJECT"
   "${COMPOSE_COMMAND[@]}" -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" config -q \
@@ -189,8 +189,6 @@ else
     log_file="$TEMP_ROOT/clusters/$target/postgres.log"
     mkdir -m 0700 -p "$(dirname "$data_directory")" "$socket_directory"
     chmod 0700 "$socket_directory"
-    port="$(create_port)"
-    PG_PORTS[$index]="$port"
     PG_DATA[$index]="$data_directory"
     PG_LOGS[$index]="$log_file"
     "$PG16_BIN/initdb" -D "$data_directory" --username=postgres \
@@ -198,9 +196,25 @@ else
       --auth-local=trust --auth-host=scram-sha-256 --data-checksums \
       --encoding=UTF8 >/dev/null
     chmod 0700 "$data_directory"
-    "$PG16_BIN/pg_ctl" -D "$data_directory" -l "$log_file" \
-      -o "-p $port -h 127.0.0.1 -c unix_socket_directories=$socket_directory -c ssl=on -c ssl_ca_file=$TEMP_ROOT/certs/ca.crt -c ssl_cert_file=$TEMP_ROOT/certs/server.crt -c ssl_key_file=$TEMP_ROOT/certs/server.key -c log_statement=none -c log_min_error_statement=panic -c log_connections=off -c log_disconnections=off" \
-      -w start >/dev/null
+    started=false
+    for attempt in $(seq 1 5); do
+      port="$(create_port)"
+      PG_PORTS[$index]="$port"
+      : > "$log_file"
+      if "$PG16_BIN/pg_ctl" -D "$data_directory" -l "$log_file" \
+        -o "-p $port -h 127.0.0.1 -c unix_socket_directories=$socket_directory -c ssl=on -c ssl_ca_file=$TEMP_ROOT/certs/ca.crt -c ssl_cert_file=$TEMP_ROOT/certs/server.crt -c ssl_key_file=$TEMP_ROOT/certs/server.key -c log_statement=none -c log_min_error_statement=panic -c log_connections=off -c log_disconnections=off" \
+        -w start >/dev/null; then
+        started=true
+        break
+      fi
+      if ! rg -qi 'could not bind .*Address already in use' "$log_file"; then
+        fail "PostgreSQL 16 fixture could not start for target: $target"
+      fi
+      "$PG16_BIN/pg_ctl" -D "$data_directory" -m immediate -w stop >/dev/null 2>&1 || true
+    done
+    if [ "$started" != true ]; then
+      fail "PostgreSQL 16 could not bind an available temporary port for target: $target after 5 attempts"
+    fi
     create_admin_pgpass "$port" "$TEMP_ROOT/secrets/admin-${target}.pgpass"
     target_login="${TARGET_LOGINS[$index]}"
     create_existing_login=off

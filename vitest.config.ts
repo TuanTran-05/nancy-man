@@ -5,7 +5,8 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       'apps/web/e2e/**/*.spec.ts',
-      '**/*.integration.test.ts',
+      'apps/sql-worker/src/security/databaseExplorerPostgres.integration.test.ts',
+      'apps/api/src/modules/database/databaseExplorerPostgres.integration.test.ts',
       '.worktrees/**'
     ],
     setupFiles: ['apps/web/src/web/test-setup.ts']

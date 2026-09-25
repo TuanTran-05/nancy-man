@@ -200,9 +200,11 @@ describe('Database Explorer against isolated PostgreSQL 16', () => {
         // Disable the role-level default to prove the ACL itself is SELECT-only.
         await client.query('SET SESSION default_transaction_read_only = off');
         expect(
-          (await client.query<{ value: string }>(
-            "SELECT current_setting('default_transaction_read_only') AS value"
-          )).rows[0]?.value
+          (
+            await client.query<{ value: string }>(
+              "SELECT current_setting('default_transaction_read_only') AS value"
+            )
+          ).rows[0]?.value
         ).toBe('off');
 
         const functionName = `task7_probe_${Date.now()}`;
@@ -248,7 +250,9 @@ describe('Database Explorer against isolated PostgreSQL 16', () => {
         ]);
         let activeWriteErrorCode: string | undefined;
         try {
-          await client.query("UPDATE public.explorer_rows SET safe_value = 'active-write-probe' WHERE id = 1");
+          await client.query(
+            "UPDATE public.explorer_rows SET safe_value = 'active-write-probe' WHERE id = 1"
+          );
         } catch (error) {
           activeWriteErrorCode = (error as { code?: string }).code;
         }
@@ -258,7 +262,9 @@ describe('Database Explorer against isolated PostgreSQL 16', () => {
         await client.query('SET SESSION default_transaction_read_only = off');
         let directWriteErrorCode: string | undefined;
         try {
-          await client.query("UPDATE public.explorer_rows SET safe_value = 'acl-write-probe' WHERE false");
+          await client.query(
+            "UPDATE public.explorer_rows SET safe_value = 'acl-write-probe' WHERE false"
+          );
         } catch (error) {
           directWriteErrorCode = (error as { code?: string }).code;
         }
@@ -304,6 +310,18 @@ describe('Database Explorer against isolated PostgreSQL 16', () => {
       .find((schema) => schema.name === 'public')
       ?.relations.find((relation) => relation.name === 'explorer_rows');
     expect(explorerRowsSnapshot).toMatchObject({ primaryKey: ['id'], paginationKey: ['id'] });
+    expect(explorerRowsSnapshot?.constraints).toContainEqual({
+      name: 'explorer_rows_student_fk',
+      kind: 'foreign_key',
+      columns: ['tenant_id', 'student_id'],
+      referencedRelation: {
+        schema: 'public',
+        name: 'explorer_students',
+        columns: ['tenant_id', 'student_id']
+      },
+      deferrable: false,
+      initiallyDeferred: false
+    });
     const expected = await fixture.adminPools.ops.query<{
       id: number;
       nullable_sort: number | null;
@@ -335,11 +353,8 @@ describe('Database Explorer against isolated PostgreSQL 16', () => {
     const actual = [...firstPage.rows, ...secondPage.rows].map((row) => ({
       id: row.cells['id']?.state === 'value' ? row.cells['id'].value : null,
       nullable_sort:
-        row.cells['nullable_sort']?.state === 'value'
-          ? row.cells['nullable_sort'].value
-          : null,
-      safe_value:
-        row.cells['safe_value']?.state === 'value' ? row.cells['safe_value'].value : null
+        row.cells['nullable_sort']?.state === 'value' ? row.cells['nullable_sort'].value : null,
+      safe_value: row.cells['safe_value']?.state === 'value' ? row.cells['safe_value'].value : null
     }));
     expect(actual).toEqual(expected.rows);
     expect(new Set(actual.map((row) => row.id)).size).toBe(32);
@@ -429,9 +444,7 @@ describe('Database Explorer against isolated PostgreSQL 16', () => {
     expect(`${result.stderr ?? ''}${result.stdout ?? ''}`).toContain(
       'ops_database_browser already provisioned for the other target'
     );
-    expect(`${result.stderr ?? ''}${result.stdout ?? ''}`).not.toContain(
-      fixture.config.hmacSecret
-    );
+    expect(`${result.stderr ?? ''}${result.stdout ?? ''}`).not.toContain(fixture.config.hmacSecret);
   });
 
   it('revokes unsafe default ACLs for new owner-created objects and blocks unapproved creators', async () => {

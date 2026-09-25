@@ -323,13 +323,11 @@ export async function readProductionSchemaInCurrentTransaction(input: {
   const relations = createRelations(relationRows);
   const queryRows = async <T>(query: string): Promise<T[]> =>
     schemaNames.length ? (await input.database.query<T>(query, [schemaNames])).rows : [];
-  const [columns, constraints, indexes, triggers, policies] = await Promise.all([
-    queryRows<ColumnRow>(catalogQueries.columns),
-    queryRows<ConstraintRow>(catalogQueries.constraints),
-    queryRows<IndexRow>(catalogQueries.indexes),
-    queryRows<TriggerRow>(catalogQueries.triggers),
-    queryRows<PolicyRow>(catalogQueries.policies)
-  ]);
+  const columns = await queryRows<ColumnRow>(catalogQueries.columns);
+  const constraints = await queryRows<ConstraintRow>(catalogQueries.constraints);
+  const indexes = await queryRows<IndexRow>(catalogQueries.indexes);
+  const triggers = await queryRows<TriggerRow>(catalogQueries.triggers);
+  const policies = await queryRows<PolicyRow>(catalogQueries.policies);
 
   for (const row of columns) {
     relations.get(relationKey(row.schemaName, row.relationName))?.columns.push({
