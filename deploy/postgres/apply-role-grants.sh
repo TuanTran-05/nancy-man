@@ -36,6 +36,14 @@ read_generated_password() {
   unset value
 }
 
+validate_generated_password_file() {
+  local path="$1"
+  local value
+  value="$(tr -d '\r\n' < "$path")"
+  [[ "$value" =~ ^[A-Za-z0-9_-]{32,}$ ]] || fail "generated password must be at least 32 URL-safe characters: $path"
+  unset value
+}
+
 psql_set() {
   printf '\\set %s %s\n' "$1" "$2"
 }
@@ -156,9 +164,8 @@ if [ "$role_type" = 'explorer' ]; then
     require_identifier "$blocked_column"
   fi
 
-  read_password="$(read_generated_password "$read_password_file")"
-  browser_password_verifier="$(printf '%s' "$read_password" | node "$SCRAM_VERIFIER_PATH")"
-  unset read_password
+  validate_generated_password_file "$read_password_file"
+  browser_password_verifier="$(tr -d '\r\n' < "$read_password_file" | node "$SCRAM_VERIFIER_PATH")"
   [[ "$browser_password_verifier" =~ ^SCRAM-SHA-256\$4096:[A-Za-z0-9+/]{22}==\$[A-Za-z0-9+/]{43}=:[A-Za-z0-9+/]{43}=$ ]] \
     || fail 'could not derive a PostgreSQL SCRAM-SHA-256 verifier'
 

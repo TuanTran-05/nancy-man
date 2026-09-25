@@ -4,11 +4,10 @@
  * Verifies that:
  * - At most 5 filters are accepted
  * - Cell values exceeding 64 KiB are truncated
- * - Response exceeding 2 MiB is truncated
+ * - Response exceeding 2 MiB is rejected without partial row payloads
  * - Large schema snapshots (101 relations, 210 FK edges) are handled
  * - Duplicate / nullable pagination keys do not break cursors
  * - Query timeout results in a rollback
- * - Full ERD projection is deterministic for large graphs
  */
 
 import { describe, expect, it } from 'vitest';
@@ -16,10 +15,6 @@ import { createHash } from 'node:crypto';
 import { readDatabaseRows } from '../explorer/rowReader.js';
 import { readProductionSchema } from '../schema/introspectSchema.js';
 import { encodeCell, MAX_CELL_BYTES, MAX_RESPONSE_BYTES } from '../explorer/valueEncoding.js';
-import {
-  filterGraph,
-  projectFullGraph
-} from '../../../web/src/web/features/database/graphModel.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
 import type {
   DatabaseExplorerColumn,
@@ -374,6 +369,30 @@ describe('databaseExplorerBounds — cell and response size', () => {
   it('MAX_CELL_BYTES is 64 KiB', () => {
     expect(MAX_CELL_BYTES).toBe(64 * 1024);
   });
+
+  it('rejects a row page above 2 MiB without returning a truncated success', async () => {
+    const wideColumns = Array.from({ length: 33 }, (_, index) =>
+      makeColumn(`wide_${String(index).padStart(2, '0')}`)
+    );
+    const relation = makeRelation('wide', {
+      columns: [makeColumn('id', 'int4'), ...wideColumns]
+    });
+    const snap = makeSnapshot([{ name: 'public', relations: [relation] }]);
+    const queryRow = Object.fromEntries([
+      ['id', 1],
+      ...wideColumns.map((column) => [column.name, 'W'.repeat(MAX_CELL_BYTES)])
+    ]);
+    const { target } = mockTarget([queryRow], snap);
+
+    await expect(
+      readDatabaseRows({
+        target,
+        snapshot: snap,
+        cursorKey: TEST_CURSOR_KEY,
+        request: makeRowsRequest({ relation: 'wide' })
+      })
+    ).rejects.toMatchObject({ code: 'DATABASE_RESULT_TOO_LARGE' });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -468,43 +487,6 @@ describe('databaseExplorerBounds — large schema projection', () => {
     expect(queries.some((sql) => /FROM\s+"public"\."/.test(sql))).toBe(false);
   });
 
-  it('projectFullGraph handles 101 relations and 210 edges', () => {
-    const snap = buildLargeSnapshot();
-    const model = projectFullGraph(snap, 'ops');
-    expect(model.nodes).toHaveLength(101);
-    expect(model.edges).toHaveLength(210);
-  });
-
-  it('shuffled large snapshot produces identical node/edge ordering', () => {
-    const snap1 = buildLargeSnapshot();
-    // Shuffle schemas and relations in snap2
-    const snap2: DatabaseExplorerSchemaSnapshot = {
-      ...snap1,
-      schemas: [
-        {
-          name: 'public',
-          relations: [...snap1.schemas[0].relations].reverse()
-        }
-      ],
-      edges: [...snap1.edges].reverse()
-    };
-
-    const m1 = projectFullGraph(snap1, 'ops');
-    const m2 = projectFullGraph(snap2, 'ops');
-
-    expect(m1.nodes.map((n) => n.id)).toEqual(m2.nodes.map((n) => n.id));
-    expect(m1.edges.map((e) => e.id).sort()).toEqual(m2.edges.map((e) => e.id).sort());
-  });
-
-  it('search filtering on large graph is deterministic', () => {
-    const snap = buildLargeSnapshot();
-    const full = projectFullGraph(snap, 'ops');
-
-    const r1 = filterGraph(full, 'TABLE_050');
-    const r2 = filterGraph(full, 'table_050');
-    expect(r1.nodes.map((n) => n.id)).toEqual(r2.nodes.map((n) => n.id));
-    expect(r1.nodes).toHaveLength(1);
-  });
 });
 
 // ---------------------------------------------------------------------------

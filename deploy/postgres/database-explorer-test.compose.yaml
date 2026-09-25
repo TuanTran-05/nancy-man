@@ -1,0 +1,75 @@
+name: ${DATABASE_EXPLORER_TEST_PROJECT:?set a unique project name}
+
+x-postgres: &postgres-defaults
+  image: postgres:16.14
+  environment:
+    POSTGRES_USER: postgres
+    POSTGRES_DB: postgres
+    POSTGRES_PASSWORD_FILE: /run/secrets/admin-password
+    POSTGRES_INITDB_ARGS: --auth-local=trust --auth-host=scram-sha-256 --data-checksums
+  entrypoint: ["bash", "-ec"]
+  command: >-
+    install -d -o postgres -g postgres -m 0700 /run/postgres-tls;
+    install -o postgres -g postgres -m 0644 /run/secrets/ca.crt /run/postgres-tls/ca.crt;
+    install -o postgres -g postgres -m 0644 /run/secrets/server.crt /run/postgres-tls/server.crt;
+    install -o postgres -g postgres -m 0600 /run/secrets/server.key /run/postgres-tls/server.key;
+    exec /usr/local/bin/docker-entrypoint.sh postgres -c listen_addresses='*' -c ssl=on
+    -c ssl_ca_file=/run/postgres-tls/ca.crt -c ssl_cert_file=/run/postgres-tls/server.crt
+    -c ssl_key_file=/run/postgres-tls/server.key -c log_statement=none
+  volumes:
+    - type: bind
+      source: ${DATABASE_EXPLORER_TEST_ROOT:?set a temporary fixture directory}/database-explorer-test-init.sql
+      target: /docker-entrypoint-initdb.d/00-database-explorer-test-init.sql
+      read_only: true
+    - type: bind
+      source: ${DATABASE_EXPLORER_TEST_ROOT:?set a temporary fixture directory}/database-explorer-test-fixtures.sql
+      target: /database-explorer-test-fixtures.sql
+      read_only: true
+  tmpfs:
+    - /var/lib/postgresql/data:mode=0700
+  ports:
+    - "127.0.0.1::5432"
+  secrets:
+    - admin-password
+    - ca.crt
+    - server.crt
+    - server.key
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+    interval: 1s
+    timeout: 2s
+    retries: 30
+
+services:
+  postgres-edutrack:
+    <<: *postgres-defaults
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin-password
+      POSTGRES_INITDB_ARGS: --auth-local=trust --auth-host=scram-sha-256 --data-checksums
+      DATABASE_EXPLORER_TEST_TARGET: edutrack_production
+      DATABASE_EXPLORER_TEST_LOGIN: ops_browser_edutrack
+      DATABASE_EXPLORER_TEST_CREATE_EXISTING_LOGIN: on
+      DATABASE_EXPLORER_TEST_FIXTURE_SCRIPT: /database-explorer-test-fixtures.sql
+  postgres-ops:
+    <<: *postgres-defaults
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin-password
+      POSTGRES_INITDB_ARGS: --auth-local=trust --auth-host=scram-sha-256 --data-checksums
+      DATABASE_EXPLORER_TEST_TARGET: ops
+      DATABASE_EXPLORER_TEST_LOGIN: ops_browser_ops
+      DATABASE_EXPLORER_TEST_CREATE_EXISTING_LOGIN: off
+      DATABASE_EXPLORER_TEST_FIXTURE_SCRIPT: /database-explorer-test-fixtures.sql
+
+secrets:
+  admin-password:
+    file: ${DATABASE_EXPLORER_TEST_ROOT:?set a temporary fixture directory}/secrets/admin.password
+  ca.crt:
+    file: ${DATABASE_EXPLORER_TEST_ROOT:?set a temporary fixture directory}/certs/ca.crt
+  server.crt:
+    file: ${DATABASE_EXPLORER_TEST_ROOT:?set a temporary fixture directory}/certs/server.crt
+  server.key:
+    file: ${DATABASE_EXPLORER_TEST_ROOT:?set a temporary fixture directory}/certs/server.key

@@ -430,6 +430,9 @@ export async function readDatabaseRows(
   }
 
   const rowPageResult = encodeRowPage(encodedRows);
+  if (rowPageResult.truncated) {
+    throw makeExplorerError('DATABASE_RESULT_TOO_LARGE');
+  }
 
   return {
     targetId: target.id,

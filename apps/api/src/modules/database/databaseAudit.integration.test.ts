@@ -9,6 +9,12 @@ import { createAuditEntryHash } from '../../../../../packages/security/src/audit
 import type { DatabaseRowsResponse } from '../../../../../packages/contracts/src/databaseExplorer.js';
 import type { StepUpService } from '../auth/stepUpService.js';
 
+/**
+ * These API audit-path tests use in-memory ledger and worker fixtures. They do
+ * not prove PostgreSQL ACL enforcement or live row bounds; those run through
+ * the isolated PostgreSQL worker/API path in databaseExplorerPostgres.integration.test.ts.
+ */
+
 type StoredAuditEntry = {
   id: string;
   occurredAt: string;
@@ -23,7 +29,7 @@ type StoredAuditEntry = {
   entryHash: string;
 };
 
-describe('Database Explorer Audit Integration', () => {
+describe('Database Explorer API audit behavior with fixture dependencies', () => {
   function createTestHarness(
     options: {
       failAudit?: boolean;

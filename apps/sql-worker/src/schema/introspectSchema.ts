@@ -160,7 +160,7 @@ const catalogQueries = {
         WHEN 'c' THEN 'check'
       END AS kind,
       ARRAY(
-        SELECT attribute.attname
+        SELECT attribute.attname::text
         FROM unnest(constraint_record.conkey) WITH ORDINALITY AS key_column(attribute_number, position)
         JOIN pg_catalog.pg_attribute AS attribute
           ON attribute.attrelid = relation.oid AND attribute.attnum = key_column.attribute_number
@@ -169,7 +169,7 @@ const catalogQueries = {
       referenced_namespace.nspname AS "referencedSchema",
       referenced_relation.relname AS "referencedRelation",
       ARRAY(
-        SELECT attribute.attname
+        SELECT attribute.attname::text
         FROM unnest(constraint_record.confkey) WITH ORDINALITY AS key_column(attribute_number, position)
         JOIN pg_catalog.pg_attribute AS attribute
           ON attribute.attrelid = referenced_relation.oid AND attribute.attnum = key_column.attribute_number
@@ -194,7 +194,7 @@ const catalogQueries = {
       index_relation.relname AS "indexName",
       access_method.amname AS method,
       ARRAY(
-        SELECT attribute.attname
+        SELECT attribute.attname::text
         FROM unnest(index_record.indkey) WITH ORDINALITY AS key_column(attribute_number, position)
         JOIN pg_catalog.pg_attribute AS attribute
           ON attribute.attrelid = relation.oid AND attribute.attnum = key_column.attribute_number
@@ -258,10 +258,10 @@ const catalogQueries = {
       END AS command,
       policy_record.polpermissive AS permissive,
       ARRAY(
-        SELECT COALESCE(role_record.rolname, 'PUBLIC')
+        SELECT COALESCE(role_record.rolname::text, 'PUBLIC')
         FROM unnest(policy_record.polroles) AS policy_role(role_oid)
         LEFT JOIN pg_catalog.pg_roles AS role_record ON role_record.oid = policy_role.role_oid
-        ORDER BY COALESCE(role_record.rolname, 'PUBLIC')
+        ORDER BY COALESCE(role_record.rolname::text, 'PUBLIC')
       ) AS roles
     FROM pg_catalog.pg_policy AS policy_record
     JOIN pg_catalog.pg_class AS relation ON relation.oid = policy_record.polrelid

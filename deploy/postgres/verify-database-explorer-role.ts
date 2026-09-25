@@ -45,6 +45,7 @@ export type ExplorerRoleVerificationReport = {
   safeReads: Array<{ name: string; passed: boolean }>;
   prohibitedOperations: Array<{ name: string; rejected: boolean }>;
   blockedColumnChecks: Array<{ name: string; rejected: boolean }>;
+  readOnlyTransactionChecks: Array<{ name: string; passed: boolean }>;
 };
 
 const identifier = /^[a-z][a-z0-9_]{0,62}$/;
@@ -339,6 +340,76 @@ async function queryIsRejected(database: Queryable, sql: string): Promise<boolea
   }
 }
 
+async function rejectsReadWriteTransactionEscalation(database: Queryable): Promise<boolean> {
+  await database.query('BEGIN TRANSACTION READ ONLY');
+  let rejected = false;
+  try {
+    // PostgreSQL permits transaction modes to be adjusted at transaction start.
+    // Make it an active transaction first, then prove the access mode is locked.
+    await database.query('SELECT 1');
+    await database.query('SET TRANSACTION READ WRITE');
+  } catch {
+    rejected = true;
+  }
+  await database.query('ROLLBACK');
+  return rejected;
+}
+
+async function sessionDefaultCannotWriteActiveReadOnlyTransaction(
+  database: Queryable,
+  writeSql: string
+): Promise<boolean> {
+  await database.query('BEGIN TRANSACTION READ ONLY');
+  let passed = false;
+  try {
+    await database.query('SET SESSION default_transaction_read_only = off');
+    const state = await database.query<{
+      transactionReadOnly: string;
+      defaultTransactionReadOnly: string;
+    }>(
+      `SELECT current_setting('transaction_read_only') AS "transactionReadOnly",
+              current_setting('default_transaction_read_only') AS "defaultTransactionReadOnly"`
+    );
+    let writeRejected = false;
+    try {
+      await database.query(writeSql);
+    } catch {
+      writeRejected = true;
+    }
+    passed =
+      state.rows[0]?.transactionReadOnly === 'on' &&
+      state.rows[0]?.defaultTransactionReadOnly === 'off' &&
+      writeRejected;
+  } catch {
+    passed = false;
+  }
+  await database.query('ROLLBACK');
+  return passed;
+}
+
+async function selectOnlyAclRejectsWriteWithDefaultDisabled(
+  database: Queryable,
+  writeSql: string
+): Promise<boolean> {
+  try {
+    await database.query('SET SESSION default_transaction_read_only = off');
+    const state = await database.query<{ value: string }>(
+      "SELECT current_setting('default_transaction_read_only') AS value"
+    );
+    let writeRejected = false;
+    try {
+      await database.query(writeSql);
+    } catch {
+      writeRejected = true;
+    }
+    return state.rows[0]?.value === 'off' && writeRejected;
+  } catch {
+    return false;
+  } finally {
+    await database.query('RESET default_transaction_read_only');
+  }
+}
+
 export async function verifyDatabaseExplorerRole(input: {
   database: Queryable;
   fixture: ExplorerFixture;
@@ -425,6 +496,22 @@ export async function verifyDatabaseExplorerRole(input: {
     blockedColumnChecks.push({ name: input.fixture.blockedColumn, rejected });
   }
 
+  const writeSql = `UPDATE ${relation} SET ${safeColumn} = ${safeColumn} WHERE false`;
+  const readOnlyTransactionChecks = [
+    {
+      name: 'SET TRANSACTION READ WRITE inside READ ONLY',
+      passed: await rejectsReadWriteTransactionEscalation(input.database)
+    },
+    {
+      name: 'session default cannot make an active READ ONLY transaction writable',
+      passed: await sessionDefaultCannotWriteActiveReadOnlyTransaction(input.database, writeSql)
+    },
+    {
+      name: 'select-only ACL rejects writes when default_transaction_read_only is off',
+      passed: await selectOnlyAclRejectsWriteWithDefaultDisabled(input.database, writeSql)
+    }
+  ];
+
   const failures = rolePostureFailures(posture, {
     expectedDatabase: input.expectedDatabase,
     expectedRole: input.expectedRole,
@@ -449,6 +536,12 @@ export async function verifyDatabaseExplorerRole(input: {
     }
   }
 
+  for (const check of readOnlyTransactionChecks) {
+    if (!check.passed) {
+      failures.push(`read-only transaction check failed: ${check.name}`);
+    }
+  }
+
   return {
     status: failures.length === 0 ? 'pass' : 'fail',
     checkedAt: (input.now ?? (() => new Date()))().toISOString(),
@@ -459,7 +552,8 @@ export async function verifyDatabaseExplorerRole(input: {
     failures,
     safeReads: safeReadResults,
     prohibitedOperations: prohibitedResults,
-    blockedColumnChecks
+    blockedColumnChecks,
+    readOnlyTransactionChecks
   };
 }
 

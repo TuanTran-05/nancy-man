@@ -9,6 +9,8 @@ import type {
 import { authenticateWorkerCommand } from './authenticateCommand.js';
 import { encodeFrame, FrameDecoder } from './framing.js';
 
+const SQL_WORKER_COMMAND_TIMEOUT_MS = 25_000;
+
 async function removeStaleSocket(path: string): Promise<void> {
   try {
     const details = await lstat(path);
@@ -53,7 +55,7 @@ export async function startWorkerProtocolServer(input: {
   await removeStaleSocket(input.path);
   const server = createServer((socket) => {
     const decoder = new FrameDecoder();
-    socket.setTimeout(10_000, () => socket.destroy());
+    socket.setTimeout(SQL_WORKER_COMMAND_TIMEOUT_MS, () => socket.destroy());
     socket.on('data', async (chunk: Buffer) => {
       try {
         for (const value of decoder.push(chunk)) {

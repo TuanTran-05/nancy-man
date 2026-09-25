@@ -353,7 +353,7 @@ describe('database explorer roles and verifier', () => {
           };
         }
 
-        if (sql === 'BEGIN') {
+        if (sql === 'BEGIN' || sql === 'BEGIN TRANSACTION READ ONLY') {
           if (inTransaction) throw new Error('Transaction already active');
           inTransaction = true;
           return { rows: [] as T[] };
@@ -364,9 +364,23 @@ describe('database explorer roles and verifier', () => {
           return { rows: [] as T[] };
         }
 
+        if (sql.includes("current_setting('transaction_read_only')")) {
+          return {
+            rows: [
+              {
+                transactionReadOnly: 'on',
+                defaultTransactionReadOnly: 'off'
+              }
+            ] as T[]
+          };
+        }
+        if (sql.includes("current_setting('default_transaction_read_only')")) {
+          return { rows: [{ value: 'off' }] as T[] };
+        }
+
         // Prohibited actions and blocked column SELECT must throw
         if (
-          /(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/.test(
+          /(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE|SET TRANSACTION READ WRITE)/.test(
             sql
           ) ||
           sql.includes('"password_hash"')
@@ -401,6 +415,12 @@ describe('database explorer roles and verifier', () => {
     expect(report.safeReads.every((r) => r.passed)).toBe(true);
     expect(report.prohibitedOperations.every((p) => p.rejected)).toBe(true);
     expect(report.blockedColumnChecks.every((b) => b.rejected)).toBe(true);
+    expect(report.readOnlyTransactionChecks.every((check) => check.passed)).toBe(true);
+    expect(report.readOnlyTransactionChecks.map((check) => check.name)).toEqual([
+      'SET TRANSACTION READ WRITE inside READ ONLY',
+      'session default cannot make an active READ ONLY transaction writable',
+      'select-only ACL rejects writes when default_transaction_read_only is off'
+    ]);
     expect(maxConcurrentQueries).toBe(1);
   });
 

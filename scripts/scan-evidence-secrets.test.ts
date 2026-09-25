@@ -62,6 +62,7 @@ describe('scan evidence and deploy assets for secrets', () => {
 
     expect(applyScript).not.toMatch(/(?:echo|printf).*password/i);
     expect(applyScript).toContain('read_generated_password');
+    expect(applyScript).toContain('tr -d \'\\r\\n\' < "$read_password_file" | node "$SCRAM_VERIFIER_PATH"');
     expect(applyScript).toContain('mode must be 0600');
   });
 });

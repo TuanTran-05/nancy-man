@@ -15,6 +15,7 @@
     "lint": "npm run check:error-telemetry && eslint . --ext .ts,.tsx --max-warnings=0",
     "format:check": "prettier --check . --ignore-unknown",
     "test": "vitest run --passWithNoTests",
+    "test:database-explorer:postgres": "bash scripts/database-explorer/run-postgres-integration.sh",
     "check:error-telemetry": "node --experimental-strip-types scripts/error-telemetry/coverage.ts",
     "migrate:error-telemetry": "node --experimental-strip-types scripts/error-telemetry/migrate.ts",
     "variables:coverage": "node --experimental-strip-types scripts/variables/catalogCoverage.ts",

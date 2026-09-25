@@ -2,7 +2,12 @@ import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    exclude: [...configDefaults.exclude, 'apps/web/e2e/**/*.spec.ts', '.worktrees/**'],
+    exclude: [
+      ...configDefaults.exclude,
+      'apps/web/e2e/**/*.spec.ts',
+      '**/*.integration.test.ts',
+      '.worktrees/**'
+    ],
     setupFiles: ['apps/web/src/web/test-setup.ts']
   }
 });

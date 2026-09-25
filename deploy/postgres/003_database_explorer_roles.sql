@@ -316,9 +316,9 @@ BEGIN
       JOIN pg_roles member_role ON member_role.oid = existing.member
       WHERE member_role.rolname = browser_login
       UNION
-      SELECT membership.roleid
-      FROM pg_auth_members membership
-      JOIN role_closure parent ON parent.role_oid = membership.member
+      SELECT member_edge.roleid
+      FROM pg_auth_members AS member_edge
+      JOIN role_closure parent ON parent.role_oid = member_edge.member
     )
     SELECT 1
     FROM role_closure reachable
@@ -342,20 +342,20 @@ BEGIN
   END IF;
   IF (
     SELECT count(*)
-    FROM pg_auth_members membership
-    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+    FROM pg_auth_members AS role_edge
+    JOIN pg_roles granted_role ON granted_role.oid = role_edge.roleid
     WHERE granted_role.rolname = 'ops_database_browser'
   ) <> 1 OR EXISTS (
     SELECT 1
-    FROM pg_auth_members membership
-    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
-    JOIN pg_roles member_role ON member_role.oid = membership.member
+    FROM pg_auth_members AS role_edge
+    JOIN pg_roles granted_role ON granted_role.oid = role_edge.roleid
+    JOIN pg_roles member_role ON member_role.oid = role_edge.member
     WHERE granted_role.rolname = 'ops_database_browser'
       AND (
         member_role.rolname <> browser_login
-        OR NOT membership.inherit_option
-        OR membership.set_option
-        OR membership.admin_option
+        OR NOT role_edge.inherit_option
+        OR role_edge.set_option
+        OR role_edge.admin_option
       )
   ) THEN
     RAISE EXCEPTION 'ops_database_browser has an unexpected direct member or membership option';

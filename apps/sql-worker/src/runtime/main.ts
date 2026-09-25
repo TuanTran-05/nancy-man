@@ -119,13 +119,24 @@ export function createExplorerTargetPool(
   targetId: string,
   databaseUrl: string
 ): ProductionReadPool {
-  return new Pool({
+  const pool = new Pool({
     connectionString: databaseUrl,
     application_name: `edutrack-ops-database-explorer:${targetId}`,
     max: 2,
     connectionTimeoutMillis: 1_000,
     idleTimeoutMillis: 30_000
   });
+  pool.on('error', (error) => {
+    // Idle clients can fail between queries during a backend outage. The
+    // registry reports target health; an unhandled Pool error must not crash
+    // the entire SQL worker before it can mark the target unavailable.
+    captureOpsException(error, {
+      code: 'DATABASE_TARGET_UNAVAILABLE',
+      source: 'database',
+      status: 503
+    });
+  });
+  return pool;
 }
 
 function parsePolicyApproval(serialized: string): DatabasePolicyApproval | undefined {

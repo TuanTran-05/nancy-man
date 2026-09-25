@@ -6,6 +6,9 @@ import type {
   WorkerCommand,
   WorkerResponse
 } from '../../../../../packages/contracts/src/workerProtocol.js';
+
+export const SQL_WORKER_COMMAND_TIMEOUT_MS = 25_000;
+
 function frame(value: unknown): Buffer {
   const body = Buffer.from(JSON.stringify(value), 'utf8');
   const header = Buffer.alloc(4);
@@ -34,7 +37,7 @@ export class SqlWorkerClient {
       const timeout = setTimeout(() => {
         socket.destroy();
         reject(new Error('SQL_WORKER_TIMEOUT'));
-      }, 10_000);
+      }, SQL_WORKER_COMMAND_TIMEOUT_MS);
       socket.on('connect', () => socket.write(frame(command)));
       socket.on('data', (chunk: Buffer) => {
         buffer = Buffer.concat([buffer, chunk]);

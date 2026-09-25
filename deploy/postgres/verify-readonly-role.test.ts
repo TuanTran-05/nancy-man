@@ -61,12 +61,11 @@ describe('least-privilege Ops PostgreSQL roles', () => {
     expect(apply).toContain('node --experimental-strip-types');
     expect(apply).toContain('pg_stat_activity');
     expect(apply).toContain('ALTER ROLE :"ops_retire_login" NOLOGIN');
-    const passwordOutputCalls = apply
-      .split(/\r?\n/u)
-      .filter((line) => /(?:echo|printf).*\$read_password/i.test(line));
-    expect(passwordOutputCalls).toEqual([
-      '  browser_password_verifier="$(printf \'%s\' "$read_password" | node "$SCRAM_VERIFIER_PATH")"'
-    ]);
+    expect(apply).toContain('validate_generated_password_file "$read_password_file"');
+    expect(apply).toContain(
+      'browser_password_verifier="$(tr -d \'\\r\\n\' < "$read_password_file" | node "$SCRAM_VERIFIER_PATH")"'
+    );
+    expect(apply).not.toMatch(/(?:echo|printf).*\$read_password/i);
   });
 
   it('checks the effective read-login posture and probes mutations inside rollback transactions', async () => {
