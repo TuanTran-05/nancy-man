@@ -79,14 +79,13 @@ $roles$;
 
 REVOKE ALL PRIVILEGES ON DATABASE :"ops_database_name" FROM ops_database_browser;
 REVOKE TEMPORARY ON DATABASE :"ops_database_name" FROM PUBLIC;
-GRANT CONNECT ON DATABASE :"ops_database_name" TO ops_database_browser;
-GRANT USAGE ON SCHEMA pg_catalog TO ops_database_browser;
 
 DO $logins$
 DECLARE
   browser_login text := :'ops_browser_login';
   target_id text := :'ops_target_id';
   membership record;
+  capability_member record;
 BEGIN
   IF target_id NOT IN ('edutrack_production', 'ops') THEN
     RAISE EXCEPTION 'Ops browser target must be one of the approved targets';
@@ -95,6 +94,28 @@ BEGIN
     OR (target_id = 'ops' AND browser_login <> 'ops_browser_ops') THEN
     RAISE EXCEPTION 'Ops browser login does not match the approved target';
   END IF;
+
+  -- Remove every direct member except this target LOGIN, including LOGINs,
+  -- NOLOGIN groups, and grants recorded under a different grantor.
+  FOR capability_member IN
+    SELECT
+      granted_role.rolname AS granted_role,
+      member_role.rolname AS member_role,
+      grantor.rolname AS grantor_role
+    FROM pg_auth_members existing
+    JOIN pg_roles granted_role ON granted_role.oid = existing.roleid
+    JOIN pg_roles member_role ON member_role.oid = existing.member
+    JOIN pg_roles grantor ON grantor.oid = existing.grantor
+    WHERE granted_role.rolname = 'ops_database_browser'
+      AND member_role.rolname <> browser_login
+  LOOP
+    EXECUTE format(
+      'REVOKE %I FROM %I GRANTED BY %I',
+      capability_member.granted_role,
+      capability_member.member_role,
+      capability_member.grantor_role
+    );
+  END LOOP;
 
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = browser_login) THEN
     EXECUTE format(
@@ -162,9 +183,32 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Ops browser login does not have the expected capability membership';
   END IF;
+  IF (
+    SELECT count(*)
+    FROM pg_auth_members membership
+    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+    WHERE granted_role.rolname = 'ops_database_browser'
+  ) <> 1 OR EXISTS (
+    SELECT 1
+    FROM pg_auth_members membership
+    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+    JOIN pg_roles member_role ON member_role.oid = membership.member
+    WHERE granted_role.rolname = 'ops_database_browser'
+      AND (
+        member_role.rolname <> browser_login
+        OR NOT membership.inherit_option
+        OR membership.set_option
+        OR membership.admin_option
+      )
+  ) THEN
+    RAISE EXCEPTION 'ops_database_browser has an unexpected direct member or membership option';
+  END IF;
 END
 $logins$;
 
+-- Do not expose the capability grants until its direct membership is exact.
+GRANT CONNECT ON DATABASE :"ops_database_name" TO ops_database_browser;
+GRANT USAGE ON SCHEMA pg_catalog TO ops_database_browser;
 REVOKE ALL PRIVILEGES ON DATABASE :"ops_database_name" FROM :"ops_browser_login";
 ALTER ROLE :"ops_browser_login" SET default_transaction_read_only = 'on';
 ALTER ROLE :"ops_browser_login" SET statement_timeout = '15s';
@@ -176,8 +220,12 @@ DO $business_schemas$
 DECLARE
   schema_name text;
   schema_owner text := :'ops_schema_owner_role';
+  actual_schema_owner text;
   owner_role text;
   browser_login text := :'ops_browser_login';
+  schema_create_grant record;
+  grantee_spec text;
+  configured_owner_had_create boolean;
 BEGIN
   IF schema_owner !~ '^[a-z][a-z0-9_]{0,62}$' THEN
     RAISE EXCEPTION 'ops_schema_owner_role must be a lower-case PostgreSQL identifier';
@@ -220,9 +268,100 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = schema_name) THEN
       RAISE EXCEPTION 'Business schema % does not exist', schema_name;
     END IF;
+    SELECT actual_owner_role.rolname
+    INTO actual_schema_owner
+    FROM pg_namespace namespace
+    JOIN pg_roles actual_owner_role ON actual_owner_role.oid = namespace.nspowner
+    WHERE namespace.nspname = schema_name;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = schema_owner) THEN
+      RAISE EXCEPTION 'Configured schema owner role % does not exist', schema_owner;
+    END IF;
+
+    SELECT has_schema_privilege(schema_owner, schema_name, 'CREATE')
+    INTO configured_owner_had_create;
+
+    -- Remove direct CREATE ACL entries for PUBLIC and every role except the
+    -- configured owner and the actual schema owner. aclexplode identifies the
+    -- grantee and grantor for each ACL entry so grants from any owner are seen.
+    FOR schema_create_grant IN
+      SELECT
+        acl.grantee,
+        grantee.rolname AS grantee_role,
+        grantor.rolname AS grantor_role
+      FROM pg_namespace namespace
+      CROSS JOIN LATERAL aclexplode(
+        COALESCE(namespace.nspacl, acldefault('n', namespace.nspowner))
+      ) acl
+      LEFT JOIN pg_roles grantee ON grantee.oid = acl.grantee
+      JOIN pg_roles grantor ON grantor.oid = acl.grantor
+      WHERE namespace.nspname = schema_name
+        AND acl.privilege_type = 'CREATE'
+        AND (
+          acl.grantee = 0
+          OR grantee.rolname IS NULL
+          OR grantee.rolname NOT IN (schema_owner, actual_schema_owner)
+        )
+    LOOP
+      grantee_spec := CASE
+        WHEN schema_create_grant.grantee = 0 THEN 'PUBLIC'
+        ELSE format('%I', schema_create_grant.grantee_role)
+      END;
+      IF grantee_spec IS NULL THEN
+        RAISE EXCEPTION 'Could not identify a CREATE grantee on schema %', schema_name;
+      END IF;
+      EXECUTE format(
+        'REVOKE CREATE ON SCHEMA %I FROM %s GRANTED BY %I CASCADE',
+        schema_name,
+        grantee_spec,
+        schema_create_grant.grantor_role
+      );
+    END LOOP;
+
+    -- Preserve the configured owner’s previous ability if it came only through
+    -- PUBLIC or an unapproved group whose CREATE grant was removed above.
+    IF configured_owner_had_create AND actual_schema_owner <> schema_owner THEN
+      EXECUTE format('GRANT CREATE ON SCHEMA %I TO %I', schema_name, schema_owner);
+    END IF;
+
+    -- Fail before commit if role membership still gives an unapproved role
+    -- CREATE through an approved owner or any remaining ACL grant.
+    IF EXISTS (
+      SELECT 1
+      FROM pg_namespace namespace
+      CROSS JOIN LATERAL aclexplode(
+        COALESCE(namespace.nspacl, acldefault('n', namespace.nspowner))
+      ) acl
+      WHERE namespace.nspname = schema_name
+        AND acl.privilege_type = 'CREATE'
+        AND (
+          acl.grantee = 0
+          OR NOT EXISTS (
+            SELECT 1
+            FROM pg_roles approved
+            WHERE approved.oid = acl.grantee
+              AND approved.rolname IN (schema_owner, actual_schema_owner)
+          )
+          OR (
+            acl.grantee <> 0
+            AND EXISTS (
+              SELECT 1
+              FROM pg_roles candidate
+              WHERE NOT candidate.rolsuper
+                AND candidate.rolname NOT IN (schema_owner, actual_schema_owner)
+                AND (
+                  candidate.oid = acl.grantee
+                  OR pg_has_role(candidate.oid, acl.grantee, 'USAGE')
+                  OR pg_has_role(candidate.oid, acl.grantee, 'SET')
+                )
+            )
+          )
+        )
+    ) THEN
+      RAISE EXCEPTION 'Business schema % has an unexpected effective CREATE privilege route', schema_name;
+    END IF;
 
     -- Revoke inherited PUBLIC permissions
-    EXECUTE format('REVOKE CREATE ON SCHEMA %I FROM PUBLIC', schema_name);
     EXECUTE format('REVOKE ALL PRIVILEGES ON SCHEMA %I FROM ops_database_browser', schema_name);
     EXECUTE format('REVOKE ALL PRIVILEGES ON SCHEMA %I FROM %I', schema_name, browser_login);
     EXECUTE format('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I FROM PUBLIC', schema_name);

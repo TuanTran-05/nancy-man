@@ -169,9 +169,11 @@ if [ "$role_type" = 'explorer' ]; then
   verifier_args=(
     --database-url-file "$readonly_database_url_file"
     --fixture "$fixture"
+    --business-schemas "$business_schemas"
     --safe-column "$effective_safe_column"
     --expected-database "$database_name"
     --expected-role "$read_login"
+    --schema-owner-role "$schema_owner_role"
   )
   if [ -n "$blocked_column" ]; then
     verifier_args+=(--blocked-column "$blocked_column")

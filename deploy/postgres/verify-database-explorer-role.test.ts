@@ -86,6 +86,43 @@ describe('database explorer roles and verifier', () => {
     expect(sql).toContain('WITH INHERIT TRUE, SET FALSE');
   });
 
+  it('revokes every stale capability member, including LOGINs and groups, per grantor before grants', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+    const cleanupStart = sql.indexOf('FOR capability_member IN');
+    const cleanupEnd = sql.indexOf('END LOOP;', cleanupStart);
+    const cleanup = sql.slice(cleanupStart, cleanupEnd);
+
+    expect(cleanupStart).toBeGreaterThanOrEqual(0);
+    expect(cleanup).toContain("granted_role.rolname = 'ops_database_browser'");
+    expect(cleanup).toContain('member_role.rolname <> browser_login');
+    expect(cleanup).toContain('existing.grantor');
+    expect(cleanup).toContain('grantor.rolname');
+    expect(cleanup).not.toContain('rolcanlogin');
+    expect(sql).toContain('REVOKE %I FROM %I GRANTED BY %I');
+    expect(sql.indexOf('GRANT CONNECT ON DATABASE')).toBeGreaterThan(cleanupEnd);
+    expect(sql).toContain('ops_database_browser has an unexpected direct member or membership option');
+  });
+
+  it('removes direct CREATE ACLs from PUBLIC and unapproved role grantees in each business schema', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+    const cleanupStart = sql.indexOf('FOR schema_create_grant IN');
+    const cleanupEnd = sql.indexOf('END LOOP;', cleanupStart);
+    const cleanup = sql.slice(cleanupStart, cleanupEnd);
+
+    expect(cleanupStart).toBeGreaterThanOrEqual(0);
+    expect(cleanup).toContain('aclexplode');
+    expect(cleanup).toContain('acl.privilege_type = \'CREATE\'');
+    expect(cleanup).toContain('acl.grantee = 0');
+    expect(cleanup).toContain('schema_owner');
+    expect(cleanup).toContain('namespace.nspowner');
+    expect(cleanup).toContain('grantor.rolname');
+    expect(cleanup).toContain('REVOKE CREATE ON SCHEMA %I FROM %s GRANTED BY %I CASCADE');
+    expect(sql).toContain("pg_has_role(candidate.oid, acl.grantee, 'USAGE')");
+    expect(sql).toContain("pg_has_role(candidate.oid, acl.grantee, 'SET')");
+    expect(sql).toContain('Business schema % has an unexpected effective CREATE privilege route');
+    expect(sql.indexOf('GRANT USAGE ON SCHEMA %I TO ops_database_browser')).toBeGreaterThan(cleanupEnd);
+  });
+
   it('serializes target claims and rejects provisioning both targets on one cluster', async () => {
     const sql = await readArtifact(artifacts.rolesSql);
 
@@ -205,8 +242,10 @@ describe('database explorer roles and verifier', () => {
     const report = await verifyDatabaseExplorerRole({
       database: mockDb,
       fixture,
+      businessSchemas: ['public'],
       expectedDatabase: 'edutrack_production',
       expectedRole: 'ops_browser_login',
+      expectedSchemaOwner: 'edutrack_owner',
       requireTls: true,
       now: () => new Date('2026-09-25T00:00:00Z')
     });
@@ -264,7 +303,9 @@ describe('database explorer roles and verifier', () => {
         table: 'users',
         safeColumn: 'id',
         blockedColumn: 'password_hash'
-      }
+      },
+      businessSchemas: ['public'],
+      expectedSchemaOwner: 'edutrack_owner'
     });
 
     expect(report.status).toBe('fail');
@@ -308,8 +349,10 @@ describe('database explorer roles and verifier', () => {
     const report = await verifyDatabaseExplorerRole({
       database: mockDb,
       fixture: { schema: 'public', table: 'users', safeColumn: 'id' },
+      businessSchemas: ['public'],
       expectedDatabase: 'edutrack_production',
       expectedRole: 'ops_browser_edutrack',
+      expectedSchemaOwner: 'edutrack_owner',
       requireTls: true
     });
 
@@ -319,6 +362,174 @@ describe('database explorer roles and verifier', () => {
     expect(postureQuery).toContain('pg_auth_members');
     expect(postureQuery).toContain('inherit_option');
     expect(postureQuery).toContain('set_option');
+  });
+
+  it('fails when the capability has any direct member beyond the exact current LOGIN', async () => {
+    let postureQuery = '';
+    const mockDb: Queryable = {
+      query: async <T extends Record<string, unknown>>(sql: string) => {
+        if (sql.includes('current_user AS role')) {
+          postureQuery = sql;
+          return {
+            rows: [
+              {
+                role: 'ops_browser_edutrack',
+                database: 'edutrack_production',
+                canLogin: true,
+                defaultTransactionReadOnly: 'on',
+                hasExplorerMembership: true,
+                hasUnexpectedMembership: false,
+                hasUnexpectedCapabilityMembership: true,
+                isSuperuser: false,
+                hasBypassRls: false,
+                hasReplication: false,
+                isMemberOfElevatedRole: false,
+                hasTemporaryPrivilege: false,
+                canAccessOpsSchema: false,
+                sslSetting: 'on',
+                hasUnsafeDefaultPrivileges: false,
+                hasUnexpectedSchemaCreator: false
+              }
+            ] as T[]
+          };
+        }
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
+        if (/(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(sql)) {
+          throw new Error('permission denied');
+        }
+        return { rows: [] as T[] };
+      }
+    };
+
+    const report = await verifyDatabaseExplorerRole({
+      database: mockDb,
+      fixture: { schema: 'public', table: 'users', safeColumn: 'id' },
+      businessSchemas: ['public'],
+      expectedDatabase: 'edutrack_production',
+      expectedRole: 'ops_browser_edutrack',
+      expectedSchemaOwner: 'edutrack_owner',
+      requireTls: true
+    });
+
+    expect(report.status).toBe('fail');
+    expect(report.failures).toContain('capability role has unexpected direct members');
+    expect(postureQuery).toContain('hasUnexpectedCapabilityMembership');
+    expect(postureQuery).toContain('membership.inherit_option');
+    expect(postureQuery).toContain('membership.set_option');
+    expect(postureQuery).toContain('membership.admin_option');
+    expect(postureQuery).toContain('SELECT count(*)');
+    expect(postureQuery).toContain(') <> 1');
+    expect(postureQuery).not.toContain('member_role.rolcanlogin');
+  });
+
+  it('fails when PUBLIC, a group, or a member role retains a CREATE route on the business schema', async () => {
+    let postureQuery = '';
+    const mockDb: Queryable = {
+      query: async <T extends Record<string, unknown>>(sql: string) => {
+        if (sql.includes('current_user AS role')) {
+          postureQuery = sql;
+          return {
+            rows: [
+              {
+                role: 'ops_browser_edutrack',
+                database: 'edutrack_production',
+                canLogin: true,
+                defaultTransactionReadOnly: 'on',
+                hasExplorerMembership: true,
+                hasUnexpectedMembership: false,
+                hasUnexpectedCapabilityMembership: false,
+                hasUnexpectedSchemaCreator: true,
+                isSuperuser: false,
+                hasBypassRls: false,
+                hasReplication: false,
+                isMemberOfElevatedRole: false,
+                hasTemporaryPrivilege: false,
+                canAccessOpsSchema: false,
+                sslSetting: 'on',
+                hasUnsafeDefaultPrivileges: false
+              }
+            ] as T[]
+          };
+        }
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
+        if (/(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(sql)) {
+          throw new Error('permission denied');
+        }
+        return { rows: [] as T[] };
+      }
+    };
+
+    const report = await verifyDatabaseExplorerRole({
+      database: mockDb,
+      fixture: { schema: 'public', table: 'users', safeColumn: 'id' },
+      businessSchemas: ['public'],
+      expectedDatabase: 'edutrack_production',
+      expectedRole: 'ops_browser_edutrack',
+      expectedSchemaOwner: 'edutrack_owner',
+      requireTls: true
+    });
+
+    expect(report.status).toBe('fail');
+    expect(report.failures).toContain('business schema has an unexpected CREATE privilege route');
+    expect(postureQuery).toContain('hasUnexpectedSchemaCreator');
+    expect(postureQuery).toContain('aclexplode');
+    expect(postureQuery).toContain('acl.privilege_type = \'CREATE\'');
+    expect(postureQuery).toContain('acl.grantee = 0');
+    expect(postureQuery).toContain("pg_has_role(candidate.oid, acl.grantee, 'USAGE')");
+    expect(postureQuery).toContain("pg_has_role(candidate.oid, acl.grantee, 'SET')");
+    expect(postureQuery).toContain("rolname = 'edutrack_owner'");
+  });
+
+  it('checks CREATE routes in every configured business schema, not only the fixture schema', async () => {
+    let postureQuery = '';
+    const mockDb: Queryable = {
+      query: async <T extends Record<string, unknown>>(sql: string) => {
+        if (sql.includes('current_user AS role')) {
+          postureQuery = sql;
+          return {
+            rows: [
+              {
+                role: 'ops_browser_edutrack',
+                database: 'edutrack_production',
+                canLogin: true,
+                defaultTransactionReadOnly: 'on',
+                hasExplorerMembership: true,
+                hasUnexpectedMembership: false,
+                hasUnexpectedCapabilityMembership: false,
+                hasUnexpectedSchemaCreator: true,
+                isSuperuser: false,
+                hasBypassRls: false,
+                hasReplication: false,
+                isMemberOfElevatedRole: false,
+                hasTemporaryPrivilege: false,
+                canAccessOpsSchema: false,
+                sslSetting: 'on',
+                hasUnsafeDefaultPrivileges: false
+              }
+            ] as T[]
+          };
+        }
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
+        if (/(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(sql)) {
+          throw new Error('permission denied');
+        }
+        return { rows: [] as T[] };
+      }
+    };
+
+    const report = await verifyDatabaseExplorerRole({
+      database: mockDb,
+      fixture: { schema: 'public', table: 'users', safeColumn: 'id' },
+      businessSchemas: ['public', 'tenant_data'],
+      expectedDatabase: 'edutrack_production',
+      expectedRole: 'ops_browser_edutrack',
+      expectedSchemaOwner: 'edutrack_owner',
+      requireTls: true
+    });
+
+    expect(report.status).toBe('fail');
+    expect(postureQuery).toContain("'tenant_data'");
+    expect(postureQuery).toContain('business_namespace.nspname IN');
   });
 
   it('fails verification when effective default ACLs expose PUBLIC or browser roles', async () => {
@@ -358,8 +569,10 @@ describe('database explorer roles and verifier', () => {
     const report = await verifyDatabaseExplorerRole({
       database: mockDb,
       fixture: { schema: 'public', table: 'users', safeColumn: 'id' },
+      businessSchemas: ['public'],
       expectedDatabase: 'edutrack_production',
       expectedRole: 'ops_browser_edutrack',
+      expectedSchemaOwner: 'edutrack_owner',
       requireTls: true
     });
 
@@ -370,6 +583,7 @@ describe('database explorer roles and verifier', () => {
     expect(postureQuery).toContain('pg_default_acl');
     expect(postureQuery).toContain('aclexplode');
     expect(postureQuery).toContain('defaclobjtype');
+    expect(postureQuery).toContain("rolname = 'edutrack_owner'");
   });
 
   it('fails verification on elevated posture or mutation success', async () => {
@@ -404,8 +618,10 @@ describe('database explorer roles and verifier', () => {
     const report = await verifyDatabaseExplorerRole({
       database: mockDb,
       fixture: { schema: 'public', table: 'users', safeColumn: 'id' },
+      businessSchemas: ['public'],
       expectedDatabase: 'wrong_db',
       expectedRole: 'ops_browser_login',
+      expectedSchemaOwner: 'edutrack_owner',
       requireTls: true
     });
 
@@ -470,8 +686,10 @@ describe('database explorer roles and verifier', () => {
     const report = await verifyDatabaseExplorerRole({
       database: mockDb,
       fixture: { schema: 'public', table: 'users', safeColumn: 'id' },
+      businessSchemas: ['public'],
       expectedDatabase: 'edutrack_production',
       expectedRole: 'ops_browser_edutrack',
+      expectedSchemaOwner: 'edutrack_owner',
       now: () => new Date('2026-09-25T00:00:00Z')
     });
 
@@ -539,7 +757,7 @@ describe('database explorer roles and verifier', () => {
     }
   });
 
-  it('requires expected database, expected role, and TLS in the verifier CLI', async () => {
+  it('requires expected database, role, schema owner, and TLS in the verifier CLI', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'database-explorer-verifier-'));
     try {
       const urlPath = join(directory, 'browser.url');
@@ -551,12 +769,16 @@ describe('database explorer roles and verifier', () => {
         urlPath,
         '--fixture',
         'public.users',
+        '--business-schemas',
+        'public',
         '--safe-column',
         'id',
         '--expected-database',
         'edutrack_production',
         '--expected-role',
         'ops_browser_edutrack',
+        '--schema-owner-role',
+        'edutrack_owner',
         '--require-tls'
       ];
       const withoutOption = (option: string) => {
@@ -564,11 +786,28 @@ describe('database explorer roles and verifier', () => {
         return fullArgs.filter((_, candidate) => candidate !== index && candidate !== index + 1);
       };
       const cases = [
-        withoutOption('--expected-database'),
-        withoutOption('--expected-role'),
-        withoutOption('--require-tls')
+        {
+          args: withoutOption('--expected-database'),
+          message: 'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
+        },
+        {
+          args: withoutOption('--expected-role'),
+          message: 'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
+        },
+        {
+          args: withoutOption('--schema-owner-role'),
+          message: 'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
+        },
+        {
+          args: withoutOption('--require-tls'),
+          message: 'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
+        },
+        {
+          args: withoutOption('--business-schemas'),
+          message: 'Expected --database-url-file, --fixture, --business-schemas and --safe-column'
+        }
       ];
-      for (const args of cases) {
+      for (const { args, message } of cases) {
         const run = spawnSync(
           process.execPath,
           ['--experimental-strip-types', artifacts.verifier.pathname, ...args],
@@ -576,16 +815,14 @@ describe('database explorer roles and verifier', () => {
         );
         expect(run.status).not.toBe(0);
         expect(run.stdout).toBe('');
-        expect(run.stderr).toContain(
-          'Expected --expected-database, --expected-role and --require-tls'
-        );
+        expect(run.stderr).toContain(message);
       }
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
   });
 
-  it('always passes TLS enforcement to the verifier from the apply wrapper', async () => {
+  it('passes schema owner and TLS enforcement to the verifier from the apply wrapper', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'database-explorer-apply-tls-'));
     try {
       const pgpassPath = join(directory, 'admin.pgpass');
@@ -644,6 +881,12 @@ describe('database explorer roles and verifier', () => {
       expect(run.status).toBe(0);
       const verifierArgs = (await readFile(argsPath, 'utf8')).split(/\r?\n/u);
       expect(verifierArgs).toContain('--require-tls');
+      const businessSchemasFlag = verifierArgs.indexOf('--business-schemas');
+      expect(businessSchemasFlag).toBeGreaterThanOrEqual(0);
+      expect(verifierArgs[businessSchemasFlag + 1]).toBe('public');
+      const schemaOwnerFlag = verifierArgs.indexOf('--schema-owner-role');
+      expect(schemaOwnerFlag).toBeGreaterThanOrEqual(0);
+      expect(verifierArgs[schemaOwnerFlag + 1]).toBe('edutrack_owner');
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

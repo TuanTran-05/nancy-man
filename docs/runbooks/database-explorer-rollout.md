@@ -109,8 +109,9 @@ Verifier phải báo `status: "pass"`, đúng database và login đã cấu hìn
 node --experimental-strip-types deploy/postgres/verify-database-explorer-role.ts \
   --database-url-file /secure/path/edutrack-browser.url \
   --fixture public.users --safe-column id --blocked-column password_hash \
+  --business-schemas public \
   --expected-database edutrack_production \
-  --expected-role ops_browser_edutrack --require-tls
+  --expected-role ops_browser_edutrack --schema-owner-role edutrack_owner --require-tls
 ```
 
 Lặp lại với `edutrack_ops` và `ops_browser_ops`. Giữ feature gates false nếu bất kỳ verifier nào fail.

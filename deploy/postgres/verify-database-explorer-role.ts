@@ -22,6 +22,8 @@ type RolePosture = {
   defaultTransactionReadOnly: string | null;
   hasExplorerMembership: boolean;
   hasUnexpectedMembership: boolean;
+  hasUnexpectedCapabilityMembership: boolean;
+  hasUnexpectedSchemaCreator: boolean;
   isSuperuser: boolean;
   hasBypassRls: boolean;
   hasReplication: boolean;
@@ -94,6 +96,12 @@ function rolePostureFailures(
   if (posture.hasUnexpectedMembership) {
     failures.push('login has unexpected role memberships');
   }
+  if (posture.hasUnexpectedCapabilityMembership) {
+    failures.push('capability role has unexpected direct members');
+  }
+  if (posture.hasUnexpectedSchemaCreator) {
+    failures.push('business schema has an unexpected CREATE privilege route');
+  }
   if (posture.isSuperuser) {
     failures.push('login is a superuser');
   }
@@ -124,8 +132,18 @@ function rolePostureFailures(
   return failures;
 }
 
-async function readPosture(database: Queryable, businessSchema: string): Promise<RolePosture> {
-  const businessSchemaLiteral = `'${businessSchema.replaceAll("'", "''")}'`;
+async function readPosture(
+  database: Queryable,
+  businessSchemas: readonly string[],
+  expectedSchemaOwner: string
+): Promise<RolePosture> {
+  const businessSchemaLiterals = businessSchemas
+    .map((schema) => `'${schema.replaceAll("'", "''")}'`)
+    .join(', ');
+  if (!identifier.test(expectedSchemaOwner)) {
+    throw new Error('Expected schema owner must be a lower-case PostgreSQL identifier');
+  }
+  const expectedSchemaOwnerLiteral = `'${expectedSchemaOwner}'`;
   const { rows } = await database.query<Record<string, unknown>>(`
     WITH RECURSIVE role_membership_closure(role_oid) AS (
       SELECT membership.roleid
@@ -140,11 +158,20 @@ async function readPosture(database: Queryable, businessSchema: string): Promise
     relevant_schemas AS (
       SELECT namespace.oid, namespace.nspowner
       FROM pg_namespace namespace
-      WHERE namespace.nspname = ${businessSchemaLiteral}
+      WHERE namespace.nspname IN (${businessSchemaLiterals})
          OR namespace.nspname = '_ops'
     ),
     relevant_schema_owners AS (
       SELECT DISTINCT nspowner AS role_oid FROM relevant_schemas
+      UNION
+      SELECT oid AS role_oid FROM pg_roles WHERE rolname = ${expectedSchemaOwnerLiteral}
+    ),
+    approved_schema_owners AS (
+      SELECT namespace.nspowner AS role_oid
+      FROM pg_namespace namespace
+      WHERE namespace.nspname IN (${businessSchemaLiterals})
+      UNION
+      SELECT oid AS role_oid FROM pg_roles WHERE rolname = ${expectedSchemaOwnerLiteral}
     )
     SELECT
       current_user AS role,
@@ -168,6 +195,65 @@ async function readPosture(database: Queryable, businessSchema: string): Promise
         JOIN pg_roles candidate ON candidate.oid = reachable.role_oid
         WHERE candidate.rolname <> 'ops_database_browser'
       ) AS "hasUnexpectedMembership",
+      (
+        EXISTS (
+          SELECT 1
+          FROM pg_auth_members membership
+          JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+          JOIN pg_roles member_role ON member_role.oid = membership.member
+          WHERE granted_role.rolname = 'ops_database_browser'
+            AND (
+              member_role.rolname <> current_user
+              OR NOT membership.inherit_option
+              OR membership.set_option
+              OR membership.admin_option
+            )
+        )
+        OR (
+          SELECT count(*)
+          FROM pg_auth_members membership
+          JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+          WHERE granted_role.rolname = 'ops_database_browser'
+        ) <> 1
+      ) AS "hasUnexpectedCapabilityMembership",
+      EXISTS (
+        SELECT 1
+        FROM pg_namespace business_namespace
+        CROSS JOIN LATERAL aclexplode(
+          COALESCE(
+            business_namespace.nspacl,
+            acldefault('n', business_namespace.nspowner)
+          )
+        ) acl
+        WHERE business_namespace.nspname IN (${businessSchemaLiterals})
+          AND acl.privilege_type = 'CREATE'
+          AND (
+            acl.grantee = 0
+            OR NOT EXISTS (
+              SELECT 1
+              FROM approved_schema_owners approved
+              WHERE approved.role_oid = acl.grantee
+            )
+            OR (
+              acl.grantee <> 0
+              AND EXISTS (
+                SELECT 1
+                FROM pg_roles candidate
+                WHERE NOT candidate.rolsuper
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM approved_schema_owners approved
+                    WHERE approved.role_oid = candidate.oid
+                  )
+                  AND (
+                    candidate.oid = acl.grantee
+                    OR pg_has_role(candidate.oid, acl.grantee, 'USAGE')
+                    OR pg_has_role(candidate.oid, acl.grantee, 'SET')
+                  )
+              )
+            )
+          )
+      ) AS "hasUnexpectedSchemaCreator",
       current_setting('is_superuser', true) = 'on' AS "isSuperuser",
       (SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user) AS "hasBypassRls",
       (SELECT rolreplication FROM pg_roles WHERE rolname = current_user) AS "hasReplication",
@@ -219,6 +305,8 @@ async function readPosture(database: Queryable, businessSchema: string): Promise
       row.defaultTransactionReadOnly == null ? null : String(row.defaultTransactionReadOnly),
     hasExplorerMembership: normalizeBoolean(row.hasExplorerMembership),
     hasUnexpectedMembership: normalizeBoolean(row.hasUnexpectedMembership),
+    hasUnexpectedCapabilityMembership: normalizeBoolean(row.hasUnexpectedCapabilityMembership),
+    hasUnexpectedSchemaCreator: normalizeBoolean(row.hasUnexpectedSchemaCreator),
     isSuperuser: normalizeBoolean(row.isSuperuser),
     hasBypassRls: normalizeBoolean(row.hasBypassRls),
     hasReplication: normalizeBoolean(row.hasReplication),
@@ -254,11 +342,28 @@ async function queryIsRejected(database: Queryable, sql: string): Promise<boolea
 export async function verifyDatabaseExplorerRole(input: {
   database: Queryable;
   fixture: ExplorerFixture;
+  businessSchemas: readonly string[];
   expectedDatabase?: string;
   expectedRole?: string;
+  expectedSchemaOwner: string;
   requireTls?: boolean;
   now?: () => Date;
 }): Promise<ExplorerRoleVerificationReport> {
+  if (
+    input.businessSchemas.length === 0 ||
+    input.businessSchemas.some(
+      (schema) =>
+        !identifier.test(schema) ||
+        schema === '_ops' ||
+        schema === 'pg_catalog' ||
+        schema === 'information_schema'
+    )
+  ) {
+    throw new Error('Business schemas must be approved lower-case PostgreSQL identifiers');
+  }
+  if (!input.businessSchemas.includes(input.fixture.schema)) {
+    throw new Error('Fixture schema must be included in the business schemas');
+  }
   const relation = fixtureRelation(input.fixture.schema, input.fixture.table);
   const safeColumn = quoteIdentifier(input.fixture.safeColumn);
   const suffix = randomUUID().replaceAll('-', '').slice(0, 16);
@@ -296,7 +401,11 @@ export async function verifyDatabaseExplorerRole(input: {
     { name: 'SET ROLE', sql: 'SET ROLE ops_database_browser' }
   ];
 
-  const posture = await readPosture(input.database, input.fixture.schema);
+  const posture = await readPosture(
+    input.database,
+    input.businessSchemas,
+    input.expectedSchemaOwner
+  );
 
   const safeReadResults: Array<{ name: string; passed: boolean }> = [];
   for (const { name, sql } of safeReads) {
@@ -357,8 +466,10 @@ export async function verifyDatabaseExplorerRole(input: {
 function parseArguments(argumentsList: readonly string[]): {
   databaseUrlFile: string;
   fixture: ExplorerFixture;
+  businessSchemas: string[];
   expectedDatabase: string;
   expectedRole: string;
+  expectedSchemaOwner: string;
   requireTls: true;
 } {
   const values = new Map<string, string>();
@@ -382,11 +493,12 @@ function parseArguments(argumentsList: readonly string[]): {
 
   const databaseUrlFile = values.get('--database-url-file');
   const fixtureValue = values.get('--fixture');
+  const businessSchemasValue = values.get('--business-schemas');
   const safeColumn = values.get('--safe-column');
   const blockedColumn = values.get('--blocked-column');
 
-  if (!databaseUrlFile || !fixtureValue || !safeColumn) {
-    throw new Error('Expected --database-url-file, --fixture and --safe-column');
+  if (!databaseUrlFile || !fixtureValue || !businessSchemasValue || !safeColumn) {
+    throw new Error('Expected --database-url-file, --fixture, --business-schemas and --safe-column');
   }
 
   const [schema, table, extra] = fixtureValue.split('.');
@@ -405,10 +517,28 @@ function parseArguments(argumentsList: readonly string[]): {
     throw new Error('Blocked column must be a lower-case PostgreSQL identifier');
   }
 
+  const businessSchemas = businessSchemasValue.split(',');
+  if (
+    businessSchemas.length === 0 ||
+    businessSchemas.some(
+      (schemaName) =>
+        !identifier.test(schemaName) ||
+        schemaName === '_ops' ||
+        schemaName === 'pg_catalog' ||
+        schemaName === 'information_schema'
+    ) ||
+    !businessSchemas.includes(schema)
+  ) {
+    throw new Error('Business schemas must be approved identifiers and include the fixture schema');
+  }
+
   const expectedDatabase = values.get('--expected-database');
   const expectedRole = values.get('--expected-role');
-  if (!expectedDatabase || !expectedRole || !requireTls) {
-    throw new Error('Expected --expected-database, --expected-role and --require-tls');
+  const expectedSchemaOwner = values.get('--schema-owner-role');
+  if (!expectedDatabase || !expectedRole || !expectedSchemaOwner || !requireTls) {
+    throw new Error(
+      'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
+    );
   }
   if (!identifier.test(expectedDatabase)) {
     throw new Error('Expected database must be a lower-case PostgreSQL identifier');
@@ -416,6 +546,9 @@ function parseArguments(argumentsList: readonly string[]): {
 
   if (!identifier.test(expectedRole)) {
     throw new Error('Expected role must be a lower-case PostgreSQL identifier');
+  }
+  if (!identifier.test(expectedSchemaOwner)) {
+    throw new Error('Schema owner must be a lower-case PostgreSQL identifier');
   }
 
   return {
@@ -426,8 +559,10 @@ function parseArguments(argumentsList: readonly string[]): {
       safeColumn,
       blockedColumn: blockedColumn || undefined
     },
+    businessSchemas,
     expectedDatabase,
     expectedRole,
+    expectedSchemaOwner,
     requireTls: true
   };
 }
@@ -454,8 +589,10 @@ async function main(): Promise<void> {
     const report = await verifyDatabaseExplorerRole({
       database,
       fixture: options.fixture,
+      businessSchemas: options.businessSchemas,
       expectedDatabase: options.expectedDatabase,
       expectedRole: options.expectedRole,
+      expectedSchemaOwner: options.expectedSchemaOwner,
       requireTls: options.requireTls
     });
     process.stdout.write(`${JSON.stringify(report)}\n`);
