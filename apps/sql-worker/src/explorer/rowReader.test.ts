@@ -17,11 +17,20 @@ function createMockTarget(
     ) => Promise<{ rows: Record<string, unknown>[] }>;
     throwTimeout?: boolean;
     drift?: { enabled: boolean };
+    afterConnectionRelease?: (connectionIndex: number) => void;
   } = {}
-): { target: AvailableTargetEntry; queries: string[]; rolledBack: boolean; released: boolean } {
+): {
+  target: AvailableTargetEntry;
+  queries: string[];
+  connectionQueries: string[][];
+  rolledBack: boolean;
+  released: boolean;
+} {
   const queries: string[] = [];
+  const connectionQueries: string[][] = [];
   let rolledBack = false;
   let released = false;
+  let connectionCount = 0;
 
   const target: AvailableTargetEntry = {
     id: 'edutrack_production',
@@ -31,137 +40,145 @@ function createMockTarget(
     role: 'ops_database_browser',
     pool: {
       query: async () => ({ rows: [] }),
-      connect: async () => ({
-        query: async <T>(sql: string, values?: readonly unknown[]) => {
-          queries.push(sql);
-          if (sql === 'ROLLBACK') {
-            rolledBack = true;
+      connect: async () => {
+        const connectionIndex = ++connectionCount;
+        const connectionQueriesForCall: string[] = [];
+        connectionQueries.push(connectionQueriesForCall);
+        return {
+          query: async <T>(sql: string, values?: readonly unknown[]) => {
+            queries.push(sql);
+            connectionQueriesForCall.push(sql);
+            if (sql === 'ROLLBACK') {
+              rolledBack = true;
+              return { rows: [] as T[] };
+            }
+            if (sql.includes('catalog:schemas')) {
+              return { rows: [{ schemaName: 'public' }] as T[] };
+            }
+            if (sql.includes('catalog:relations')) {
+              return {
+                rows: [
+                  {
+                    schemaName: 'public',
+                    relationName: 'students',
+                    kind: 'table',
+                    rowSecurityEnabled: false,
+                    forceRowSecurity: false
+                  },
+                  {
+                    schemaName: 'public',
+                    relationName: 'unbrowseable_table',
+                    kind: 'foreign_table',
+                    rowSecurityEnabled: false,
+                    forceRowSecurity: false
+                  }
+                ] as T[]
+              };
+            }
+            if (sql.includes('catalog:columns')) {
+              return {
+                rows: [
+                  {
+                    schemaName: 'public',
+                    relationName: 'students',
+                    columnName: 'id',
+                    dataType: 'uuid',
+                    nullable: false,
+                    hasDefault: true,
+                    identity: '',
+                    generated: ''
+                  },
+                  {
+                    schemaName: 'public',
+                    relationName: 'students',
+                    columnName: 'email',
+                    dataType: 'text',
+                    nullable: false,
+                    hasDefault: false,
+                    identity: '',
+                    generated: ''
+                  },
+                  {
+                    schemaName: 'public',
+                    relationName: 'students',
+                    columnName: 'password_hash',
+                    dataType: 'text',
+                    nullable: false,
+                    hasDefault: false,
+                    identity: '',
+                    generated: ''
+                  },
+                  {
+                    schemaName: 'public',
+                    relationName: 'unbrowseable_table',
+                    columnName: 'raw_data',
+                    dataType: 'text',
+                    nullable: true,
+                    hasDefault: false,
+                    identity: '',
+                    generated: ''
+                  },
+                  ...(options.drift?.enabled
+                    ? [
+                        {
+                          schemaName: 'public',
+                          relationName: 'students',
+                          columnName: 'new_column',
+                          dataType: 'text',
+                          nullable: true,
+                          hasDefault: false,
+                          identity: '',
+                          generated: ''
+                        }
+                      ]
+                    : [])
+                ] as T[]
+              };
+            }
+            if (sql.includes('catalog:constraints')) {
+              return {
+                rows: [
+                  {
+                    schemaName: 'public',
+                    relationName: 'students',
+                    constraintName: 'students_pkey',
+                    kind: 'primary_key',
+                    columns: ['id'],
+                    referencedSchema: null,
+                    referencedRelation: null,
+                    referencedColumns: [],
+                    deferrable: false,
+                    initiallyDeferred: false
+                  }
+                ] as T[]
+              };
+            }
+            if (
+              sql.includes('catalog:indexes') ||
+              sql.includes('catalog:triggers') ||
+              sql.includes('catalog:policies')
+            ) {
+              return { rows: [] as T[] };
+            }
+            const isRowSelect =
+              sql.startsWith('SELECT') && sql.includes('FROM "public"."students"');
+            if (options.throwTimeout && isRowSelect) {
+              const err = Object.assign(new Error('canceling statement due to statement timeout'), {
+                code: '57014'
+              });
+              throw err;
+            }
+            if (options.queryHandler && isRowSelect) {
+              return (await options.queryHandler(sql, values)) as { rows: T[] };
+            }
             return { rows: [] as T[] };
+          },
+          release: () => {
+            released = true;
+            options.afterConnectionRelease?.(connectionIndex);
           }
-          if (sql.includes('catalog:schemas')) {
-            return { rows: [{ schemaName: 'public' }] as T[] };
-          }
-          if (sql.includes('catalog:relations')) {
-            return {
-              rows: [
-                {
-                  schemaName: 'public',
-                  relationName: 'students',
-                  kind: 'table',
-                  rowSecurityEnabled: false,
-                  forceRowSecurity: false
-                },
-                {
-                  schemaName: 'public',
-                  relationName: 'unbrowseable_table',
-                  kind: 'foreign_table',
-                  rowSecurityEnabled: false,
-                  forceRowSecurity: false
-                }
-              ] as T[]
-            };
-          }
-          if (sql.includes('catalog:columns')) {
-            return {
-              rows: [
-                {
-                  schemaName: 'public',
-                  relationName: 'students',
-                  columnName: 'id',
-                  dataType: 'uuid',
-                  nullable: false,
-                  hasDefault: true,
-                  identity: '',
-                  generated: ''
-                },
-                {
-                  schemaName: 'public',
-                  relationName: 'students',
-                  columnName: 'email',
-                  dataType: 'text',
-                  nullable: false,
-                  hasDefault: false,
-                  identity: '',
-                  generated: ''
-                },
-                {
-                  schemaName: 'public',
-                  relationName: 'students',
-                  columnName: 'password_hash',
-                  dataType: 'text',
-                  nullable: false,
-                  hasDefault: false,
-                  identity: '',
-                  generated: ''
-                },
-                {
-                  schemaName: 'public',
-                  relationName: 'unbrowseable_table',
-                  columnName: 'raw_data',
-                  dataType: 'text',
-                  nullable: true,
-                  hasDefault: false,
-                  identity: '',
-                  generated: ''
-                },
-                ...(options.drift?.enabled
-                  ? [
-                      {
-                        schemaName: 'public',
-                        relationName: 'students',
-                        columnName: 'new_column',
-                        dataType: 'text',
-                        nullable: true,
-                        hasDefault: false,
-                        identity: '',
-                        generated: ''
-                      }
-                    ]
-                  : [])
-              ] as T[]
-            };
-          }
-          if (sql.includes('catalog:constraints')) {
-            return {
-              rows: [
-                {
-                  schemaName: 'public',
-                  relationName: 'students',
-                  constraintName: 'students_pkey',
-                  kind: 'primary_key',
-                  columns: ['id'],
-                  referencedSchema: null,
-                  referencedRelation: null,
-                  referencedColumns: [],
-                  deferrable: false,
-                  initiallyDeferred: false
-                }
-              ] as T[]
-            };
-          }
-          if (
-            sql.includes('catalog:indexes') ||
-            sql.includes('catalog:triggers') ||
-            sql.includes('catalog:policies')
-          ) {
-            return { rows: [] as T[] };
-          }
-          const isRowSelect = sql.startsWith('SELECT') && sql.includes('FROM "public"."students"');
-          if (options.throwTimeout && isRowSelect) {
-            const err = Object.assign(new Error('canceling statement due to statement timeout'), {
-              code: '57014'
-            });
-            throw err;
-          }
-          if (options.queryHandler && isRowSelect) {
-            return (await options.queryHandler(sql, values)) as { rows: T[] };
-          }
-          return { rows: [] as T[] };
-        },
-        release: () => {
-          released = true;
-        }
-      }),
+        };
+      },
       end: async () => undefined
     }
   };
@@ -169,6 +186,7 @@ function createMockTarget(
   return {
     target,
     queries,
+    connectionQueries,
     get rolledBack() {
       return rolledBack;
     },
@@ -316,7 +334,7 @@ describe('readDatabaseRows', () => {
       request
     });
 
-    expect(mock.queries).toContain('BEGIN READ ONLY');
+    expect(mock.queries).toContain('BEGIN TRANSACTION READ ONLY ISOLATION LEVEL REPEATABLE READ');
     expect(mock.queries).toContain("SET LOCAL statement_timeout = '15s'");
     expect(mock.queries).toContain("SET LOCAL lock_timeout = '2s'");
     expect(mock.rolledBack).toBe(true);
@@ -398,6 +416,54 @@ describe('readDatabaseRows', () => {
     expect(response.rows).toHaveLength(25);
     expect(response.nextCursor).toBeDefined();
     expect(typeof response.nextCursor).toBe('string');
+  });
+
+  it('keeps the freshness check and row SELECT in one repeatable-read transaction', async () => {
+    const drift = { enabled: false };
+    let rowSelectCount = 0;
+    const mock = createMockTarget({
+      drift,
+      afterConnectionRelease: (connectionIndex) => {
+        if (connectionIndex === 2) drift.enabled = true;
+      },
+      queryHandler: async () => {
+        rowSelectCount++;
+        return { rows: [{ id: '1', email: 'alice@example.com' }] };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(mock.target);
+    mock.queries.length = 0;
+    mock.connectionQueries.length = 0;
+
+    await readDatabaseRows({
+      target: mock.target,
+      snapshot,
+      cursorKey,
+      request: {
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'students',
+        pageSize: 25,
+        filters: [],
+        piiMode: 'masked'
+      }
+    });
+
+    expect(mock.connectionQueries).toHaveLength(1);
+    const transactionQueries = mock.connectionQueries[0]!;
+    expect(transactionQueries[0]).toBe(
+      'BEGIN TRANSACTION READ ONLY ISOLATION LEVEL REPEATABLE READ'
+    );
+    const checksumIndex = transactionQueries.findIndex((sql) =>
+      sql.includes('/* catalog:schemas */')
+    );
+    const rowSelectIndex = transactionQueries.findIndex(
+      (sql) => sql.startsWith('SELECT') && sql.includes('FROM "public"."students"')
+    );
+    expect(checksumIndex).toBeGreaterThan(0);
+    expect(rowSelectIndex).toBeGreaterThan(checksumIndex);
+    expect(transactionQueries.at(-1)).toBe('ROLLBACK');
+    expect(rowSelectCount).toBe(1);
   });
 
   it('rejects schema drift before issuing the row SELECT', async () => {

@@ -4,6 +4,7 @@ import { createExplorerSchemaReader, invalidateExplorerSchemaCache } from './sch
 import { DATABASE_POLICY_VERSION } from '../../../../packages/security/src/database/columnPolicy.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
 import type { DatabasePolicyApproval } from './policyApproval.js';
+import { installOpsRuntimeTelemetry } from '../telemetry/runtimeTelemetry.js';
 
 function createMockTarget(
   options: {
@@ -12,6 +13,10 @@ function createMockTarget(
     throwError?: boolean;
     drift?: { enabled: boolean };
     blockedPrimaryKey?: boolean;
+    catalogError?: {
+      query: 'catalog:estimated_rows' | 'catalog:enum_columns';
+      message: string;
+    };
   } = {}
 ): AvailableTargetEntry {
   const targetId = options.targetId ?? 'edutrack_production';
@@ -30,6 +35,9 @@ function createMockTarget(
         return {
           release: () => undefined,
           query: async <T>(sql: string) => {
+            if (options.catalogError && sql.includes(options.catalogError.query)) {
+              throw new Error(options.catalogError.message);
+            }
             if (sql.includes('catalog:schemas')) {
               return { rows: [{ schemaName: 'public' }, { schemaName: 'reporting' }] as T[] };
             }
@@ -374,6 +382,52 @@ describe('createExplorerSchemaReader', () => {
     expect(students?.paginationKey).toBeNull();
   });
 
+  it.each([
+    {
+      query: 'catalog:estimated_rows',
+      code: 'DATABASE_SCHEMA_METADATA_FAILED',
+      rejects: false
+    },
+    {
+      query: 'catalog:enum_columns',
+      code: 'DATABASE_SCHEMA_CHECK_FAILED',
+      rejects: true
+    }
+  ] as const)('does not send raw $query errors to telemetry', async ({ query, code, rejects }) => {
+    const marker = 'database-error-contains-private-query-value';
+    const target = createMockTarget({
+      catalogError: { query, message: `database rejected ${marker}` }
+    });
+    const captured: Array<{ message: string; stack: string | undefined; code: string }> = [];
+    const uninstall = installOpsRuntimeTelemetry({
+      captureException: (error, context) => {
+        captured.push({
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          code: context.code
+        });
+        return 'EVT_00000000000000000000000000';
+      },
+      flush: async () => undefined,
+      healthy: () => true
+    });
+
+    try {
+      const read = createExplorerSchemaReader({ target })();
+      if (rejects) {
+        await expect(read).rejects.toMatchObject({ message: code, code });
+      } else {
+        await expect(read).resolves.toBeDefined();
+      }
+    } finally {
+      uninstall();
+    }
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({ message: code, code });
+    expect(JSON.stringify(captured)).not.toContain(marker);
+  });
+
   it('caches the schema snapshot for 60 seconds and isolates between targets', async () => {
     let connectCount = 0;
     const target = createMockTarget({ targetId: 'edutrack_production' });
@@ -464,13 +518,14 @@ describe('createExplorerSchemaReader', () => {
     expect(opsConnects).toBe(1);
   });
 
-  it('handles connection error and does not poison subsequent requests', async () => {
+  it('sanitizes connection errors and does not poison subsequent requests', async () => {
     let shouldFail = true;
+    const marker = 'connection-error-private-database-url-marker';
     const target = createMockTarget({ targetId: 'edutrack_production' });
     const originalConnect = target.pool.connect;
     target.pool.connect = async () => {
       if (shouldFail) {
-        throw new Error('connection reset');
+        throw new Error(marker);
       }
       return originalConnect();
     };
@@ -481,7 +536,32 @@ describe('createExplorerSchemaReader', () => {
       now: () => new Date(currentTime)
     });
 
-    await expect(reader()).rejects.toThrow('connection reset');
+    const captured: Array<{ message: string; code: string }> = [];
+    const uninstall = installOpsRuntimeTelemetry({
+      captureException: (error, context) => {
+        captured.push({
+          message: error instanceof Error ? error.message : String(error),
+          code: context.code
+        });
+        return 'EVT_00000000000000000000000000';
+      },
+      flush: async () => undefined,
+      healthy: () => true
+    });
+
+    try {
+      await expect(reader()).rejects.toMatchObject({
+        message: 'DATABASE_SCHEMA_CHECK_FAILED',
+        code: 'DATABASE_SCHEMA_CHECK_FAILED'
+      });
+    } finally {
+      uninstall();
+    }
+
+    expect(captured).toEqual([
+      { message: 'DATABASE_SCHEMA_CHECK_FAILED', code: 'DATABASE_SCHEMA_CHECK_FAILED' }
+    ]);
+    expect(JSON.stringify(captured)).not.toContain(marker);
 
     shouldFail = false;
     const snapshot1 = await reader();
@@ -490,7 +570,10 @@ describe('createExplorerSchemaReader', () => {
     // Expire cache and fail on reconnect
     currentTime += 61_000;
     shouldFail = true;
-    await expect(reader()).rejects.toThrow('connection reset');
+    await expect(reader()).rejects.toMatchObject({
+      message: 'DATABASE_SCHEMA_CHECK_FAILED',
+      code: 'DATABASE_SCHEMA_CHECK_FAILED'
+    });
 
     // Recover on next attempt
     shouldFail = false;

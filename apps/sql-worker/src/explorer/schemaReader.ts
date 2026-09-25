@@ -14,6 +14,7 @@ import {
 } from '../../../../packages/security/src/database/columnPolicy.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
 import { readProductionSchema } from '../schema/introspectSchema.js';
+import { makeExplorerError } from './filterSql.js';
 import type { DatabasePolicyApproval } from './policyApproval.js';
 
 const TEXT_TYPES = new Set([
@@ -135,14 +136,15 @@ export function createExplorerSchemaReader(input: {
     let connection;
     try {
       connection = await input.target.pool.connect();
-    } catch (err) {
-      captureOpsException(err, {
-        code: 'UNHANDLED_OPS_EXCEPTION',
+    } catch {
+      const error = makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
+      captureOpsException(error, {
+        code: 'DATABASE_SCHEMA_CHECK_FAILED',
         source: 'database',
         status: 500
       });
       cache.delete(cacheKey);
-      throw err;
+      throw error;
     }
 
     try {
@@ -180,9 +182,9 @@ export function createExplorerSchemaReader(input: {
           [schemaNames]
         );
         estimatedRowsRows = result.rows;
-      } catch (error) {
-        captureOpsException(error, {
-          code: 'UNHANDLED_OPS_EXCEPTION',
+      } catch {
+        captureOpsException(makeExplorerError('DATABASE_SCHEMA_METADATA_FAILED'), {
+          code: 'DATABASE_SCHEMA_METADATA_FAILED',
           source: 'job',
           status: 500
         });
@@ -378,9 +380,10 @@ export function createExplorerSchemaReader(input: {
 
       cache.set(cacheKey, { snapshot, expiresAt: now().getTime() + cacheTtlMs });
       return snapshot;
-    } catch (error) {
+    } catch {
+      const error = makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
       captureOpsException(error, {
-        code: 'UNHANDLED_OPS_EXCEPTION',
+        code: 'DATABASE_SCHEMA_CHECK_FAILED',
         source: 'database',
         status: 500
       });

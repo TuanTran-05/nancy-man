@@ -8,7 +8,7 @@ import {
   type DatabaseRowsResponse
 } from '../../../../packages/contracts/src/databaseExplorer.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
-import { readProductionSchema } from '../schema/introspectSchema.js';
+import { readProductionSchemaInCurrentTransaction } from '../schema/introspectSchema.js';
 import {
   CURSOR_EXPIRY_MS,
   decodeCursor,
@@ -129,28 +129,6 @@ export async function readDatabaseRows(
     );
   }
 
-  let schemaConnection;
-  let liveChecksum: string;
-  try {
-    schemaConnection = await target.pool.connect();
-    const liveSchema = await readProductionSchema({ database: schemaConnection });
-    liveChecksum = liveSchema.checksum;
-  } catch {
-    const error = makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
-    captureOpsException(error, {
-      code: 'DATABASE_SCHEMA_CHECK_FAILED',
-      source: 'database',
-      status: 500
-    });
-    throw error;
-  } finally {
-    schemaConnection?.release();
-  }
-  if (liveChecksum !== snapshot.checksum) {
-    invalidateExplorerSchemaCache(target);
-    throw makeExplorerError('DATABASE_SCHEMA_STALE');
-  }
-
   // Handle cursor
   let decodedCursor: (KeysetCursorData | OffsetCursorData) | undefined;
   if (request.cursor) {
@@ -234,10 +212,20 @@ export async function readDatabaseRows(
   }
 
   let queryRows: Record<string, unknown>[];
+  let transactionStarted = false;
+  let schemaCheckComplete = false;
   try {
-    await connection.query('BEGIN READ ONLY');
+    await connection.query('BEGIN TRANSACTION READ ONLY ISOLATION LEVEL REPEATABLE READ');
+    transactionStarted = true;
     await connection.query("SET LOCAL statement_timeout = '15s'");
     await connection.query("SET LOCAL lock_timeout = '2s'");
+
+    const liveSchema = await readProductionSchemaInCurrentTransaction({ database: connection });
+    schemaCheckComplete = true;
+    if (liveSchema.checksum !== snapshot.checksum) {
+      invalidateExplorerSchemaCache(target);
+      throw makeExplorerError('DATABASE_SCHEMA_STALE');
+    }
 
     // Replace placeholder tags in cursorCondition predicate with actual parameter indexes if used
     let finalSql = built.text;
@@ -258,6 +246,18 @@ export async function readDatabaseRows(
   } catch (err: unknown) {
     const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
     const message = typeof errObj['message'] === 'string' ? errObj['message'] : '';
+    if (errObj['code'] === 'DATABASE_SCHEMA_STALE') {
+      throw makeExplorerError('DATABASE_SCHEMA_STALE');
+    }
+    if (!schemaCheckComplete) {
+      const error = makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
+      captureOpsException(error, {
+        code: 'DATABASE_SCHEMA_CHECK_FAILED',
+        source: 'database',
+        status: 500
+      });
+      throw error;
+    }
     if (errObj['code'] === '57014' || /timeout|canceling statement/i.test(message)) {
       const error = makeExplorerError('DATABASE_QUERY_TIMEOUT');
       captureOpsException(error, {
@@ -275,15 +275,17 @@ export async function readDatabaseRows(
     });
     throw error;
   } finally {
-    try {
-      await connection.query('ROLLBACK');
-    } catch {
-      captureOpsException(makeExplorerError('DATABASE_ROLLBACK_FAILED'), {
-        code: 'DATABASE_ROLLBACK_FAILED',
-        source: 'database',
-        status: 500
-      });
-      // Ignore rollback failure
+    if (transactionStarted) {
+      try {
+        await connection.query('ROLLBACK');
+      } catch {
+        captureOpsException(makeExplorerError('DATABASE_ROLLBACK_FAILED'), {
+          code: 'DATABASE_ROLLBACK_FAILED',
+          source: 'database',
+          status: 500
+        });
+        // Ignore rollback failure
+      }
     }
     connection.release();
   }

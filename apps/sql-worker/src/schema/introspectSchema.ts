@@ -300,95 +300,101 @@ export async function readProductionSchema(input: {
 }): Promise<DatabaseSchemaSnapshot> {
   await input.database.query('BEGIN TRANSACTION READ ONLY ISOLATION LEVEL REPEATABLE READ');
   try {
-    const { rows: schemaRows } = await input.database.query<{ schemaName: string }>(
-      catalogQueries.schemas
-    );
-    const schemaNames = schemaRows.map((row) => row.schemaName).sort(compare);
-    const { rows: relationRows } = schemaNames.length
-      ? await input.database.query<RelationRow>(catalogQueries.relations, [schemaNames])
-      : { rows: [] as RelationRow[] };
-    const relations = createRelations(relationRows);
-    const queryRows = async <T>(query: string): Promise<T[]> =>
-      schemaNames.length ? (await input.database.query<T>(query, [schemaNames])).rows : [];
-    const [columns, constraints, indexes, triggers, policies] = await Promise.all([
-      queryRows<ColumnRow>(catalogQueries.columns),
-      queryRows<ConstraintRow>(catalogQueries.constraints),
-      queryRows<IndexRow>(catalogQueries.indexes),
-      queryRows<TriggerRow>(catalogQueries.triggers),
-      queryRows<PolicyRow>(catalogQueries.policies)
-    ]);
-
-    for (const row of columns) {
-      relations.get(relationKey(row.schemaName, row.relationName))?.columns.push({
-        name: row.columnName,
-        dataType: row.dataType,
-        nullable: row.nullable,
-        hasDefault: row.hasDefault,
-        identity: identity(row.identity),
-        generated: row.generated !== ''
-      });
-    }
-    for (const row of constraints) {
-      relations.get(relationKey(row.schemaName, row.relationName))?.constraints.push({
-        name: row.constraintName,
-        kind: row.kind,
-        columns: sortedStrings(row.columns),
-        referencedRelation: target(row),
-        deferrable: row.deferrable,
-        initiallyDeferred: row.initiallyDeferred
-      });
-    }
-    for (const row of indexes) {
-      relations.get(relationKey(row.schemaName, row.relationName))?.indexes.push({
-        name: row.indexName,
-        method: row.method,
-        columns: sortedStrings(row.columns),
-        unique: row.unique,
-        primary: row.primary,
-        valid: row.valid,
-        hasExpressions: row.hasExpressions,
-        partial: row.isPartial
-      });
-    }
-    for (const row of triggers) {
-      relations.get(relationKey(row.schemaName, row.relationName))?.triggers.push({
-        name: row.triggerName,
-        timing: row.timing,
-        events: sortedStrings(row.events) as DatabaseTrigger['events'],
-        enabled: row.enabled
-      });
-    }
-    for (const row of policies) {
-      relations.get(relationKey(row.schemaName, row.relationName))?.policies.push({
-        name: row.policyName,
-        command: row.command,
-        permissive: row.permissive,
-        roles: sortedStrings(row.roles)
-      });
-    }
-
-    const schemas: DatabaseSchema[] = schemaNames.map((name) => ({
-      name,
-      relations: [...relations.entries()]
-        .filter(([key]) => key.startsWith(`${name}\u0000`))
-        .map(([, relation]) => ({
-          ...relation,
-          columns: relation.columns.sort((left, right) => compare(left.name, right.name)),
-          constraints: relation.constraints.sort((left, right) => compare(left.name, right.name)),
-          indexes: relation.indexes.sort((left, right) => compare(left.name, right.name)),
-          triggers: relation.triggers.sort((left, right) => compare(left.name, right.name)),
-          policies: relation.policies.sort((left, right) => compare(left.name, right.name))
-        }))
-        .sort((left, right) => compare(left.name, right.name))
-    }));
-    const structural = { schemas };
-    return {
-      ...structural,
-      checksum: createHash('sha256').update(JSON.stringify(structural), 'utf8').digest('hex')
-    };
+    return await readProductionSchemaInCurrentTransaction(input);
   } finally {
     await input.database.query('ROLLBACK');
   }
+}
+
+export async function readProductionSchemaInCurrentTransaction(input: {
+  database: CatalogQueryDatabase;
+}): Promise<DatabaseSchemaSnapshot> {
+  const { rows: schemaRows } = await input.database.query<{ schemaName: string }>(
+    catalogQueries.schemas
+  );
+  const schemaNames = schemaRows.map((row) => row.schemaName).sort(compare);
+  const { rows: relationRows } = schemaNames.length
+    ? await input.database.query<RelationRow>(catalogQueries.relations, [schemaNames])
+    : { rows: [] as RelationRow[] };
+  const relations = createRelations(relationRows);
+  const queryRows = async <T>(query: string): Promise<T[]> =>
+    schemaNames.length ? (await input.database.query<T>(query, [schemaNames])).rows : [];
+  const [columns, constraints, indexes, triggers, policies] = await Promise.all([
+    queryRows<ColumnRow>(catalogQueries.columns),
+    queryRows<ConstraintRow>(catalogQueries.constraints),
+    queryRows<IndexRow>(catalogQueries.indexes),
+    queryRows<TriggerRow>(catalogQueries.triggers),
+    queryRows<PolicyRow>(catalogQueries.policies)
+  ]);
+
+  for (const row of columns) {
+    relations.get(relationKey(row.schemaName, row.relationName))?.columns.push({
+      name: row.columnName,
+      dataType: row.dataType,
+      nullable: row.nullable,
+      hasDefault: row.hasDefault,
+      identity: identity(row.identity),
+      generated: row.generated !== ''
+    });
+  }
+  for (const row of constraints) {
+    relations.get(relationKey(row.schemaName, row.relationName))?.constraints.push({
+      name: row.constraintName,
+      kind: row.kind,
+      columns: sortedStrings(row.columns),
+      referencedRelation: target(row),
+      deferrable: row.deferrable,
+      initiallyDeferred: row.initiallyDeferred
+    });
+  }
+  for (const row of indexes) {
+    relations.get(relationKey(row.schemaName, row.relationName))?.indexes.push({
+      name: row.indexName,
+      method: row.method,
+      columns: sortedStrings(row.columns),
+      unique: row.unique,
+      primary: row.primary,
+      valid: row.valid,
+      hasExpressions: row.hasExpressions,
+      partial: row.isPartial
+    });
+  }
+  for (const row of triggers) {
+    relations.get(relationKey(row.schemaName, row.relationName))?.triggers.push({
+      name: row.triggerName,
+      timing: row.timing,
+      events: sortedStrings(row.events) as DatabaseTrigger['events'],
+      enabled: row.enabled
+    });
+  }
+  for (const row of policies) {
+    relations.get(relationKey(row.schemaName, row.relationName))?.policies.push({
+      name: row.policyName,
+      command: row.command,
+      permissive: row.permissive,
+      roles: sortedStrings(row.roles)
+    });
+  }
+
+  const schemas: DatabaseSchema[] = schemaNames.map((name) => ({
+    name,
+    relations: [...relations.entries()]
+      .filter(([key]) => key.startsWith(`${name}\u0000`))
+      .map(([, relation]) => ({
+        ...relation,
+        columns: relation.columns.sort((left, right) => compare(left.name, right.name)),
+        constraints: relation.constraints.sort((left, right) => compare(left.name, right.name)),
+        indexes: relation.indexes.sort((left, right) => compare(left.name, right.name)),
+        triggers: relation.triggers.sort((left, right) => compare(left.name, right.name)),
+        policies: relation.policies.sort((left, right) => compare(left.name, right.name))
+      }))
+      .sort((left, right) => compare(left.name, right.name))
+  }));
+  const structural = { schemas };
+  return {
+    ...structural,
+    checksum: createHash('sha256').update(JSON.stringify(structural), 'utf8').digest('hex')
+  };
 }
 
 export function createProductionSchemaReader(input: {
