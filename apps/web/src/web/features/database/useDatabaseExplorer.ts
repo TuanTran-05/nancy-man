@@ -107,8 +107,10 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
   const rowsSuppressedRef = useRef(false);
   const privacyTransitionQueueRef = useRef<Promise<void>>(Promise.resolve());
   const revealRequestRef = useRef<Promise<{ expiresAt: string }> | null>(null);
+  const revokePendingRevealOnUnmountRef = useRef<Promise<{ expiresAt: string }> | null>(null);
   const serverGrantMayExistRef = useRef(false);
   const pendingRevocationsRef = useRef(0);
+  const mountedRef = useRef(false);
   const csrfTokenRef = useRef(session.csrfToken);
   csrfTokenRef.current = session.csrfToken;
   const schemaSnapshotRef = useRef<DatabaseExplorerSchemaSnapshot | null>(null);
@@ -197,22 +199,26 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
 
   // Keep an active server-side grant from surviving navigation away from this page.
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      if (!serverGrantMayExistRef.current && !piiRevealActiveRef.current) return;
-      clearRowsAndSensitiveLayers();
-      if (pendingRevocationsRef.current > 0) return;
+      mountedRef.current = false;
+      privacyTransitionGenerationRef.current += 1;
+      rowsGenerationRef.current += 1;
+      relatedRowsGenerationRef.current += 1;
 
-      pendingRevocationsRef.current += 1;
-      void hideDatabasePii(csrfTokenRef.current ?? '', { keepalive: true })
-        .then(() => {
-          serverGrantMayExistRef.current = false;
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          pendingRevocationsRef.current = Math.max(0, pendingRevocationsRef.current - 1);
-        });
+      const pendingReveal = revealRequestRef.current;
+      const grantMayExist = serverGrantMayExistRef.current || piiRevealActiveRef.current;
+      if (!pendingReveal && !grantMayExist) return;
+
+      const generation = clearRowsAndSensitiveLayers();
+      if (pendingReveal) revokePendingRevealOnUnmountRef.current = pendingReveal;
+      if (!grantMayExist || pendingRevocationsRef.current > 0) return;
+
+      // Revoke an existing grant immediately. If a reveal POST is also pending,
+      // its completion will trigger a second global revoke if it creates a grant.
+      void revokePrivacy(generation, null).catch(() => undefined);
     };
-  }, [clearRowsAndSensitiveLayers]);
+  }, [clearRowsAndSensitiveLayers, revokePrivacy]);
 
   // Clear synchronously, revoke globally, then allow the target schema request.
   const selectTarget = useCallback(
@@ -581,7 +587,19 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
         }
         grantCreated = true;
         serverGrantMayExistRef.current = true;
-        if (privacyTransitionGenerationRef.current !== privacyGeneration) return;
+        if (!mountedRef.current || privacyTransitionGenerationRef.current !== privacyGeneration) {
+          if (!mountedRef.current && revokePendingRevealOnUnmountRef.current === revealRequest) {
+            revokePendingRevealOnUnmountRef.current = null;
+            if (pendingRevocationsRef.current === 0) {
+              try {
+                await revokePrivacy(privacyTransitionGenerationRef.current, null);
+              } catch {
+                // Best-effort cleanup on navigation; never restore sensitive state.
+              }
+            }
+          }
+          return;
+        }
 
         rowsGeneration = ++rowsGenerationRef.current;
         setLoadingRows(true);
@@ -599,6 +617,7 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
           session.csrfToken
         );
         if (
+          !mountedRef.current ||
           privacyTransitionGenerationRef.current !== privacyGeneration ||
           rowsGenerationRef.current !== rowsGeneration
         ) {
@@ -617,7 +636,9 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
           source: 'browser',
           route: () => globalThis.location?.pathname
         });
-        if (privacyTransitionGenerationRef.current !== privacyGeneration) return;
+        if (!mountedRef.current || privacyTransitionGenerationRef.current !== privacyGeneration) {
+          return;
+        }
         if (err && typeof err === 'object' && (err as Record<string, unknown>)['status'] === 401) {
           onUnauthorizedRef.current();
         }

@@ -158,11 +158,12 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
     return g;
   }, [snapshot, targetId]);
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const filteredGraph = useMemo(
-    () => filterGraph(fullGraph, searchQuery),
-    [fullGraph, searchQuery]
+    () => filterGraph(fullGraph, normalizedSearchQuery),
+    [fullGraph, normalizedSearchQuery]
   );
-  const searchFocusedNode = searchQuery.trim() ? (filteredGraph.nodes[0] ?? null) : null;
+  const searchFocusedNode = normalizedSearchQuery ? (filteredGraph.nodes[0] ?? null) : null;
 
   const handleSelect = useCallback(
     (schema: string, relation: string) => {
@@ -184,20 +185,6 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
     flowInstanceRef.current = instance;
     setCanvasReady(true);
   }, []);
-
-  useEffect(() => {
-    const instance = flowInstanceRef.current;
-    if (!canvasReady || !instance) return;
-    if (searchFocusedNode) {
-      void instance.fitView({
-        nodes: [{ id: searchFocusedNode.id }],
-        padding: 0.35,
-        duration: 200
-      });
-    } else {
-      void instance.fitView({ padding: 0.15, duration: 200 });
-    }
-  }, [canvasReady, fullGraph, searchFocusedNode]);
 
   const flowNodes = useMemo(
     () =>
@@ -223,6 +210,33 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
   useEffect(() => {
     setEdges(flowEdges);
   }, [flowEdges, setEdges]);
+
+  useEffect(() => {
+    const instance = flowInstanceRef.current;
+    if (!canvasReady || !instance) return;
+
+    // Wait until React Flow has received the nodes for this search state. On
+    // clear this prevents a fit against the previous filtered subset.
+    const nodeStateMatchesProjection =
+      nodes.length === flowNodes.length &&
+      nodes.every((node, index) => node.id === flowNodes[index]?.id);
+    if (!nodeStateMatchesProjection) return;
+
+    if (normalizedSearchQuery) {
+      if (!searchFocusedNode) return;
+      void instance.fitView({
+        nodes: [{ id: searchFocusedNode.id }],
+        padding: 0.35,
+        duration: 200
+      });
+    } else {
+      void instance.fitView({
+        nodes: flowNodes.map(({ id }) => ({ id })),
+        padding: 0.15,
+        duration: 200
+      });
+    }
+  }, [canvasReady, flowNodes, nodes, normalizedSearchQuery, searchFocusedNode?.id]);
 
   // Group nodes by schema for the accessible table
   const schemaGroups = useMemo(() => {

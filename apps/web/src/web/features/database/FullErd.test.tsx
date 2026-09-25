@@ -307,6 +307,58 @@ describe('FullErd', () => {
     expect(screen.getByText('101 bảng · 210 quan hệ')).toBeInTheDocument();
   });
 
+  it('fits the full deterministic canvas after unique and ambiguous searches are cleared', async () => {
+    const expectedFitNodes = Array.from({ length: 101 }, (_, index) => {
+      const schema = index < 51 ? 'schema_a' : 'schema_b';
+      const relation = `table_${String(index).padStart(3, '0')}`;
+      return { id: `prod/${schema}/${relation}` };
+    });
+
+    for (const query of ['table_007', 'table_0']) {
+      cleanup();
+      fitViewMock.mockClear();
+      const user = userEvent.setup();
+      render(<FullErd snapshot={makeLargeSnap()} targetId="prod" onSelectRelation={vi.fn()} />);
+      await user.type(screen.getByRole('searchbox'), query);
+
+      const expectedRelation = query === 'table_007' ? 'table_007' : 'table_000';
+      expect(
+        screen.getByRole('button', { name: `Chọn schema_a.${expectedRelation}` })
+      ).toHaveAttribute('aria-current', 'true');
+
+      await user.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
+      await waitFor(() =>
+        expect(fitViewMock).toHaveBeenLastCalledWith(
+          expect.objectContaining({ nodes: expectedFitNodes })
+        )
+      );
+      expect(screen.getByText('101 bảng · 210 quan hệ')).toBeInTheDocument();
+    }
+  });
+
+  it('fits all nodes when clearing a search with no matches', async () => {
+    const expectedFitNodes = Array.from({ length: 101 }, (_, index) => {
+      const schema = index < 51 ? 'schema_a' : 'schema_b';
+      const relation = `table_${String(index).padStart(3, '0')}`;
+      return { id: `prod/${schema}/${relation}` };
+    });
+    const user = userEvent.setup();
+    fitViewMock.mockClear();
+    render(<FullErd snapshot={makeLargeSnap()} targetId="prod" onSelectRelation={vi.fn()} />);
+    await user.type(screen.getByRole('searchbox'), 'there-is-no-match');
+    expect(screen.getByText('0 bảng · 0 quan hệ')).toBeInTheDocument();
+
+    const callsBeforeClear = fitViewMock.mock.calls.length;
+    await user.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
+    await waitFor(() =>
+      expect(fitViewMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ nodes: expectedFitNodes })
+      )
+    );
+    expect(fitViewMock.mock.calls.length).toBeGreaterThan(callsBeforeClear);
+    expect(screen.getByText('101 bảng · 210 quan hệ')).toBeInTheDocument();
+  });
+
   it('calls onSelectRelation when accessible table row button is clicked', async () => {
     const user = userEvent.setup();
     const onSelectRelation = vi.fn();
