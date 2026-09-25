@@ -12,16 +12,19 @@ export function assertPolicyApproved(input: {
   liveChecksum: string;
   approval?: DatabasePolicyApproval;
 }): void {
+  const error = Object.assign(new Error('DATABASE_SCHEMA_STALE'), {
+    code: 'DATABASE_SCHEMA_STALE'
+  });
   if (!input.approval || typeof input.approval !== 'object') {
-    throw new Error('DATABASE_SCHEMA_STALE');
+    throw error;
   }
 
   if (input.approval.version !== DATABASE_POLICY_VERSION) {
-    throw new Error('DATABASE_SCHEMA_STALE');
+    throw error;
   }
 
   const approvedChecksum = input.approval.targets?.[input.targetId];
   if (!approvedChecksum || approvedChecksum !== input.liveChecksum) {
-    throw new Error('DATABASE_SCHEMA_STALE');
+    throw error;
   }
 }
