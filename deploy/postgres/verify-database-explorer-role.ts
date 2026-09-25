@@ -21,6 +21,7 @@ type RolePosture = {
   canLogin: boolean;
   defaultTransactionReadOnly: string | null;
   hasExplorerMembership: boolean;
+  hasUnexpectedMembership: boolean;
   isSuperuser: boolean;
   hasBypassRls: boolean;
   hasReplication: boolean;
@@ -28,7 +29,7 @@ type RolePosture = {
   hasTemporaryPrivilege: boolean;
   canAccessOpsSchema: boolean;
   sslSetting: string | null;
-  hasDefaultPrivileges: boolean;
+  hasUnsafeDefaultPrivileges: boolean;
 };
 
 export type ExplorerRoleVerificationReport = {
@@ -90,6 +91,9 @@ function rolePostureFailures(
   if (!posture.hasExplorerMembership) {
     failures.push('login is not a member of ops_database_browser');
   }
+  if (posture.hasUnexpectedMembership) {
+    failures.push('login has unexpected role memberships');
+  }
   if (posture.isSuperuser) {
     failures.push('login is a superuser');
   }
@@ -111,38 +115,96 @@ function rolePostureFailures(
   if (options.requireTls && posture.sslSetting !== 'on') {
     failures.push('TLS is required but not active');
   }
-  if (posture.hasDefaultPrivileges) {
-    failures.push('default privileges grant table access to ops_database_browser');
+  if (posture.hasUnsafeDefaultPrivileges) {
+    failures.push(
+      'default ACLs expose tables, sequences, or functions to PUBLIC or browser roles'
+    );
   }
 
   return failures;
 }
 
-async function readPosture(database: Queryable): Promise<RolePosture> {
+async function readPosture(database: Queryable, businessSchema: string): Promise<RolePosture> {
+  const businessSchemaLiteral = `'${businessSchema.replaceAll("'", "''")}'`;
   const { rows } = await database.query<Record<string, unknown>>(`
+    WITH RECURSIVE role_membership_closure(role_oid) AS (
+      SELECT membership.roleid
+      FROM pg_auth_members membership
+      JOIN pg_roles member_role ON member_role.oid = membership.member
+      WHERE member_role.rolname = current_user
+      UNION
+      SELECT membership.roleid
+      FROM pg_auth_members membership
+      JOIN role_membership_closure parent ON parent.role_oid = membership.member
+    ),
+    relevant_schemas AS (
+      SELECT namespace.oid, namespace.nspowner
+      FROM pg_namespace namespace
+      WHERE namespace.nspname = ${businessSchemaLiteral}
+         OR namespace.nspname = '_ops'
+    ),
+    relevant_schema_owners AS (
+      SELECT DISTINCT nspowner AS role_oid FROM relevant_schemas
+    )
     SELECT
       current_user AS role,
       current_database() AS database,
       (SELECT rolcanlogin FROM pg_roles WHERE rolname = current_user) AS "canLogin",
       current_setting('default_transaction_read_only', true) AS "defaultTransactionReadOnly",
-      pg_has_role(current_user, 'ops_database_browser', 'member') AS "hasExplorerMembership",
+      EXISTS (
+        SELECT 1
+        FROM pg_auth_members membership
+        JOIN pg_roles member_role ON member_role.oid = membership.member
+        JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+        WHERE member_role.rolname = current_user
+          AND granted_role.rolname = 'ops_database_browser'
+          AND membership.inherit_option
+          AND NOT membership.set_option
+          AND NOT membership.admin_option
+      ) AS "hasExplorerMembership",
+      EXISTS (
+        SELECT 1
+        FROM role_membership_closure reachable
+        JOIN pg_roles candidate ON candidate.oid = reachable.role_oid
+        WHERE candidate.rolname <> 'ops_database_browser'
+      ) AS "hasUnexpectedMembership",
       current_setting('is_superuser', true) = 'on' AS "isSuperuser",
       (SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user) AS "hasBypassRls",
       (SELECT rolreplication FROM pg_roles WHERE rolname = current_user) AS "hasReplication",
       EXISTS (
-        SELECT 1
-        FROM pg_roles candidate
-        WHERE pg_has_role(current_user, candidate.oid, 'member')
-          AND (candidate.rolsuper OR candidate.rolcreaterole OR candidate.rolcreatedb OR candidate.rolreplication OR candidate.rolbypassrls)
+        SELECT 1 FROM role_membership_closure reachable
+        JOIN pg_roles candidate ON candidate.oid = reachable.role_oid
+        WHERE candidate.rolsuper OR candidate.rolcreaterole OR candidate.rolcreatedb OR candidate.rolreplication OR candidate.rolbypassrls
       ) AS "isMemberOfElevatedRole",
       has_database_privilege(current_user, current_database(), 'TEMPORARY') AS "hasTemporaryPrivilege",
       CASE WHEN to_regnamespace('_ops') IS NULL THEN false ELSE has_schema_privilege(current_user, '_ops', 'USAGE') END AS "canAccessOpsSchema",
       current_setting('ssl', true) AS "sslSetting",
-      EXISTS (
-        SELECT 1 FROM pg_default_acl def
-        JOIN pg_roles r ON r.oid = def.defaclrole
-        WHERE def.defaclacl::text LIKE '%ops_database_browser%'
-      ) AS "hasDefaultPrivileges"
+      (
+        EXISTS (
+          SELECT 1
+          FROM pg_default_acl defaults
+          JOIN relevant_schema_owners owner ON owner.role_oid = defaults.defaclrole
+          CROSS JOIN LATERAL aclexplode(defaults.defaclacl) acl
+          WHERE defaults.defaclobjtype IN ('r', 'S', 'f')
+            AND (defaults.defaclnamespace = 0 OR defaults.defaclnamespace IN (SELECT oid FROM relevant_schemas))
+            AND (
+              acl.grantee = 0
+              OR acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'ops_database_browser')
+              OR acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+            )
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM relevant_schema_owners owner
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM pg_default_acl global_functions
+            WHERE global_functions.defaclrole = owner.role_oid
+              AND global_functions.defaclobjtype = 'f'
+              AND global_functions.defaclnamespace = 0
+          )
+        )
+      ) AS "hasUnsafeDefaultPrivileges"
   `);
 
   if (rows.length !== 1) {
@@ -156,6 +218,7 @@ async function readPosture(database: Queryable): Promise<RolePosture> {
     defaultTransactionReadOnly:
       row.defaultTransactionReadOnly == null ? null : String(row.defaultTransactionReadOnly),
     hasExplorerMembership: normalizeBoolean(row.hasExplorerMembership),
+    hasUnexpectedMembership: normalizeBoolean(row.hasUnexpectedMembership),
     isSuperuser: normalizeBoolean(row.isSuperuser),
     hasBypassRls: normalizeBoolean(row.hasBypassRls),
     hasReplication: normalizeBoolean(row.hasReplication),
@@ -163,7 +226,7 @@ async function readPosture(database: Queryable): Promise<RolePosture> {
     hasTemporaryPrivilege: normalizeBoolean(row.hasTemporaryPrivilege),
     canAccessOpsSchema: normalizeBoolean(row.canAccessOpsSchema),
     sslSetting: row.sslSetting == null ? null : String(row.sslSetting),
-    hasDefaultPrivileges: normalizeBoolean(row.hasDefaultPrivileges)
+    hasUnsafeDefaultPrivileges: normalizeBoolean(row.hasUnsafeDefaultPrivileges)
   };
 }
 
@@ -233,7 +296,7 @@ export async function verifyDatabaseExplorerRole(input: {
     { name: 'SET ROLE', sql: 'SET ROLE ops_database_browser' }
   ];
 
-  const posture = await readPosture(input.database);
+  const posture = await readPosture(input.database, input.fixture.schema);
 
   const safeReadResults: Array<{ name: string; passed: boolean }> = [];
   for (const { name, sql } of safeReads) {
@@ -294,9 +357,9 @@ export async function verifyDatabaseExplorerRole(input: {
 function parseArguments(argumentsList: readonly string[]): {
   databaseUrlFile: string;
   fixture: ExplorerFixture;
-  expectedDatabase?: string;
-  expectedRole?: string;
-  requireTls?: boolean;
+  expectedDatabase: string;
+  expectedRole: string;
+  requireTls: true;
 } {
   const values = new Map<string, string>();
   let requireTls = false;
@@ -343,12 +406,15 @@ function parseArguments(argumentsList: readonly string[]): {
   }
 
   const expectedDatabase = values.get('--expected-database');
-  if (expectedDatabase && !identifier.test(expectedDatabase)) {
+  const expectedRole = values.get('--expected-role');
+  if (!expectedDatabase || !expectedRole || !requireTls) {
+    throw new Error('Expected --expected-database, --expected-role and --require-tls');
+  }
+  if (!identifier.test(expectedDatabase)) {
     throw new Error('Expected database must be a lower-case PostgreSQL identifier');
   }
 
-  const expectedRole = values.get('--expected-role');
-  if (expectedRole && !identifier.test(expectedRole)) {
+  if (!identifier.test(expectedRole)) {
     throw new Error('Expected role must be a lower-case PostgreSQL identifier');
   }
 
@@ -362,7 +428,7 @@ function parseArguments(argumentsList: readonly string[]): {
     },
     expectedDatabase,
     expectedRole,
-    requireTls
+    requireTls: true
   };
 }
 

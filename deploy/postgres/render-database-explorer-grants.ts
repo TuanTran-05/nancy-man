@@ -1,15 +1,15 @@
+import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { classifyColumn, DATABASE_POLICY_VERSION } from '../../packages/security/src/database/columnPolicy.ts';
 import type {
   DatabaseExplorerSchemaSnapshot,
   DatabaseTargetId
 } from '../../packages/contracts/src/databaseExplorer.js';
 
 const ROLE_NAME = 'ops_database_browser';
-// This executable fails closed when the policy changes; update this with columnPolicy.ts.
-const DATABASE_POLICY_VERSION = '2026-09-25-v2';
 const TARGET_IDS = new Set(['edutrack_production', 'ops']);
 const FORBIDDEN_SCHEMA_NAMES = new Set(['_ops', 'information_schema', 'pg_catalog']);
 const RELATION_KINDS = new Set([
@@ -47,6 +47,41 @@ function containsRowData(value: unknown): boolean {
 function quoteIdentifier(value: string): string {
   if (!value || value.includes('\0')) throw new Error('SNAPSHOT_IDENTIFIER_INVALID');
   return `"${value.replaceAll('"', '""')}"`;
+}
+
+function canonicalStructuralChecksum(snapshot: DatabaseExplorerSchemaSnapshot): string {
+  const structural = {
+    schemas: snapshot.schemas.map((schema) => ({
+      name: schema.name,
+      relations: schema.relations.map((relation) => ({
+        name: relation.name,
+        kind: relation.kind,
+        rowLevelSecurity: relation.rowLevelSecurity,
+        columns: relation.columns.map((column) => ({
+          name: column.name,
+          dataType: column.dataType,
+          nullable: column.nullable,
+          hasDefault: column.hasDefault,
+          identity: column.identity,
+          generated: column.generated
+        })),
+        constraints: relation.constraints,
+        indexes: relation.indexes,
+        triggers: relation.triggers,
+        policies: relation.policies
+      }))
+    }))
+  };
+  return createHash('sha256').update(JSON.stringify(structural), 'utf8').digest('hex');
+}
+
+function policyClassification(
+  targetId: DatabaseTargetId,
+  schema: string,
+  relation: string,
+  column: string
+): string {
+  return classifyColumn({ targetId, schema, relation, column });
 }
 
 function validateSnapshot(value: unknown): DatabaseExplorerSchemaSnapshot {
@@ -94,31 +129,48 @@ function validateSnapshot(value: unknown): DatabaseExplorerSchemaSnapshot {
         ) {
           throw new Error('STRUCTURAL_SNAPSHOT_INVALID');
         }
+        const classification = policyClassification(
+          value.targetId,
+          schema.name,
+          relation.name,
+          column.name
+        );
+        if (
+          column.classification !== classification ||
+          column.selectable !== (classification !== 'blocked')
+        ) {
+          throw new Error('POLICY_FIELDS_MISMATCH');
+        }
       }
     }
   }
 
-  return value as unknown as DatabaseExplorerSchemaSnapshot;
+  const snapshot = value as unknown as DatabaseExplorerSchemaSnapshot;
+  if (canonicalStructuralChecksum(snapshot) !== snapshot.checksum) {
+    throw new Error('STRUCTURAL_CHECKSUM_MISMATCH');
+  }
+  return snapshot;
 }
 
 export function renderDatabaseExplorerGrants(input: RenderGrantsInput): string {
+  const snapshot = validateSnapshot(input.snapshot);
   const roleName = input.roleName ?? ROLE_NAME;
   if (roleName !== ROLE_NAME) throw new Error('ROLE_INVALID');
   const roleQuoted = quoteIdentifier(roleName);
   const statements: string[] = [];
 
   statements.push(`-- Database Explorer grants for role ${roleQuoted}`);
-  statements.push(`-- Target: ${input.snapshot.targetId} (Checksum: ${input.snapshot.checksum})`);
+  statements.push(`-- Target: ${snapshot.targetId} (Checksum: ${snapshot.checksum})`);
   statements.push('BEGIN;');
 
-  for (const schema of input.snapshot.schemas) {
+  for (const schema of snapshot.schemas) {
     const schemaQuoted = quoteIdentifier(schema.name);
     statements.push(
       `REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA ${schemaQuoted} FROM ${roleQuoted};`
     );
   }
 
-  for (const schema of input.snapshot.schemas) {
+  for (const schema of snapshot.schemas) {
     const schemaQuoted = quoteIdentifier(schema.name);
     statements.push(`GRANT USAGE ON SCHEMA ${schemaQuoted} TO ${roleQuoted};`);
 
@@ -126,7 +178,9 @@ export function renderDatabaseExplorerGrants(input: RenderGrantsInput): string {
       if (!relation.dataAvailable || relation.kind === 'foreign_table') continue;
 
       const safeColumns = relation.columns.filter(
-        (column) => column.selectable && column.classification !== 'blocked'
+        (column) =>
+          policyClassification(snapshot.targetId, schema.name, relation.name, column.name) !==
+          'blocked'
       );
       if (safeColumns.length === 0) continue;
 

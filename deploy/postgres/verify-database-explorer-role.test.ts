@@ -74,6 +74,45 @@ describe('database explorer roles and verifier', () => {
     expect(sql).not.toMatch(/GRANT\s+(?:ALL|SELECT)\s+ON\s+ALL\s+TABLES/i);
   });
 
+  it('revokes every existing login membership before granting only the capability role', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+
+    const revokeLoop = sql.indexOf('FOR membership IN');
+    const capabilityGrant = sql.indexOf('GRANT ops_database_browser TO %I');
+    expect(sql).toContain('FROM pg_auth_members');
+    expect(sql).toContain('REVOKE %I FROM %I GRANTED BY %I');
+    expect(revokeLoop).toBeGreaterThanOrEqual(0);
+    expect(capabilityGrant).toBeGreaterThan(revokeLoop);
+    expect(sql).toContain('WITH INHERIT TRUE, SET FALSE');
+  });
+
+  it('serializes target claims and rejects provisioning both targets on one cluster', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+
+    expect(sql).toContain('pg_advisory_xact_lock');
+    expect(sql).toContain('other_browser_login');
+    expect(sql).toContain('ops_browser_edutrack');
+    expect(sql).toContain('ops_browser_ops');
+    expect(sql).toContain('already provisioned for the other target');
+  });
+
+  it('removes global default ACLs for PUBLIC, capability, and login on tables, sequences, and functions', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+
+    for (const objectType of ['TABLES', 'SEQUENCES']) {
+      for (const grantee of ['PUBLIC', 'ops_database_browser', '%I']) {
+        expect(sql).toContain(
+          `ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE ALL ON ${objectType} FROM ${grantee}`
+        );
+      }
+    }
+    for (const grantee of ['PUBLIC', 'ops_database_browser', '%I']) {
+      expect(sql).toContain(
+        `ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE EXECUTE ON FUNCTIONS FROM ${grantee}`
+      );
+    }
+  });
+
   it('documents authenticated structural snapshots, approvals, both gates, and the approved grant CLI', async () => {
     const runbook = await readArtifact(artifacts.rolloutRunbook);
     const rotation = await readArtifact(artifacts.rotationRunbook);
@@ -125,7 +164,7 @@ describe('database explorer roles and verifier', () => {
                 hasTemporaryPrivilege: false,
                 canAccessOpsSchema: false,
                 sslSetting: 'on',
-                hasDefaultPrivileges: false
+                hasUnsafeDefaultPrivileges: false
               }
             ] as T[]
           };
@@ -199,7 +238,7 @@ describe('database explorer roles and verifier', () => {
                 hasTemporaryPrivilege: false,
                 canAccessOpsSchema: false,
                 sslSetting: 'on',
-                hasDefaultPrivileges: false
+                hasUnsafeDefaultPrivileges: false
               }
             ] as T[]
           };
@@ -232,6 +271,107 @@ describe('database explorer roles and verifier', () => {
     expect(report.failures).toContain('blocked column read succeeded: password_hash');
   });
 
+  it('fails verification for unexpected memberships reachable through inherited or SET paths', async () => {
+    let postureQuery = '';
+    const mockDb: Queryable = {
+      query: async <T extends Record<string, unknown>>(sql: string) => {
+        if (sql.includes('current_user AS role')) {
+          postureQuery = sql;
+          return {
+            rows: [
+              {
+                role: 'ops_browser_edutrack',
+                database: 'edutrack_production',
+                canLogin: true,
+                defaultTransactionReadOnly: 'on',
+                hasExplorerMembership: true,
+                hasUnexpectedMembership: true,
+                isSuperuser: false,
+                hasBypassRls: false,
+                hasReplication: false,
+                hasTemporaryPrivilege: false,
+                canAccessOpsSchema: false,
+                sslSetting: 'on',
+                hasUnsafeDefaultPrivileges: false
+              }
+            ] as T[]
+          };
+        }
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
+        if (/(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(sql)) {
+          throw new Error('permission denied');
+        }
+        return { rows: [] as T[] };
+      }
+    };
+
+    const report = await verifyDatabaseExplorerRole({
+      database: mockDb,
+      fixture: { schema: 'public', table: 'users', safeColumn: 'id' },
+      expectedDatabase: 'edutrack_production',
+      expectedRole: 'ops_browser_edutrack',
+      requireTls: true
+    });
+
+    expect(report.status).toBe('fail');
+    expect(report.failures).toContain('login has unexpected role memberships');
+    expect(postureQuery).toContain('WITH RECURSIVE');
+    expect(postureQuery).toContain('pg_auth_members');
+    expect(postureQuery).toContain('inherit_option');
+    expect(postureQuery).toContain('set_option');
+  });
+
+  it('fails verification when effective default ACLs expose PUBLIC or browser roles', async () => {
+    let postureQuery = '';
+    const mockDb: Queryable = {
+      query: async <T extends Record<string, unknown>>(sql: string) => {
+        if (sql.includes('current_user AS role')) {
+          postureQuery = sql;
+          return {
+            rows: [
+              {
+                role: 'ops_browser_edutrack',
+                database: 'edutrack_production',
+                canLogin: true,
+                defaultTransactionReadOnly: 'on',
+                hasExplorerMembership: true,
+                hasUnexpectedMembership: false,
+                isSuperuser: false,
+                hasBypassRls: false,
+                hasReplication: false,
+                hasTemporaryPrivilege: false,
+                canAccessOpsSchema: false,
+                sslSetting: 'on',
+                hasUnsafeDefaultPrivileges: true
+              }
+            ] as T[]
+          };
+        }
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
+        if (/(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(sql)) {
+          throw new Error('permission denied');
+        }
+        return { rows: [] as T[] };
+      }
+    };
+
+    const report = await verifyDatabaseExplorerRole({
+      database: mockDb,
+      fixture: { schema: 'public', table: 'users', safeColumn: 'id' },
+      expectedDatabase: 'edutrack_production',
+      expectedRole: 'ops_browser_edutrack',
+      requireTls: true
+    });
+
+    expect(report.status).toBe('fail');
+    expect(report.failures).toContain(
+      'default ACLs expose tables, sequences, or functions to PUBLIC or browser roles'
+    );
+    expect(postureQuery).toContain('pg_default_acl');
+    expect(postureQuery).toContain('aclexplode');
+    expect(postureQuery).toContain('defaclobjtype');
+  });
+
   it('fails verification on elevated posture or mutation success', async () => {
     const mockDb: Queryable = {
       query: async <T extends Record<string, unknown>>(sql: string) => {
@@ -251,7 +391,7 @@ describe('database explorer roles and verifier', () => {
                 hasTemporaryPrivilege: true,
                 canAccessOpsSchema: true,
                 sslSetting: 'off',
-                hasDefaultPrivileges: true
+                hasUnsafeDefaultPrivileges: true
               }
             ] as T[]
           };
@@ -286,7 +426,7 @@ describe('database explorer roles and verifier', () => {
     );
     expect(report.failures).toContain('TLS is required but not active');
     expect(report.failures).toContain(
-      'default privileges grant table access to ops_database_browser'
+      'default ACLs expose tables, sequences, or functions to PUBLIC or browser roles'
     );
     expect(report.failures.some((f) => f.includes('prohibited operation succeeded'))).toBe(true);
   });
@@ -310,7 +450,7 @@ describe('database explorer roles and verifier', () => {
                 hasTemporaryPrivilege: false,
                 canAccessOpsSchema: false,
                 sslSetting: 'on',
-                hasDefaultPrivileges: false
+                hasUnsafeDefaultPrivileges: false
               }
             ] as T[]
           };
@@ -394,6 +534,116 @@ describe('database explorer roles and verifier', () => {
       const wrongDatabase = invoke('edutrack_production', 'ops_browser_ops');
       expect(wrongDatabase.status).not.toBe(0);
       expect(wrongDatabase.stderr).toContain('--database must be edutrack_ops for target ops');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('requires expected database, expected role, and TLS in the verifier CLI', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'database-explorer-verifier-'));
+    try {
+      const urlPath = join(directory, 'browser.url');
+      await writeFile(urlPath, 'postgresql://reader:unused@127.0.0.1:1/edutrack_production', {
+        mode: 0o600
+      });
+      const fullArgs = [
+        '--database-url-file',
+        urlPath,
+        '--fixture',
+        'public.users',
+        '--safe-column',
+        'id',
+        '--expected-database',
+        'edutrack_production',
+        '--expected-role',
+        'ops_browser_edutrack',
+        '--require-tls'
+      ];
+      const withoutOption = (option: string) => {
+        const index = fullArgs.indexOf(option);
+        return fullArgs.filter((_, candidate) => candidate !== index && candidate !== index + 1);
+      };
+      const cases = [
+        withoutOption('--expected-database'),
+        withoutOption('--expected-role'),
+        withoutOption('--require-tls')
+      ];
+      for (const args of cases) {
+        const run = spawnSync(
+          process.execPath,
+          ['--experimental-strip-types', artifacts.verifier.pathname, ...args],
+          { encoding: 'utf8' }
+        );
+        expect(run.status).not.toBe(0);
+        expect(run.stdout).toBe('');
+        expect(run.stderr).toContain(
+          'Expected --expected-database, --expected-role and --require-tls'
+        );
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('always passes TLS enforcement to the verifier from the apply wrapper', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'database-explorer-apply-tls-'));
+    try {
+      const pgpassPath = join(directory, 'admin.pgpass');
+      const passwordPath = join(directory, 'browser.pass');
+      const urlPath = join(directory, 'browser.url');
+      const nodePath = join(directory, 'node');
+      const argsPath = join(directory, 'verifier-args.txt');
+      await writeFile(pgpassPath, 'localhost:5432:edutrack_ops:admin:unused\n', { mode: 0o600 });
+      await writeFile(passwordPath, 'A'.repeat(32), { mode: 0o600 });
+      await writeFile(urlPath, 'postgresql://reader:unused@localhost/edutrack_ops', {
+        mode: 0o600
+      });
+      await writeFile(nodePath, '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$TASK6_NODE_ARGS_CAPTURE"\n', {
+        mode: 0o700
+      });
+
+      const run = spawnSync(
+        'bash',
+        [
+          artifacts.apply.pathname,
+          '--role-type',
+          'explorer',
+          '--target',
+          'ops',
+          '--database',
+          'edutrack_ops',
+          '--admin-pgpass-file',
+          pgpassPath,
+          '--browser-login',
+          'ops_browser_ops',
+          '--browser-password-file',
+          passwordPath,
+          '--business-schemas',
+          'public',
+          '--schema-owner-role',
+          'edutrack_owner',
+          '--browser-database-url-file',
+          urlPath,
+          '--fixture',
+          'public.users',
+          '--safe-column',
+          'id',
+          '--revoke-public-privileges'
+        ],
+        {
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            PSQL_BIN: '/bin/true',
+            PATH: `${directory}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+            TASK6_NODE_ARGS_CAPTURE: argsPath
+          }
+        }
+      );
+
+      expect(run.status).toBe(0);
+      const verifierArgs = (await readFile(argsPath, 'utf8')).split(/\r?\n/u);
+      expect(verifierArgs).toContain('--require-tls');
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

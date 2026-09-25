@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -17,6 +18,30 @@ function runRenderer(args: string[]) {
 
 async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value)}\n`, 'utf8');
+}
+
+function structuralChecksum(snapshot: DatabaseExplorerSchemaSnapshot): string {
+  const schemas = snapshot.schemas.map((schema) => ({
+    name: schema.name,
+    relations: schema.relations.map((relation) => ({
+      name: relation.name,
+      kind: relation.kind,
+      rowLevelSecurity: relation.rowLevelSecurity,
+      columns: relation.columns.map((column) => ({
+        name: column.name,
+        dataType: column.dataType,
+        nullable: column.nullable,
+        hasDefault: column.hasDefault,
+        identity: column.identity,
+        generated: column.generated
+      })),
+      constraints: relation.constraints,
+      indexes: relation.indexes,
+      triggers: relation.triggers,
+      policies: relation.policies
+    }))
+  }));
+  return createHash('sha256').update(JSON.stringify({ schemas }), 'utf8').digest('hex');
 }
 
 describe('renderDatabaseExplorerGrants', () => {
@@ -109,6 +134,8 @@ describe('renderDatabaseExplorerGrants', () => {
     ]
   };
 
+  snapshot.checksum = structuralChecksum(snapshot);
+
   it('renders column-level SELECT grants only for safe columns and excludes blocked columns', () => {
     const sql = renderDatabaseExplorerGrants({ snapshot });
 
@@ -132,7 +159,7 @@ describe('renderDatabaseExplorerGrants', () => {
       targetId: 'ops',
       targetLabel: 'Ops',
       checksum: 'b'.repeat(64),
-      policyVersion: '2026-09-25',
+      policyVersion: DATABASE_POLICY_VERSION,
       edges: [],
       schemas: [
         {
@@ -169,6 +196,8 @@ describe('renderDatabaseExplorerGrants', () => {
       ]
     };
 
+    oddSnapshot.checksum = structuralChecksum(oddSnapshot);
+
     const sql = renderDatabaseExplorerGrants({ snapshot: oddSnapshot });
     expect(sql).toContain('GRANT USAGE ON SCHEMA "Odd""Schema" TO "ops_database_browser";');
     expect(sql).toContain(
@@ -201,7 +230,7 @@ describe('renderDatabaseExplorerGrants', () => {
         outputPath
       ]);
 
-      expect(run.status).toBe(0);
+      expect(run.status, run.stderr).toBe(0);
       const sql = await readFile(outputPath, 'utf8');
       const revokeIndex = sql.indexOf(
         'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "public" FROM "ops_database_browser";'
@@ -218,16 +247,14 @@ describe('renderDatabaseExplorerGrants', () => {
     }
   });
 
-  it('revokes previous safe table grants when a formerly selectable column becomes blocked', async () => {
+  it('revokes previous table grants before granting only columns present in the approved snapshot', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'database-explorer-grants-'));
     try {
       const staleSnapshot = structuredClone(snapshot);
-      staleSnapshot.checksum = 'c'.repeat(64);
-      const email = staleSnapshot.schemas[0]!.relations[0]!.columns.find(
-        (column) => column.name === 'email'
-      )!;
-      email.classification = 'blocked';
-      email.selectable = false;
+      staleSnapshot.schemas[0]!.relations[0]!.columns = staleSnapshot.schemas[0]!.relations[0]!.columns.filter(
+        (column) => column.name !== 'email'
+      );
+      staleSnapshot.checksum = structuralChecksum(staleSnapshot);
       const snapshotPath = join(directory, 'schema.json');
       const approvalPath = join(directory, 'approval.json');
       const outputPath = join(directory, 'grants.sql');
@@ -250,7 +277,7 @@ describe('renderDatabaseExplorerGrants', () => {
         outputPath
       ]);
 
-      expect(run.status).toBe(0);
+      expect(run.status, run.stderr).toBe(0);
       const sql = await readFile(outputPath, 'utf8');
       expect(sql).toContain(
         'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "public" FROM "ops_database_browser";'
@@ -361,6 +388,81 @@ describe('renderDatabaseExplorerGrants', () => {
       ]);
       expect(checksumMismatchRun.status).not.toBe(0);
       expect(checksumMismatchRun.stdout).toBe('');
+      await expect(access(outputPath)).rejects.toThrow();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects policy-field tampering even when the approved structural checksum is unchanged', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'database-explorer-grants-'));
+    try {
+      const tamperedSnapshot = structuredClone(snapshot);
+      const blocked = tamperedSnapshot.schemas[0]!.relations[0]!.columns.find(
+        (column) => column.name === 'password_hash'
+      )!;
+      blocked.classification = 'pii';
+      blocked.selectable = true;
+
+      const snapshotPath = join(directory, 'schema.json');
+      const approvalPath = join(directory, 'approval.json');
+      const outputPath = join(directory, 'grants.sql');
+      await writeJson(snapshotPath, tamperedSnapshot);
+      await writeJson(approvalPath, {
+        version: DATABASE_POLICY_VERSION,
+        targets: { edutrack_production: snapshot.checksum }
+      });
+
+      const run = runRenderer([
+        '--snapshot-file',
+        snapshotPath,
+        '--approval-file',
+        approvalPath,
+        '--target',
+        'edutrack_production',
+        '--role',
+        'ops_database_browser',
+        '--output',
+        outputPath
+      ]);
+
+      expect(run.status).not.toBe(0);
+      expect(run.stdout).toBe('');
+      await expect(access(outputPath)).rejects.toThrow();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('recomputes the canonical structural checksum before writing grant SQL', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'database-explorer-grants-'));
+    try {
+      const changedSnapshot = structuredClone(snapshot);
+      changedSnapshot.schemas[0]!.relations[0]!.columns[0]!.dataType = 'text';
+      const snapshotPath = join(directory, 'schema.json');
+      const approvalPath = join(directory, 'approval.json');
+      const outputPath = join(directory, 'grants.sql');
+      await writeJson(snapshotPath, changedSnapshot);
+      await writeJson(approvalPath, {
+        version: DATABASE_POLICY_VERSION,
+        targets: { edutrack_production: snapshot.checksum }
+      });
+
+      const run = runRenderer([
+        '--snapshot-file',
+        snapshotPath,
+        '--approval-file',
+        approvalPath,
+        '--target',
+        'edutrack_production',
+        '--role',
+        'ops_database_browser',
+        '--output',
+        outputPath
+      ]);
+
+      expect(run.status).not.toBe(0);
+      expect(run.stdout).toBe('');
       await expect(access(outputPath)).rejects.toThrow();
     } finally {
       await rm(directory, { recursive: true, force: true });

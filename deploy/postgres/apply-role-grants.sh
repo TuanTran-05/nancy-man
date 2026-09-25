@@ -64,7 +64,7 @@ safe_column=''
 blocked_column=''
 grants_file=''
 retire_login=''
-require_tls=false
+require_tls=true
 revoke_public_privileges=false
 
 while [ "$#" -gt 0 ]; do
