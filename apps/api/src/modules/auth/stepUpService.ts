@@ -37,6 +37,15 @@ export type StepUpBinding = {
   subjectDigest?: string;
 };
 
+export type DatabasePiiStepUpBinding = {
+  capability: 'database_pii';
+  userId: string;
+  sessionId: string;
+  ipHash: string;
+  userAgentHash: string;
+  subjectDigest: string;
+};
+
 export type StepUpRepository = {
   findProof: (input: { userId: string; factorId: string }) => Promise<{
     passwordHash: string;
@@ -55,6 +64,16 @@ export type StepUpRepository = {
   authorize: (input: StepUpBinding) => Promise<StepUpGrant | null>;
   consume: (input: StepUpBinding) => Promise<boolean>;
   revoke: (input: StepUpBinding) => Promise<void>;
+  findActiveDatabasePii?: (input: DatabasePiiStepUpBinding) => Promise<StepUpGrant | null>;
+  revokeDatabasePii?: (input: {
+    capability: 'database_pii';
+    userId: string;
+    sessionId: string;
+    ipHash: string;
+    userAgentHash: string;
+    subjectDigest?: string;
+  }) => Promise<number>;
+  revokeSession?: (input: { sessionId: string; capability: 'database_pii' }) => Promise<void>;
 };
 
 const policies: Readonly<Record<StepUpCapability, { lifetimeMs: number; reusable: boolean }>> = {
@@ -239,6 +258,59 @@ export class StepUpService {
   async consume(input: StepUpBinding): Promise<boolean> {
     assertBinding(input);
     return this.input.repository.consume(input);
+  }
+
+  async authorizeDatabasePii(input: DatabasePiiStepUpBinding): Promise<StepUpGrant> {
+    if (
+      input.capability !== 'database_pii' ||
+      !input.userId ||
+      !input.sessionId ||
+      !input.ipHash ||
+      !input.userAgentHash ||
+      !input.subjectDigest
+    ) {
+      throw new StepUpError('STEP_UP_REQUIRED');
+    }
+    if (!this.input.repository.findActiveDatabasePii) throw new StepUpError('STEP_UP_REQUIRED');
+    const grant = await this.input.repository.findActiveDatabasePii(input);
+    if (!grant) throw new StepUpError('STEP_UP_REQUIRED');
+    if (grant.revokedAt) throw new StepUpError('STEP_UP_REVOKED');
+    if (grant.consumedAt || !grant.reusable) throw new StepUpError('STEP_UP_REQUIRED');
+    if (Date.parse(grant.expiresAt) <= this.now().getTime()) {
+      throw new StepUpError('STEP_UP_EXPIRED');
+    }
+    if (
+      grant.capability !== input.capability ||
+      grant.userId !== input.userId ||
+      grant.sessionId !== input.sessionId ||
+      grant.ipHash !== input.ipHash ||
+      grant.userAgentHash !== input.userAgentHash ||
+      grant.subjectDigest !== input.subjectDigest
+    ) {
+      throw new StepUpError('STEP_UP_REQUIRED');
+    }
+    return grant;
+  }
+
+  async revokeDatabasePii(input: {
+    capability: 'database_pii';
+    userId: string;
+    sessionId: string;
+    ipHash: string;
+    userAgentHash: string;
+    subjectDigest?: string;
+  }): Promise<number> {
+    if (!input.userId || !input.sessionId || !input.ipHash || !input.userAgentHash) {
+      throw new StepUpError('STEP_UP_REQUIRED');
+    }
+    if (!this.input.repository.revokeDatabasePii) throw new StepUpError('STEP_UP_INVALID');
+    return this.input.repository.revokeDatabasePii(input);
+  }
+
+  async revokeSessionDatabasePii(sessionId: string): Promise<void> {
+    if (!sessionId) throw new StepUpError('STEP_UP_REQUIRED');
+    if (!this.input.repository.revokeSession) throw new StepUpError('STEP_UP_INVALID');
+    await this.input.repository.revokeSession({ sessionId, capability: 'database_pii' });
   }
 
   async revoke(input: StepUpBinding): Promise<void> {

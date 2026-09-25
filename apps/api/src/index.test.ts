@@ -1,8 +1,104 @@
 import { describe, expect, it } from 'vitest';
+import request from 'supertest';
 
 import { createOpsApi } from './index.js';
+import type { DatabaseExplorerService } from './modules/database/databaseExplorerService.js';
+
+const unusedIngest = {
+  browser: { ingest: async () => ({ status: 401, accepted: false as const, code: 'UNUSED' }) },
+  server: {
+    ingest: async () => ({ status: 401, accepted: false as const, code: 'UNUSED' }),
+    ingestBatch: async () => ({ status: 401, accepted: false as const, code: 'UNUSED' })
+  },
+  browserCorsOrigins: []
+};
 
 describe('createOpsApi', () => {
+  it('parses valid database JSON in production before the router dispatches it', async () => {
+    const received: unknown[] = [];
+    const app = createOpsApi({
+      ingest: unusedIngest,
+      database: {
+        service: {
+          queryRows: async (input) => {
+            received.push(input.query);
+            return {
+              targetId: input.targetId,
+              schemaChecksum: 'a'.repeat(64),
+              policyVersion: 'v1',
+              schema: input.query.schema,
+              relation: input.query.relation,
+              columns: [],
+              rows: [],
+              nextCursor: null,
+              truncated: false,
+              encodedBytes: 0,
+              consistency: 'stable',
+              piiMode: 'masked'
+            };
+          }
+        } as unknown as DatabaseExplorerService,
+        authorize: async () => ({
+          userId: 'user-1',
+          sessionId: 'session-1',
+          role: 'ops_maintainer' as const
+        }),
+        hashClientIp: () => 'b'.repeat(64)
+      }
+    });
+
+    const response = await request(app)
+      .post('/api/v1/database/edutrack_production/rows/query')
+      .set('x-ops-csrf', 'csrf')
+      .send({
+        schema: 'public',
+        relation: 'students',
+        pageSize: 25,
+        filters: [],
+        piiMode: 'masked'
+      });
+
+    expect(response.status).toBe(200);
+    expect(received).toEqual([
+      { schema: 'public', relation: 'students', pageSize: 25, filters: [], piiMode: 'masked' }
+    ]);
+  });
+
+  it.each([
+    ['malformed JSON', '{invalid', 400, 'INVALID_JSON'],
+    ['JSON above 64 KiB', JSON.stringify({ value: 'x'.repeat(70_000) }), 413, 'REQUEST_TOO_LARGE']
+  ])('rejects %s before database service dispatch', async (_name, body, status, code) => {
+    let serviceCalled = false;
+    const app = createOpsApi({
+      ingest: unusedIngest,
+      database: {
+        service: {
+          queryRows: async () => {
+            serviceCalled = true;
+            throw new Error('should not be called');
+          }
+        } as unknown as DatabaseExplorerService,
+        authorize: async () => ({
+          userId: 'user-1',
+          sessionId: 'session-1',
+          role: 'ops_maintainer' as const
+        }),
+        hashClientIp: () => 'b'.repeat(64)
+      }
+    });
+
+    const response = await request(app)
+      .post('/api/v1/database/edutrack_production/rows/query')
+      .set('content-type', 'application/json')
+      .set('x-ops-csrf', 'csrf')
+      .send(body);
+
+    expect(response.status).toBe(status);
+    expect(response.body).toEqual({ code });
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(serviceCalled).toBe(false);
+  });
+
   it('exposes a health check, disables framework disclosure and does not trust arbitrary proxies by default', async () => {
     const app = createOpsApi({
       ingest: {

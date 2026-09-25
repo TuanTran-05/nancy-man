@@ -56,13 +56,6 @@ describe('createDatabaseRouter', () => {
           });
           throw err;
         }
-        if (input.query.piiMode === 'revealed' && !input.grantId) {
-          const err = Object.assign(new Error('DATABASE_PII_REVEAL_REQUIRED'), {
-            status: 403,
-            code: 'DATABASE_PII_REVEAL_REQUIRED'
-          });
-          throw err;
-        }
         return {
           targetId: input.targetId,
           schemaChecksum: 'a'.repeat(64),
@@ -111,11 +104,7 @@ describe('createDatabaseRouter', () => {
           });
           throw err;
         }
-        return {
-          grantId: 'grant_123',
-          targetId: input.targetId,
-          expiresAt: '2026-09-25T12:00:00Z'
-        };
+        return { expiresAt: '2026-09-25T12:00:00Z' };
       },
       revokePiiReveal: async () => ({ ok: true as const }),
       ...options.serviceMock
@@ -142,6 +131,29 @@ describe('createDatabaseRouter', () => {
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body.targets).toHaveLength(2);
+  });
+
+  it('GET /targets mirrors live available, disabled, and unavailable states from the service', async () => {
+    const workerStates = [
+      [
+        { id: 'edutrack_production', label: 'Production', status: 'available', readOnly: true },
+        { id: 'ops', label: 'Ops', status: 'disabled', readOnly: true }
+      ],
+      [
+        { id: 'edutrack_production', label: 'Production', status: 'unavailable', readOnly: true },
+        { id: 'ops', label: 'Ops', status: 'available', readOnly: true }
+      ]
+    ];
+    let call = 0;
+    const app = createApp({
+      serviceMock: { getTargets: async () => ({ targets: workerStates[call++] as never }) }
+    });
+
+    const first = await request(app).get('/api/v1/database/targets');
+    const second = await request(app).get('/api/v1/database/targets');
+
+    expect(first.body.targets).toEqual(workerStates[0]);
+    expect(second.body.targets).toEqual(workerStates[1]);
   });
 
   it('GET /:targetId/schema allows ops_viewer and returns schema snapshot', async () => {
@@ -213,7 +225,6 @@ describe('createDatabaseRouter', () => {
   it('POST /:targetId/rows/query in revealed mode requires step-up grant', async () => {
     const app = createApp({ role: 'ops_maintainer' });
 
-    // Without grant
     const resWithoutGrant = await request(app)
       .post('/api/v1/database/edutrack_production/rows/query')
       .set('x-ops-csrf', 'valid_token')
@@ -225,8 +236,7 @@ describe('createDatabaseRouter', () => {
         piiMode: 'revealed'
       });
 
-    expect(resWithoutGrant.status).toBe(403);
-    expect(resWithoutGrant.body.code).toBe('DATABASE_PII_REVEAL_REQUIRED');
+    expect(resWithoutGrant.status).toBe(200);
 
     // With grant
     const resWithGrant = await request(app)
@@ -244,15 +254,80 @@ describe('createDatabaseRouter', () => {
     expect(resWithGrant.status).toBe(200);
   });
 
+  it('does not read a client-supplied grant header for row or relation queries', async () => {
+    const observed: unknown[] = [];
+    const app = createApp({
+      serviceMock: {
+        queryRows: async (input) => {
+          observed.push(input);
+          return {
+            targetId: input.targetId,
+            schemaChecksum: 'a'.repeat(64),
+            policyVersion: '2026-09-25',
+            schema: input.query.schema,
+            relation: input.query.relation,
+            columns: [],
+            rows: [],
+            nextCursor: null,
+            truncated: false,
+            encodedBytes: 0,
+            consistency: 'stable',
+            piiMode: input.query.piiMode
+          };
+        },
+        queryRelatedRows: async (input) => {
+          observed.push(input);
+          return {
+            targetId: input.targetId,
+            schemaChecksum: 'a'.repeat(64),
+            policyVersion: '2026-09-25',
+            schema: input.query.schema,
+            relation: input.query.relation,
+            columns: [],
+            rows: [],
+            nextCursor: null,
+            truncated: false,
+            encodedBytes: 0,
+            consistency: 'stable',
+            piiMode: input.query.piiMode
+          };
+        }
+      }
+    });
+
+    await request(app)
+      .post('/api/v1/database/edutrack_production/rows/query')
+      .set('x-ops-csrf', 'valid_token')
+      .set('x-ops-step-up-grant', 'attacker-controlled')
+      .send({ schema: 'public', relation: 'students', piiMode: 'revealed' });
+    const relationResponse = await request(app)
+      .post('/api/v1/database/edutrack_production/relations/query')
+      .set('x-ops-csrf', 'valid_token')
+      .set('x-ops-step-up-grant', 'attacker-controlled')
+      .send({
+        schema: 'public',
+        relation: 'students',
+        constraint: 'students_school_fk',
+        rowRef: 'opaque-row-ref',
+        piiMode: 'revealed'
+      });
+
+    expect(relationResponse.headers['cache-control']).toBe('no-store');
+    expect(observed).toHaveLength(2);
+    expect(observed[0]).not.toHaveProperty('grantId');
+    expect(observed[1]).not.toHaveProperty('grantId');
+  });
+
   it('POST /:targetId/pii-reveal grants elevation for maintainer and rejects viewer', async () => {
     const viewerApp = createApp({ role: 'ops_viewer' });
     const viewerRes = await request(viewerApp)
-      .post('/api/v1/database/edutrack_production/pii-reveal')
+      .post('/api/v1/database/pii-reveal')
       .set('x-ops-csrf', 'valid_token')
       .send({
         password: 'password123456',
         token: '123456',
-        reason: 'Investigating customer ticket #42'
+        reason: 'Investigating customer ticket #42',
+        targetId: 'edutrack_production'
       });
 
     expect(viewerRes.status).toBe(403);
@@ -260,26 +335,29 @@ describe('createDatabaseRouter', () => {
 
     const maintainerApp = createApp({ role: 'ops_maintainer' });
     const maintainerRes = await request(maintainerApp)
-      .post('/api/v1/database/edutrack_production/pii-reveal')
+      .post('/api/v1/database/pii-reveal')
       .set('x-ops-csrf', 'valid_token')
       .send({
         password: 'password123456',
         token: '123456',
-        reason: 'Investigating customer ticket #42'
+        reason: 'Investigating customer ticket #42',
+        targetId: 'edutrack_production'
       });
 
     expect(maintainerRes.status).toBe(200);
-    expect(maintainerRes.body.grantId).toBe('grant_123');
+    expect(maintainerRes.body).toEqual({ expiresAt: '2026-09-25T12:00:00Z' });
+    expect(Object.keys(maintainerRes.body)).toEqual(['expiresAt']);
+    expect(maintainerRes.headers['cache-control']).toBe('no-store');
   });
 
-  it('DELETE /:targetId/pii-reveal revokes elevation', async () => {
+  it('DELETE /pii-reveal revokes the authenticated binding without a grant ID or target path', async () => {
     const app = createApp({ role: 'ops_maintainer' });
     const res = await request(app)
-      .delete('/api/v1/database/edutrack_production/pii-reveal')
-      .set('x-ops-csrf', 'valid_token')
-      .set('x-ops-step-up-grant', 'grant_123');
+      .delete('/api/v1/database/pii-reveal')
+      .set('x-ops-csrf', 'valid_token');
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
+    expect(res.headers['cache-control']).toBe('no-store');
   });
 });

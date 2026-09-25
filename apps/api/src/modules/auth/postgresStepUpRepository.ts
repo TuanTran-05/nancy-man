@@ -4,7 +4,8 @@ import type {
   StepUpBinding,
   StepUpCapability,
   StepUpGrant,
-  StepUpRepository
+  StepUpRepository,
+  DatabasePiiStepUpBinding
 } from './stepUpService.js';
 
 type GrantRow = Omit<StepUpGrant, 'reusable'> & { reusable: boolean };
@@ -83,8 +84,8 @@ export class PostgresStepUpRepository implements StepUpRepository {
       `
         INSERT INTO ops_secret_elevations (
           id, capability, user_id, session_id, ip_hash, user_agent_hash,
-          subject_digest, granted_at, expires_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          subject_digest, granted_at, expires_at, reusable
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id
       `,
       [
@@ -96,7 +97,8 @@ export class PostgresStepUpRepository implements StepUpRepository {
         grant.userAgentHash,
         grant.subjectDigest,
         grant.grantedAt,
-        grant.expiresAt
+        grant.expiresAt,
+        grant.reusable
       ]
     );
     return rows.length > 0;
@@ -129,6 +131,75 @@ export class PostgresStepUpRepository implements StepUpRepository {
       ]
     );
     return rows[0] ?? null;
+  }
+
+  async findActiveDatabasePii(input: DatabasePiiStepUpBinding): Promise<StepUpGrant | null> {
+    const { rows } = await this.database.query<GrantRow>(
+      `
+        UPDATE ops_secret_elevations
+        SET last_used_at = now()
+        WHERE capability = $1 AND user_id = $2 AND session_id = $3
+          AND ip_hash = $4 AND user_agent_hash = $5 AND subject_digest = $6
+          AND reusable IS TRUE AND consumed_at IS NULL AND revoked_at IS NULL
+          AND expires_at > now()
+        RETURNING id, capability, user_id AS "userId", session_id AS "sessionId",
+          ip_hash AS "ipHash", user_agent_hash AS "userAgentHash",
+          subject_digest AS "subjectDigest", granted_at AS "grantedAt",
+          expires_at AS "expiresAt", last_used_at AS "lastUsedAt",
+          consumed_at AS "consumedAt", revoked_at AS "revokedAt", reusable
+      `,
+      [
+        input.capability,
+        input.userId,
+        input.sessionId,
+        input.ipHash,
+        input.userAgentHash,
+        input.subjectDigest
+      ]
+    );
+    return rows[0] ?? null;
+  }
+
+  async revokeDatabasePii(input: {
+    capability: 'database_pii';
+    userId: string;
+    sessionId: string;
+    ipHash: string;
+    userAgentHash: string;
+    subjectDigest?: string;
+  }): Promise<number> {
+    const { rows } = await this.database.query<{ id: string }>(
+      `
+        UPDATE ops_secret_elevations
+        SET revoked_at = now()
+        WHERE capability = $1 AND user_id = $2 AND session_id = $3
+          AND ip_hash = $4 AND user_agent_hash = $5
+          AND ($6::char(64) IS NULL OR subject_digest = $6)
+          AND reusable IS TRUE AND consumed_at IS NULL AND revoked_at IS NULL
+        RETURNING id
+      `,
+      [
+        input.capability,
+        input.userId,
+        input.sessionId,
+        input.ipHash,
+        input.userAgentHash,
+        input.subjectDigest ?? null
+      ]
+    );
+    return rows.length;
+  }
+
+  async revokeSession(input: { sessionId: string; capability: 'database_pii' }): Promise<void> {
+    await this.database.query(
+      `
+        UPDATE ops_secret_elevations
+        SET revoked_at = now()
+        WHERE session_id = $1 AND capability = 'database_pii'
+          AND reusable IS TRUE AND consumed_at IS NULL AND revoked_at IS NULL
+      `,
+      [input.sessionId]
+    );
   }
 
   async consume(input: StepUpBinding): Promise<boolean> {

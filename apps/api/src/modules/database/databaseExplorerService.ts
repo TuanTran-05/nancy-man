@@ -1,21 +1,22 @@
-import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
-
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
+
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
 import type {
   DatabaseExplorerSchemaSnapshot,
   DatabaseRowsResponse,
   DatabaseTargetId,
   DatabaseTargetSummary
 } from '../../../../../packages/contracts/src/databaseExplorer.js';
+import { databaseExplorerCommandSchemas } from '../../../../../packages/contracts/src/databaseExplorerSchemas.js';
 import type { SqlWorkerActor } from '../../../../../packages/contracts/src/workerProtocol.js';
 import type { StepUpGrant, StepUpService } from '../auth/stepUpService.js';
 import {
-  DatabaseRowsResponseSchema,
-  type DatabasePiiRevealBodySchema,
-  type DatabaseRelatedRowsQueryBodySchema,
-  type DatabaseRowsQueryBodySchema
+  DatabasePiiRevealBodySchema,
+  DatabaseRelatedRowsQueryBodySchema,
+  DatabaseRowsQueryBodySchema
 } from './databaseSchemas.js';
-import { z } from 'zod';
+import { SchemaViewAuditLimiter } from './schemaViewAuditLimiter.js';
 
 export type DatabaseRowsQueryBody = z.infer<typeof DatabaseRowsQueryBodySchema>;
 export type DatabaseRelatedRowsQueryBody = z.infer<typeof DatabaseRelatedRowsQueryBodySchema>;
@@ -66,7 +67,7 @@ export function mapWorkerErrorToStatus(code: string): number {
 export type DatabaseExplorerWorker = {
   command: (input: {
     actor: SqlWorkerActor;
-    kind: 'database.schema' | 'database.rows' | 'database.relatedRows';
+    kind: 'database.targets' | 'database.schema' | 'database.rows' | 'database.relatedRows';
     payload: unknown;
   }) => Promise<
     | { protocolVersion: 1; commandId: string; ok: true; result: unknown }
@@ -96,19 +97,47 @@ export type DatabaseExplorerServiceInput = {
   audit: DatabaseExplorerAudit;
   stepUp: StepUpService;
   findUserTotpFactorId: (userId: string) => Promise<string | null>;
-  getTargetSummaries: () => DatabaseTargetSummary[];
+  schemaViewAuditLimiter?: SchemaViewAuditLimiter;
   now?: () => Date;
 };
 
 export class DatabaseExplorerService {
-  private readonly now: () => Date;
+  private readonly schemaViewAuditLimiter: SchemaViewAuditLimiter;
 
   constructor(private readonly input: DatabaseExplorerServiceInput) {
-    this.now = input.now ?? (() => new Date());
+    this.schemaViewAuditLimiter =
+      input.schemaViewAuditLimiter ??
+      new SchemaViewAuditLimiter(input.now ? { now: input.now } : {});
   }
 
-  async getTargets(): Promise<{ targets: DatabaseTargetSummary[] }> {
-    return { targets: this.input.getTargetSummaries() };
+  async getTargets(actor: SqlWorkerActor): Promise<{ targets: DatabaseTargetSummary[] }> {
+    const workerResult = await this.input.worker.command({
+      actor,
+      kind: 'database.targets',
+      payload: {}
+    });
+    if (!workerResult.ok) {
+      throw makeExplorerServiceError(
+        workerResult.error.code,
+        mapWorkerErrorToStatus(workerResult.error.code)
+      );
+    }
+    const parsed = databaseExplorerCommandSchemas['database.targets'].result.safeParse(
+      workerResult.result
+    );
+    if (!parsed.success) throw makeExplorerServiceError('WORKER_DATABASE_RESPONSE_INVALID', 503);
+    return {
+      targets: parsed.data.map((target) => ({
+        id: target.id,
+        label: target.label,
+        status: target.status,
+        readOnly: target.readOnly,
+        ...(target.description !== undefined ? { description: target.description } : {}),
+        ...(target.unavailableReason !== undefined
+          ? { unavailableReason: target.unavailableReason }
+          : {})
+      }))
+    };
   }
 
   async getSchema(input: {
@@ -122,7 +151,6 @@ export class DatabaseExplorerService {
       kind: 'database.schema',
       payload: { targetId: input.targetId }
     });
-
     if (!workerResult.ok) {
       throw makeExplorerServiceError(
         workerResult.error.code,
@@ -130,21 +158,36 @@ export class DatabaseExplorerService {
       );
     }
 
-    const snapshot = workerResult.result as DatabaseExplorerSchemaSnapshot;
+    const parsed = databaseExplorerCommandSchemas['database.schema'].result.safeParse(
+      workerResult.result
+    );
+    if (!parsed.success || parsed.data.targetId !== input.targetId) {
+      throw makeExplorerServiceError('WORKER_DATABASE_RESPONSE_INVALID', 503);
+    }
+    const snapshot = parsed.data as DatabaseExplorerSchemaSnapshot;
 
     try {
-      await this.input.audit.append({
-        actorUserId: input.actor.userId,
-        action: 'database.schema_viewed',
-        subjectType: 'database',
-        subjectId: input.targetId,
-        ...(input.requestId ? { requestId: input.requestId } : {}),
-        ...(input.ipHash ? { ipHash: input.ipHash } : {}),
-        metadata: {
+      await this.schemaViewAuditLimiter.run(
+        {
+          actorUserId: input.actor.userId,
+          actorSessionId: input.actor.sessionId,
           targetId: input.targetId,
-          checksum: snapshot.checksum
-        }
-      });
+          schemaChecksum: snapshot.checksum
+        },
+        () =>
+          this.input.audit.append({
+            actorUserId: input.actor.userId,
+            action: 'database.schema_viewed',
+            subjectType: 'database',
+            subjectId: input.targetId,
+            ...(input.requestId ? { requestId: input.requestId } : {}),
+            ...(input.ipHash ? { ipHash: input.ipHash } : {}),
+            metadata: {
+              targetId: input.targetId,
+              schemaChecksum: snapshot.checksum
+            }
+          })
+      );
     } catch (error) {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
@@ -157,11 +200,31 @@ export class DatabaseExplorerService {
     return snapshot;
   }
 
+  private async authorizePii(input: {
+    actor: SqlWorkerActor;
+    targetId: DatabaseTargetId;
+    ipHash: string;
+    userAgentHash: string;
+  }): Promise<StepUpGrant> {
+    try {
+      return await this.input.stepUp.authorizeDatabasePii({
+        capability: 'database_pii',
+        userId: input.actor.userId,
+        sessionId: input.actor.sessionId,
+        ipHash: input.ipHash,
+        userAgentHash: input.userAgentHash,
+        subjectDigest: createHash('sha256').update(input.targetId).digest('hex')
+      });
+    } catch (error) {
+      captureOpsException(error, { code: 'UNHANDLED_OPS_EXCEPTION', source: 'api', status: 500 });
+      throw makeExplorerServiceError('DATABASE_PII_REVEAL_REQUIRED', 403);
+    }
+  }
+
   async queryRows(input: {
     actor: SqlWorkerActor;
     targetId: DatabaseTargetId;
     query: DatabaseRowsQueryBody;
-    grantId?: string;
     requestId?: string;
     ipHash: string;
     userAgentHash: string;
@@ -170,40 +233,21 @@ export class DatabaseExplorerService {
       throw makeExplorerServiceError('DATABASE_DATA_PERMISSION_DENIED', 403);
     }
 
-    if (input.query.piiMode === 'revealed') {
-      if (!input.grantId) {
-        throw makeExplorerServiceError('DATABASE_PII_REVEAL_REQUIRED', 403);
-      }
-      const subjectDigest = createHash('sha256').update(input.targetId).digest('hex');
-      try {
-        await this.input.stepUp.authorize({
-          grantId: input.grantId,
-          capability: 'database_pii',
-          userId: input.actor.userId,
-          sessionId: input.actor.sessionId,
-          ipHash: input.ipHash,
-          userAgentHash: input.userAgentHash,
-          subjectDigest
-        });
-      } catch (error) {
-        captureOpsException(error, {
-          code: 'UNHANDLED_OPS_EXCEPTION',
-          source: 'api',
-          status: 500
-        });
-        throw makeExplorerServiceError('DATABASE_PII_REVEAL_REQUIRED', 403);
-      }
-    }
+    const grant =
+      input.query.piiMode === 'revealed'
+        ? await this.authorizePii({
+            actor: input.actor,
+            targetId: input.targetId,
+            ipHash: input.ipHash,
+            userAgentHash: input.userAgentHash
+          })
+        : undefined;
 
     const workerResult = await this.input.worker.command({
       actor: input.actor,
       kind: 'database.rows',
-      payload: {
-        ...input.query,
-        targetId: input.targetId
-      }
+      payload: { ...input.query, targetId: input.targetId }
     });
-
     if (!workerResult.ok) {
       throw makeExplorerServiceError(
         workerResult.error.code,
@@ -211,13 +255,19 @@ export class DatabaseExplorerService {
       );
     }
 
-    const parsed = DatabaseRowsResponseSchema.safeParse(workerResult.result);
-    if (!parsed.success) {
+    const parsed = databaseExplorerCommandSchemas['database.rows'].result.safeParse(
+      workerResult.result
+    );
+    if (
+      !parsed.success ||
+      parsed.data.targetId !== input.targetId ||
+      parsed.data.schema !== input.query.schema ||
+      parsed.data.relation !== input.query.relation ||
+      parsed.data.piiMode !== input.query.piiMode
+    ) {
       throw makeExplorerServiceError('WORKER_DATABASE_RESPONSE_INVALID', 503);
     }
-
-    const responseData = parsed.data;
-
+    const responseData = parsed.data as DatabaseRowsResponse;
     const filtersFingerprint = createHash('sha256')
       .update(JSON.stringify(input.query.filters))
       .digest('hex');
@@ -235,6 +285,7 @@ export class DatabaseExplorerService {
         ipHash: input.ipHash,
         metadata: {
           targetId: input.targetId,
+          schemaChecksum: responseData.schemaChecksum,
           schema: input.query.schema,
           relation: input.query.relation,
           pageSize: input.query.pageSize,
@@ -245,8 +296,7 @@ export class DatabaseExplorerService {
           piiMode: input.query.piiMode
         }
       });
-
-      if (input.query.piiMode === 'revealed') {
+      if (grant) {
         await this.input.audit.append({
           actorUserId: input.actor.userId,
           action: 'database.pii_rows_viewed',
@@ -256,9 +306,9 @@ export class DatabaseExplorerService {
           ipHash: input.ipHash,
           metadata: {
             targetId: input.targetId,
+            schemaChecksum: responseData.schemaChecksum,
             schema: input.query.schema,
-            relation: input.query.relation,
-            ...(input.grantId ? { grantId: input.grantId } : {})
+            relation: input.query.relation
           }
         });
       }
@@ -271,14 +321,13 @@ export class DatabaseExplorerService {
       throw makeExplorerServiceError('DATABASE_AUDIT_UNAVAILABLE', 503);
     }
 
-    return responseData as DatabaseRowsResponse;
+    return responseData;
   }
 
   async queryRelatedRows(input: {
     actor: SqlWorkerActor;
     targetId: DatabaseTargetId;
     query: DatabaseRelatedRowsQueryBody;
-    grantId?: string;
     requestId?: string;
     ipHash: string;
     userAgentHash: string;
@@ -287,40 +336,21 @@ export class DatabaseExplorerService {
       throw makeExplorerServiceError('DATABASE_DATA_PERMISSION_DENIED', 403);
     }
 
-    if (input.query.piiMode === 'revealed') {
-      if (!input.grantId) {
-        throw makeExplorerServiceError('DATABASE_PII_REVEAL_REQUIRED', 403);
-      }
-      const subjectDigest = createHash('sha256').update(input.targetId).digest('hex');
-      try {
-        await this.input.stepUp.authorize({
-          grantId: input.grantId,
-          capability: 'database_pii',
-          userId: input.actor.userId,
-          sessionId: input.actor.sessionId,
-          ipHash: input.ipHash,
-          userAgentHash: input.userAgentHash,
-          subjectDigest
-        });
-      } catch (error) {
-        captureOpsException(error, {
-          code: 'UNHANDLED_OPS_EXCEPTION',
-          source: 'api',
-          status: 500
-        });
-        throw makeExplorerServiceError('DATABASE_PII_REVEAL_REQUIRED', 403);
-      }
-    }
+    const grant =
+      input.query.piiMode === 'revealed'
+        ? await this.authorizePii({
+            actor: input.actor,
+            targetId: input.targetId,
+            ipHash: input.ipHash,
+            userAgentHash: input.userAgentHash
+          })
+        : undefined;
 
     const workerResult = await this.input.worker.command({
       actor: input.actor,
       kind: 'database.relatedRows',
-      payload: {
-        ...input.query,
-        targetId: input.targetId
-      }
+      payload: { ...input.query, targetId: input.targetId }
     });
-
     if (!workerResult.ok) {
       throw makeExplorerServiceError(
         workerResult.error.code,
@@ -328,12 +358,19 @@ export class DatabaseExplorerService {
       );
     }
 
-    const parsed = DatabaseRowsResponseSchema.safeParse(workerResult.result);
-    if (!parsed.success) {
+    const parsed = databaseExplorerCommandSchemas['database.relatedRows'].result.safeParse(
+      workerResult.result
+    );
+    if (
+      !parsed.success ||
+      parsed.data.targetId !== input.targetId ||
+      parsed.data.schema !== input.query.schema ||
+      parsed.data.relation !== input.query.relation ||
+      parsed.data.piiMode !== input.query.piiMode
+    ) {
       throw makeExplorerServiceError('WORKER_DATABASE_RESPONSE_INVALID', 503);
     }
-
-    const responseData = parsed.data;
+    const responseData = parsed.data as DatabaseRowsResponse;
 
     try {
       await this.input.audit.append({
@@ -345,6 +382,7 @@ export class DatabaseExplorerService {
         ipHash: input.ipHash,
         metadata: {
           targetId: input.targetId,
+          schemaChecksum: responseData.schemaChecksum,
           schema: input.query.schema,
           relation: input.query.relation,
           pageSize: input.query.pageSize,
@@ -354,8 +392,7 @@ export class DatabaseExplorerService {
           relatedConstraint: input.query.constraint
         }
       });
-
-      if (input.query.piiMode === 'revealed') {
+      if (grant) {
         await this.input.audit.append({
           actorUserId: input.actor.userId,
           action: 'database.pii_rows_viewed',
@@ -365,9 +402,9 @@ export class DatabaseExplorerService {
           ipHash: input.ipHash,
           metadata: {
             targetId: input.targetId,
+            schemaChecksum: responseData.schemaChecksum,
             schema: input.query.schema,
-            relation: input.query.relation,
-            ...(input.grantId ? { grantId: input.grantId } : {})
+            relation: input.query.relation
           }
         });
       }
@@ -380,7 +417,7 @@ export class DatabaseExplorerService {
       throw makeExplorerServiceError('DATABASE_AUDIT_UNAVAILABLE', 503);
     }
 
-    return responseData as DatabaseRowsResponse;
+    return responseData;
   }
 
   async revealPii(input: {
@@ -390,16 +427,12 @@ export class DatabaseExplorerService {
     requestId?: string;
     ipHash: string;
     userAgentHash: string;
-  }): Promise<{ grantId: string; targetId: string; expiresAt: string }> {
+  }): Promise<{ expiresAt: string }> {
     if (input.actor.role === 'ops_viewer') {
       throw makeExplorerServiceError('PERMISSION_DENIED', 403);
     }
-
     const factorId = await this.input.findUserTotpFactorId(input.actor.userId);
-    if (!factorId) {
-      throw makeExplorerServiceError('MFA_FACTOR_UNAVAILABLE', 400);
-    }
-
+    if (!factorId) throw makeExplorerServiceError('MFA_FACTOR_UNAVAILABLE', 400);
     const subjectDigest = createHash('sha256').update(input.targetId).digest('hex');
 
     let grant: StepUpGrant;
@@ -416,11 +449,7 @@ export class DatabaseExplorerService {
         subjectDigest
       });
     } catch (error) {
-      captureOpsException(error, {
-        code: 'UNHANDLED_OPS_EXCEPTION',
-        source: 'api',
-        status: 500
-      });
+      captureOpsException(error, { code: 'UNHANDLED_OPS_EXCEPTION', source: 'api', status: 500 });
       throw makeExplorerServiceError('AUTH_DENIED', 401);
     }
 
@@ -434,93 +463,74 @@ export class DatabaseExplorerService {
         ipHash: input.ipHash,
         metadata: {
           targetId: input.targetId,
-          grantId: grant.id,
           reason: input.body.reason,
           expiresAt: grant.expiresAt
         }
       });
     } catch (error) {
-      // Revoke grant if audit append fails
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
         source: 'database',
         status: 500
       });
       try {
-        await this.input.stepUp.revoke({
-          grantId: grant.id,
+        await this.input.stepUp.revokeDatabasePii({
           capability: 'database_pii',
           userId: input.actor.userId,
           sessionId: input.actor.sessionId,
           ipHash: input.ipHash,
-          userAgentHash: input.userAgentHash
+          userAgentHash: input.userAgentHash,
+          subjectDigest
         });
-      } catch (error) {
-        captureOpsException(error, {
+      } catch (revokeError) {
+        captureOpsException(revokeError, {
           code: 'UNHANDLED_OPS_EXCEPTION',
           source: 'api',
           status: 500
         });
-        // ignore
       }
       throw makeExplorerServiceError('DATABASE_AUDIT_UNAVAILABLE', 503);
     }
 
-    return {
-      grantId: grant.id,
-      targetId: input.targetId,
-      expiresAt: grant.expiresAt
-    };
+    return { expiresAt: grant.expiresAt };
   }
 
   async revokePiiReveal(input: {
     actor: SqlWorkerActor;
-    targetId: DatabaseTargetId;
-    grantId?: string;
     requestId?: string;
     ipHash: string;
     userAgentHash: string;
   }): Promise<{ ok: true }> {
-    if (input.grantId) {
-      try {
-        await this.input.stepUp.revoke({
-          grantId: input.grantId,
-          capability: 'database_pii',
-          userId: input.actor.userId,
-          sessionId: input.actor.sessionId,
-          ipHash: input.ipHash,
-          userAgentHash: input.userAgentHash
-        });
-      } catch (error) {
-        captureOpsException(error, {
-          code: 'UNHANDLED_OPS_EXCEPTION',
-          source: 'api',
-          status: 500
-        });
-        // ignore
-      }
+    let revokedCount: number;
+    try {
+      revokedCount = await this.input.stepUp.revokeDatabasePii({
+        capability: 'database_pii',
+        userId: input.actor.userId,
+        sessionId: input.actor.sessionId,
+        ipHash: input.ipHash,
+        userAgentHash: input.userAgentHash
+      });
+    } catch (error) {
+      captureOpsException(error, { code: 'UNHANDLED_OPS_EXCEPTION', source: 'api', status: 500 });
+      throw makeExplorerServiceError('DATABASE_REVOKE_UNAVAILABLE', 503);
+    }
 
-      try {
-        await this.input.audit.append({
-          actorUserId: input.actor.userId,
-          action: 'database.pii_reveal_revoked',
-          subjectType: 'database',
-          subjectId: input.targetId,
-          ...(input.requestId ? { requestId: input.requestId } : {}),
-          ipHash: input.ipHash,
-          metadata: {
-            targetId: input.targetId,
-            grantId: input.grantId
-          }
-        });
-      } catch (error) {
-        captureOpsException(error, {
-          code: 'UNHANDLED_OPS_EXCEPTION',
-          source: 'database',
-          status: 500
-        });
-        // ignore
-      }
+    try {
+      await this.input.audit.append({
+        actorUserId: input.actor.userId,
+        action: 'database.pii_reveal_revoked',
+        subjectType: 'database',
+        ...(input.requestId ? { requestId: input.requestId } : {}),
+        ipHash: input.ipHash,
+        metadata: { capability: 'database_pii', revokedCount }
+      });
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500
+      });
+      throw makeExplorerServiceError('DATABASE_AUDIT_UNAVAILABLE', 503);
     }
 
     return { ok: true };

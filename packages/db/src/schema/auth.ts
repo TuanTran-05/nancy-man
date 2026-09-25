@@ -141,7 +141,22 @@ export const opsSecretElevations = pgTable(
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     reusable: boolean('reusable').default(false).notNull()
   },
-  (table) => [index('ops_secret_elevations_active_idx').on(table.sessionId, table.capability)]
+  (table) => [
+    index('ops_secret_elevations_active_idx').on(table.sessionId, table.capability),
+    index('ops_secret_elevations_database_pii_grants_binding_active_idx')
+      .on(
+        table.userId,
+        table.sessionId,
+        table.ipHash,
+        table.userAgentHash,
+        table.subjectDigest,
+        table.expiresAt
+      )
+      .where(
+        sql`${table.capability} = 'database_pii' AND ${table.reusable} IS TRUE
+          AND ${table.consumedAt} IS NULL AND ${table.revokedAt} IS NULL`
+      )
+  ]
 );
 
 export type OpsConfigChangeState =

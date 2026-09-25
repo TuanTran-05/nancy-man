@@ -372,21 +372,7 @@ export function createOpsApiRuntime(input: {
             [userId]
           );
           return rows[0]?.id ?? null;
-        },
-        getTargetSummaries: () => [
-          {
-            id: 'edutrack_production',
-            label: 'EduTrack Production',
-            status: 'available',
-            readOnly: true
-          },
-          {
-            id: 'ops',
-            label: 'Ops Database',
-            status: 'available',
-            readOnly: true
-          }
-        ]
+        }
       })
     : undefined;
 
@@ -410,7 +396,10 @@ export function createOpsApiRuntime(input: {
               sessionPepper: input.authSessionPepper,
               repository: sessionRepository
             }),
-          revoke: (sessionId) => sessionRepository.revokeById(sessionId, 'LOGOUT')
+          revoke: async (sessionId) => {
+            await stepUpService.revokeSessionDatabasePii(sessionId);
+            await sessionRepository.revokeById(sessionId, 'LOGOUT');
+          }
         },
         sqlElevation: new SqlElevationService({
           repository: sqlElevationRepository,

@@ -122,10 +122,25 @@ const expectedTrustRoot = [
     '0022_database_pii_reveal',
     '0022_database_pii_reveal.sql',
     '17dc3ce27e9084e767ab4abddb0baf8660ed2331451207978be85db8ab49563b'
+  ],
+  [
+    '0023_database_pii_grant_binding',
+    '0023_database_pii_grant_binding.sql',
+    '99eb0d98a81e12953cf3e47573d5b44042ba9f2c5cb1ba633c7402abe28a7d04'
   ]
 ] as const;
 
 describe('Ops migration manifest', () => {
+  it('keeps 0022 pinned and registers the additive database PII grant binding migration', () => {
+    expect(opsMigrationTrustRoot.at(-1)?.id).toBe('0023_database_pii_grant_binding');
+    expect(opsMigrationTrustRoot.find(({ id }) => id === '0022_database_pii_reveal')).toEqual({
+      id: '0022_database_pii_reveal',
+      fileName: '0022_database_pii_reveal.sql',
+      checksum: '17dc3ce27e9084e767ab4abddb0baf8660ed2331451207978be85db8ab49563b'
+    });
+    expect(opsMigrationManifest.map(({ id }) => id)).toContain('0023_database_pii_grant_binding');
+  });
+
   it('attests every canonical SQL byte sequence against the pinned trust root', () => {
     expect(opsMigrationTrustRoot).toEqual(
       expectedTrustRoot.map(([id, fileName, checksum]) => ({ id, fileName, checksum }))

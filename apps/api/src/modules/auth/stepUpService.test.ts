@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { StepUpService, type StepUpRepository } from './stepUpService.js';
+import {
+  StepUpService,
+  type DatabasePiiStepUpBinding,
+  type StepUpGrant,
+  type StepUpRepository
+} from './stepUpService.js';
 
 const now = new Date('2026-08-31T12:00:00.000Z');
 const baseProof = {
@@ -155,5 +160,51 @@ describe('StepUpService', () => {
     expect(Date.parse(granted.expiresAt) - Date.parse(granted.grantedAt)).toBe(600_000);
     expect(granted.reusable).toBe(true);
     expect(granted.capability).toBe('database_pii');
+  });
+
+  it('resolves a reusable database PII grant only for its complete server binding', async () => {
+    const repositoryValue = repository() as StepUpRepository & {
+      grants: Map<string, unknown>;
+      findActiveDatabasePii?: (input: DatabasePiiStepUpBinding) => Promise<StepUpGrant | null>;
+    };
+    const service = new StepUpService({
+      repository: repositoryValue,
+      now: () => now,
+      verifyPassword: async () => true,
+      verifyTotp: () => true,
+      issueId: () => 'bound-pii-grant'
+    });
+    const targetDigest = 'd'.repeat(64);
+    const grant = await service.grant({
+      capability: 'database_pii',
+      subjectDigest: targetDigest,
+      ...baseProof
+    });
+    repositoryValue.findActiveDatabasePii = async () =>
+      (repositoryValue.grants.get(grant.id) as StepUpGrant | undefined) ?? null;
+    const binding: DatabasePiiStepUpBinding = {
+      capability: 'database_pii',
+      userId: baseProof.userId,
+      sessionId: baseProof.sessionId,
+      ipHash: baseProof.ipHash,
+      userAgentHash: baseProof.userAgentHash,
+      subjectDigest: targetDigest
+    };
+
+    await expect(service.authorizeDatabasePii(binding)).resolves.toMatchObject({
+      id: 'bound-pii-grant',
+      subjectDigest: targetDigest
+    });
+    for (const mismatch of [
+      { userId: 'another-user' },
+      { sessionId: 'another-session' },
+      { ipHash: 'c'.repeat(64) },
+      { userAgentHash: 'e'.repeat(64) },
+      { subjectDigest: 'f'.repeat(64) }
+    ]) {
+      await expect(service.authorizeDatabasePii({ ...binding, ...mismatch })).rejects.toMatchObject(
+        { code: 'STEP_UP_REQUIRED' }
+      );
+    }
   });
 });

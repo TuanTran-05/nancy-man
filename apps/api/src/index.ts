@@ -58,6 +58,13 @@ export function createOpsApi(input: {
     }
     response.status(200).json({ status: 'ok' });
   });
+  if (input.database) {
+    app.use('/api/v1/database', (_request, response, next) => {
+      response.setHeader('Cache-Control', 'no-store');
+      next();
+    });
+    app.use('/api/v1/database', express.json({ limit: '64kb', strict: true }));
+  }
   app.use('/api/v1/ingest', createIngestRouter(input.ingest));
   if (input.auth) app.use('/api/v1/auth', createAuthRouter(input.auth));
   if (input.accounts) app.use('/api/v1/users', createAccountRouter(input.accounts));
@@ -73,6 +80,17 @@ export function createOpsApi(input: {
   }
 
   const errorHandler: ErrorRequestHandler = (error, request, response, next) => {
+    if (error && typeof error === 'object' && 'type' in error) {
+      const parserError = error as { type?: unknown };
+      if (parserError.type === 'entity.parse.failed') {
+        response.status(400).json({ code: 'INVALID_JSON' });
+        return;
+      }
+      if (parserError.type === 'entity.too.large') {
+        response.status(413).json({ code: 'REQUEST_TOO_LARGE' });
+        return;
+      }
+    }
     try {
       input.telemetry?.captureException(error, {
         code: 'API_UNHANDLED_EXCEPTION',

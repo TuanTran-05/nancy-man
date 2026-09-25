@@ -125,6 +125,11 @@ export const opsMigrationTrustRoot: readonly MigrationTrustRootEntry[] = [
     id: '0022_database_pii_reveal',
     fileName: '0022_database_pii_reveal.sql',
     checksum: '17dc3ce27e9084e767ab4abddb0baf8660ed2331451207978be85db8ab49563b'
+  },
+  {
+    id: '0023_database_pii_grant_binding',
+    fileName: '0023_database_pii_grant_binding.sql',
+    checksum: '99eb0d98a81e12953cf3e47573d5b44042ba9f2c5cb1ba633c7402abe28a7d04'
   }
 ];
 

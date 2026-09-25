@@ -7,7 +7,7 @@ import {
   DatabaseExplorerServiceError
 } from './databaseExplorerService.js';
 import {
-  DatabasePiiRevealBodySchema,
+  DatabasePiiRevealRequestSchema,
   DatabaseRelatedRowsQueryBodySchema,
   DatabaseRowsQueryBodySchema,
   TargetIdParamSchema
@@ -110,7 +110,7 @@ export function createDatabaseRouter(input: {
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
 
-      const result = await input.service.getTargets();
+      const result = await input.service.getTargets(principal);
       return response.status(200).json(result);
     } catch (error) {
       captureOpsException(error, {
@@ -219,7 +219,6 @@ export function createDatabaseRouter(input: {
         return response.status(400).json({ code: 'DATABASE_FILTER_INVALID' });
       }
 
-      const grantId = request.get('x-ops-step-up-grant');
       const { ipHash, userAgentHash } = getHashes(request, input.hashClientIp);
       const requestId = getRequestId(response);
 
@@ -227,7 +226,6 @@ export function createDatabaseRouter(input: {
         actor: principal,
         targetId: targetIdParsed.data,
         query: bodyParsed.data,
-        ...(grantId ? { grantId } : {}),
         ...(requestId ? { requestId } : {}),
         ipHash,
         userAgentHash
@@ -286,7 +284,6 @@ export function createDatabaseRouter(input: {
         return response.status(400).json({ code: 'DATABASE_FILTER_INVALID' });
       }
 
-      const grantId = request.get('x-ops-step-up-grant');
       const { ipHash, userAgentHash } = getHashes(request, input.hashClientIp);
       const requestId = getRequestId(response);
 
@@ -294,7 +291,6 @@ export function createDatabaseRouter(input: {
         actor: principal,
         targetId: targetIdParsed.data,
         query: bodyParsed.data,
-        ...(grantId ? { grantId } : {}),
         ...(requestId ? { requestId } : {}),
         ipHash,
         userAgentHash
@@ -315,8 +311,8 @@ export function createDatabaseRouter(input: {
     }
   });
 
-  // 5. POST /:targetId/pii-reveal
-  router.post('/:targetId/pii-reveal', async (request, response) => {
+  // 5. POST /pii-reveal
+  router.post('/pii-reveal', async (request, response) => {
     try {
       response.setHeader('Cache-Control', 'no-store');
       const cookieHeader = request.get('cookie');
@@ -343,22 +339,18 @@ export function createDatabaseRouter(input: {
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
 
-      const targetIdParsed = TargetIdParamSchema.safeParse(request.params.targetId);
-      if (!targetIdParsed.success) {
-        return response.status(400).json({ code: 'DATABASE_TARGET_INVALID' });
-      }
-
-      const bodyParsed = DatabasePiiRevealBodySchema.safeParse(request.body);
+      const bodyParsed = DatabasePiiRevealRequestSchema.safeParse(request.body);
       if (!bodyParsed.success) {
         return response.status(400).json({ code: 'INVALID_REQUEST' });
       }
 
+      const { targetId, ...body } = bodyParsed.data;
       const { ipHash, userAgentHash } = getHashes(request, input.hashClientIp);
       const requestId = getRequestId(response);
       const revealResult = await input.service.revealPii({
         actor: principal,
-        targetId: targetIdParsed.data,
-        body: bodyParsed.data,
+        targetId,
+        body,
         ...(requestId ? { requestId } : {}),
         ipHash,
         userAgentHash
@@ -379,8 +371,8 @@ export function createDatabaseRouter(input: {
     }
   });
 
-  // 6. DELETE /:targetId/pii-reveal
-  router.delete('/:targetId/pii-reveal', async (request, response) => {
+  // 6. DELETE /pii-reveal
+  router.delete('/pii-reveal', async (request, response) => {
     try {
       response.setHeader('Cache-Control', 'no-store');
       const cookieHeader = request.get('cookie');
@@ -407,19 +399,11 @@ export function createDatabaseRouter(input: {
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
 
-      const targetIdParsed = TargetIdParamSchema.safeParse(request.params.targetId);
-      if (!targetIdParsed.success) {
-        return response.status(400).json({ code: 'DATABASE_TARGET_INVALID' });
-      }
-
-      const grantId = request.get('x-ops-step-up-grant');
       const { ipHash, userAgentHash } = getHashes(request, input.hashClientIp);
       const requestId = getRequestId(response);
 
       const revokeResult = await input.service.revokePiiReveal({
         actor: principal,
-        targetId: targetIdParsed.data,
-        ...(grantId ? { grantId } : {}),
         ...(requestId ? { requestId } : {}),
         ipHash,
         userAgentHash

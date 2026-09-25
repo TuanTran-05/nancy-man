@@ -57,13 +57,45 @@ describe('Ops database migration runner', () => {
       '0019_ops_runtime_telemetry_ingest_client',
       '0020_ingest_processing_completed_at',
       '0021_telemetry_source_clients',
-      '0022_database_pii_reveal'
+      '0022_database_pii_reveal',
+      '0023_database_pii_grant_binding'
     ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {
       expect(migrationSql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
     }
     expect(migrationSql).toMatch(/CREATE TABLE IF NOT EXISTS ingest_envelopes/);
+  });
+
+  it('upgrades a database with pinned 0022 applied by running additive 0023', async () => {
+    const executed: string[] = [];
+    const applied = new Map(
+      opsMigrationManifest
+        .slice(0, opsMigrationManifest.findIndex(({ id }) => id === '0022_database_pii_reveal') + 1)
+        .map(({ id, checksum }) => [id, checksum])
+    );
+
+    const result = await migrateOpsDatabase({
+      query: async <T>(sql: string, parameters: readonly unknown[] = []) => {
+        if (sql.includes('SELECT migration_id AS')) {
+          return {
+            rows: [...applied].map(([migrationId, checksum]) => ({ migrationId, checksum })) as T[]
+          };
+        }
+        if (sql.includes('INSERT INTO ops_schema_migrations')) {
+          applied.set(String(parameters[0]), String(parameters[1]));
+        }
+        executed.push(sql);
+        return { rows: [] as T[] };
+      }
+    });
+
+    expect(result.appliedMigrations).toEqual(['0023_database_pii_grant_binding']);
+    expect(executed.join('\n')).toContain('ops_secret_elevations');
+    expect(executed.join('\n')).toContain('database_pii_grants_binding');
+    expect(executed.join('\n')).not.toContain(
+      'DROP CONSTRAINT IF EXISTS ops_secret_elevations_capability_check'
+    );
   });
 
   it('is idempotent when the migration is already recorded', async () => {

@@ -169,9 +169,19 @@ describe('Database Explorer Audit Integration', () => {
     };
 
     const mockStepUp = {
-      authorize: async () => ({ id: 'grant_pii_123' }),
+      authorizeDatabasePii: async () => ({
+        id: 'grant_pii_123',
+        capability: 'database_pii',
+        subjectDigest: '0'.repeat(64),
+        expiresAt: '2026-09-25T12:10:00.000Z',
+        reusable: true
+      }),
+      revokeDatabasePii: async () => 1,
+      revokeSessionDatabasePii: async () => undefined,
       grant: async () => ({
         id: 'grant_pii_123',
+        capability: 'database_pii',
+        subjectDigest: '0'.repeat(64),
         expiresAt: new Date(Date.now() + 600_000).toISOString()
       }),
       revoke: async () => undefined
@@ -181,21 +191,7 @@ describe('Database Explorer Audit Integration', () => {
       worker,
       audit: auditLedger,
       stepUp: mockStepUp,
-      findUserTotpFactorId: async () => 'factor_totp_abc',
-      getTargetSummaries: () => [
-        {
-          id: 'edutrack_production',
-          label: 'EduTrack Production',
-          status: 'available',
-          readOnly: true
-        },
-        {
-          id: 'ops',
-          label: 'Ops Database',
-          status: 'available',
-          readOnly: true
-        }
-      ]
+      findUserTotpFactorId: async () => 'factor_totp_abc'
     });
 
     const principal: DatabasePrincipal = {
@@ -250,10 +246,14 @@ describe('Database Explorer Audit Integration', () => {
     expect(serializedMetadata).not.toContain('confidential');
     expect(serializedMetadata).not.toContain('u***@example.com');
     expect(serializedMetadata).not.toContain('ref_123');
+    expect(serializedMetadata).not.toContain('cursor');
+    expect(serializedMetadata).not.toContain('rowRef');
+    expect(serializedMetadata).not.toContain('SELECT');
 
     // Audit metadata MUST contain fingerprints and policy details
     expect(entry.metadata).toMatchObject({
       targetId: 'edutrack_production',
+      schemaChecksum: 'c'.repeat(64),
       schema: 'public',
       relation: 'users',
       pageSize: 25,
@@ -289,7 +289,6 @@ describe('Database Explorer Audit Integration', () => {
     const res = await request(app)
       .post('/api/v1/database/edutrack_production/rows/query')
       .set('x-ops-csrf', 'test-csrf')
-      .set('x-ops-step-up-grant', 'grant_pii_123')
       .send({
         schema: 'public',
         relation: 'users',
@@ -311,10 +310,13 @@ describe('Database Explorer Audit Integration', () => {
     expect(piiViewed!.action).toBe('database.pii_rows_viewed');
     expect(piiViewed!.metadata).toMatchObject({
       targetId: 'edutrack_production',
+      schemaChecksum: 'c'.repeat(64),
       schema: 'public',
-      relation: 'users',
-      grantId: 'grant_pii_123'
+      relation: 'users'
     });
+    expect(JSON.stringify(piiViewed!.metadata)).not.toContain('rowRef');
+    expect(JSON.stringify(piiViewed!.metadata)).not.toContain('cursor');
+    expect(JSON.stringify(piiViewed!.metadata)).not.toContain('SELECT');
 
     // Hash chain verification across both entries
     expect(rowsViewed!.previousHash).toBeNull();
@@ -362,21 +364,21 @@ describe('Database Explorer Audit Integration', () => {
 
     // 2. Reveal grant
     const grantRes = await request(app)
-      .post('/api/v1/database/edutrack_production/pii-reveal')
+      .post('/api/v1/database/pii-reveal')
       .set('x-ops-csrf', 'test-csrf')
       .send({
+        targetId: 'edutrack_production',
         password: 'valid-password',
         token: '123456',
         reason: 'Investigate student enrollment data issue'
       });
     expect(grantRes.status).toBe(200);
-    expect(grantRes.body.grantId).toBe('grant_pii_123');
+    expect(Object.keys(grantRes.body)).toEqual(['expiresAt']);
 
     // 3. Reveal revoke
     const revokeRes = await request(app)
-      .delete('/api/v1/database/edutrack_production/pii-reveal')
-      .set('x-ops-csrf', 'test-csrf')
-      .set('x-ops-step-up-grant', 'grant_pii_123');
+      .delete('/api/v1/database/pii-reveal')
+      .set('x-ops-csrf', 'test-csrf');
     expect(revokeRes.status).toBe(200);
 
     expect(storedEntries).toHaveLength(3);
@@ -384,7 +386,7 @@ describe('Database Explorer Audit Integration', () => {
     expect(storedEntries[1]!.action).toBe('database.pii_reveal_granted');
     expect(storedEntries[1]!.metadata['reason']).toBe('Investigate student enrollment data issue');
     expect(storedEntries[2]!.action).toBe('database.pii_reveal_revoked');
-    expect(storedEntries[2]!.metadata['grantId']).toBe('grant_pii_123');
+    expect(storedEntries[2]!.metadata['revokedCount']).toBe(1);
 
     // Verify all 3 form an unbroken hash chain
     expect(storedEntries[0]!.previousHash).toBeNull();
