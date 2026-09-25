@@ -10,7 +10,16 @@ const PAYLOAD_REDACTION = '[payload redacted]';
 
 const redactStructuredPayloads = (line: string): string => {
   const objectStart = line.indexOf('{');
-  const arrayStart = line.indexOf('[');
+  let arrayStart = -1;
+  let searchIdx = 0;
+  while ((searchIdx = line.indexOf('[', searchIdx)) >= 0) {
+    const after = line.slice(searchIdx);
+    if (!/^\[[A-Za-z0-9_/.-]+\]/.test(after)) {
+      arrayStart = searchIdx;
+      break;
+    }
+    searchIdx += 1;
+  }
   const starts = [objectStart, arrayStart].filter((index) => index >= 0);
   if (starts.length === 0) return line;
   return line.slice(0, Math.min(...starts)) + PAYLOAD_REDACTION;
@@ -35,6 +44,7 @@ const redact = (line: string): string => {
 
 export function redactLogLine(line: string): RedactedLogLine {
   const safeText = redact(line);
-  const fingerprint = createHash('sha256').update(safeText, 'utf8').digest('hex');
+  const normalizedForFingerprint = safeText.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?:\s*/, '');
+  const fingerprint = createHash('sha256').update(normalizedForFingerprint, 'utf8').digest('hex');
   return { safeText, fingerprint, isFatal: /\bFATAL\b/iu.test(line) };
 }

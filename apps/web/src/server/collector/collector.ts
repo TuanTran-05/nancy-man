@@ -269,7 +269,9 @@ export async function runCollectorCycle(
     /DeprecationWarning/i,
     /(?:^|\s)\(Use `node/i,
     /\[WARN\]/i,
-    /\[INFO\]/i
+    /\[INFO\]/i,
+    /\[API_ERROR\]\s+[A-Z]+\s+\S+\s+4\d{2}\b/i,
+    /\[course-term-roster-missing-profile\]/i
   ];
   const filteredLines = errorLines.filter(
     (line) => !ignoredPatterns.some((pattern) => pattern.test(line))
