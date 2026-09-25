@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createTargetRegistry, type TargetEntry } from './targetRegistry.js';
 
@@ -162,6 +162,18 @@ describe('Database target registry', () => {
           expect(this.connectionTag).toBe('pool-receiver');
           healthQuery = sql;
           return { rows: [{ '?column?': 1 }] as T[] };
+        },
+        connect: async () => {
+          const connection = {
+            connectionTag: 'client-receiver',
+            query: async function <T>(this: { connectionTag: string }, config: unknown) {
+              expect(this.connectionTag).toBe('client-receiver');
+              healthQuery = config;
+              return { rows: [{ '?column?': 1 }] as T[] };
+            },
+            release: () => undefined
+          };
+          return connection;
         }
       }
     };
@@ -200,5 +212,190 @@ describe('Database target registry', () => {
     await registry.summaries();
     expect(probeCount).toBe(1);
     releaseProbe?.();
+  });
+
+  it('shares the deadline-bounded promise between concurrent target listings', async () => {
+    let now = 0;
+    let probeCount = 0;
+    const registry = createTargetRegistry([healthyOpsTarget], {
+      now: () => now,
+      probeTimeoutMs: 25,
+      probe: async () => {
+        probeCount++;
+        await new Promise<void>(() => undefined);
+      }
+    });
+    now = 5_000;
+    const startedAt = Date.now();
+
+    const result = await Promise.race([
+      Promise.all([registry.summaries(), registry.summaries()]),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 100))
+    ]);
+
+    expect(result).toEqual([
+      [
+        {
+          id: 'ops',
+          label: 'Ops Database',
+          status: 'unavailable',
+          readOnly: true,
+          unavailableReason: 'DATABASE_TARGET_UNAVAILABLE'
+        }
+      ],
+      [
+        {
+          id: 'ops',
+          label: 'Ops Database',
+          status: 'unavailable',
+          readOnly: true,
+          unavailableReason: 'DATABASE_TARGET_UNAVAILABLE'
+        }
+      ]
+    ]);
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
+    expect(probeCount).toBe(1);
+  });
+
+  it('does not let a probe that completes after its deadline restore availability', async () => {
+    let now = 0;
+    let releaseProbe: (() => void) | undefined;
+    const registry = createTargetRegistry([healthyOpsTarget], {
+      now: () => now,
+      probeTimeoutMs: 10,
+      probe: async () => {
+        await new Promise<void>((resolve) => {
+          releaseProbe = resolve;
+        });
+      }
+    });
+    now = 5_000;
+
+    await expect(registry.summaries()).resolves.toMatchObject([{ status: 'unavailable' }]);
+    releaseProbe?.();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    await expect(registry.summaries()).resolves.toMatchObject([{ status: 'unavailable' }]);
+  });
+
+  it('recovers after a never-settling probe while capping stale probes and clearing deadlines', async () => {
+    let now = 0;
+    let probeCount = 0;
+    let activeProbes = 0;
+    let maxActiveProbes = 0;
+    const staleRejectors: Array<(error: Error) => void> = [];
+    const registry = createTargetRegistry([healthyOpsTarget], {
+      now: () => now,
+      probeTimeoutMs: 10,
+      probe: async () => {
+        probeCount++;
+        activeProbes++;
+        maxActiveProbes = Math.max(maxActiveProbes, activeProbes);
+        if (probeCount !== 2) {
+          await new Promise<void>((_resolve, reject) => {
+            staleRejectors.push(reject);
+          }).finally(() => {
+            activeProbes--;
+          });
+          return;
+        }
+        activeProbes--;
+      }
+    });
+    now = 5_000;
+
+    try {
+      vi.useFakeTimers();
+      const outageSummary = registry.summaries();
+      await vi.advanceTimersByTimeAsync(10);
+      await expect(outageSummary).resolves.toMatchObject([{ status: 'unavailable' }]);
+      expect(vi.getTimerCount()).toBe(0);
+
+      now += 5_000;
+      await expect(registry.summaries()).resolves.toMatchObject([{ status: 'available' }]);
+      expect(probeCount).toBe(2);
+
+      now += 5_000;
+      const secondStalledSummary = registry.summaries();
+      await vi.advanceTimersByTimeAsync(10);
+      await expect(secondStalledSummary).resolves.toMatchObject([{ status: 'unavailable' }]);
+      expect(probeCount).toBe(3);
+
+      now += 5_000;
+      await registry.summaries();
+      expect(probeCount).toBe(3);
+      expect(maxActiveProbes).toBeLessThanOrEqual(2);
+      expect(vi.getTimerCount()).toBe(0);
+
+      for (const reject of staleRejectors) reject(new Error('late probe failure'));
+      await Promise.resolve();
+      await Promise.resolve();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('bounds pool acquisition through the configured target pool and skips query on acquire failure', async () => {
+    let now = 0;
+    let queryCalls = 0;
+    let connectCalls = 0;
+    const target: TargetEntry = {
+      ...healthyOpsTarget,
+      pool: {
+        ...healthyOpsTarget.pool,
+        query: async () => {
+          queryCalls++;
+          return { rows: [] };
+        },
+        connect: async () => {
+          connectCalls++;
+          throw new Error('timeout exceeded when trying to connect');
+        }
+      }
+    };
+    const registry = createTargetRegistry([target], { now: () => now, probeTimeoutMs: 10 });
+    now = 5_000;
+
+    await expect(registry.summaries()).resolves.toMatchObject([{ status: 'unavailable' }]);
+
+    expect(connectCalls).toBe(1);
+    expect(queryCalls).toBe(0);
+  });
+
+  it('destroys an acquired client exactly once when a health query reaches its deadline', async () => {
+    let now = 0;
+    let queryStarted = false;
+    const releaseCalls: Array<Error | boolean | undefined> = [];
+    let rejectQuery: ((error: Error) => void) | undefined;
+    const target: TargetEntry = {
+      ...healthyOpsTarget,
+      pool: {
+        ...healthyOpsTarget.pool,
+        query: async () => ({ rows: [] }),
+        connect: async () => ({
+          query: async <T>(config: unknown) => {
+            expect(config).toEqual({ text: 'SELECT 1', query_timeout: 1_000 });
+            queryStarted = true;
+            return new Promise<{ rows: T[] }>((_resolve, reject) => {
+              rejectQuery = reject;
+            });
+          },
+          release: (error?: Error | boolean) => {
+            releaseCalls.push(error);
+            if (error instanceof Error) rejectQuery?.(error);
+          }
+        })
+      }
+    };
+    const registry = createTargetRegistry([target], { now: () => now, probeTimeoutMs: 10 });
+    now = 5_000;
+
+    const result = await registry.summaries();
+
+    expect(result).toMatchObject([{ status: 'unavailable' }]);
+    expect(queryStarted).toBe(true);
+    expect(releaseCalls).toHaveLength(1);
+    expect(releaseCalls[0]).toBeInstanceOf(Error);
   });
 });

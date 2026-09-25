@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { SqlWorkerRuntimeConfig } from './runtimeConfig.js';
-import { resolveSqlWorkerCredentials, startOpsSqlWorker } from './main.js';
+import {
+  createExplorerTargetPool,
+  resolveSqlWorkerCredentials,
+  startOpsSqlWorker
+} from './main.js';
 import { signWorkerCommand } from '../protocol/authenticateCommand.js';
 import { encodeFrame, FrameDecoder } from '../protocol/framing.js';
 import { readProductionSchema } from '../schema/introspectSchema.js';
@@ -150,6 +154,23 @@ describe('resolveSqlWorkerCredentials', () => {
 });
 
 describe('startOpsSqlWorker', () => {
+  it('configures explorer pools to bound target-pool acquisition to one second', async () => {
+    const pool = createExplorerTargetPool(
+      'ops',
+      'postgresql://reader:secret@ops-db/edutrack_ops?sslmode=verify-full'
+    ) as unknown as {
+      options: { connectionTimeoutMillis: number; max: number };
+      end: () => Promise<void>;
+    };
+
+    try {
+      expect(pool.options.connectionTimeoutMillis).toBe(1_000);
+      expect(pool.options.max).toBe(2);
+    } finally {
+      await pool.end();
+    }
+  });
+
   it('captures a hostile pool-close rejection before flushing and preserves its identity', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'ops-sql-worker-'));
     const socketPath = join(directory, 'worker.sock');

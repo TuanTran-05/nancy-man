@@ -90,7 +90,7 @@ type ProductionReadPool = {
       sql: string,
       values?: readonly unknown[]
     ) => Promise<{ rows: T[]; rowCount?: number | null }>;
-    release: () => void;
+    release: (error?: Error | boolean) => void;
   }>;
   end: () => Promise<void>;
 };
@@ -115,11 +115,15 @@ function createProductionMutationPool(databaseUrl: string): ProductionMutationPo
   });
 }
 
-function createExplorerTargetPool(targetId: string, databaseUrl: string): ProductionReadPool {
+export function createExplorerTargetPool(
+  targetId: string,
+  databaseUrl: string
+): ProductionReadPool {
   return new Pool({
     connectionString: databaseUrl,
     application_name: `edutrack-ops-database-explorer:${targetId}`,
     max: 2,
+    connectionTimeoutMillis: 1_000,
     idleTimeoutMillis: 30_000
   });
 }
@@ -223,7 +227,7 @@ export async function startOpsSqlWorker(
     createMutationPool?: (databaseUrl: string) => ProductionMutationPool;
     createExplorerPool?: (targetId: DatabaseTargetId, databaseUrl: string) => ProductionReadPool;
     now?: () => number;
-    probeExplorerTarget?: (targetId: DatabaseTargetId) => Promise<void>;
+    probeExplorerTarget?: (targetId: DatabaseTargetId, signal: AbortSignal) => Promise<void>;
     telemetry?: RuntimeTelemetry;
   } = {}
 ): Promise<{ close: () => Promise<void> }> {
@@ -290,7 +294,10 @@ export async function startOpsSqlWorker(
   const registryOptions = {
     ...(input.now ? { now: input.now } : {}),
     ...(input.probeExplorerTarget
-      ? { probe: (target: { id: DatabaseTargetId }) => input.probeExplorerTarget!(target.id) }
+      ? {
+          probe: (target: { id: DatabaseTargetId }, signal: AbortSignal) =>
+            input.probeExplorerTarget!(target.id, signal)
+        }
       : {})
   };
   try {

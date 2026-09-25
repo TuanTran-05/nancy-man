@@ -14,7 +14,7 @@ export type TargetPool = {
       sql: string,
       values?: readonly unknown[]
     ) => Promise<{ rows: T[]; rowCount?: number | null }>;
-    release: () => void;
+    release: (error?: Error | boolean) => void;
   }>;
   end: () => Promise<void>;
 };
@@ -53,7 +53,7 @@ export interface DatabaseTargetRegistry {
 export type TargetRegistryOptions = {
   now?: () => number;
   probeTimeoutMs?: number;
-  probe?: (target: AvailableTargetEntry) => Promise<void>;
+  probe?: (target: AvailableTargetEntry, signal: AbortSignal) => Promise<void>;
 };
 
 const TARGET_HEALTH_INTERVAL_MS = 5_000;
@@ -63,19 +63,55 @@ type TargetState = {
   entry: TargetEntry;
   status: TargetEntry['status'];
   lastProbeAt: number;
+  latestProbeId: number;
+  activeProbes: number;
   inFlight: Promise<void> | undefined;
-  timedOut: boolean;
 };
 
-async function probeTarget(target: AvailableTargetEntry): Promise<void> {
-  const query = target.pool.query as unknown as (
-    this: TargetPool,
-    config: { text: string; query_timeout: number }
-  ) => Promise<{ rows: unknown[] }>;
-  await query.call(target.pool, {
-    text: 'SELECT 1',
-    query_timeout: TARGET_HEALTH_QUERY_TIMEOUT_MS
+function createProbeTimeoutError(): Error {
+  return Object.assign(new Error('DATABASE_TARGET_PROBE_TIMEOUT'), {
+    code: 'DATABASE_TARGET_PROBE_TIMEOUT'
   });
+}
+
+async function probeTarget(target: AvailableTargetEntry, signal: AbortSignal): Promise<void> {
+  let client: Awaited<ReturnType<TargetPool['connect']>> | undefined;
+  let released = false;
+  const release = (error?: Error): void => {
+    if (!client || released) return;
+    released = true;
+    client.release(error);
+  };
+  const onAbort = (): void => {
+    const error = signal.reason instanceof Error ? signal.reason : createProbeTimeoutError();
+    release(error);
+  };
+  signal.addEventListener('abort', onAbort, { once: true });
+
+  try {
+    client = await target.pool.connect();
+    if (signal.aborted) {
+      onAbort();
+      throw signal.reason instanceof Error ? signal.reason : createProbeTimeoutError();
+    }
+    const query = client.query as unknown as (
+      this: Awaited<ReturnType<TargetPool['connect']>>,
+      config: { text: string; query_timeout: number }
+    ) => Promise<{ rows: unknown[] }>;
+    await query.call(client, {
+      text: 'SELECT 1',
+      query_timeout: TARGET_HEALTH_QUERY_TIMEOUT_MS
+    });
+    if (signal.aborted) {
+      throw signal.reason instanceof Error ? signal.reason : createProbeTimeoutError();
+    }
+  } catch (error) {
+    release(error instanceof Error ? error : createProbeTimeoutError());
+    throw error;
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+    release();
+  }
 }
 
 export function createTargetRegistry(
@@ -85,14 +121,17 @@ export function createTargetRegistry(
   const now = options.now ?? Date.now;
   const probe = options.probe ?? probeTarget;
   const probeTimeoutMs = options.probeTimeoutMs ?? TARGET_HEALTH_QUERY_TIMEOUT_MS;
+  // A timed-out injected probe may ignore abort; permit one recovery attempt without unbounded orphans.
+  const maxActiveProbes = 2;
   const states = new Map<DatabaseTargetId, TargetState>();
   for (const entry of entries) {
     states.set(entry.id, {
       entry,
       status: entry.status,
       lastProbeAt: now(),
-      inFlight: undefined,
-      timedOut: false
+      latestProbeId: 0,
+      activeProbes: 0,
+      inFlight: undefined
     });
   }
 
@@ -104,38 +143,48 @@ export function createTargetRegistry(
 
   const refresh = (state: TargetState): Promise<void> | undefined => {
     if (state.entry.status !== 'available') return undefined;
-    if (state.inFlight) return state.timedOut ? undefined : state.inFlight;
+    if (state.inFlight) return state.inFlight;
     const probeStartedAt = now();
     if (probeStartedAt - state.lastProbeAt < TARGET_HEALTH_INTERVAL_MS) return undefined;
+    if (state.activeProbes >= maxActiveProbes) return undefined;
 
     state.lastProbeAt = probeStartedAt;
+    const probeId = ++state.latestProbeId;
+    const controller = new AbortController();
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     let resolveDeadline: (() => void) | undefined;
     const deadline = new Promise<void>((resolve) => {
       resolveDeadline = resolve;
     });
+    let timedOut = false;
+    state.activeProbes++;
+    let boundedProbe: Promise<void>;
     const operation = Promise.resolve()
-      .then(() => probe(state.entry as AvailableTargetEntry))
+      .then(() => probe(state.entry as AvailableTargetEntry, controller.signal))
       .then(
         () => {
-          if (!state.timedOut) state.status = 'available';
+          if (probeId === state.latestProbeId && !timedOut) state.status = 'available';
         },
         () => {
-          state.status = 'unavailable';
+          if (probeId === state.latestProbeId) state.status = 'unavailable';
         }
       )
       .finally(() => {
         if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-        state.inFlight = undefined;
-        state.timedOut = false;
+        state.activeProbes--;
       });
-    state.inFlight = operation;
+    boundedProbe = Promise.race([operation, deadline]);
+    state.inFlight = boundedProbe;
+    void boundedProbe.then(() => {
+      if (state.inFlight === boundedProbe) state.inFlight = undefined;
+    });
     timeoutHandle = setTimeout(() => {
-      state.timedOut = true;
-      state.status = 'unavailable';
+      timedOut = true;
+      if (probeId === state.latestProbeId) state.status = 'unavailable';
+      controller.abort(createProbeTimeoutError());
       resolveDeadline?.();
     }, probeTimeoutMs);
-    return Promise.race([operation, deadline]);
+    return boundedProbe;
   };
 
   const visibleEntry = (state: TargetState): TargetEntry => {

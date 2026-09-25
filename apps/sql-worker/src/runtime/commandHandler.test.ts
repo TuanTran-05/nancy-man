@@ -325,6 +325,97 @@ describe('createSqlWorkerCommandHandler', () => {
     ).rejects.toMatchObject({ code: 'WORKER_RESULT_INVALID' });
   });
 
+  it('returns a stable result error for non-JSON nested cell values', async () => {
+    const handler = createSqlWorkerCommandHandler({
+      read: { enabled: false },
+      explorer: {
+        enabled: true,
+        targets: async () => [],
+        schema: async () => ({}),
+        rows: async () => ({
+          targetId: 'ops',
+          schemaChecksum: 'a'.repeat(64),
+          policyVersion: 'test-policy',
+          schema: 'public',
+          relation: 'students',
+          columns: [],
+          rows: [
+            {
+              rowRef: null,
+              cells: { profile: { state: 'value', value: { nested: [new Date()] } } }
+            }
+          ],
+          nextCursor: null,
+          truncated: false,
+          encodedBytes: 0,
+          consistency: 'stable',
+          piiMode: 'masked'
+        }),
+        relatedRows: async () => ({})
+      }
+    });
+
+    await expect(
+      handler(
+        command({
+          kind: 'database.rows',
+          payload: {
+            targetId: 'ops',
+            schema: 'public',
+            relation: 'students',
+            pageSize: 25,
+            filters: [],
+            piiMode: 'masked'
+          }
+        })
+      )
+    ).rejects.toMatchObject({ code: 'WORKER_RESULT_INVALID' });
+  });
+
+  it('returns a stable result error for cyclic cell values', async () => {
+    const cyclicValue: Record<string, unknown> = {};
+    cyclicValue.self = cyclicValue;
+    const handler = createSqlWorkerCommandHandler({
+      read: { enabled: false },
+      explorer: {
+        enabled: true,
+        targets: async () => [],
+        schema: async () => ({}),
+        rows: async () => ({
+          targetId: 'ops',
+          schemaChecksum: 'a'.repeat(64),
+          policyVersion: 'test-policy',
+          schema: 'public',
+          relation: 'students',
+          columns: [],
+          rows: [{ rowRef: null, cells: { profile: { state: 'value', value: cyclicValue } } }],
+          nextCursor: null,
+          truncated: false,
+          encodedBytes: 0,
+          consistency: 'stable',
+          piiMode: 'masked'
+        }),
+        relatedRows: async () => ({})
+      }
+    });
+
+    await expect(
+      handler(
+        command({
+          kind: 'database.rows',
+          payload: {
+            targetId: 'ops',
+            schema: 'public',
+            relation: 'students',
+            pageSize: 25,
+            filters: [],
+            piiMode: 'masked'
+          }
+        })
+      )
+    ).rejects.toMatchObject({ code: 'WORKER_RESULT_INVALID' });
+  });
+
   it('denies viewers before resolving rows or related rows', async () => {
     let readerCalls = 0;
     const handler = createSqlWorkerCommandHandler({

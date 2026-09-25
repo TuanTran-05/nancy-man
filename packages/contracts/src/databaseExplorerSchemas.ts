@@ -12,6 +12,84 @@ const identifierSchema = z.string().min(1).max(128);
 const cursorSchema = z.string().min(1).max(4096);
 const piiModeSchema = z.enum(['masked', 'revealed']);
 
+interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
+
+function isPlainJsonObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  return Reflect.ownKeys(value).every((key) => {
+    if (typeof key !== 'string') return false;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return (
+      descriptor?.enumerable === true &&
+      descriptor.get === undefined &&
+      descriptor.set === undefined
+    );
+  });
+}
+
+function isJsonValue(value: unknown): value is JsonValue {
+  const active = new WeakSet<object>();
+  const pending: Array<{ value: unknown; exit?: boolean }> = [{ value }];
+
+  try {
+    while (pending.length > 0) {
+      const item = pending.pop()!;
+      if (item.exit) {
+        active.delete(item.value as object);
+        continue;
+      }
+
+      const current = item.value;
+      if (
+        current === null ||
+        typeof current === 'boolean' ||
+        typeof current === 'string' ||
+        (typeof current === 'number' && Number.isFinite(current))
+      ) {
+        continue;
+      }
+      if (typeof current !== 'object') return false;
+      if (active.has(current)) return false;
+
+      active.add(current);
+      pending.push({ value: current, exit: true });
+      if (Array.isArray(current)) {
+        if (Object.getPrototypeOf(current) !== Array.prototype) return false;
+        const ownKeys = Reflect.ownKeys(current);
+        if (ownKeys.length !== current.length + 1 || !ownKeys.includes('length')) return false;
+        for (let index = current.length - 1; index >= 0; index--) {
+          const descriptor = Object.getOwnPropertyDescriptor(current, String(index));
+          if (
+            !descriptor?.enumerable ||
+            descriptor.get !== undefined ||
+            descriptor.set !== undefined
+          ) {
+            return false;
+          }
+          pending.push({ value: descriptor.value });
+        }
+        continue;
+      }
+      if (!isPlainJsonObject(current)) return false;
+      const keys = Reflect.ownKeys(current) as string[];
+      for (let index = keys.length - 1; index >= 0; index--) {
+        pending.push({ value: Object.getOwnPropertyDescriptor(current, keys[index]!)!.value });
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const jsonValueSchema = z.custom<JsonValue>(isJsonValue);
+
 export const databaseTargetsPayloadSchema = z.object({}).strict();
 
 export const databaseSchemaPayloadSchema = z.object({ targetId: targetIdSchema }).strict();
@@ -192,17 +270,8 @@ export const databaseSchemaResultSchema = z
   })
   .strict();
 
-const cellValueSchema = z.union([
-  z.null(),
-  z.boolean(),
-  z.number().finite(),
-  z.string(),
-  z.array(z.unknown()),
-  z.record(z.string(), z.unknown())
-]);
-
 const databaseCellSchema = z.union([
-  z.object({ state: z.literal('value'), value: cellValueSchema }).strict(),
+  z.object({ state: z.literal('value'), value: jsonValueSchema }).strict(),
   z.object({ state: z.literal('masked'), display: z.string() }).strict(),
   z.object({ state: z.literal('blocked') }).strict(),
   z
