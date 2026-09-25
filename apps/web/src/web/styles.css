@@ -1316,6 +1316,17 @@ select {
   text-overflow: ellipsis;
 }
 
+.ops-data-grid-table tbody td[tabindex='0']:focus-visible,
+.ops-data-table tbody td[tabindex='0']:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: -2px;
+}
+
+.cell-non-copyable {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .ops-data-grid-table tbody tr:hover {
   background: #172033;
 }

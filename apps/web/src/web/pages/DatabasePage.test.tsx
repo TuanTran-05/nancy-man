@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DatabasePage } from './DatabasePage.js';
 import type { SessionInfo } from '../api.js';
@@ -207,5 +207,64 @@ describe('DatabasePage component', () => {
     expect(
       await screen.findByRole('heading', { name: 'Mở khóa dữ liệu nhạy cảm (PII)' })
     ).toBeInTheDocument();
+  });
+
+  it('announces a countdown that ticks while PII is revealed', async () => {
+    const expiresAt = new Date(Date.now() + 65_000).toISOString();
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify(mockTargetsResponse), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaResponse), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        const body = JSON.parse(String(init?.body)) as { piiMode?: string };
+        return new Response(
+          JSON.stringify(
+            body.piiMode === 'revealed'
+              ? {
+                  ...mockRowsResponse,
+                  piiMode: 'revealed',
+                  rows: [
+                    {
+                      rowRef: 'ref-revealed',
+                      cells: {
+                        id: { state: 'value', value: 'user-uuid-1' },
+                        email: { state: 'value', value: 'pii-sentinel@example.com' },
+                        password_hash: { state: 'blocked' }
+                      }
+                    }
+                  ]
+                }
+              : mockRowsResponse
+          ),
+          { status: 200 }
+        );
+      }
+      if (url.endsWith('/pii-reveal') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ expiresAt }), { status: 200 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const user = userEvent.setup();
+    render(<DatabasePage session={sessionOwner} onUnauthorized={() => {}} />);
+    await user.click(await screen.findByRole('button', { name: 'Mở khóa PII' }));
+    await user.type(screen.getByLabelText('Mật khẩu tài khoản'), 'SecurePassword123!');
+    await user.type(screen.getByLabelText('Mã xác thực TOTP (6 số)'), '123456');
+    await user.type(
+      screen.getByLabelText('Lý do truy cập (tối thiểu 10 ký tự)'),
+      'Investigating INC-123'
+    );
+    await user.click(screen.getByRole('button', { name: 'Xác thực & Mở khóa' }));
+
+    const countdown = await screen.findByText(/PII: Đã mở khóa/);
+    const initialCountdown = countdown.textContent;
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+    });
+    expect(countdown.textContent).not.toBe(initialCountdown);
   });
 });

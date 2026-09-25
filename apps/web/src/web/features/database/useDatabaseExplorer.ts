@@ -40,9 +40,34 @@ export type UseDatabaseExplorerProps = {
   onUnauthorized: () => void;
 };
 
+type RelatedRowsDrawerState = {
+  open: boolean;
+  edge: DatabaseRelationEdge;
+  rowRef: string;
+  sourceSchema: string;
+  sourceRelation: string;
+  targetId: DatabaseTargetId;
+  schemaChecksum: string | null;
+  loading: boolean;
+  rows: DatabaseRowsResponse | null;
+  error?: string | null;
+  cursorStack: string[];
+  currentCursor?: string;
+};
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const value = error as Record<string, unknown>;
+    if (typeof value['code'] === 'string') return value['code'];
+    if (typeof value['message'] === 'string') return value['message'];
+  }
+  return fallback;
+}
+
 export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExplorerProps) {
   const [targets, setTargets] = useState<DatabaseTargetSummary[]>([]);
   const [selectedTargetId, setSelectedTargetId] = useState<DatabaseTargetId | null>(null);
+  const [schemaLoadVersion, setSchemaLoadVersion] = useState(0);
   const [schema, setSchema] = useState<DatabaseExplorerSchemaSnapshot | null>(null);
   const [selectedSchemaName, setSelectedSchemaName] = useState<string | null>(null);
   const [selectedRelationName, setSelectedRelationName] = useState<string | null>(null);
@@ -61,16 +86,7 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     cell: DatabaseCell;
   } | null>(null);
 
-  const [relatedRowsDrawer, setRelatedRowsDrawer] = useState<{
-    open: boolean;
-    edge: DatabaseRelationEdge | null;
-    rowRef: string | null;
-    loading: boolean;
-    rows: DatabaseRowsResponse | null;
-    error?: string | null;
-    cursorStack: string[];
-    currentCursor?: string;
-  } | null>(null);
+  const [relatedRowsDrawer, setRelatedRowsDrawer] = useState<RelatedRowsDrawerState | null>(null);
 
   const [piiReveal, setPiiReveal] = useState<{
     active: boolean;
@@ -86,6 +102,20 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
   const isViewer = session.role === 'ops_viewer';
   const schemaGenerationRef = useRef(0);
   const rowsGenerationRef = useRef(0);
+  const relatedRowsGenerationRef = useRef(0);
+  const privacyTransitionGenerationRef = useRef(0);
+  const rowsSuppressedRef = useRef(false);
+  const privacyTransitionQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const revealRequestRef = useRef<Promise<{ expiresAt: string }> | null>(null);
+  const schemaSnapshotRef = useRef<DatabaseExplorerSchemaSnapshot | null>(null);
+  const selectedTargetIdRef = useRef(selectedTargetId);
+  const selectedSchemaNameRef = useRef(selectedSchemaName);
+  const selectedRelationNameRef = useRef(selectedRelationName);
+  selectedTargetIdRef.current = selectedTargetId;
+  selectedSchemaNameRef.current = selectedSchemaName;
+  selectedRelationNameRef.current = selectedRelationName;
+  const piiRevealActiveRef = useRef(piiReveal.active);
+  piiRevealActiveRef.current = piiReveal.active;
   const onUnauthorizedRef = useRef(onUnauthorized);
   onUnauthorizedRef.current = onUnauthorized;
 
@@ -122,24 +152,83 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     };
   }, []);
 
-  // Target change resets and loads schema
-  const selectTarget = useCallback((targetId: DatabaseTargetId) => {
-    schemaGenerationRef.current += 1;
+  const clearRowsAndSensitiveLayers = useCallback(() => {
+    const generation = ++privacyTransitionGenerationRef.current;
     rowsGenerationRef.current += 1;
-    setSelectedTargetId(targetId);
-    setSchema(null);
-    setSelectedSchemaName(null);
-    setSelectedRelationName(null);
+    relatedRowsGenerationRef.current += 1;
+    rowsSuppressedRef.current = true;
     setRows(null);
-    setCursorStack([]);
-    setCurrentCursor(undefined);
-    setFilters([]);
-    setSort(undefined);
+    setLoadingRows(false);
     setSelectedCell(null);
     setRelatedRowsDrawer(null);
+    setCursorStack([]);
+    setCurrentCursor(undefined);
     setPiiReveal({ active: false, expiresAt: null });
-    setError(null);
+    return generation;
   }, []);
+
+  const revokePrivacy = useCallback(
+    (generation: number, pendingReveal: Promise<{ expiresAt: string }> | null) => {
+      const operation = privacyTransitionQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (pendingReveal) await pendingReveal.catch(() => undefined);
+          await hideDatabasePii(session.csrfToken ?? '');
+          return privacyTransitionGenerationRef.current === generation;
+        });
+      privacyTransitionQueueRef.current = operation.then(
+        () => undefined,
+        () => undefined
+      );
+      return operation;
+    },
+    [session.csrfToken]
+  );
+
+  // Clear synchronously, revoke globally, then allow the target schema request.
+  const selectTarget = useCallback(
+    async (targetId: DatabaseTargetId) => {
+      if (selectedTargetId === targetId && schema) return;
+      if (!selectedTargetId) {
+        setSelectedTargetId(targetId);
+        return;
+      }
+
+      const generation = clearRowsAndSensitiveLayers();
+      const pendingReveal = revealRequestRef.current;
+      schemaGenerationRef.current += 1;
+      schemaSnapshotRef.current = null;
+      setSchema(null);
+      setSelectedSchemaName(null);
+      setSelectedRelationName(null);
+      setFilters([]);
+      setSort(undefined);
+      setIsRevealDialogOpen(false);
+      setLoadingSchema(true);
+      setError(null);
+
+      try {
+        const current = await revokePrivacy(generation, pendingReveal);
+        if (!current) return;
+        rowsSuppressedRef.current = false;
+        if (targetId === selectedTargetId) setSchemaLoadVersion((previous) => previous + 1);
+        else setSelectedTargetId(targetId);
+      } catch (err: unknown) {
+        if (privacyTransitionGenerationRef.current !== generation) return;
+        if (err && typeof err === 'object' && (err as Record<string, unknown>)['status'] === 401) {
+          onUnauthorizedRef.current();
+        }
+        setLoadingSchema(false);
+        setError(getErrorMessage(err, 'Unable to revoke PII access before switching database'));
+        void captureBrowserException(err, {
+          code: 'UNHANDLED_BROWSER_EXCEPTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname
+        });
+      }
+    },
+    [selectedTargetId, schema, clearRowsAndSensitiveLayers, revokePrivacy]
+  );
 
   // When selectedTargetId changes, fetch schema
   useEffect(() => {
@@ -151,6 +240,20 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     getDatabaseSchema(selectedTargetId)
       .then((snapshot) => {
         if (schemaGenerationRef.current !== currentGeneration) return;
+        const previousSnapshot = schemaSnapshotRef.current;
+        if (
+          previousSnapshot?.targetId === snapshot.targetId &&
+          previousSnapshot.checksum !== snapshot.checksum
+        ) {
+          rowsGenerationRef.current += 1;
+          relatedRowsGenerationRef.current += 1;
+          setRows(null);
+          setCursorStack([]);
+          setCurrentCursor(undefined);
+          setSelectedCell(null);
+          setRelatedRowsDrawer(null);
+        }
+        schemaSnapshotRef.current = snapshot;
         setSchema(snapshot);
         if (snapshot.schemas.length > 0) {
           const firstSchema = snapshot.schemas[0];
@@ -175,14 +278,16 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
           setLoadingSchema(false);
         }
       });
-  }, [selectedTargetId]);
+  }, [selectedTargetId, schemaLoadVersion]);
 
   // Select relation
   const selectRelation = useCallback((schemaName: string, relationName: string) => {
     rowsGenerationRef.current += 1;
+    relatedRowsGenerationRef.current += 1;
     setSelectedSchemaName(schemaName);
     setSelectedRelationName(relationName);
     setRows(null);
+    setLoadingRows(false);
     setCursorStack([]);
     setCurrentCursor(undefined);
     setFilters([]);
@@ -194,7 +299,13 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
 
   // Load rows for maintainer/owner
   const loadRows = useCallback(() => {
-    if (!selectedTargetId || !selectedSchemaName || !selectedRelationName || isViewer) {
+    if (
+      rowsSuppressedRef.current ||
+      !selectedTargetId ||
+      !selectedSchemaName ||
+      !selectedRelationName ||
+      isViewer
+    ) {
       return;
     }
 
@@ -227,7 +338,7 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
         });
         if (rowsGenerationRef.current !== currentGeneration) return;
         if (err?.status === 401) onUnauthorizedRef.current();
-        else setError(err?.code ?? err?.message ?? 'Không thể tải dữ liệu bảng');
+        else setError(getErrorMessage(err, 'Không thể tải dữ liệu bảng'));
       })
       .finally(() => {
         if (rowsGenerationRef.current === currentGeneration) {
@@ -303,79 +414,152 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     setFilters((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const followRelation = useCallback(
-    async (edge: DatabaseRelationEdge, rowRef: string) => {
-      if (!selectedTargetId || !session.csrfToken) return;
-      setRelatedRowsDrawer({
-        open: true,
-        edge,
-        rowRef,
-        loading: true,
-        rows: null,
-        error: null,
-        cursorStack: [],
-        currentCursor: undefined
-      });
+  const loadRelatedPage = useCallback(
+    async (
+      drawer: RelatedRowsDrawerState,
+      cursor: string | undefined,
+      cursorStack: string[],
+      generation: number
+    ) => {
+      setRelatedRowsDrawer((prev) =>
+        prev
+          ? { ...prev, loading: true, rows: null, error: null, cursorStack, currentCursor: cursor }
+          : null
+      );
       try {
-        const res = await queryRelatedRows(
-          selectedTargetId,
+        const response = await queryRelatedRows(
+          drawer.targetId,
           {
-            schema: edge.from.schema,
-            relation: edge.from.relation,
-            constraint: edge.constraint,
-            rowRef,
+            schema: drawer.sourceSchema,
+            relation: drawer.sourceRelation,
+            constraint: drawer.edge.constraint,
+            rowRef: drawer.rowRef,
             pageSize: 25,
+            cursor,
             piiMode: piiReveal.active ? 'revealed' : 'masked'
           },
-          session.csrfToken
+          session.csrfToken ?? ''
         );
-        setRelatedRowsDrawer((prev) => (prev ? { ...prev, loading: false, rows: res } : null));
+        if (relatedRowsGenerationRef.current !== generation) return;
+        if (schemaSnapshotRef.current?.checksum !== drawer.schemaChecksum) return;
+        setRelatedRowsDrawer((prev) =>
+          prev
+            ? { ...prev, loading: false, rows: response, cursorStack, currentCursor: cursor }
+            : null
+        );
       } catch (err: unknown) {
         void captureBrowserException(err, {
           code: 'UNHANDLED_BROWSER_EXCEPTION',
           source: 'browser',
           route: () => globalThis.location?.pathname
         });
-        const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
-        if (errObj['status'] === 401) onUnauthorizedRef.current();
-        else {
-          const msg =
-            typeof errObj['code'] === 'string'
-              ? errObj['code']
-              : typeof errObj['message'] === 'string'
-                ? errObj['message']
-                : 'Error loading related rows';
-          setRelatedRowsDrawer((prev) => (prev ? { ...prev, loading: false, error: msg } : null));
+        if (relatedRowsGenerationRef.current !== generation) return;
+        if (err && typeof err === 'object' && (err as Record<string, unknown>)['status'] === 401) {
+          onUnauthorizedRef.current();
         }
+        setRelatedRowsDrawer((prev) =>
+          prev
+            ? {
+                ...prev,
+                loading: false,
+                error: getErrorMessage(err, 'Error loading related rows')
+              }
+            : null
+        );
       }
     },
-    [selectedTargetId, session.csrfToken, piiReveal.active]
+    [session.csrfToken, piiReveal.active]
   );
 
+  const followRelation = useCallback(
+    async (edge: DatabaseRelationEdge, rowRef: string) => {
+      if (!selectedTargetId || !selectedSchemaName || !selectedRelationName || !session.csrfToken) {
+        return;
+      }
+      const drawer: RelatedRowsDrawerState = {
+        open: true,
+        edge,
+        rowRef,
+        sourceSchema: selectedSchemaName,
+        sourceRelation: selectedRelationName,
+        targetId: selectedTargetId,
+        schemaChecksum: schema?.checksum ?? null,
+        loading: true,
+        rows: null,
+        error: null,
+        cursorStack: [],
+        currentCursor: undefined
+      };
+      const generation = ++relatedRowsGenerationRef.current;
+      setRelatedRowsDrawer(drawer);
+      await loadRelatedPage(drawer, undefined, [], generation);
+    },
+    [
+      selectedTargetId,
+      selectedSchemaName,
+      selectedRelationName,
+      session.csrfToken,
+      schema?.checksum,
+      loadRelatedPage
+    ]
+  );
+
+  const goToRelatedNextPage = useCallback(async () => {
+    const drawer = relatedRowsDrawer;
+    const nextCursor = drawer?.rows?.nextCursor;
+    if (!drawer?.open || drawer.loading || !nextCursor) return;
+    const cursorStack = [...drawer.cursorStack, drawer.currentCursor ?? ''];
+    await loadRelatedPage(drawer, nextCursor, cursorStack, relatedRowsGenerationRef.current);
+  }, [relatedRowsDrawer, loadRelatedPage]);
+
+  const goToRelatedPreviousPage = useCallback(async () => {
+    const drawer = relatedRowsDrawer;
+    if (!drawer?.open || drawer.loading || drawer.cursorStack.length === 0) return;
+    const cursorStack = drawer.cursorStack.slice(0, -1);
+    const previousCursor = drawer.cursorStack[drawer.cursorStack.length - 1] || undefined;
+    await loadRelatedPage(drawer, previousCursor, cursorStack, relatedRowsGenerationRef.current);
+  }, [relatedRowsDrawer, loadRelatedPage]);
+
   const closeRelatedDrawer = useCallback(() => {
+    relatedRowsGenerationRef.current += 1;
     setRelatedRowsDrawer(null);
   }, []);
 
   // Privacy reveal
   const handleReveal = useCallback(
     async (password: string, token: string, reason: string) => {
-      if (!selectedTargetId || !session.csrfToken) return;
+      if (!selectedTargetId || !selectedSchemaName || !selectedRelationName || !session.csrfToken) {
+        throw new Error('Select a database table before revealing sensitive data');
+      }
+      if (rowsSuppressedRef.current)
+        throw new Error('PII access is unavailable until revoke succeeds');
+
+      const privacyGeneration = privacyTransitionGenerationRef.current;
+      let rowsGeneration: number | null = null;
+      let grantCreated = false;
       try {
-        const res = await revealDatabasePii(
+        const revealRequest = revealDatabasePii(
           selectedTargetId,
           { password, token, reason },
           session.csrfToken
         );
-        setPiiReveal({ active: true, expiresAt: res.expiresAt });
-        setIsRevealDialogOpen(false);
-        // Reload rows with revealed mode
-        rowsGenerationRef.current += 1;
+        revealRequestRef.current = revealRequest;
+        let revealResult: { expiresAt: string };
+        try {
+          revealResult = await revealRequest;
+        } finally {
+          if (revealRequestRef.current === revealRequest) revealRequestRef.current = null;
+        }
+        grantCreated = true;
+        if (privacyTransitionGenerationRef.current !== privacyGeneration) return;
+
+        rowsGeneration = ++rowsGenerationRef.current;
         setLoadingRows(true);
-        const newRows = await queryDatabaseRows(
+        const revealedRows = await queryDatabaseRows(
           selectedTargetId,
           {
-            schema: selectedSchemaName ?? 'public',
-            relation: selectedRelationName ?? '',
+            schema: selectedSchemaName,
+            relation: selectedRelationName,
             pageSize,
             cursor: currentCursor,
             sort,
@@ -384,18 +568,46 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
           },
           session.csrfToken
         );
-        setRows(newRows);
+        if (
+          privacyTransitionGenerationRef.current !== privacyGeneration ||
+          rowsGenerationRef.current !== rowsGeneration
+        ) {
+          return;
+        }
+        if (revealedRows.piiMode !== 'revealed') {
+          throw new Error('The server did not return revealed database rows');
+        }
+        setRows(revealedRows);
+        setPiiReveal({ active: true, expiresAt: revealResult.expiresAt });
+        setIsRevealDialogOpen(false);
+        setError(null);
       } catch (err: unknown) {
         void captureBrowserException(err, {
           code: 'UNHANDLED_BROWSER_EXCEPTION',
           source: 'browser',
           route: () => globalThis.location?.pathname
         });
-        const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
-        if (errObj['status'] === 401) onUnauthorizedRef.current();
-        else throw err;
+        if (privacyTransitionGenerationRef.current !== privacyGeneration) return;
+        if (err && typeof err === 'object' && (err as Record<string, unknown>)['status'] === 401) {
+          onUnauthorizedRef.current();
+        }
+        setError(getErrorMessage(err, 'Unable to reveal database values'));
+        if (grantCreated) {
+          const generation = clearRowsAndSensitiveLayers();
+          try {
+            const current = await revokePrivacy(generation, null);
+            if (current) rowsSuppressedRef.current = false;
+          } catch (revokeError: unknown) {
+            if (privacyTransitionGenerationRef.current === generation) {
+              setError(getErrorMessage(revokeError, 'Unable to revoke PII access'));
+            }
+          }
+        }
+        throw err;
       } finally {
-        setLoadingRows(false);
+        if (rowsGeneration !== null && rowsGenerationRef.current === rowsGeneration) {
+          setLoadingRows(false);
+        }
       }
     },
     [
@@ -406,66 +618,76 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
       pageSize,
       currentCursor,
       sort,
-      filters
+      filters,
+      clearRowsAndSensitiveLayers,
+      revokePrivacy
     ]
   );
 
-  // Privacy hide
+  // Clear synchronously, revoke globally, and reload masked rows only after success.
   const handleHide = useCallback(async () => {
-    if (!selectedTargetId || !session.csrfToken) return;
-    setRows(null); // Clear rows first!
-    setPiiReveal({ active: false, expiresAt: null });
+    if (!selectedTargetId) return;
+    const generation = clearRowsAndSensitiveLayers();
+    const pendingReveal = revealRequestRef.current;
+    setError(null);
+
     try {
-      await hideDatabasePii(selectedTargetId, session.csrfToken);
-    } catch (error) {
-      void captureBrowserException(error, {
+      const current = await revokePrivacy(generation, pendingReveal);
+      if (!current) return;
+      rowsSuppressedRef.current = false;
+
+      const targetId = selectedTargetIdRef.current;
+      const schemaName = selectedSchemaNameRef.current;
+      const relationName = selectedRelationNameRef.current;
+      if (!targetId || !schemaName || !relationName || isViewer) return;
+      const currentRowsGeneration = ++rowsGenerationRef.current;
+      setLoadingRows(true);
+      const maskedRows = await queryDatabaseRows(
+        targetId,
+        {
+          schema: schemaName,
+          relation: relationName,
+          pageSize,
+          cursor: undefined,
+          sort,
+          filters,
+          piiMode: 'masked'
+        },
+        session.csrfToken ?? ''
+      );
+      if (
+        rowsGenerationRef.current === currentRowsGeneration &&
+        privacyTransitionGenerationRef.current === generation &&
+        selectedTargetIdRef.current === targetId &&
+        selectedSchemaNameRef.current === schemaName &&
+        selectedRelationNameRef.current === relationName
+      ) {
+        setRows(maskedRows);
+      }
+    } catch (err: unknown) {
+      void captureBrowserException(err, {
         code: 'UNHANDLED_BROWSER_EXCEPTION',
         source: 'browser',
         route: () => globalThis.location?.pathname
       });
-      // ignore hide failure
-    }
-    // Reload rows with masked mode
-    if (selectedSchemaName && selectedRelationName && !isViewer) {
-      rowsGenerationRef.current += 1;
-      setLoadingRows(true);
-      try {
-        const masked = await queryDatabaseRows(
-          selectedTargetId,
-          {
-            schema: selectedSchemaName,
-            relation: selectedRelationName,
-            pageSize,
-            cursor: currentCursor,
-            sort,
-            filters,
-            piiMode: 'masked'
-          },
-          session.csrfToken
-        );
-        setRows(masked);
-      } catch (err: unknown) {
-        void captureBrowserException(err, {
-          code: 'UNHANDLED_BROWSER_EXCEPTION',
-          source: 'browser',
-          route: () => globalThis.location?.pathname
-        });
-        const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
-        if (errObj['status'] === 401) onUnauthorizedRef.current();
-      } finally {
-        setLoadingRows(false);
+      if (privacyTransitionGenerationRef.current === generation) {
+        if (err && typeof err === 'object' && (err as Record<string, unknown>)['status'] === 401) {
+          onUnauthorizedRef.current();
+        }
+        setError(getErrorMessage(err, 'Unable to revoke PII access'));
       }
+    } finally {
+      if (privacyTransitionGenerationRef.current === generation) setLoadingRows(false);
     }
   }, [
     selectedTargetId,
     session.csrfToken,
-    selectedSchemaName,
-    selectedRelationName,
     pageSize,
-    currentCursor,
     sort,
     filters,
-    isViewer
+    isViewer,
+    clearRowsAndSensitiveLayers,
+    revokePrivacy
   ]);
 
   // Countdown timer for PII reveal expiry
@@ -519,11 +741,14 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     setRelatedRowsDrawer,
     followRelation,
     closeRelatedDrawer,
+    goToRelatedNextPage,
+    goToRelatedPreviousPage,
     piiReveal,
     isRevealDialogOpen,
     setIsRevealDialogOpen,
     handleReveal,
     handleHide,
+    clearRowsAndSensitiveLayers,
     loadingTargets,
     loadingSchema,
     loadingRows,

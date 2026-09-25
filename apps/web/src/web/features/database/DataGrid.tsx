@@ -1,3 +1,4 @@
+import type { ClipboardEvent, KeyboardEvent } from 'react';
 import type {
   DatabaseCell,
   DatabaseRelationEdge,
@@ -32,10 +33,26 @@ export function DataGrid({
   onOpenCellDetail,
   onFollowRelation
 }: DataGridProps) {
+  const activateCell = (
+    event: KeyboardEvent<HTMLTableCellElement>,
+    column: string,
+    cell: DatabaseCell
+  ) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onOpenCellDetail(column, cell);
+    }
+  };
+  const preventNonCopyableCellCopy = (event: ClipboardEvent<HTMLTableCellElement>) => {
+    event.preventDefault();
+  };
+
   if (loading) {
     return (
       <div className="data-grid-shell">
-        <div className="data-grid-loading">Đang tải dữ liệu…</div>
+        <div className="data-grid-loading" role="status" aria-live="polite">
+          Đang tải dữ liệu…
+        </div>
       </div>
     );
   }
@@ -43,7 +60,9 @@ export function DataGrid({
   if (!rowsResponse) {
     return (
       <div className="data-grid-shell">
-        <div className="data-grid-empty">Chưa có dữ liệu. Vui lòng chọn bảng để bắt đầu.</div>
+        <div className="data-grid-empty" role="status" aria-live="polite">
+          Chưa có dữ liệu. Vui lòng chọn bảng để bắt đầu.
+        </div>
       </div>
     );
   }
@@ -52,7 +71,9 @@ export function DataGrid({
 
   // Filter edges related to this relation (either from or to this relation)
   const relatedEdges = edges.filter(
-    (e) => e.from.relation === relation || e.to.relation === relation
+    (e) =>
+      (e.from.schema === rowsResponse.schema && e.from.relation === relation) ||
+      (e.to.schema === rowsResponse.schema && e.to.relation === relation)
   );
 
   return (
@@ -110,6 +131,8 @@ export function DataGrid({
                 <td
                   colSpan={columns.length + (relatedEdges.length > 0 ? 1 : 0)}
                   className="td-empty"
+                  role="status"
+                  aria-live="polite"
                 >
                   Không có dòng nào phù hợp với bộ lọc hiện tại.
                 </td>
@@ -124,10 +147,11 @@ export function DataGrid({
                         {row.rowRef ? (
                           <div className="fk-buttons-group">
                             {relatedEdges.map((edge) => {
-                              const targetRel =
-                                edge.from.relation === relation
-                                  ? edge.to.relation
-                                  : edge.from.relation;
+                              const isFromRelation =
+                                edge.from.schema === rowsResponse.schema &&
+                                edge.from.relation === relation;
+                              const target = isFromRelation ? edge.to : edge.from;
+                              const targetRel = `${target.schema}.${target.relation}`;
 
                               return (
                                 <button
@@ -137,7 +161,7 @@ export function DataGrid({
                                   onClick={() => onFollowRelation(edge, row.rowRef!)}
                                   aria-label={`Xem quan hệ ${edge.constraint} với ${targetRel}`}
                                 >
-                                  &rarr; {targetRel}
+                                  {isFromRelation ? '→' : '←'} {targetRel}
                                 </button>
                               );
                             })}
@@ -157,8 +181,12 @@ export function DataGrid({
                         return (
                           <td
                             key={col.name}
-                            className="td-cell cell-blocked"
+                            className="td-cell cell-blocked cell-non-copyable"
+                            tabIndex={0}
+                            aria-label={`${col.name}: blocked`}
                             onClick={() => onOpenCellDetail(col.name, cell)}
+                            onKeyDown={(event) => activateCell(event, col.name, cell)}
+                            onCopy={preventNonCopyableCellCopy}
                           >
                             <span className="blocked-tag">[Blocked]</span>
                           </td>
@@ -169,8 +197,12 @@ export function DataGrid({
                         return (
                           <td
                             key={col.name}
-                            className="td-cell cell-masked"
+                            className="td-cell cell-masked cell-non-copyable"
+                            tabIndex={0}
+                            aria-label={`${col.name}: masked value ${cell.display}`}
                             onClick={() => onOpenCellDetail(col.name, cell)}
+                            onKeyDown={(event) => activateCell(event, col.name, cell)}
+                            onCopy={preventNonCopyableCellCopy}
                           >
                             <span className="masked-text">{cell.display}</span>
                           </td>
@@ -182,7 +214,10 @@ export function DataGrid({
                           <td
                             key={col.name}
                             className="td-cell cell-truncated"
+                            tabIndex={0}
+                            aria-label={`${col.name}: truncated value ${cell.display}`}
                             onClick={() => onOpenCellDetail(col.name, cell)}
+                            onKeyDown={(event) => activateCell(event, col.name, cell)}
                           >
                             <span className="truncated-text">{cell.display}</span>
                             <span className="truncated-badge">…</span>
@@ -202,7 +237,10 @@ export function DataGrid({
                         <td
                           key={col.name}
                           className={`td-cell ${cell.value === null ? 'cell-null' : ''}`}
+                          tabIndex={0}
+                          aria-label={`${col.name}: ${displayValue}`}
                           onClick={() => onOpenCellDetail(col.name, cell)}
+                          onKeyDown={(event) => activateCell(event, col.name, cell)}
                         >
                           <span className="cell-value-text">{displayValue}</span>
                         </td>
@@ -217,7 +255,7 @@ export function DataGrid({
       </div>
 
       {/* Grid footer with pagination controls */}
-      <footer className="data-grid-footer">
+      <footer className="data-grid-footer" aria-label={`Điều hướng dữ liệu bảng ${relation}`}>
         <div className="grid-count-info">
           <span>Hiển thị {rows.length} dòng</span>
         </div>

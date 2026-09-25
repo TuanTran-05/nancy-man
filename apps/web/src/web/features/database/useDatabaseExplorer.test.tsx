@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useDatabaseExplorer } from './useDatabaseExplorer.js';
 import type { SessionInfo } from '../../api.js';
 import type {
   DatabaseExplorerSchemaSnapshot,
+  DatabaseRelationEdge,
   DatabaseRowsResponse,
   DatabaseTargetSummary
 } from '../../../../../../packages/contracts/src/databaseExplorer.js';
@@ -142,11 +143,35 @@ const mockRowsMasked: DatabaseRowsResponse = {
   piiMode: 'masked'
 };
 
+const mockRowsRevealed: DatabaseRowsResponse = {
+  ...mockRowsMasked,
+  piiMode: 'revealed',
+  rows: [
+    {
+      rowRef: 'ref-revealed',
+      cells: {
+        id: { state: 'value', value: 'u-1' },
+        email: { state: 'value', value: 'pii-sentinel@example.com' },
+        password_hash: { state: 'blocked' }
+      }
+    }
+  ]
+};
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('useDatabaseExplorer hook', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
   });
 
   const sessionOwner: SessionInfo = {
@@ -189,6 +214,9 @@ describe('useDatabaseExplorer hook', () => {
   it('switching target clears rows, selection, cursors, filters, and reveal state before loading new schema', async () => {
     globalThis.fetch = async (input) => {
       const url = String(input);
+      if (url.endsWith('/api/v1/database/pii-reveal')) {
+        return new Response(JSON.stringify({ revoked: true }), { status: 200 });
+      }
       if (url.endsWith('/api/v1/database/targets')) {
         return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
       }
@@ -233,11 +261,11 @@ describe('useDatabaseExplorer hook', () => {
     });
 
     // Check that state was reset immediately
-    expect(result.current.selectedTargetId).toBe('ops');
     expect(result.current.rows).toBeNull();
     expect(result.current.filters).toHaveLength(0);
 
     await waitFor(() => {
+      expect(result.current.selectedTargetId).toBe('ops');
       expect(result.current.schema?.targetId).toBe('ops');
       expect(result.current.selectedRelationName).toBe('audit_logs');
     });
@@ -280,5 +308,472 @@ describe('useDatabaseExplorer hook', () => {
 
     expect(rowsQueryCalled.called).toBe(false);
     expect(result.current.rows).toBeNull();
+  });
+
+  it('keeps the display masked until revealed rows arrive and discards them after hide', async () => {
+    const revealedRows = deferred<Response>();
+    const revealedQueryStarted = deferred<void>();
+    const operations: string[] = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        const body = JSON.parse(String(init?.body)) as { piiMode?: string };
+        operations.push(`rows:${body.piiMode}`);
+        if (body.piiMode === 'revealed') {
+          revealedQueryStarted.resolve();
+          return revealedRows.promise;
+        }
+        return new Response(JSON.stringify(mockRowsMasked), { status: 200 });
+      }
+      if (url.endsWith('/pii-reveal') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ expiresAt: '2026-09-25T14:00:00Z' }), {
+          status: 200
+        });
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        operations.push('revoke');
+        return new Response(JSON.stringify({ revoked: true }), { status: 200 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const { result } = renderHook(() =>
+      useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} })
+    );
+    await waitFor(() => expect(result.current.rows?.piiMode).toBe('masked'));
+
+    let revealPromise!: Promise<void>;
+    await act(async () => {
+      revealPromise = result.current.handleReveal('password', '123456', 'Investigating INC-123');
+      await revealedQueryStarted.promise;
+    });
+    expect(result.current.piiReveal.active).toBe(false);
+    expect(result.current.rows?.rows[0].cells.email.state).toBe('masked');
+
+    await act(async () => {
+      revealedRows.resolve(new Response(JSON.stringify(mockRowsRevealed), { status: 200 }));
+      await revealPromise;
+    });
+    expect(result.current.piiReveal.active).toBe(true);
+    expect(result.current.rows?.rows[0].cells.email).toEqual({
+      state: 'value',
+      value: 'pii-sentinel@example.com'
+    });
+
+    let revokePromise!: Promise<void>;
+    await act(async () => {
+      revokePromise = result.current.handleHide();
+      await revokePromise;
+    });
+    expect(operations.slice(-2)).toEqual(['revoke', 'rows:masked']);
+    expect(result.current.piiReveal.active).toBe(false);
+    expect(result.current.rows?.rows[0].cells.email.state).toBe('masked');
+  });
+
+  it('clears every sensitive layer before revoke and ignores an in-flight revealed response', async () => {
+    const revealedRows = deferred<Response>();
+    const revealedQueryStarted = deferred<void>();
+    const revoke = deferred<Response>();
+    const revokeStarted = deferred<void>();
+    const operations: string[] = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        const body = JSON.parse(String(init?.body)) as { piiMode?: string };
+        operations.push(`rows:${body.piiMode}`);
+        if (body.piiMode === 'revealed') {
+          revealedQueryStarted.resolve();
+          return revealedRows.promise;
+        }
+        return new Response(JSON.stringify(mockRowsMasked), { status: 200 });
+      }
+      if (url.endsWith('/relations/query')) {
+        return new Response(JSON.stringify(mockRowsMasked), { status: 200 });
+      }
+      if (url.endsWith('/pii-reveal') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ expiresAt: '2026-09-25T14:00:00Z' }), {
+          status: 200
+        });
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        operations.push('revoke');
+        revokeStarted.resolve();
+        return revoke.promise;
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const { result } = renderHook(() =>
+      useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} })
+    );
+    await waitFor(() => expect(result.current.rows).not.toBeNull());
+    const edge: DatabaseRelationEdge = {
+      constraint: 'fk_orders_user',
+      from: { schema: 'public', relation: 'orders', columns: ['user_id'] },
+      to: { schema: 'public', relation: 'users', columns: ['id'] }
+    };
+    await act(async () => {
+      result.current.setSelectedCell({
+        rowRef: 'ref-1',
+        column: 'email',
+        cell: mockRowsMasked.rows[0].cells.email
+      });
+      await result.current.followRelation(edge, 'signed-row-ref');
+    });
+
+    let revealPromise!: Promise<void>;
+    await act(async () => {
+      revealPromise = result.current.handleReveal('password', '123456', 'Investigating INC-123');
+      await revealedQueryStarted.promise;
+    });
+    let hidePromise!: Promise<void>;
+    act(() => {
+      hidePromise = result.current.handleHide();
+    });
+    expect(result.current.rows).toBeNull();
+    expect(result.current.selectedCell).toBeNull();
+    expect(result.current.relatedRowsDrawer).toBeNull();
+    expect(result.current.cursorStack).toEqual([]);
+    expect(result.current.currentCursor).toBeUndefined();
+    expect(result.current.piiReveal.active).toBe(false);
+
+    await act(async () => {
+      await revokeStarted.promise;
+      revealedRows.resolve(new Response(JSON.stringify(mockRowsRevealed), { status: 200 }));
+      await revealPromise;
+    });
+    expect(operations).toContain('revoke');
+    expect(result.current.rows).toBeNull();
+    expect(result.current.selectedCell).toBeNull();
+    expect(result.current.relatedRowsDrawer).toBeNull();
+    expect(result.current.piiReveal.active).toBe(false);
+
+    await act(async () => {
+      revoke.resolve(new Response(JSON.stringify({ revoked: true }), { status: 200 }));
+      await hidePromise;
+    });
+    expect(operations.slice(-2)).toEqual(['revoke', 'rows:masked']);
+    expect(result.current.rows?.piiMode).toBe('masked');
+    expect(JSON.stringify(result.current.rows)).not.toContain('pii-sentinel@example.com');
+  });
+
+  it('keeps privacy state empty and does not reload if revoke fails', async () => {
+    const operations: string[] = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        const body = JSON.parse(String(init?.body)) as { piiMode?: string };
+        operations.push(`rows:${body.piiMode}`);
+        return new Response(JSON.stringify({ ...mockRowsMasked, nextCursor: 'main-next' }), {
+          status: 200
+        });
+      }
+      if (url.endsWith('/relations/query')) {
+        return new Response(JSON.stringify(mockRowsMasked), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        operations.push('revoke');
+        return new Response(JSON.stringify({ message: 'revoke unavailable' }), { status: 503 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const { result } = renderHook(() =>
+      useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} })
+    );
+    await waitFor(() => expect(result.current.rows).not.toBeNull());
+    act(() => result.current.goToNextPage());
+    await waitFor(() => expect(result.current.currentCursor).toBe('main-next'));
+    const edge: DatabaseRelationEdge = {
+      constraint: 'fk_orders_user',
+      from: { schema: 'public', relation: 'orders', columns: ['user_id'] },
+      to: { schema: 'public', relation: 'users', columns: ['id'] }
+    };
+    await act(async () => {
+      result.current.setSelectedCell({
+        rowRef: 'ref-1',
+        column: 'email',
+        cell: mockRowsMasked.rows[0].cells.email
+      });
+      await result.current.followRelation(edge, 'signed-row-ref');
+    });
+    expect(result.current.relatedRowsDrawer?.open).toBe(true);
+    expect(result.current.cursorStack).toEqual(['']);
+    await act(async () => {
+      await result.current.handleHide();
+    });
+
+    expect(result.current.rows).toBeNull();
+    expect(result.current.selectedCell).toBeNull();
+    expect(result.current.relatedRowsDrawer).toBeNull();
+    expect(result.current.cursorStack).toEqual([]);
+    expect(result.current.currentCursor).toBeUndefined();
+    expect(result.current.piiReveal.active).toBe(false);
+    expect(result.current.error).toBe('HTTP_503');
+    expect(operations.at(-1)).toBe('revoke');
+    expect(operations.filter((operation) => operation === 'rows:masked')).toHaveLength(2);
+  });
+
+  it('uses selected FK source in both directions and owns a resettable related cursor stack', async () => {
+    const relatedCalls: Array<Record<string, unknown>> = [];
+    const edge: DatabaseRelationEdge = {
+      constraint: 'fk_orders_tenant_user',
+      from: { schema: 'public', relation: 'orders', columns: ['tenant_id', 'user_id'] },
+      to: { schema: 'public', relation: 'users', columns: ['tenant_id', 'id'] }
+    };
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        return new Response(JSON.stringify(mockRowsMasked), { status: 200 });
+      }
+      if (url.endsWith('/relations/query')) {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        relatedCalls.push(body);
+        const nextCursor = body.cursor === 'related-next' ? null : 'related-next';
+        return new Response(JSON.stringify({ ...mockRowsMasked, nextCursor }), { status: 200 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const { result } = renderHook(() =>
+      useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} })
+    );
+    await waitFor(() => expect(result.current.schema).not.toBeNull());
+
+    await act(async () => {
+      await result.current.followRelation(edge, 'encrypted-row-ref');
+    });
+    expect(relatedCalls[0]).toMatchObject({
+      schema: 'public',
+      relation: 'users',
+      constraint: 'fk_orders_tenant_user',
+      rowRef: 'encrypted-row-ref'
+    });
+    expect(result.current.relatedRowsDrawer?.rows?.nextCursor).toBe('related-next');
+
+    await act(async () => {
+      await result.current.goToRelatedNextPage();
+    });
+    expect(relatedCalls[1]).toMatchObject({ cursor: 'related-next', relation: 'users' });
+    expect(result.current.relatedRowsDrawer?.cursorStack).toEqual(['']);
+
+    await act(async () => {
+      await result.current.goToRelatedPreviousPage();
+    });
+    expect(relatedCalls[2]).not.toHaveProperty('cursor');
+    expect(result.current.relatedRowsDrawer?.cursorStack).toEqual([]);
+
+    act(() => result.current.closeRelatedDrawer());
+    expect(result.current.relatedRowsDrawer).toBeNull();
+    act(() => result.current.selectRelation('public', 'orders'));
+    await act(async () => {
+      await result.current.followRelation(edge, 'encrypted-row-ref-2');
+    });
+    expect(relatedCalls[3]).toMatchObject({ schema: 'public', relation: 'orders' });
+    expect(relatedCalls[3]).not.toHaveProperty('cursor');
+  });
+
+  it('switches targets only after clearing state and successfully revoking globally', async () => {
+    const revoke = deferred<Response>();
+    const revokeStarted = deferred<void>();
+    const operations: string[] = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        operations.push('schema:edutrack_production');
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/ops/schema')) {
+        operations.push('schema:ops');
+        return new Response(JSON.stringify(mockSchemaOps), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        return new Response(JSON.stringify({ ...mockRowsMasked, nextCursor: 'target-next' }), {
+          status: 200
+        });
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        operations.push('revoke');
+        revokeStarted.resolve();
+        return revoke.promise;
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const { result } = renderHook(() =>
+      useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} })
+    );
+    await waitFor(() => expect(result.current.rows).not.toBeNull());
+    act(() => result.current.goToNextPage());
+    await waitFor(() => expect(result.current.currentCursor).toBe('target-next'));
+    const edge: DatabaseRelationEdge = {
+      constraint: 'fk_orders_user',
+      from: { schema: 'public', relation: 'orders', columns: ['user_id'] },
+      to: { schema: 'public', relation: 'users', columns: ['id'] }
+    };
+    act(() => {
+      result.current.setSelectedCell({
+        rowRef: 'ref-1',
+        column: 'email',
+        cell: mockRowsMasked.rows[0].cells.email
+      });
+      result.current.setRelatedRowsDrawer({
+        open: true,
+        edge,
+        rowRef: 'signed-row-ref',
+        sourceSchema: 'public',
+        sourceRelation: 'users',
+        targetId: 'edutrack_production',
+        schemaChecksum: 'abc123checksum',
+        loading: false,
+        rows: mockRowsMasked,
+        cursorStack: ['related-previous'],
+        currentCursor: 'related-next'
+      });
+    });
+    let switchPromise!: Promise<void>;
+    act(() => {
+      switchPromise = result.current.selectTarget('ops');
+    });
+    expect(result.current.rows).toBeNull();
+    expect(result.current.selectedCell).toBeNull();
+    expect(result.current.relatedRowsDrawer).toBeNull();
+    expect(result.current.cursorStack).toEqual([]);
+    expect(result.current.currentCursor).toBeUndefined();
+    await act(async () => {
+      await revokeStarted.promise;
+    });
+    expect(operations.at(-1)).toBe('revoke');
+    expect(operations).not.toContain('schema:ops');
+
+    await act(async () => {
+      revoke.resolve(new Response(JSON.stringify({ revoked: true }), { status: 200 }));
+      await switchPromise;
+    });
+    await waitFor(() => expect(result.current.schema?.targetId).toBe('ops'));
+    expect(operations.indexOf('revoke')).toBeLessThan(operations.indexOf('schema:ops'));
+  });
+
+  it('expires PII through the same clear, global revoke, and masked reload sequence', async () => {
+    const operations: string[] = [];
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval');
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        const body = JSON.parse(String(init?.body)) as { piiMode?: string };
+        operations.push(`rows:${body.piiMode}`);
+        return new Response(
+          JSON.stringify(body.piiMode === 'revealed' ? mockRowsRevealed : mockRowsMasked),
+          { status: 200 }
+        );
+      }
+      if (url.endsWith('/pii-reveal') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({ expiresAt: new Date(Date.now() - 1000).toISOString() }),
+          {
+            status: 200
+          }
+        );
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        operations.push('revoke');
+        return new Response(JSON.stringify({ revoked: true }), { status: 200 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const { result } = renderHook(() =>
+      useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} })
+    );
+    await waitFor(() => expect(result.current.rows?.piiMode).toBe('masked'));
+    await act(async () => {
+      await result.current.handleReveal('password', '123456', 'Investigating INC-123');
+    });
+    expect(result.current.piiReveal.active).toBe(true);
+
+    const expiryTick = intervalSpy.mock.calls.at(-1)?.[0] as (() => void) | undefined;
+    expect(expiryTick).toBeDefined();
+    await act(async () => {
+      expiryTick?.();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(operations.slice(-2)).toEqual(['revoke', 'rows:masked']));
+    expect(result.current.piiReveal.active).toBe(false);
+    expect(result.current.rows?.piiMode).toBe('masked');
+  });
+
+  it('does not load the requested target when global revoke fails during target switch', async () => {
+    const operations: string[] = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        operations.push('schema:edutrack_production');
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/ops/schema')) {
+        operations.push('schema:ops');
+        return new Response(JSON.stringify(mockSchemaOps), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        operations.push('rows');
+        return new Response(JSON.stringify(mockRowsMasked), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        operations.push('revoke');
+        return new Response(JSON.stringify({ message: 'revoke unavailable' }), { status: 503 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const { result } = renderHook(() =>
+      useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} })
+    );
+    await waitFor(() => expect(result.current.rows).not.toBeNull());
+    await act(async () => {
+      await result.current.selectTarget('ops');
+    });
+
+    expect(result.current.rows).toBeNull();
+    expect(result.current.schema).toBeNull();
+    expect(result.current.error).toBe('HTTP_503');
+    expect(result.current.selectedTargetId).toBe('edutrack_production');
+    expect(operations.at(-1)).toBe('revoke');
+    expect(operations).not.toContain('schema:ops');
   });
 });

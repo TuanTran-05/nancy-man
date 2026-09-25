@@ -103,7 +103,10 @@ export function projectFullGraph(
   // Build edges — deduplicate by constraint name
   const seen = new Set<string>();
   const edges: GraphEdge[] = [];
-  for (const e of snapshot.edges) {
+  const orderedEdges = snapshot.edges
+    .slice()
+    .sort((a, b) => (a.constraint < b.constraint ? -1 : a.constraint > b.constraint ? 1 : 0));
+  for (const e of orderedEdges) {
     if (seen.has(e.constraint)) continue;
     seen.add(e.constraint);
     edges.push(makeEdge(e, targetId));

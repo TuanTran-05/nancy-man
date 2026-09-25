@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { SessionInfo } from '../api.js';
 import type { DatabaseTargetId } from '../../../../../packages/contracts/src/databaseExplorer.js';
 import { useDatabaseExplorer } from '../features/database/useDatabaseExplorer.js';
@@ -17,6 +18,7 @@ export type DatabasePageProps = {
 };
 
 export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
+  const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const {
     targets,
     selectedTargetId,
@@ -44,6 +46,8 @@ export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
     relatedRowsDrawer,
     followRelation,
     closeRelatedDrawer,
+    goToRelatedNextPage,
+    goToRelatedPreviousPage,
     piiReveal,
     isRevealDialogOpen,
     setIsRevealDialogOpen,
@@ -56,13 +60,20 @@ export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
     isViewer
   } = useDatabaseExplorer({ session, onUnauthorized });
 
+  useEffect(() => {
+    if (!piiReveal.active || !piiReveal.expiresAt) return;
+    setCountdownNow(Date.now());
+    const interval = setInterval(() => setCountdownNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [piiReveal.active, piiReveal.expiresAt]);
+
   const currentTarget = targets.find((t) => t.id === selectedTargetId);
   const targetLabel = currentTarget?.label ?? selectedTargetId ?? 'Database';
 
   // Format countdown string
   const formatCountdown = (expiresAt: string | null) => {
     if (!expiresAt) return '';
-    const diff = Math.max(0, Math.floor((Date.parse(expiresAt) - Date.now()) / 1000));
+    const diff = Math.max(0, Math.floor((Date.parse(expiresAt) - countdownNow) / 1000));
     const minutes = Math.floor(diff / 60);
     const seconds = diff % 60;
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -101,7 +112,12 @@ export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
           <div className="database-privacy-controls">
             {piiReveal.active ? (
               <div className="privacy-active-pill">
-                <span className="privacy-badge revealed">
+                <span
+                  className="privacy-badge revealed"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
                   PII: Đã mở khóa ({formatCountdown(piiReveal.expiresAt)})
                 </span>
                 <button
@@ -293,10 +309,10 @@ export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
         loading={relatedRowsDrawer?.loading}
         error={relatedRowsDrawer?.error}
         onClose={closeRelatedDrawer}
-        onNextPage={() => {}}
-        onPreviousPage={() => {}}
-        hasPreviousPage={false}
-        hasNextPage={false}
+        onNextPage={goToRelatedNextPage}
+        onPreviousPage={goToRelatedPreviousPage}
+        hasPreviousPage={Boolean(relatedRowsDrawer?.cursorStack.length)}
+        hasNextPage={Boolean(relatedRowsDrawer?.rows?.nextCursor)}
         onOpenCellDetail={(column, cell) => setSelectedCell({ rowRef: null, column, cell })}
       />
 

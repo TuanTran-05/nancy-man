@@ -143,19 +143,15 @@ describe('databaseApi client', () => {
         body: typeof init?.body === 'string' ? init.body : undefined
       });
       if (init?.method === 'DELETE') {
-        return new Response(JSON.stringify({ targetId: 'edutrack_production', revoked: true }), {
+        return new Response(JSON.stringify({ revoked: true }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         });
       }
-      return new Response(
-        JSON.stringify({
-          targetId: 'edutrack_production',
-          expiresAt: '2026-09-25T13:00:00Z',
-          reusable: true
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ expiresAt: '2026-09-25T13:00:00Z' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
     };
 
     const revealBody = {
@@ -169,7 +165,7 @@ describe('databaseApi client', () => {
       'csrf-token-123'
     );
 
-    expect(revealResult.targetId).toBe('edutrack_production');
+    expect(revealResult).toEqual({ expiresAt: '2026-09-25T13:00:00Z' });
     expect(recordedCalls[0]).toMatchObject({
       url: '/api/v1/database/edutrack_production/pii-reveal',
       method: 'POST',
@@ -177,12 +173,15 @@ describe('databaseApi client', () => {
       body: JSON.stringify(revealBody)
     });
 
-    await hideDatabasePii('edutrack_production', 'csrf-token-123');
+    await hideDatabasePii('csrf-token-123');
 
     expect(recordedCalls[1]).toMatchObject({
-      url: '/api/v1/database/edutrack_production/pii-reveal',
+      url: '/api/v1/database/pii-reveal',
       method: 'DELETE',
-      headers: expect.objectContaining({ 'X-Ops-CSRF': 'csrf-token-123' })
+      headers: expect.objectContaining({ 'X-Ops-CSRF': 'csrf-token-123' }),
+      body: undefined
     });
+    expect(recordedCalls[1].headers).not.toHaveProperty('X-Ops-Database-Grant');
+    expect(recordedCalls[1].body).toBeUndefined();
   });
 });

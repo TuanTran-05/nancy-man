@@ -39,13 +39,10 @@ export type DatabasePiiRevealInput = {
 };
 
 export type DatabasePiiRevealResult = {
-  targetId: DatabaseTargetId;
   expiresAt: string;
-  reusable: boolean;
 };
 
 export type DatabasePiiRevokeResult = {
-  targetId: DatabaseTargetId;
   revoked: boolean;
 };
 
@@ -112,17 +109,11 @@ export function revealDatabasePii(
   );
 }
 
-export function hideDatabasePii(
-  targetId: DatabaseTargetId,
-  csrfToken: string
-): Promise<DatabasePiiRevokeResult> {
-  return request<DatabasePiiRevokeResult>(
-    `/api/v1/database/${encodeURIComponent(targetId)}/pii-reveal`,
-    {
-      method: 'DELETE',
-      headers: {
-        'X-Ops-CSRF': csrfToken
-      }
+export function hideDatabasePii(csrfToken: string): Promise<DatabasePiiRevokeResult> {
+  return request<DatabasePiiRevokeResult>('/api/v1/database/pii-reveal', {
+    method: 'DELETE',
+    headers: {
+      'X-Ops-CSRF': csrfToken
     }
-  );
+  });
 }

@@ -88,6 +88,61 @@ describe('makeNodeId', () => {
 });
 
 describe('projectFullGraph', () => {
+  it('keeps a complete, deterministic 101-relation and 210-edge ERD under shuffled input', () => {
+    const relationSpecs = Array.from({ length: 101 }, (_, index) => ({
+      schema: index < 51 ? 'schema_a' : 'schema_b',
+      name: `table_${String(index).padStart(3, '0')}`
+    }));
+    const schemas = [
+      {
+        name: 'schema_a',
+        relations: relationSpecs.filter((relation) => relation.schema === 'schema_a')
+      },
+      {
+        name: 'schema_b',
+        relations: relationSpecs.filter((relation) => relation.schema === 'schema_b')
+      }
+    ];
+    const edges = Array.from({ length: 210 }, (_, index) => {
+      const from = relationSpecs[index % relationSpecs.length];
+      const to = relationSpecs[(index * 7 + 1) % relationSpecs.length];
+      return {
+        constraint: `fk_${String(index).padStart(3, '0')}`,
+        from: { schema: from.schema, relation: from.name, columns: ['id'] },
+        to: { schema: to.schema, relation: to.name, columns: ['id'] }
+      };
+    });
+    const snapshot = makeSnapshot(schemas, edges);
+    const shuffledSnapshot: DatabaseExplorerSchemaSnapshot = {
+      ...snapshot,
+      schemas: snapshot.schemas
+        .slice()
+        .reverse()
+        .map((schema) => ({ ...schema, relations: schema.relations.slice().reverse() })),
+      edges: snapshot.edges.slice().reverse()
+    };
+
+    const full = projectFullGraph(snapshot, TARGET);
+    const shuffled = projectFullGraph(shuffledSnapshot, TARGET);
+    expect(full.nodes).toHaveLength(101);
+    expect(full.edges).toHaveLength(210);
+    expect(full.nodes.every((node) => node.id.length > 0)).toBe(true);
+    expect(
+      full.edges.every(
+        (edge) =>
+          full.nodes.some((node) => node.id === edge.sourceNodeId) &&
+          full.nodes.some((node) => node.id === edge.targetNodeId)
+      )
+    ).toBe(true);
+    expect(shuffled.nodes.map((node) => node.id)).toEqual(full.nodes.map((node) => node.id));
+    expect(shuffled.edges.map((edge) => edge.id)).toEqual(full.edges.map((edge) => edge.id));
+
+    const focused = filterGraph(full, 'table_007');
+    expect(focused.nodes.map((node) => node.id)).toEqual([
+      'edutrack_production/schema_a/table_007'
+    ]);
+  });
+
   it('produces one node per relation with stable sort', () => {
     const snap = makeSnapshot([
       { name: 'public', relations: [{ name: 'users' }, { name: 'accounts' }] },

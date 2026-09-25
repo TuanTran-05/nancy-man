@@ -106,6 +106,66 @@ describe('DataGrid component', () => {
     expect(screen.getByRole('button', { name: 'Trang sau' })).toBeEnabled();
   });
 
+  it('announces sort direction and opens cells with the keyboard', async () => {
+    const user = userEvent.setup();
+    const onOpenCell = vi.fn();
+    render(
+      <DataGrid
+        rowsResponse={mockRowsResponse}
+        sort={{ column: 'email', direction: 'desc' }}
+        onSortChange={() => {}}
+        onNextPage={() => {}}
+        onPreviousPage={() => {}}
+        hasPreviousPage={false}
+        hasNextPage={false}
+        onOpenCellDetail={onOpenCell}
+        onFollowRelation={() => {}}
+      />
+    );
+
+    expect(screen.getByRole('columnheader', { name: /email/i })).toHaveAttribute(
+      'aria-sort',
+      'descending'
+    );
+    const emailCell = screen.getByRole('cell', { name: /email.*masked/i });
+    emailCell.focus();
+    await user.keyboard('{Enter}');
+    expect(onOpenCell).toHaveBeenCalledWith('email', {
+      state: 'masked',
+      display: 'u***@example.com'
+    });
+  });
+
+  it('announces loading and empty states to assistive technology', () => {
+    const { rerender } = render(
+      <DataGrid
+        rowsResponse={null}
+        loading={true}
+        onSortChange={() => {}}
+        onNextPage={() => {}}
+        onPreviousPage={() => {}}
+        hasPreviousPage={false}
+        hasNextPage={false}
+        onOpenCellDetail={() => {}}
+        onFollowRelation={() => {}}
+      />
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Đang tải dữ liệu');
+    rerender(
+      <DataGrid
+        rowsResponse={{ ...mockRowsResponse, rows: [] }}
+        onSortChange={() => {}}
+        onNextPage={() => {}}
+        onPreviousPage={() => {}}
+        hasPreviousPage={false}
+        hasNextPage={false}
+        onOpenCellDetail={() => {}}
+        onFollowRelation={() => {}}
+      />
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Không có dòng nào');
+  });
+
   it('triggers onOpenCellDetail when cell is clicked', async () => {
     const user = userEvent.setup();
     const onOpenCell = vi.fn();

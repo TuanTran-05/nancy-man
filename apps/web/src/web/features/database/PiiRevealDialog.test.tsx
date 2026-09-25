@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { PiiRevealDialog } from './PiiRevealDialog.js';
 
 afterEach(() => cleanup());
@@ -117,5 +118,32 @@ describe('PiiRevealDialog component', () => {
 
     expect((screen.getByLabelText('Mật khẩu tài khoản') as HTMLInputElement).value).toBe('');
     expect((screen.getByLabelText('Mã xác thực TOTP (6 số)') as HTMLInputElement).value).toBe('');
+  });
+
+  it('focuses the password field and closes on Escape', async () => {
+    const user = userEvent.setup();
+    function DialogHarness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open PII dialog
+          </button>
+          <PiiRevealDialog
+            open={open}
+            targetName="EduTrack Production"
+            onClose={() => setOpen(false)}
+            onSubmit={async () => {}}
+          />
+        </>
+      );
+    }
+
+    render(<DialogHarness />);
+    await user.click(screen.getByRole('button', { name: 'Open PII dialog' }));
+    expect(screen.getByLabelText('Mật khẩu tài khoản')).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open PII dialog' })).toHaveFocus();
   });
 });
