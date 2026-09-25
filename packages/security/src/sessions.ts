@@ -19,7 +19,10 @@ export type OpsPermission =
   | 'variables:apply'
   | 'accounts:write'
   | 'alerts:write'
-  | 'audit:anchor';
+  | 'audit:anchor'
+  | 'database:schema:read'
+  | 'database:data:read'
+  | 'database:pii:reveal';
 
 const rolePermissions: Readonly<Record<OpsRole, readonly OpsPermission[]>> = {
   ops_viewer: [
@@ -29,7 +32,8 @@ const rolePermissions: Readonly<Record<OpsRole, readonly OpsPermission[]>> = {
     'sql:read',
     'variables:read',
     'variables:write',
-    'variables:apply'
+    'variables:apply',
+    'database:schema:read'
   ],
   ops_maintainer: [
     'health:read',
@@ -40,7 +44,10 @@ const rolePermissions: Readonly<Record<OpsRole, readonly OpsPermission[]>> = {
     'sql:workspace',
     'variables:read',
     'variables:write',
-    'variables:apply'
+    'variables:apply',
+    'database:schema:read',
+    'database:data:read',
+    'database:pii:reveal'
   ],
   ops_owner: [
     'health:read',
@@ -54,7 +61,10 @@ const rolePermissions: Readonly<Record<OpsRole, readonly OpsPermission[]>> = {
     'audit:anchor',
     'variables:read',
     'variables:write',
-    'variables:apply'
+    'variables:apply',
+    'database:schema:read',
+    'database:data:read',
+    'database:pii:reveal'
   ]
 };
 

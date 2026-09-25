@@ -138,7 +138,7 @@ describe('dashboard shell', () => {
           JSON.stringify({
             userId: 'user-id',
             username: 'ops',
-            role: 'ops_readonly',
+            role: 'ops_viewer',
             csrfToken: 'csrf-token'
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }

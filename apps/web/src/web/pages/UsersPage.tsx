@@ -18,7 +18,7 @@ import { RevokeUserDialog } from '../components/RevokeUserDialog.js';
 const roleLabels: Record<OpsRole, string> = {
   ops_owner: 'Owner',
   ops_maintainer: 'Maintainer',
-  ops_readonly: 'Read-only'
+  ops_viewer: 'Read-only'
 };
 const statusLabels: Record<OpsAccountSummary['status'], string> = {
   pending_mfa: 'Chờ thiết lập MFA',
@@ -236,7 +236,7 @@ export function UsersPage({
                 onChange={(event) => setRole(event.target.value as OpsRole)}
               >
                 <option value="ops_maintainer">Maintainer</option>
-                <option value="ops_readonly">Read-only</option>
+                <option value="ops_viewer">Read-only</option>
                 <option value="ops_owner">Owner</option>
               </select>
             </label>
@@ -300,7 +300,7 @@ export function UsersPage({
                       }}
                     >
                       <option value="ops_maintainer">Maintainer</option>
-                      <option value="ops_readonly">Read-only</option>
+                      <option value="ops_viewer">Read-only</option>
                       <option value="ops_owner">Owner</option>
                     </select>
                   </label>

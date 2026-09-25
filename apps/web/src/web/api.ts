@@ -7,7 +7,7 @@ import type {
   InfrastructureHistoryResponse
 } from '../shared/models.js';
 
-export type OpsRole = 'ops_owner' | 'ops_maintainer' | 'ops_readonly';
+export type OpsRole = 'ops_owner' | 'ops_maintainer' | 'ops_viewer';
 export type OpsAccountStatus = 'pending_mfa' | 'active' | 'locked' | 'revoked';
 
 export interface OpsAccountSummary {
@@ -525,4 +525,3 @@ export const updateIssueStatus = (
     headers: { 'X-Ops-CSRF': csrfToken },
     body: JSON.stringify({ status })
   });
-

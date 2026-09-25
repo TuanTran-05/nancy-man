@@ -1,3 +1,5 @@
+import type { DatabaseColumnClassification, DatabaseFilterOperator } from './databaseExplorer.js';
+
 export type DatabaseSchemaSnapshot = {
   checksum: string;
   schemas: DatabaseSchema[];
@@ -26,6 +28,8 @@ export type DatabaseColumn = {
   hasDefault: boolean;
   identity: 'always' | 'by_default' | null;
   generated: boolean;
+  classification?: DatabaseColumnClassification;
+  filterOperators?: DatabaseFilterOperator[];
 };
 
 export type DatabaseConstraint = {

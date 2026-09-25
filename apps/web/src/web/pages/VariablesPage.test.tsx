@@ -6,7 +6,7 @@ import { VariablesPage } from './VariablesPage.js';
 const session = {
   userId: '8e57ab35-bf02-4f83-b29c-864fb6044b7d',
   username: 'ops-e2e',
-  role: 'ops_readonly' as const,
+  role: 'ops_viewer' as const,
   csrfToken: 'csrf-synthetic'
 };
 

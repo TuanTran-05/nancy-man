@@ -16,7 +16,10 @@ export type WorkerCommand = {
     | 'sql.classifyMutation'
     | 'sql.previewRead'
     | 'sql.previewMutation'
-    | 'sql.cancel';
+    | 'sql.cancel'
+    | 'database.schema'
+    | 'database.rows'
+    | 'database.relatedRows';
   payload: unknown;
   signature: string;
 };

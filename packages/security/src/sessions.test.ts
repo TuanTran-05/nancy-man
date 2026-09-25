@@ -76,4 +76,16 @@ describe('Ops sessions and authorization', () => {
       )
     ).toBe(false);
   });
+
+  it('allows viewers to read schema but not data or reveal PII', () => {
+    expect(() => assertPermission('ops_viewer', 'database:schema:read')).not.toThrow();
+    expect(() => assertPermission('ops_viewer', 'database:data:read')).toThrow(/denied/i);
+    expect(() => assertPermission('ops_viewer', 'database:pii:reveal')).toThrow(/denied/i);
+    expect(() => assertPermission('ops_maintainer', 'database:schema:read')).not.toThrow();
+    expect(() => assertPermission('ops_maintainer', 'database:data:read')).not.toThrow();
+    expect(() => assertPermission('ops_maintainer', 'database:pii:reveal')).not.toThrow();
+    expect(() => assertPermission('ops_owner', 'database:schema:read')).not.toThrow();
+    expect(() => assertPermission('ops_owner', 'database:data:read')).not.toThrow();
+    expect(() => assertPermission('ops_owner', 'database:pii:reveal')).not.toThrow();
+  });
 });
