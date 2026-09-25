@@ -21,7 +21,7 @@
 - Cursors and rowRefs are confidential, authenticated, at most 4 KiB, expire within five minutes, and bind target, schema, relation, and structural checksum.
 - Newly discovered columns may appear in structural metadata, but remain classification=blocked, selectable=false, with no returnable cell data until the new structural checksum and policy are explicitly reviewed and approved; affected relation row browsing remains unavailable while approval is pending.
 - No raw SQL, export, mutation, DDL, cross-target join, or browser credential surface is added.
-- Every Database Explorer HTTP route (GET targets/schema/rows/relations/reveal and DELETE /pii-reveal) uses Cache-Control: no-store. Never log row values, PII, cursor/rowRef contents, SQL, or grant bearer material.
+- Every Database Explorer response uses Cache-Control: no-store: GET targets/schema; POST rows/query, relations/query, pii-reveal; and DELETE pii-reveal. Never log row values, PII, cursor/rowRef contents, SQL, or grant bearer material.
 - Audit append and revoke failures fail closed; no data or reveal-success response is returned on those failures.
 - Feature, API-to-worker bridge, and target flags remain false in committed defaults. Local tests never count as production observation.
 
@@ -32,7 +32,7 @@
 - Composite FK columns must remain paired and traversal must work from either endpoint; Tasks 2 and 5 test worker mapping and browser requests.
 - Hide, expiry, target switch, and revoke/audit failure must clear every sensitive layer before another request; Task 5 tests delayed responses and request order.
 - Disabled, healthy, outage, and recovery target states must refresh after startup with bounded probes while every default-off gate remains dark; Tasks 3, 4, and 6 test these states.
-- A 101-relation/210-FK snapshot must project into a deterministic usable ERD; Task 5 owns web graph projection while Task 2 keeps worker snapshot bounds independent.
+- A 101-relation/210-FK snapshot must project into a deterministic usable ERD; Task 5 owns web graph projection while Task 2 independently tests worker structural scalability.
 
 ## Dependency and Execution Order
 
@@ -121,24 +121,24 @@ git commit -m "fix(database): secure tokens and schema-bound queries"
 **Interfaces:**
 
 - Consumes: ordered encrypted token codec from Task 1 and catalog FK metadata.
-- Produces: FK edge arrays paired by catalog ordinality; rowRefs containing encrypted stable-key plus allowed source FK values; readRelatedRows resolves named edges from either endpoint and uses ordered bound values. Worker schema snapshot serialization enforces the independent 2 MiB response bound and returns a stable error without a partial snapshot when exceeded.
+- Produces: FK edge arrays paired by catalog ordinality; rowRefs containing encrypted stable-key plus allowed source FK values; readRelatedRows resolves named edges from either endpoint and uses ordered bound values. Worker schema introspection preserves complete structural metadata for the 101-relation/210-FK scalability fixture; row-response byte limits do not cap schema metadata.
 - A request identifies the relation that owns the selected source row; the worker never infers values from browser cell text.
 
 - [ ] **Step 1: Add failing composite-FK and direction tests**
 
 Build a composite FK (tenant_id, student_id) referencing (tenant_id, id) and deliberately shuffle catalog fixture rows. Assert the snapshot preserves pair order. Create a source row whose FK column is not in its pagination key; assert the rowRef can be used for traversal but reveals neither source value in its token text. Test child-to-parent and parent-to-child mapping, missing/null source keys, unknown constraint/source, wrong target, and checksum mismatch. Assert rejected requests issue no relation SELECT.
 
-Add direct worker snapshot-boundary tests: a schema snapshot at the configured 2 MiB response limit is complete and valid; one over the limit fails with DATABASE_SCHEMA_TOO_LARGE and returns no partial schema. Keep this as a worker serialization/introspection assertion, independent of the browser's 101-relation/210-FK graph projection test in Task 5.
+Build a worker catalog fixture with 101 relations and 210 FK edges. Assert schema introspection returns every relation and edge with ordered structural columns, performs no row-data SELECT, and does not truncate schema metadata based on the row-response byte limit. Keep this worker structural-scalability test independent of Task 5's browser graph projection test.
 
 - [ ] **Step 2: Run worker tests and verify RED**
 
 Run: npx vitest run apps/sql-worker/src/schema/introspectSchema.test.ts apps/sql-worker/src/explorer/rowReader.test.ts apps/sql-worker/src/explorer/relatedRowReader.test.ts apps/sql-worker/src/security/databaseExplorerBounds.test.ts
 
-Expected: FAIL because constraint arrays are sorted independently, rowRefs contain pagination keys only, and worker schema snapshots do not reject over-limit serialization atomically.
+Expected: FAIL because constraint arrays are sorted independently, rowRefs contain pagination keys only, and worker schema introspection does not yet prove complete structural output at 101 relations and 210 FKs.
 
 - [ ] **Step 3: Implement ordered catalog and source-key mapping**
 
-Use WITH ORDINALITY for FK and index attributes, preserving semantic order rather than alphabetical sorting. Build rowRef keys from the pagination key plus the union of allowed source FK columns for the selected row. Never select or encode blocked values. Decode the rowRef using Task 1 confidentiality/context checks, resolve source endpoint and edge from the same checksum, map paired source/target columns by index, and create parameterized equality predicates. Keep the ordinary 25/50/100 row bounds and read-only transaction. Bound the serialized schema snapshot at 2 MiB; fail with DATABASE_SCHEMA_TOO_LARGE before returning any partial schema.
+Use WITH ORDINALITY for FK and index attributes, preserving semantic order rather than alphabetical sorting. Build rowRef keys from the pagination key plus the union of allowed source FK columns for the selected row. Never select or encode blocked values. Decode the rowRef using Task 1 confidentiality/context checks, resolve source endpoint and edge from the same checksum, map paired source/target columns by index, and create parameterized equality predicates. Keep the ordinary 25/50/100 row bounds and read-only transaction. Preserve the schema introspector's structural enumeration limits and return the complete 101-relation/210-FK fixture; apply row-response byte limits only to row responses, not schema metadata.
 
 - [ ] **Step 4: Run worker tests and verify GREEN**
 
@@ -153,7 +153,7 @@ git add apps/sql-worker/src/schema/introspectSchema.ts apps/sql-worker/src/schem
 git commit -m "fix(database): preserve FK traversal values"
 ~~~
 
-**Acceptance:** Composite relationships retain ordered pairs; rowRefs keep required allowed FK values encrypted; traversal succeeds from parent or child without raw cell-derived filters; worker snapshot overflow fails atomically at its independent 2 MiB boundary.
+**Acceptance:** Composite relationships retain ordered pairs; rowRefs keep required allowed FK values encrypted; traversal succeeds from parent or child without raw cell-derived filters; worker introspection returns complete structural metadata for 101 relations/210 FKs without applying the row-response byte limit.
 
 ### Task 3: Wire production worker readers and expose target health
 
@@ -246,7 +246,7 @@ Call createOpsApi directly without a test-installed express.json parser; POST va
 
 For PII, test that a reusable grant authorizes only when user, session, IP hash, user-agent hash, and target all match. Assert reveal response has exactly the expiresAt property, row/relation calls never read X-Ops-Step-Up-Grant, DELETE /pii-reveal requires no grant ID, and expired/revoked/wrong-binding requests fail before worker dispatch. Force grant audit, row audit, revoke, and revoke-audit failures; assert none returns success or row bytes. Assert rows_viewed and pii_rows_viewed metadata includes schemaChecksum without values, cursor, rowRef, or SQL.
 
-Inject a fake clock into schema-view audit limiting: the same actor+target+checksum yields at most one schema_viewed audit in each 60-second window; the exact window boundary opens a new entry, and a changed checksum opens a new entry immediately. Force limiter/audit persistence failure and assert the schema response fails closed. Assert Cache-Control: no-store on GET targets, schema, rows, relations, reveal, and DELETE /pii-reveal, including the DELETE hide/revoke response.
+Inject a fake clock into schema-view audit limiting: the same actor+target+checksum yields at most one schema_viewed audit in each 60-second window; the exact window boundary opens a new entry, and a changed checksum opens a new entry immediately. Force limiter/audit persistence failure and assert the schema response fails closed. Assert Cache-Control: no-store on GET /api/v1/database/targets, GET /api/v1/database/:targetId/schema, POST /api/v1/database/:targetId/rows/query, POST /api/v1/database/:targetId/relations/query, POST /api/v1/database/pii-reveal, and DELETE /api/v1/database/pii-reveal, including the DELETE hide/revoke response.
 
 Test migrations through the manifest/migrator: 0022 remains byte-for-byte/checksum pinned, 0023 adds the server-side binding fields/indexes required by the repository, and fresh migration plus upgrade-from-0022 succeeds.
 
@@ -258,11 +258,11 @@ Expected: FAIL because production has no JSON body parser, targets are hard-code
 
 - [ ] **Step 3: Implement parser, worker validation, and live target projection**
 
-Install bounded strict JSON parsing before API routers. Validate targets, schema snapshots, row results, and related-row results before audit or response; invalid worker results become WORKER_DATABASE_RESPONSE_INVALID without details. Source target state from database.targets. Set Cache-Control: no-store on every Database Explorer route, including GET targets/schema/rows/relations/reveal and DELETE /pii-reveal. Add schemaChecksum to row and PII audit records.
+Install bounded strict JSON parsing before API routers. Validate targets, schema snapshots, row results, and related-row results before audit or response; invalid worker results become WORKER_DATABASE_RESPONSE_INVALID without details. Source target state from database.targets. Set Cache-Control: no-store on every Database Explorer response: GET /api/v1/database/targets, GET /api/v1/database/:targetId/schema, POST /api/v1/database/:targetId/rows/query, POST /api/v1/database/:targetId/relations/query, POST /api/v1/database/pii-reveal, and DELETE /api/v1/database/pii-reveal. Add schemaChecksum to row and PII audit records.
 
 - [ ] **Step 4: Implement server-side grant resolution and fail-closed revoke**
 
-Add repository/service operations to find or revoke active reusable database_pii grants by capability + user/session/IP hash/user-agent hash + target subject digest. Derive target digest on the server. Do not store password/TOTP and do not expose grant ID. POST reveal returns { expiresAt }; move revoke to DELETE /api/v1/database/pii-reveal. Resolve the current grant for each revealed page before contacting the worker.
+Add repository/service operations to find or revoke active reusable database_pii grants by capability + user/session/IP hash/user-agent hash + target subject digest. Derive target digest on the server. Do not store password/TOTP and do not expose grant ID. POST /api/v1/database/pii-reveal returns { expiresAt }; move revoke to DELETE /api/v1/database/pii-reveal. Resolve the current grant for each revealed page before contacting the worker.
 
 Create additive migration 0023_database_pii_grant_binding.sql for the grant-binding columns and lookup index; update the manifest and migration tests without editing or rehashing pinned 0022_database_pii_reveal.sql. Add schema-view audit deduplication keyed by actor+target+structural checksum, with a 60-second window and injected clock. Persist/append schema_viewed before returning schema on a new key/window; a new checksum is a new key. Suppress only duplicate audit writes inside the active window, not schema authorization. If limiter state or required audit append is unavailable, return a stable failure and no schema response.
 
@@ -315,7 +315,7 @@ Use a deferred revealed-row promise; start it, hide/switch, then resolve it with
 
 For FK tests, select a parent endpoint and assert the request sends that selected schema/relation, not always edge.from. Test composite edges, drawer next with returned cursor, previous restoring the prior cursor, close/source switch reset, and no cursor reuse after target/checksum change. Add keyboard/focus tests for opening/closing the drawer, semantic table headers, button names, sort state, and accessible loading/error/empty messages.
 
-Add a web-only full-ERD fixture with 101 relations and 210 FK edges. Assert projection contains all 101 usable relation nodes and 210 usable edges, produces identical ordered node/edge IDs when schemas, relations, and edges are shuffled, and search deterministically focuses one matching relation. The worker snapshot byte bound is independently tested in Task 2; do not couple this graph-model test to worker serialization.
+Add a web-only full-ERD fixture with 101 relations and 210 FK edges. Assert projection contains all 101 usable relation nodes and 210 usable edges, produces identical ordered node/edge IDs when schemas, relations, and edges are shuffled, and search deterministically focuses one matching relation. Worker structural scalability is independently tested in Task 2; do not couple this graph-model test to worker serialization.
 
 - [ ] **Step 2: Run UI tests and verify RED**
 
@@ -469,7 +469,7 @@ git add deploy/postgres/database-explorer-test.compose.yaml deploy/postgres/data
 git commit -m "test(database): enforce explorer rules in postgres"
 ~~~
 
-**Acceptance:** Database-level bypass and bounds claims are backed by actual target-style PostgreSQL LOGIN roles; write-mode/read-only bypass attempts are denied and checksum/data remain unchanged; the live >2 MiB worker/API probe returns no row bytes; worker schema bounds stay separate from browser graph projection. Unit mocks do not count toward this gate.
+**Acceptance:** Database-level bypass and bounds claims are backed by actual target-style PostgreSQL LOGIN roles; write-mode/read-only bypass attempts are denied and checksum/data remain unchanged; the live >2 MiB worker/API row probe returns no row bytes; worker schema structural scalability stays separate from browser graph projection. Unit mocks do not count toward this gate.
 
 ### Task 8: Exercise the real application stack and separate local from external gates
 
@@ -551,7 +551,7 @@ git commit -m "test(database): exercise explorer real stack and gates"
 - Runtime readers are wired; target health refreshes after startup within the bounded probe interval and recovers after a successful probe; tokens are confidential; drift and cursor semantics are correct; unapproved columns remain blocked/data-unavailable; FK traversal works both directions; PII binding, worker validation, rate-limited schema audit, all-route no-store, and fail-closed behavior match the approved spec.
 - Actual PostgreSQL proves blocked-column and mutation enforcement for the browser LOGIN roles.
 - PostgreSQL live probes reject READ WRITE escalation inside worker transactions and show that overriding the default cannot enable writes; fixture checksum and data remain unchanged, and actual wide-row pages over 2 MiB produce no worker/API row bytes.
-- Worker schema snapshot byte bounds are tested independently from the browser's deterministic 101-relation/210-FK ERD projection.
+- Worker schema structural scalability for 101 relations/210 FKs is tested independently from the browser's deterministic ERD projection.
 - Migration 0022 remains pinned; server-side PII grant binding is delivered additively by migration 0023.
 - Explorer, API bridge, and both targets remain false in committed defaults.
 
@@ -561,17 +561,12 @@ Production rollout is complete only after the separately recorded 24-hour Ops-ow
 
 ## Self-Review and Traceability
 
-- HMAC-readable cursors/rowRefs, 4 KiB/5 minute bounds, context binding, key migration, and no logging: Task 1.
-- Schema drift timing, unapproved newly discovered columns, nullable pagination, enum operators, conservative PII patterns: Task 1.
-- Ordered FK pairing, encrypted source FK rowRef, traversal, independent worker schema snapshot bounds: Task 2.
-- Bounded post-start health refresh, outage/recovery, runtime reader wiring and Zod validation: Task 3.
-- Pinned 0022 plus additive 0023, actor+target+checksum 60-second schema audit window, checksum rollover, all-route no-store including targets and DELETE, PII binding/audit fail-closed: Task 4.
-- Deterministic full ERD for 101 relations/210 FKs in web graphModel tests, privacy lifecycle, reverse FK and drawer paging: Task 5.
-- Composite FK ordinality, source FK rowRef values, both traversal directions: Task 2.
-- Production worker stubs, target health/flags, worker Zod boundaries: Task 3.
-- Production JSON parsing, server-side PII bindings, expiry-only response, fail-closed audit/revoke, schema checksum: Task 4.
-- Clear-before-revoke privacy transitions, target/expiry behavior, reverse FK source, drawer pagination, accessibility: Task 5.
+- Plaintext HMAC-readable cursor/rowRef tokens remediated with confidential AEAD; 4 KiB/five-minute bounds, context binding, key migration, and no logging: Task 1.
+- Schema drift timing, blocked/unapproved new columns, nullable pagination, enum operators, conservative PII patterns: Task 1.
+- Ordered composite FK pairing, encrypted source FK rowRef values, bidirectional traversal, and worker structural scalability at 101 relations/210 FKs: Task 2.
+- Production reader wiring, strict Zod boundaries, bounded post-start target health refresh, outage and recovery: Task 3.
+- JSON parsing, server-bound PII binding, additive migration 0023 with 0022 pinned, actor+target+checksum audit window, schema checksum, fail-closed audit/revoke, all-route no-store: Task 4.
+- Clear-before-revoke privacy transitions, expiry/target switch, reverse FK source, drawer pagination, accessible controls, deterministic 101/210 web ERD projection: Task 5.
 - NOLOGIN group vs LOGIN examples, policy input, executable TS renderer, old grant revocation, OPS_SQL_WORKER_ENABLED, optional systemd credentials: Task 6.
-- Fake assertions, regex-only bypass, mock-only bounds, live database-level enforcement, attempted READ WRITE/default override, unchanged checksum/data, >2 MiB wide-cell page rejected without API/worker bytes: Task 7.
-- SQLite/skip removal, API+worker+web E2E, local gate versus external staged observation, default-off: Task 8.
-- Valid production-shaped browser telemetry environment and current release SHA on final build: Task 8.
+- Live PostgreSQL enforcement and read-only escalation attempts, unchanged checksum/data, >2 MiB actual row page rejected without worker/API bytes: Task 7.
+- Real API+worker+web E2E, valid telemetry build env/release SHA, default-off local gates, and separate external staged observation: Task 8.
