@@ -156,6 +156,67 @@ describe('dashboard shell', () => {
     }
   });
 
+  it('mounts the read-only Database Explorer on the canonical route without raw SQL or destructive controls', async () => {
+    const originalPath = window.location.pathname;
+    window.history.replaceState({}, '', '/database');
+    const calls: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith('/api/v1/auth/session')) {
+        return new Response(
+          JSON.stringify({
+            userId: 'user-id',
+            username: 'ops',
+            role: 'ops_viewer',
+            csrfToken: 'csrf-token'
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(
+          JSON.stringify({
+            targets: [
+              {
+                id: 'edutrack_production',
+                label: 'EduTrack Production',
+                status: 'available',
+                readOnly: true
+              }
+            ]
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(
+          JSON.stringify({
+            targetId: 'edutrack_production',
+            targetLabel: 'EduTrack Production',
+            checksum: 'test-chk',
+            policyVersion: '1.0',
+            schemas: [],
+            edges: []
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    try {
+      render(<App />);
+      expect(await screen.findByRole('button', { name: 'Database' })).toBeInTheDocument();
+      expect(await screen.findByText('Chỉ đọc')).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Restart|Chạy SQL|Export|Edit|Insert|Delete/i)
+      ).not.toBeInTheDocument();
+    } finally {
+      window.history.replaceState({}, '', originalPath);
+    }
+  });
+
   it('mounts infrastructure after overview and before monitor without destructive controls', async () => {
     const overview = {
       collectedAt: '2026-08-24T05:00:00.000Z',

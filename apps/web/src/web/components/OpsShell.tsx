@@ -50,6 +50,13 @@ export function OpsShell({
         >
           Variables
         </button>
+        <button
+          type="button"
+          className={activeRoute === '/database' ? 'nav-active' : undefined}
+          onClick={() => navigate('/database')}
+        >
+          Database
+        </button>
         {session.role === 'ops_owner' ? (
           <button
             type="button"

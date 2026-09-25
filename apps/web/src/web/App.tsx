@@ -9,6 +9,7 @@ import { OverviewPage } from './pages/OverviewPage.js';
 import { IssuesPage } from './pages/IssuesPage.js';
 import { UsersPage } from './pages/UsersPage.js';
 import { VariablesPage } from './pages/VariablesPage.js';
+import { DatabasePage } from './pages/DatabasePage.js';
 import { navigate, useOpsRoute } from './routing.js';
 
 export function App() {
@@ -107,6 +108,8 @@ export function App() {
         <UsersPage session={session} onUnauthorized={() => setSession(null)} />
       ) : route === '/variables' ? (
         <VariablesPage session={session} onUnauthorized={() => setSession(null)} />
+      ) : route === '/database' ? (
+        <DatabasePage session={session} onUnauthorized={() => setSession(null)} />
       ) : null}
     </OpsShell>
   );
