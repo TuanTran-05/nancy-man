@@ -8,7 +8,10 @@ import type {
 } from '../../../../packages/contracts/src/databaseExplorer.js';
 
 function createMockTarget(options: {
-  queryHandler?: (sql: string, values?: readonly unknown[]) => Promise<{ rows: any[] }>;
+  queryHandler?: (
+    sql: string,
+    values?: readonly unknown[]
+  ) => Promise<{ rows: Record<string, unknown>[] }>;
 }): AvailableTargetEntry {
   return {
     id: 'edutrack_production',

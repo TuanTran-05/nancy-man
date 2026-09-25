@@ -48,17 +48,19 @@ describe('createDatabaseRouter', () => {
         schemas: [],
         edges: []
       }),
-      queryRows: async (input: any) => {
+      queryRows: async (input: Parameters<DatabaseExplorerService['queryRows']>[0]) => {
         if (input.actor.role === 'ops_viewer') {
-          const err = new Error('DATABASE_DATA_PERMISSION_DENIED');
-          (err as any).status = 403;
-          (err as any).code = 'DATABASE_DATA_PERMISSION_DENIED';
+          const err = Object.assign(new Error('DATABASE_DATA_PERMISSION_DENIED'), {
+            status: 403,
+            code: 'DATABASE_DATA_PERMISSION_DENIED'
+          });
           throw err;
         }
         if (input.query.piiMode === 'revealed' && !input.grantId) {
-          const err = new Error('DATABASE_PII_REVEAL_REQUIRED');
-          (err as any).status = 403;
-          (err as any).code = 'DATABASE_PII_REVEAL_REQUIRED';
+          const err = Object.assign(new Error('DATABASE_PII_REVEAL_REQUIRED'), {
+            status: 403,
+            code: 'DATABASE_PII_REVEAL_REQUIRED'
+          });
           throw err;
         }
         return {
@@ -76,11 +78,14 @@ describe('createDatabaseRouter', () => {
           piiMode: input.query.piiMode
         };
       },
-      queryRelatedRows: async (input: any) => {
+      queryRelatedRows: async (
+        input: Parameters<DatabaseExplorerService['queryRelatedRows']>[0]
+      ) => {
         if (input.actor.role === 'ops_viewer') {
-          const err = new Error('DATABASE_DATA_PERMISSION_DENIED');
-          (err as any).status = 403;
-          (err as any).code = 'DATABASE_DATA_PERMISSION_DENIED';
+          const err = Object.assign(new Error('DATABASE_DATA_PERMISSION_DENIED'), {
+            status: 403,
+            code: 'DATABASE_DATA_PERMISSION_DENIED'
+          });
           throw err;
         }
         return {
@@ -98,11 +103,12 @@ describe('createDatabaseRouter', () => {
           piiMode: input.query.piiMode
         };
       },
-      revealPii: async (input: any) => {
+      revealPii: async (input: Parameters<DatabaseExplorerService['revealPii']>[0]) => {
         if (input.actor.role === 'ops_viewer') {
-          const err = new Error('PERMISSION_DENIED');
-          (err as any).status = 403;
-          (err as any).code = 'PERMISSION_DENIED';
+          const err = Object.assign(new Error('PERMISSION_DENIED'), {
+            status: 403,
+            code: 'PERMISSION_DENIED'
+          });
           throw err;
         }
         return {

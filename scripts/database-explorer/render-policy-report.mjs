@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global console */
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
 import { classifyColumn } from '../../packages/security/src/database/columnPolicy.ts';

@@ -8,7 +8,7 @@ import {
   useNodesState
 } from '@xyflow/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import type { DatabaseExplorerSchemaSnapshot } from '../../../../../packages/contracts/src/databaseExplorer.js';
+import type { DatabaseExplorerSchemaSnapshot } from '../../../../../../packages/contracts/src/databaseExplorer.js';
 import {
   applyDagreLayout,
   filterGraph,
@@ -176,18 +176,16 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
 
   const flowEdges = useMemo(() => toFlowEdges(filteredGraph.edges), [filteredGraph.edges]);
 
-  const [nodes, , onNodesChange] = useNodesState(flowNodes);
-  const [edges, , onEdgesChange] = useEdgesState(flowEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges);
 
   useEffect(() => {
-    onNodesChange(flowNodes.map((n) => ({ type: 'reset' as const, item: n })));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flowNodes]);
+    setNodes(flowNodes);
+  }, [flowNodes, setNodes]);
 
   useEffect(() => {
-    onEdgesChange(flowEdges.map((e) => ({ type: 'reset' as const, item: e })));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flowEdges]);
+    setEdges(flowEdges);
+  }, [flowEdges, setEdges]);
 
   // Group nodes by schema for the accessible table
   const schemaGroups = useMemo(() => {

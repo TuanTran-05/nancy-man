@@ -7,7 +7,7 @@ import type {
   DatabaseExplorerSchemaSnapshot,
   DatabaseRowsResponse,
   DatabaseTargetSummary
-} from '../../../../../packages/contracts/src/databaseExplorer.js';
+} from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 const mockTargets: DatabaseTargetSummary[] = [
   { id: 'edutrack_production', label: 'EduTrack Production', status: 'available', readOnly: true },

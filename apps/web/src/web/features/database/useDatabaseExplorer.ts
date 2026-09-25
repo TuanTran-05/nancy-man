@@ -1,3 +1,5 @@
+import { captureBrowserException } from '../../telemetry/runtimeTelemetry.js';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SessionInfo } from '../../api.js';
 import type {
@@ -6,10 +8,11 @@ import type {
   DatabaseExplorerSchemaSnapshot,
   DatabaseFilterOperator,
   DatabasePageSize,
+  DatabaseRelationEdge,
   DatabaseRowsResponse,
   DatabaseTargetId,
   DatabaseTargetSummary
-} from '../../../../../packages/contracts/src/databaseExplorer.js';
+} from '../../../../../../packages/contracts/src/databaseExplorer.js';
 import {
   getDatabaseSchema,
   getDatabaseTargets,
@@ -60,7 +63,7 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
 
   const [relatedRowsDrawer, setRelatedRowsDrawer] = useState<{
     open: boolean;
-    edge: any | null;
+    edge: DatabaseRelationEdge | null;
     rowRef: string | null;
     loading: boolean;
     rows: DatabaseRowsResponse | null;
@@ -101,6 +104,11 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
         }
       })
       .catch((err) => {
+        void captureBrowserException(err, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname
+        });
         if (!active) return;
         if (err?.status === 401) onUnauthorizedRef.current();
         else setError(err?.message ?? 'Không thể tải danh sách database');
@@ -153,6 +161,11 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
         }
       })
       .catch((err) => {
+        void captureBrowserException(err, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname
+        });
         if (schemaGenerationRef.current !== currentGeneration) return;
         if (err?.status === 401) onUnauthorizedRef.current();
         else setError(err?.message ?? 'Không thể tải schema');
@@ -207,6 +220,11 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
         setRows(res);
       })
       .catch((err) => {
+        void captureBrowserException(err, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname
+        });
         if (rowsGenerationRef.current !== currentGeneration) return;
         if (err?.status === 401) onUnauthorizedRef.current();
         else setError(err?.code ?? err?.message ?? 'Không thể tải dữ liệu bảng');
@@ -286,7 +304,7 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
   }, []);
 
   const followRelation = useCallback(
-    async (edge: any, rowRef: string) => {
+    async (edge: DatabaseRelationEdge, rowRef: string) => {
       if (!selectedTargetId || !session.csrfToken) return;
       setRelatedRowsDrawer({
         open: true,
@@ -312,12 +330,22 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
           session.csrfToken
         );
         setRelatedRowsDrawer((prev) => (prev ? { ...prev, loading: false, rows: res } : null));
-      } catch (err: any) {
-        if (err?.status === 401) onUnauthorizedRef.current();
+      } catch (err: unknown) {
+        void captureBrowserException(err, {
+          code: 'UNHANDLED_BROWSER_EXCEPTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname
+        });
+        const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
+        if (errObj['status'] === 401) onUnauthorizedRef.current();
         else {
-          setRelatedRowsDrawer((prev) =>
-            prev ? { ...prev, loading: false, error: err?.code ?? err?.message } : null
-          );
+          const msg =
+            typeof errObj['code'] === 'string'
+              ? errObj['code']
+              : typeof errObj['message'] === 'string'
+                ? errObj['message']
+                : 'Error loading related rows';
+          setRelatedRowsDrawer((prev) => (prev ? { ...prev, loading: false, error: msg } : null));
         }
       }
     },
@@ -357,8 +385,14 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
           session.csrfToken
         );
         setRows(newRows);
-      } catch (err: any) {
-        if (err?.status === 401) onUnauthorizedRef.current();
+      } catch (err: unknown) {
+        void captureBrowserException(err, {
+          code: 'UNHANDLED_BROWSER_EXCEPTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname
+        });
+        const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
+        if (errObj['status'] === 401) onUnauthorizedRef.current();
         else throw err;
       } finally {
         setLoadingRows(false);
@@ -383,7 +417,12 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     setPiiReveal({ active: false, expiresAt: null });
     try {
       await hideDatabasePii(selectedTargetId, session.csrfToken);
-    } catch {
+    } catch (error) {
+      void captureBrowserException(error, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname
+      });
       // ignore hide failure
     }
     // Reload rows with masked mode
@@ -405,8 +444,14 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
           session.csrfToken
         );
         setRows(masked);
-      } catch (err: any) {
-        if (err?.status === 401) onUnauthorizedRef.current();
+      } catch (err: unknown) {
+        void captureBrowserException(err, {
+          code: 'UNHANDLED_BROWSER_EXCEPTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname
+        });
+        const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
+        if (errObj['status'] === 401) onUnauthorizedRef.current();
       } finally {
         setLoadingRows(false);
       }

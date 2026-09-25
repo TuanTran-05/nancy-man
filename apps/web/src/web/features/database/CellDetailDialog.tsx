@@ -1,5 +1,7 @@
+import { captureBrowserException } from '../../telemetry/runtimeTelemetry.js';
+
 import { useState } from 'react';
-import type { DatabaseCell } from '../../../../../packages/contracts/src/databaseExplorer.js';
+import type { DatabaseCell } from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 export type CellDetailDialogProps = {
   open: boolean;
@@ -35,7 +37,12 @@ export function CellDetailDialog({ open, columnName, cell, onClose }: CellDetail
       await navigator.clipboard.writeText(getTextToCopy());
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
+    } catch (error) {
+      void captureBrowserException(error, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname
+      });
       // ignore clipboard error
     }
   };

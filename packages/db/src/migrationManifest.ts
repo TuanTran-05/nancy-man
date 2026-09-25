@@ -120,6 +120,11 @@ export const opsMigrationTrustRoot: readonly MigrationTrustRootEntry[] = [
     id: '0021_telemetry_source_clients',
     fileName: '0021_telemetry_source_clients.sql',
     checksum: 'df9008b87cbaad7026ec7633cecbdb2f5f9f60f4fa6403631edc47c57c01d3d3'
+  },
+  {
+    id: '0022_database_pii_reveal',
+    fileName: '0022_database_pii_reveal.sql',
+    checksum: '17dc3ce27e9084e767ab4abddb0baf8660ed2331451207978be85db8ab49563b'
   }
 ];
 

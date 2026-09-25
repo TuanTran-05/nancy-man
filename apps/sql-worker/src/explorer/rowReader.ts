@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import {
   isDatabasePageSize,
   type DatabaseCell,
@@ -95,8 +97,7 @@ export async function readDatabaseRows(
       const placeholders: string[] = [];
       const values: unknown[] = [];
 
-      for (let i = 0; i < decodedCursor.keys.length; i++) {
-        const item = decodedCursor.keys[i];
+      for (const [i, item] of decodedCursor.keys.entries()) {
         colNames.push(quoteIdentifier(item.column));
         placeholders.push(`$${i + 1}`); // buildRowsQuery will offset parameter indexes
         values.push(item.value);
@@ -125,26 +126,34 @@ export async function readDatabaseRows(
     relation: request.relation,
     pageSize: request.pageSize,
     filters: request.filters,
-    sort: request.sort,
-    cursorCondition: cursorCondition
+    ...(request.sort ? { sort: request.sort } : {}),
+    ...(cursorCondition
       ? {
-          predicate: cursorCondition.predicate,
-          values: cursorCondition.values
+          cursorCondition: {
+            predicate: cursorCondition.predicate,
+            values: cursorCondition.values
+          }
         }
-      : undefined,
-    offset
+      : {}),
+    ...(offset !== undefined ? { offset } : {})
   });
 
   // Execute in read-only transaction with timeouts
   let connection;
   try {
     connection = await target.pool.connect();
-  } catch (err: any) {
-    if (!err.code) err.code = 'DATABASE_TARGET_UNAVAILABLE';
+  } catch (err: unknown) {
+    captureOpsException(err, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'database',
+      status: 500
+    });
+    const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
+    if (!errObj['code']) errObj['code'] = 'DATABASE_TARGET_UNAVAILABLE';
     throw err;
   }
 
-  let queryRows: any[] = [];
+  let queryRows: Record<string, unknown>[];
   try {
     await connection.query('BEGIN READ ONLY');
     await connection.query("SET LOCAL statement_timeout = '15s'");
@@ -164,17 +173,29 @@ export async function readDatabaseRows(
       }
     }
 
-    const result = await connection.query(finalSql, finalValues);
+    const result = await connection.query<Record<string, unknown>>(finalSql, finalValues);
     queryRows = result.rows;
-  } catch (err: any) {
-    if (err.code === '57014' || /timeout|canceling statement/i.test(err.message)) {
+  } catch (err: unknown) {
+    captureOpsException(err, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'database',
+      status: 500
+    });
+    const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
+    const message = typeof errObj['message'] === 'string' ? errObj['message'] : '';
+    if (errObj['code'] === '57014' || /timeout|canceling statement/i.test(message)) {
       throw makeExplorerError('DATABASE_QUERY_TIMEOUT', 'Database query timed out');
     }
     throw err;
   } finally {
     try {
       await connection.query('ROLLBACK');
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500
+      });
       // Ignore rollback failure
     }
     connection.release();
@@ -185,8 +206,8 @@ export async function readDatabaseRows(
 
   // Compute next cursor
   let nextCursor: string | null = null;
-  if (hasMore && pageRows.length > 0) {
-    const lastRow = pageRows[pageRows.length - 1];
+  const lastRow = pageRows[pageRows.length - 1];
+  if (hasMore && lastRow) {
     const issuedAt = now().getTime();
     const expiresAt = issuedAt + CURSOR_EXPIRY_MS;
 

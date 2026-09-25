@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { DatabaseExplorerSchema } from '../../../../../packages/contracts/src/databaseExplorer.js';
+import type { DatabaseExplorerSchema } from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 export type SchemaTreeProps = {
   schemas: DatabaseExplorerSchema[];

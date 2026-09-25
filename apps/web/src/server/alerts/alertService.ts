@@ -65,9 +65,9 @@ export function parseAlertDetails(input: {
     rawSummary = '';
   }
 
-  let errorName = '';
+  let errorName: string;
   let errorCode = '';
-  let target = '';
+  let target: string;
   let errorDetail = rawSummary || undefined;
 
   // 1. Extract errorCode
@@ -113,19 +113,26 @@ export function parseAlertDetails(input: {
   if (rawSummary.includes('DeprecationWarning') || rawSummary.includes('trace-deprecation')) {
     errorName = 'Cảnh báo Deprecation trong Node.js / pg driver';
   } else if (rawSummary.includes('[API_ERROR]')) {
-    const msgMatch = rawSummary.match(/\[API_ERROR\]\s+[A-Z]+\s+\/[^\s]+\s+\d{3}\s+[^:]+:\s*(.+?)(?:\s*\(eventId:|\s*$)/);
+    const msgMatch = rawSummary.match(
+      /\[API_ERROR\]\s+[A-Z]+\s+\/[^\s]+\s+\d{3}\s+[^:]+:\s*(.+?)(?:\s*\(eventId:|\s*$)/
+    );
     errorName = msgMatch ? msgMatch[1].trim() : 'Lỗi yêu cầu API';
   } else if (rawSummary.includes('Error:')) {
     const errorMatch = rawSummary.match(/Error:\s*(.+?)(?:\s*at\s|\s*\{|\s*statusCode:|$)/);
     errorName = errorMatch ? errorMatch[1].trim() : 'Lỗi ngoại lệ ứng dụng';
   } else if (monitor === 'postgres') {
-    if (errorCode === 'postgres_unreachable') errorName = 'Không thể kết nối cơ sở dữ liệu PostgreSQL';
-    else if (errorCode === 'postgres_locked') errorName = 'Tắc nghẽn khóa truy vấn PostgreSQL (Lock contention)';
-    else if (errorCode === 'connections_warning') errorName = 'Số lượng kết nối PostgreSQL vượt ngưỡng an toàn';
+    if (errorCode === 'postgres_unreachable')
+      errorName = 'Không thể kết nối cơ sở dữ liệu PostgreSQL';
+    else if (errorCode === 'postgres_locked')
+      errorName = 'Tắc nghẽn khóa truy vấn PostgreSQL (Lock contention)';
+    else if (errorCode === 'connections_warning')
+      errorName = 'Số lượng kết nối PostgreSQL vượt ngưỡng an toàn';
     else errorName = 'Sự cố cơ sở dữ liệu PostgreSQL';
   } else if (monitor === 'backup') {
-    if (errorCode === 'backup_disk_warning') errorName = 'Dung lượng ổ đĩa sao lưu chạm ngưỡng cảnh báo';
-    else if (errorCode === 'backup_stale') errorName = 'Không phát hiện bản sao lưu mới trong 24 giờ qua';
+    if (errorCode === 'backup_disk_warning')
+      errorName = 'Dung lượng ổ đĩa sao lưu chạm ngưỡng cảnh báo';
+    else if (errorCode === 'backup_stale')
+      errorName = 'Không phát hiện bản sao lưu mới trong 24 giờ qua';
     else errorName = 'Sự cố hệ thống sao lưu';
   } else if (monitor === 'cron') {
     if (errorCode === 'cron_failed') errorName = 'Tác vụ định kỳ (Cron) thực thi thất bại';

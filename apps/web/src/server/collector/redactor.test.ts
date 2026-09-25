@@ -98,12 +98,16 @@ describe('log redactor', () => {
   });
 
   it('preserves bracketed log tags and normalizes timestamps for fingerprinting', () => {
-    const line1 = '2026-09-25T10:00:01: [API_ERROR] POST /api/v1/test 500 error: Internal server error';
-    const line2 = '2026-09-25T11:00:01: [API_ERROR] POST /api/v1/test 500 error: Internal server error';
+    const line1 =
+      '2026-09-25T10:00:01: [API_ERROR] POST /api/v1/test 500 error: Internal server error';
+    const line2 =
+      '2026-09-25T11:00:01: [API_ERROR] POST /api/v1/test 500 error: Internal server error';
     const res1 = redactLogLine(line1);
     const res2 = redactLogLine(line2);
 
-    expect(res1.safeText).toContain('[API_ERROR] POST /api/v1/test 500 error: Internal server error');
+    expect(res1.safeText).toContain(
+      '[API_ERROR] POST /api/v1/test 500 error: Internal server error'
+    );
     expect(res1.fingerprint).toBe(res2.fingerprint);
   });
 });

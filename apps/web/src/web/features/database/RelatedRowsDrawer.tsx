@@ -2,7 +2,7 @@ import type {
   DatabaseCell,
   DatabaseRelationEdge,
   DatabaseRowsResponse
-} from '../../../../../packages/contracts/src/databaseExplorer.js';
+} from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 export type RelatedRowsDrawerProps = {
   open: boolean;

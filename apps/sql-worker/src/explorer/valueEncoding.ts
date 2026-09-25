@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { createHash } from 'node:crypto';
 import type {
   DatabaseCell,
@@ -95,7 +97,12 @@ export function encodeCell(input: {
         };
       }
       return { state: 'value', value: input.rawValue as Record<string, unknown> | unknown[] };
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'job',
+        status: 500
+      });
       return { state: 'value', value: String(input.rawValue) };
     }
   }

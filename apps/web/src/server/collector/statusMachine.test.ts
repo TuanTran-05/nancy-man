@@ -306,7 +306,10 @@ describe('monitor state machine', () => {
     });
 
     // An error log line triggers warning and opens an incident
-    const warning = errorSample('warning', { fingerprint: 'abc1234567890', safeExcerpt: 'some error' });
+    const warning = errorSample('warning', {
+      fingerprint: 'abc1234567890',
+      safeExcerpt: 'some error'
+    });
     const evalWarning = evaluateMonitor([], warning);
     expect(evalWarning.level).toBe('warning');
     expect(evalWarning.transition).toBe('opened');

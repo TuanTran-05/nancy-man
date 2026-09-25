@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import {
   type DatabaseExplorerColumn,
   type DatabaseExplorerRelation,
@@ -109,6 +111,11 @@ export function createExplorerSchemaReader(input: {
     try {
       connection = await input.target.pool.connect();
     } catch (err) {
+      captureOpsException(err, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500
+      });
       cache.delete(cacheKey);
       throw err;
     }
@@ -118,10 +125,11 @@ export function createExplorerSchemaReader(input: {
 
       // Approval check
       if (input.getPolicyApproval) {
+        const approval = input.getPolicyApproval();
         assertPolicyApproved({
           targetId: input.target.id,
           liveChecksum: baseSnapshot.checksum,
-          approval: input.getPolicyApproval()
+          ...(approval ? { approval } : {})
         });
       }
 
@@ -151,7 +159,12 @@ export function createExplorerSchemaReader(input: {
           [schemaNames]
         );
         estimatedRowsRows = result.rows;
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'job',
+          status: 500
+        });
         // Fall back to no estimated rows
       }
 
@@ -300,6 +313,11 @@ export function createExplorerSchemaReader(input: {
       cache.set(cacheKey, { snapshot, expiresAt: now().getTime() + cacheTtlMs });
       return snapshot;
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500
+      });
       cache.delete(cacheKey);
       throw error;
     } finally {

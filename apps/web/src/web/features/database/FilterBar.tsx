@@ -3,7 +3,7 @@ import type {
   DatabaseExplorerColumn,
   DatabaseFilterOperator,
   DatabasePageSize
-} from '../../../../../packages/contracts/src/databaseExplorer.js';
+} from '../../../../../../packages/contracts/src/databaseExplorer.js';
 import type { DatabaseFilter } from './useDatabaseExplorer.js';
 
 export type FilterBarProps = {

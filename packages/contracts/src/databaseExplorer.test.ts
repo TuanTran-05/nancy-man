@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  DATABASE_PAGE_SIZES,
   DATABASE_TARGET_IDS,
   isDatabasePageSize,
   isDatabaseTargetId,

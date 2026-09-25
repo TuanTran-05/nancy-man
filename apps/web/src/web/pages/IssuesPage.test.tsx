@@ -41,7 +41,8 @@ const mockDetail: IssueDetail = {
       severity: 'medium',
       errorCode: 'bad_request',
       safeMessage: 'Invalid date of birth format',
-      stackTrace: 'Error: Invalid date of birth\n    at handleCreate (/server/api/students/handlers/create.ts:26:14)',
+      stackTrace:
+        'Error: Invalid date of birth\n    at handleCreate (/server/api/students/handlers/create.ts:26:14)',
       requestId: 'REQ_123456789',
       route: '/api/students',
       httpStatus: 400

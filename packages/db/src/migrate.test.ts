@@ -56,7 +56,8 @@ describe('Ops database migration runner', () => {
       '0018_ops_config_application_blocks_partial_unique',
       '0019_ops_runtime_telemetry_ingest_client',
       '0020_ingest_processing_completed_at',
-      '0021_telemetry_source_clients'
+      '0021_telemetry_source_clients',
+      '0022_database_pii_reveal'
     ]);
     const migrationSql = executed.join('\n');
     for (const table of requiredTables) {

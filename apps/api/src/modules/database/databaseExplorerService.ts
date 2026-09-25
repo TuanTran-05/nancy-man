@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import { createHash } from 'node:crypto';
 import type {
   DatabaseExplorerSchemaSnapshot,
@@ -136,14 +138,19 @@ export class DatabaseExplorerService {
         action: 'database.schema_viewed',
         subjectType: 'database',
         subjectId: input.targetId,
-        requestId: input.requestId,
-        ipHash: input.ipHash,
+        ...(input.requestId ? { requestId: input.requestId } : {}),
+        ...(input.ipHash ? { ipHash: input.ipHash } : {}),
         metadata: {
           targetId: input.targetId,
           checksum: snapshot.checksum
         }
       });
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500
+      });
       throw makeExplorerServiceError('DATABASE_AUDIT_UNAVAILABLE', 503);
     }
 
@@ -178,7 +185,12 @@ export class DatabaseExplorerService {
           userAgentHash: input.userAgentHash,
           subjectDigest
         });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500
+        });
         throw makeExplorerServiceError('DATABASE_PII_REVEAL_REQUIRED', 403);
       }
     }
@@ -219,7 +231,7 @@ export class DatabaseExplorerService {
         action: 'database.rows_viewed',
         subjectType: 'database',
         subjectId: input.targetId,
-        requestId: input.requestId,
+        ...(input.requestId ? { requestId: input.requestId } : {}),
         ipHash: input.ipHash,
         metadata: {
           targetId: input.targetId,
@@ -240,17 +252,22 @@ export class DatabaseExplorerService {
           action: 'database.pii_rows_viewed',
           subjectType: 'database',
           subjectId: input.targetId,
-          requestId: input.requestId,
+          ...(input.requestId ? { requestId: input.requestId } : {}),
           ipHash: input.ipHash,
           metadata: {
             targetId: input.targetId,
             schema: input.query.schema,
             relation: input.query.relation,
-            grantId: input.grantId
+            ...(input.grantId ? { grantId: input.grantId } : {})
           }
         });
       }
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500
+      });
       throw makeExplorerServiceError('DATABASE_AUDIT_UNAVAILABLE', 503);
     }
 
@@ -285,7 +302,12 @@ export class DatabaseExplorerService {
           userAgentHash: input.userAgentHash,
           subjectDigest
         });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500
+        });
         throw makeExplorerServiceError('DATABASE_PII_REVEAL_REQUIRED', 403);
       }
     }
@@ -319,7 +341,7 @@ export class DatabaseExplorerService {
         action: 'database.rows_viewed',
         subjectType: 'database',
         subjectId: input.targetId,
-        requestId: input.requestId,
+        ...(input.requestId ? { requestId: input.requestId } : {}),
         ipHash: input.ipHash,
         metadata: {
           targetId: input.targetId,
@@ -339,17 +361,22 @@ export class DatabaseExplorerService {
           action: 'database.pii_rows_viewed',
           subjectType: 'database',
           subjectId: input.targetId,
-          requestId: input.requestId,
+          ...(input.requestId ? { requestId: input.requestId } : {}),
           ipHash: input.ipHash,
           metadata: {
             targetId: input.targetId,
             schema: input.query.schema,
             relation: input.query.relation,
-            grantId: input.grantId
+            ...(input.grantId ? { grantId: input.grantId } : {})
           }
         });
       }
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500
+      });
       throw makeExplorerServiceError('DATABASE_AUDIT_UNAVAILABLE', 503);
     }
 
@@ -388,7 +415,12 @@ export class DatabaseExplorerService {
         userAgentHash: input.userAgentHash,
         subjectDigest
       });
-    } catch {
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500
+      });
       throw makeExplorerServiceError('AUTH_DENIED', 401);
     }
 
@@ -398,7 +430,7 @@ export class DatabaseExplorerService {
         action: 'database.pii_reveal_granted',
         subjectType: 'database',
         subjectId: input.targetId,
-        requestId: input.requestId,
+        ...(input.requestId ? { requestId: input.requestId } : {}),
         ipHash: input.ipHash,
         metadata: {
           targetId: input.targetId,
@@ -407,8 +439,13 @@ export class DatabaseExplorerService {
           expiresAt: grant.expiresAt
         }
       });
-    } catch {
+    } catch (error) {
       // Revoke grant if audit append fails
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500
+      });
       try {
         await this.input.stepUp.revoke({
           grantId: grant.id,
@@ -418,7 +455,12 @@ export class DatabaseExplorerService {
           ipHash: input.ipHash,
           userAgentHash: input.userAgentHash
         });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500
+        });
         // ignore
       }
       throw makeExplorerServiceError('DATABASE_AUDIT_UNAVAILABLE', 503);
@@ -449,7 +491,12 @@ export class DatabaseExplorerService {
           ipHash: input.ipHash,
           userAgentHash: input.userAgentHash
         });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500
+        });
         // ignore
       }
 
@@ -459,14 +506,19 @@ export class DatabaseExplorerService {
           action: 'database.pii_reveal_revoked',
           subjectType: 'database',
           subjectId: input.targetId,
-          requestId: input.requestId,
+          ...(input.requestId ? { requestId: input.requestId } : {}),
           ipHash: input.ipHash,
           metadata: {
             targetId: input.targetId,
             grantId: input.grantId
           }
         });
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500
+        });
         // ignore
       }
     }

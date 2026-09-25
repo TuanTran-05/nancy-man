@@ -257,7 +257,7 @@ export function buildRowsQuery(input: BuildRowsQueryInput): BuildRowsQueryResult
         'DATABASE_PAGE_TOO_LARGE'
       );
     }
-    const offsetPlaceholder = `$${nextParamIndex++}`;
+    const offsetPlaceholder = `$${nextParamIndex}`;
     queryText += ` OFFSET ${offsetPlaceholder}`;
     allValues.push(input.offset);
   }

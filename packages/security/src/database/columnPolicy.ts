@@ -1,4 +1,7 @@
-import type { DatabaseColumnClassification, DatabaseTargetId } from '@edutrack-ops/contracts';
+import type {
+  DatabaseColumnClassification,
+  DatabaseTargetId
+} from '../../../contracts/src/databaseExplorer.js';
 
 export type ExactColumnTarget = {
   targetId: DatabaseTargetId;

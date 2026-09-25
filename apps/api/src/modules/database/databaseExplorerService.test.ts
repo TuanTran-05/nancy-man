@@ -30,40 +30,43 @@ describe('DatabaseExplorerService', () => {
       workerErrorCode?: string;
       auditFail?: boolean;
       stepUpAuthorizeOk?: boolean;
+      workerCommand?: DatabaseExplorerWorker['command'];
     } = {}
   ) {
     const auditEntries: Array<{ action: string; metadata: Record<string, unknown> }> = [];
 
     const worker: DatabaseExplorerWorker = {
-      command: async () => {
-        if (options.workerOk === false) {
+      command:
+        options.workerCommand ??
+        (async () => {
+          if (options.workerOk === false) {
+            return {
+              protocolVersion: 1,
+              commandId: 'c1',
+              ok: false,
+              error: { code: options.workerErrorCode ?? 'DATABASE_TARGET_UNAVAILABLE' }
+            };
+          }
           return {
             protocolVersion: 1,
             commandId: 'c1',
-            ok: false,
-            error: { code: options.workerErrorCode ?? 'DATABASE_TARGET_UNAVAILABLE' }
+            ok: true,
+            result: options.workerResult ?? {
+              targetId: 'edutrack_production',
+              schemaChecksum: 'checksum_1',
+              policyVersion: '2026-09-25',
+              schema: 'public',
+              relation: 'students',
+              columns: [],
+              rows: [],
+              nextCursor: null,
+              truncated: false,
+              encodedBytes: 100,
+              consistency: 'stable',
+              piiMode: 'masked'
+            }
           };
-        }
-        return {
-          protocolVersion: 1,
-          commandId: 'c1',
-          ok: true,
-          result: options.workerResult ?? {
-            targetId: 'edutrack_production',
-            schemaChecksum: 'checksum_1',
-            policyVersion: '2026-09-25',
-            schema: 'public',
-            relation: 'students',
-            columns: [],
-            rows: [],
-            nextCursor: null,
-            truncated: false,
-            encodedBytes: 100,
-            consistency: 'stable',
-            piiMode: 'masked'
-          }
-        };
-      }
+        })
     };
 
     const audit: DatabaseExplorerAudit = {
@@ -110,11 +113,12 @@ describe('DatabaseExplorerService', () => {
 
   it('rejects viewer row queries with 403 DATABASE_DATA_PERMISSION_DENIED without calling worker', async () => {
     let workerCalled = false;
-    const { service } = createService();
-    (service as any).input.worker.command = async () => {
-      workerCalled = true;
-      return { ok: true, result: {} };
-    };
+    const { service } = createService({
+      workerCommand: async () => {
+        workerCalled = true;
+        return { protocolVersion: 1, commandId: 'c1', ok: true, result: {} };
+      }
+    });
 
     await expect(
       service.queryRows({

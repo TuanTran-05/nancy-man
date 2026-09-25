@@ -328,6 +328,11 @@ export async function startOpsSqlWorker(
             role: targetCreds.role
           });
         } catch (targetError) {
+          captureOpsException(targetError, {
+            code: 'UNHANDLED_OPS_EXCEPTION',
+            source: 'process',
+            status: 500
+          });
           targetEntries.push({
             id: targetId,
             label,
@@ -416,6 +421,11 @@ export async function startOpsSqlWorker(
           try {
             await stopRuntimeTelemetry();
           } catch (error) {
+            captureOpsException(error, {
+              code: 'UNHANDLED_OPS_EXCEPTION',
+              source: 'process',
+              status: 500
+            });
             rememberCloseFailure(error);
           }
           if (hasCloseError) throw closeError;
@@ -458,7 +468,13 @@ export async function startOpsSqlWorker(
     }
     try {
       await stopRuntimeTelemetry();
-    } catch {}
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'process',
+        status: 500
+      });
+    }
     throw error;
   }
 }

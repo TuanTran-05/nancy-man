@@ -1,8 +1,5 @@
 import { z } from 'zod';
-import {
-  DATABASE_TARGET_IDS,
-  type DatabaseTargetId
-} from '../../../../../packages/contracts/src/databaseExplorer.js';
+import { DATABASE_TARGET_IDS } from '../../../../../packages/contracts/src/databaseExplorer.js';
 
 export const TargetIdParamSchema = z.enum(DATABASE_TARGET_IDS);
 
@@ -10,6 +7,7 @@ export const IdentifierSchema = z
   .string()
   .min(1)
   .max(63)
+  // eslint-disable-next-line no-control-regex
   .regex(/^[^\u0000-\u001f\u007f-\u009f]+$/, 'Control characters are forbidden in identifiers');
 
 export const PageSizeSchema = z.union([z.literal(25), z.literal(50), z.literal(100)]);

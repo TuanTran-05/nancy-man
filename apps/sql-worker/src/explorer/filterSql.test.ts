@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildRowsQuery, buildFilterSql } from './filterSql.js';
-import type {
-  DatabaseExplorerSchemaSnapshot,
-  DatabasePageSize
-} from '../../../../packages/contracts/src/databaseExplorer.js';
+import { buildRowsQuery } from './filterSql.js';
+import type { DatabaseExplorerSchemaSnapshot } from '../../../../packages/contracts/src/databaseExplorer.js';
 
 function createSnapshotFixture(
   options: {

@@ -44,7 +44,10 @@ const redact = (line: string): string => {
 
 export function redactLogLine(line: string): RedactedLogLine {
   const safeText = redact(line);
-  const normalizedForFingerprint = safeText.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?:\s*/, '');
+  const normalizedForFingerprint = safeText.replace(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?:\s*/,
+    ''
+  );
   const fingerprint = createHash('sha256').update(normalizedForFingerprint, 'utf8').digest('hex');
   return { safeText, fingerprint, isFatal: /\bFATAL\b/iu.test(line) };
 }

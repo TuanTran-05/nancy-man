@@ -6,7 +6,7 @@ import { RelatedRowsDrawer } from './RelatedRowsDrawer.js';
 import type {
   DatabaseRelationEdge,
   DatabaseRowsResponse
-} from '../../../../../packages/contracts/src/databaseExplorer.js';
+} from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 afterEach(() => cleanup());
 

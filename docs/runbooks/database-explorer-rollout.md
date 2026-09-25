@@ -76,8 +76,9 @@ Lưu trữ an toàn các file URL credential vào server chạy SQL worker với
 
 ### Bước 8: Enable Ops target for owner
 Bật cờ cho target nội bộ Ops database trước, chỉ mở cho role `ops_owner`:
-- Đặt `OPS_EXPLORER_OPS_ENABLED=true`
-- Giữ `OPS_EXPLORER_EDUTRACK_ENABLED=false`
+- Đặt `OPS_DATABASE_EXPLORER_ENABLED=true`
+- Đặt `OPS_DATABASE_OPS_ENABLED=true`
+- Giữ `OPS_DATABASE_EDUTRACK_ENABLED=false`
 - Khởi động lại service worker và api:
   ```bash
   sudo systemctl restart edutrack-ops-sql-worker edutrack-ops-api
@@ -91,7 +92,7 @@ Quan sát log hệ thống và audit ledger trong tối thiểu 24 giờ:
 
 ### Bước 10: Enable EduTrack target for owner
 Kích hoạt target `edutrack_production` cho role `ops_owner`:
-- Đặt `OPS_EXPLORER_EDUTRACK_ENABLED=true`.
+- Đặt `OPS_DATABASE_EDUTRACK_ENABLED=true`.
 - Restart worker và api.
 - Kiểm tra chức năng duyệt bảng masked và quy trình step-up xác thực MFA/TOTP để reveal PII trong 10 phút.
 
@@ -106,8 +107,8 @@ Trong trường hợp phát hiện bất kỳ dấu hiệu bất thường, suy 
 1. **Khóa truy cập tức thời:**
    Đặt cả hai biến cờ về `false`:
    ```bash
-   OPS_EXPLORER_OPS_ENABLED=false
-   OPS_EXPLORER_EDUTRACK_ENABLED=false
+   OPS_DATABASE_OPS_ENABLED=false
+   OPS_DATABASE_EDUTRACK_ENABLED=false
    ```
 2. **Khởi động lại bridge:**
    ```bash

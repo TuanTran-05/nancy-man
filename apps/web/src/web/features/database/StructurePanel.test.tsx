@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { StructurePanel } from './StructurePanel.js';
-import type { DatabaseExplorerRelation } from '../../../../../packages/contracts/src/databaseExplorer.js';
+import type { DatabaseExplorerRelation } from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 afterEach(() => cleanup());
 
@@ -46,14 +46,37 @@ const mockRelation: DatabaseExplorerRelation = {
     }
   ],
   constraints: [
-    { name: 'pk_users', type: 'primary_key', definition: 'PRIMARY KEY (id)' },
-    { name: 'uq_users_phone', type: 'unique', definition: 'UNIQUE (phone)' }
+    {
+      name: 'pk_users',
+      kind: 'primary_key',
+      columns: ['id'],
+      referencedRelation: null,
+      deferrable: false,
+      initiallyDeferred: false
+    },
+    {
+      name: 'uq_users_phone',
+      kind: 'unique',
+      columns: ['phone'],
+      referencedRelation: null,
+      deferrable: false,
+      initiallyDeferred: false
+    }
   ],
   indexes: [
-    { name: 'idx_users_phone', definition: 'CREATE INDEX idx_users_phone ON users(phone)' }
+    {
+      name: 'idx_users_phone',
+      method: 'btree',
+      columns: ['phone'],
+      unique: false,
+      primary: false,
+      valid: true,
+      hasExpressions: false,
+      partial: false
+    }
   ],
   triggers: [],
-  policies: [{ name: 'tenant_isolation', command: 'ALL', roles: ['public'] }],
+  policies: [{ name: 'tenant_isolation', command: 'all', roles: ['public'], permissive: true }],
   estimatedRows: 5000,
   dataAvailable: true,
   primaryKey: ['id'],
@@ -69,11 +92,11 @@ describe('StructurePanel component', () => {
     expect(screen.getByText('~5000 dòng')).toBeInTheDocument();
 
     // Column id with PK badge
-    expect(screen.getByText('id')).toBeInTheDocument();
+    expect(screen.getAllByText('id').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('PK')).toBeInTheDocument();
 
     // Phone with PII badge
-    expect(screen.getByText('phone')).toBeInTheDocument();
+    expect(screen.getAllByText('phone').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('PII')).toBeInTheDocument();
 
     // Password with Never exposed badge

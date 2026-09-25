@@ -1,4 +1,4 @@
-import type { DatabaseExplorerRelation } from '../../../../../packages/contracts/src/databaseExplorer.js';
+import type { DatabaseExplorerRelation } from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 export type StructurePanelProps = {
   schemaName?: string | null;
@@ -97,7 +97,13 @@ export function StructurePanel({ schemaName, relation }: StructurePanelProps) {
           <ul className="structure-list">
             {relation.constraints.map((c) => (
               <li key={c.name} className="structure-list-item">
-                <strong>{c.name}</strong> <em>({c.type})</em>: <code>{c.definition}</code>
+                <strong>{c.name}</strong> <em>({c.kind})</em>:{' '}
+                <code>
+                  {c.columns.join(', ')}
+                  {c.referencedRelation
+                    ? ` -> ${c.referencedRelation.schema}.${c.referencedRelation.name}(${c.referencedRelation.columns.join(', ')})`
+                    : ''}
+                </code>
               </li>
             ))}
           </ul>
@@ -111,7 +117,10 @@ export function StructurePanel({ schemaName, relation }: StructurePanelProps) {
           <ul className="structure-list">
             {relation.indexes.map((idx) => (
               <li key={idx.name} className="structure-list-item">
-                <strong>{idx.name}</strong>: <code>{idx.definition}</code>
+                <strong>{idx.name}</strong>:{' '}
+                <code>
+                  {idx.method} ({idx.columns.join(', ')}){idx.unique ? ' [UNIQUE]' : ''}
+                </code>
               </li>
             ))}
           </ul>
@@ -125,7 +134,10 @@ export function StructurePanel({ schemaName, relation }: StructurePanelProps) {
           <ul className="structure-list">
             {relation.triggers.map((trg) => (
               <li key={trg.name} className="structure-list-item">
-                <strong>{trg.name}</strong>: <code>{trg.definition}</code>
+                <strong>{trg.name}</strong>:{' '}
+                <code>
+                  {trg.timing} {trg.events.join('/')} ({trg.enabled})
+                </code>
               </li>
             ))}
           </ul>

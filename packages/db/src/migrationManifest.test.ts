@@ -117,6 +117,11 @@ const expectedTrustRoot = [
     '0021_telemetry_source_clients',
     '0021_telemetry_source_clients.sql',
     'df9008b87cbaad7026ec7633cecbdb2f5f9f60f4fa6403631edc47c57c01d3d3'
+  ],
+  [
+    '0022_database_pii_reveal',
+    '0022_database_pii_reveal.sql',
+    '17dc3ce27e9084e767ab4abddb0baf8660ed2331451207978be85db8ab49563b'
   ]
 ] as const;
 

@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DatabaseExplorerSchemaSnapshot } from '../../../../../packages/contracts/src/databaseExplorer.js';
+import type { DatabaseExplorerSchemaSnapshot } from '../../../../../../packages/contracts/src/databaseExplorer.js';
 import { RelationshipGraph } from './RelationshipGraph.js';
 
 afterEach(cleanup);
@@ -29,7 +29,7 @@ function makeSnapshot(
   }> = []
 ): DatabaseExplorerSchemaSnapshot {
   return {
-    targetId: 'prod' as any,
+    targetId: 'edutrack_production',
     targetLabel: 'Production',
     checksum: 'x',
     policyVersion: '1',
@@ -39,7 +39,7 @@ function makeSnapshot(
         relations: [
           {
             name: 'orders',
-            kind: 'table' as any,
+            kind: 'table',
             primaryKey: ['id'],
             paginationKey: ['id'],
             rowLevelSecurity: { enabled: false, forced: false },
@@ -51,7 +51,7 @@ function makeSnapshot(
                 hasDefault: true,
                 identity: 'always',
                 generated: false,
-                classification: 'public' as any,
+                classification: 'public',
                 selectable: true,
                 filterOperators: []
               },
@@ -62,7 +62,7 @@ function makeSnapshot(
                 hasDefault: false,
                 identity: null,
                 generated: false,
-                classification: 'public' as any,
+                classification: 'public',
                 selectable: true,
                 filterOperators: []
               }
@@ -76,7 +76,7 @@ function makeSnapshot(
           },
           {
             name: 'users',
-            kind: 'table' as any,
+            kind: 'table',
             primaryKey: ['id'],
             paginationKey: ['id'],
             rowLevelSecurity: { enabled: false, forced: false },
@@ -88,7 +88,7 @@ function makeSnapshot(
                 hasDefault: true,
                 identity: 'always',
                 generated: false,
-                classification: 'public' as any,
+                classification: 'public',
                 selectable: true,
                 filterOperators: []
               }

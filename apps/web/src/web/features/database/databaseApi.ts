@@ -1,12 +1,12 @@
 import { request } from '../../api.js';
 import type {
   DatabaseExplorerSchemaSnapshot,
+  DatabaseFilterOperator,
   DatabasePageSize,
-  DatabaseRowsRequest,
   DatabaseRowsResponse,
   DatabaseTargetId,
   DatabaseTargetSummary
-} from '../../../../../packages/contracts/src/databaseExplorer.js';
+} from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 export type DatabaseTargetsResponse = {
   targets: DatabaseTargetSummary[];
@@ -18,7 +18,7 @@ export type DatabaseRowsQueryInput = {
   pageSize: DatabasePageSize;
   cursor?: string;
   sort?: { column: string; direction: 'asc' | 'desc' };
-  filters?: Array<{ column: string; operator: any; value?: string }>;
+  filters?: Array<{ column: string; operator: DatabaseFilterOperator; value?: string }>;
   piiMode?: 'masked' | 'revealed';
 };
 

@@ -26,7 +26,7 @@ function createMockTarget(
         }
         return {
           release: () => undefined,
-          query: async <T>(sql: string, values?: readonly unknown[]) => {
+          query: async <T>(sql: string) => {
             if (sql.includes('catalog:schemas')) {
               return { rows: [{ schemaName: 'public' }, { schemaName: 'reporting' }] as T[] };
             }

@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import type { DatabaseExplorerSchemaSnapshot } from '../../../../../packages/contracts/src/databaseExplorer.js';
+import type {
+  DatabaseExplorerRelation,
+  DatabaseExplorerSchemaSnapshot,
+  DatabaseTargetId
+} from '../../../../../../packages/contracts/src/databaseExplorer.js';
 import {
   applyDagreLayout,
   filterGraph,
@@ -13,12 +17,17 @@ import {
 // Fixture helpers
 // ---------------------------------------------------------------------------
 
-const TARGET = 'prod';
+const TARGET: DatabaseTargetId = 'edutrack_production';
 
 function makeSnapshot(
   schemas: Array<{
     name: string;
-    relations: Array<{ name: string; kind?: string; pk?: string[] | null; cols?: string[] }>;
+    relations: Array<{
+      name: string;
+      kind?: DatabaseExplorerRelation['kind'];
+      pk?: string[] | null;
+      cols?: string[];
+    }>;
   }>,
   edges: Array<{
     constraint: string;
@@ -27,7 +36,7 @@ function makeSnapshot(
   }> = []
 ): DatabaseExplorerSchemaSnapshot {
   return {
-    targetId: TARGET as any,
+    targetId: TARGET,
     targetLabel: 'Production',
     checksum: 'abc',
     policyVersion: '1',
@@ -35,7 +44,7 @@ function makeSnapshot(
       name: s.name,
       relations: s.relations.map((r) => ({
         name: r.name,
-        kind: (r.kind ?? 'table') as any,
+        kind: r.kind ?? 'table',
         primaryKey: r.pk ?? ['id'],
         paginationKey: r.pk ?? ['id'],
         rowLevelSecurity: { enabled: false, forced: false },
@@ -46,7 +55,7 @@ function makeSnapshot(
           hasDefault: false,
           identity: null,
           generated: false,
-          classification: 'public' as any,
+          classification: 'public' as const,
           selectable: true,
           filterOperators: []
         })),
@@ -88,9 +97,9 @@ describe('projectFullGraph', () => {
     expect(nodes).toHaveLength(3);
     // stable sort: audit/logs, public/accounts, public/users
     expect(nodes.map((n) => n.id)).toEqual([
-      'prod/audit/logs',
-      'prod/public/accounts',
-      'prod/public/users'
+      'edutrack_production/audit/logs',
+      'edutrack_production/public/accounts',
+      'edutrack_production/public/users'
     ]);
   });
 
@@ -231,10 +240,10 @@ describe('projectFocusedGraph', () => {
   it('includes selected node and one-hop neighbours, excludes unrelated nodes', () => {
     const { nodes } = projectFocusedGraph(snap, TARGET, 'public', 'orders', new Set());
     const ids = nodes.map((n) => n.id);
-    expect(ids).toContain('prod/public/orders');
-    expect(ids).toContain('prod/public/users');
-    expect(ids).toContain('prod/public/products');
-    expect(ids).toContain('prod/public/payments');
+    expect(ids).toContain('edutrack_production/public/orders');
+    expect(ids).toContain('edutrack_production/public/users');
+    expect(ids).toContain('edutrack_production/public/products');
+    expect(ids).toContain('edutrack_production/public/payments');
     // all 4 are one hop from orders
     expect(nodes).toHaveLength(4);
   });
@@ -242,20 +251,20 @@ describe('projectFocusedGraph', () => {
   it('excludes unrelated nodes when selecting a peripheral table', () => {
     const { nodes } = projectFocusedGraph(snap, TARGET, 'public', 'users', new Set());
     const ids = nodes.map((n) => n.id);
-    expect(ids).toContain('prod/public/users');
-    expect(ids).toContain('prod/public/orders');
-    expect(ids).not.toContain('prod/public/payments'); // not in one-hop from users
+    expect(ids).toContain('edutrack_production/public/users');
+    expect(ids).toContain('edutrack_production/public/orders');
+    expect(ids).not.toContain('edutrack_production/public/payments'); // not in one-hop from users
   });
 
   it('expansion is additive — expanding a neighbour adds its neighbours', () => {
-    const expanded = new Set(['prod/public/users']);
+    const expanded = new Set(['edutrack_production/public/users']);
     // users is a neighbour of orders; expanding users should not add more here
     // because users has no other edges; but let's use payments → orders → users chain
     const { nodes } = projectFocusedGraph(snap, TARGET, 'public', 'payments', expanded);
     const ids = nodes.map((n) => n.id);
     // payments → orders is 1 hop; orders → users/products is 2nd hop via expansion
-    expect(ids).toContain('prod/public/payments');
-    expect(ids).toContain('prod/public/orders');
+    expect(ids).toContain('edutrack_production/public/payments');
+    expect(ids).toContain('edutrack_production/public/orders');
   });
 });
 

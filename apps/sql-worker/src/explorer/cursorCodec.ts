@@ -1,3 +1,5 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { DatabaseTargetId } from '../../../../packages/contracts/src/databaseExplorer.js';
 import { makeExplorerError } from './filterSql.js';
@@ -92,7 +94,11 @@ export function decodeCursor(input: {
     throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Malformed cursor structure');
   }
 
-  const [encodedPayload, signature] = parts;
+  const encodedPayload = parts[0];
+  const signature = parts[1];
+  if (!encodedPayload || !signature) {
+    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Malformed cursor structure');
+  }
   if (!verifySignature(encodedPayload, signature, input.key)) {
     throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Cursor signature verification failed');
   }
@@ -101,7 +107,12 @@ export function decodeCursor(input: {
   try {
     const json = Buffer.from(encodedPayload, 'base64url').toString('utf8');
     cursor = JSON.parse(json);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Cursor JSON decoding failed');
   }
 
@@ -169,7 +180,11 @@ export function decodeRowRef(input: {
     throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Malformed row reference structure');
   }
 
-  const [encodedPayload, signature] = parts;
+  const encodedPayload = parts[0];
+  const signature = parts[1];
+  if (!encodedPayload || !signature) {
+    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Malformed row reference structure');
+  }
   if (!verifySignature(encodedPayload, signature, input.key)) {
     throw makeExplorerError(
       'DATABASE_CURSOR_INVALID',
@@ -181,7 +196,12 @@ export function decodeRowRef(input: {
   try {
     const json = Buffer.from(encodedPayload, 'base64url').toString('utf8');
     rowRef = JSON.parse(json);
-  } catch {
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'job',
+      status: 500
+    });
     throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Row reference JSON decoding failed');
   }
 

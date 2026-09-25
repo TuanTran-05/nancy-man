@@ -1,4 +1,4 @@
-import type { DatabaseTargetId } from '@edutrack-ops/contracts';
+import type { DatabaseTargetId } from '../../../../packages/contracts/src/databaseExplorer.js';
 
 export const DATABASE_POLICY_VERSION = '2026-09-25';
 

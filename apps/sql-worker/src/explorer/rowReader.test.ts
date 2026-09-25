@@ -7,7 +7,10 @@ import type {
 } from '../../../../packages/contracts/src/databaseExplorer.js';
 
 function createMockTarget(options: {
-  queryHandler?: (sql: string, values?: readonly unknown[]) => Promise<{ rows: any[] }>;
+  queryHandler?: (
+    sql: string,
+    values?: readonly unknown[]
+  ) => Promise<{ rows: Record<string, unknown>[] }>;
   throwTimeout?: boolean;
 }): { target: AvailableTargetEntry; queries: string[]; rolledBack: boolean; released: boolean } {
   const queries: string[] = [];
@@ -30,8 +33,9 @@ function createMockTarget(options: {
             return { rows: [] as T[] };
           }
           if (options.throwTimeout && sql.startsWith('SELECT')) {
-            const err = new Error('canceling statement due to statement timeout');
-            (err as any).code = '57014';
+            const err = Object.assign(new Error('canceling statement due to statement timeout'), {
+              code: '57014'
+            });
             throw err;
           }
           if (options.queryHandler) {

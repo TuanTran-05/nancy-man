@@ -41,12 +41,7 @@ function getRequestId(response: Response): string | undefined {
   return typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined;
 }
 
-function handleRouteError(
-  error: unknown,
-  request: Request,
-  response: Response,
-  next: express.NextFunction
-) {
+function handleRouteError(error: unknown, request: Request, response: Response) {
   if (error instanceof DatabaseExplorerServiceError) {
     return response.status(error.status).json({ code: error.code });
   }
@@ -55,9 +50,11 @@ function handleRouteError(
     error &&
     typeof error === 'object' &&
     'status' in error &&
-    typeof (error as any).status === 'number'
+    typeof (error as { status: unknown }).status === 'number'
   ) {
-    return response.status((error as any).status).json({ code: (error as any).code || 'ERROR' });
+    const errObj = error as { status: number; code?: unknown };
+    const code = typeof errObj.code === 'string' ? errObj.code : 'ERROR';
+    return response.status(errObj.status).json({ code });
   }
 
   if (error && typeof error === 'object' && 'name' in error && error.name === 'ZodError') {
@@ -88,41 +85,70 @@ export function createDatabaseRouter(input: {
   const router = express.Router();
 
   // 1. GET /targets
-  router.get('/targets', async (request, response, next) => {
+  router.get('/targets', async (request, response) => {
     try {
       response.setHeader('Cache-Control', 'no-store');
+      const cookieHeader = request.get('cookie');
       const principal = await input.authorize({
-        cookieHeader: request.get('cookie'),
+        ...(cookieHeader ? { cookieHeader } : {}),
         mutation: false
       });
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
 
       try {
         assertPermission(principal.role, 'database:schema:read');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
 
       const result = await input.service.getTargets();
       return response.status(200).json(result);
     } catch (error) {
-      return handleRouteError(error, request, response, next);
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method
+      });
+      return handleRouteError(error, request, response);
     }
   });
 
   // 2. GET /:targetId/schema
-  router.get('/:targetId/schema', async (request, response, next) => {
+  router.get('/:targetId/schema', async (request, response) => {
     try {
       response.setHeader('Cache-Control', 'no-store');
+      const cookieHeader = request.get('cookie');
       const principal = await input.authorize({
-        cookieHeader: request.get('cookie'),
+        ...(cookieHeader ? { cookieHeader } : {}),
         mutation: false
       });
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
 
       try {
         assertPermission(principal.role, 'database:schema:read');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
 
@@ -132,33 +158,54 @@ export function createDatabaseRouter(input: {
       }
 
       const { ipHash } = getHashes(request, input.hashClientIp);
+      const requestId = getRequestId(response);
       const snapshot = await input.service.getSchema({
         actor: principal,
         targetId: targetIdParsed.data,
-        requestId: getRequestId(response),
+        ...(requestId ? { requestId } : {}),
         ipHash
       });
 
       return response.status(200).json(snapshot);
     } catch (error) {
-      return handleRouteError(error, request, response, next);
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method
+      });
+      return handleRouteError(error, request, response);
     }
   });
 
   // 3. POST /:targetId/rows/query
-  router.post('/:targetId/rows/query', async (request, response, next) => {
+  router.post('/:targetId/rows/query', async (request, response) => {
     try {
       response.setHeader('Cache-Control', 'no-store');
+      const cookieHeader = request.get('cookie');
+      const csrfToken = request.get('x-ops-csrf');
       const principal = await input.authorize({
-        cookieHeader: request.get('cookie'),
-        csrfToken: request.get('x-ops-csrf'),
+        ...(cookieHeader ? { cookieHeader } : {}),
+        ...(csrfToken ? { csrfToken } : {}),
         mutation: true
       });
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
 
       try {
         assertPermission(principal.role, 'database:data:read');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method
+        });
         return response.status(403).json({ code: 'DATABASE_DATA_PERMISSION_DENIED' });
       }
 
@@ -174,37 +221,58 @@ export function createDatabaseRouter(input: {
 
       const grantId = request.get('x-ops-step-up-grant');
       const { ipHash, userAgentHash } = getHashes(request, input.hashClientIp);
+      const requestId = getRequestId(response);
 
       const rowsResult = await input.service.queryRows({
         actor: principal,
         targetId: targetIdParsed.data,
         query: bodyParsed.data,
-        grantId,
-        requestId: getRequestId(response),
+        ...(grantId ? { grantId } : {}),
+        ...(requestId ? { requestId } : {}),
         ipHash,
         userAgentHash
       });
 
       return response.status(200).json(rowsResult);
     } catch (error) {
-      return handleRouteError(error, request, response, next);
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method
+      });
+      return handleRouteError(error, request, response);
     }
   });
 
   // 4. POST /:targetId/relations/query
-  router.post('/:targetId/relations/query', async (request, response, next) => {
+  router.post('/:targetId/relations/query', async (request, response) => {
     try {
       response.setHeader('Cache-Control', 'no-store');
+      const cookieHeader = request.get('cookie');
+      const csrfToken = request.get('x-ops-csrf');
       const principal = await input.authorize({
-        cookieHeader: request.get('cookie'),
-        csrfToken: request.get('x-ops-csrf'),
+        ...(cookieHeader ? { cookieHeader } : {}),
+        ...(csrfToken ? { csrfToken } : {}),
         mutation: true
       });
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
 
       try {
         assertPermission(principal.role, 'database:data:read');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method
+        });
         return response.status(403).json({ code: 'DATABASE_DATA_PERMISSION_DENIED' });
       }
 
@@ -220,37 +288,58 @@ export function createDatabaseRouter(input: {
 
       const grantId = request.get('x-ops-step-up-grant');
       const { ipHash, userAgentHash } = getHashes(request, input.hashClientIp);
+      const requestId = getRequestId(response);
 
       const relatedResult = await input.service.queryRelatedRows({
         actor: principal,
         targetId: targetIdParsed.data,
         query: bodyParsed.data,
-        grantId,
-        requestId: getRequestId(response),
+        ...(grantId ? { grantId } : {}),
+        ...(requestId ? { requestId } : {}),
         ipHash,
         userAgentHash
       });
 
       return response.status(200).json(relatedResult);
     } catch (error) {
-      return handleRouteError(error, request, response, next);
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method
+      });
+      return handleRouteError(error, request, response);
     }
   });
 
   // 5. POST /:targetId/pii-reveal
-  router.post('/:targetId/pii-reveal', async (request, response, next) => {
+  router.post('/:targetId/pii-reveal', async (request, response) => {
     try {
       response.setHeader('Cache-Control', 'no-store');
+      const cookieHeader = request.get('cookie');
+      const csrfToken = request.get('x-ops-csrf');
       const principal = await input.authorize({
-        cookieHeader: request.get('cookie'),
-        csrfToken: request.get('x-ops-csrf'),
+        ...(cookieHeader ? { cookieHeader } : {}),
+        ...(csrfToken ? { csrfToken } : {}),
         mutation: true
       });
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
 
       try {
         assertPermission(principal.role, 'database:pii:reveal');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
 
@@ -265,35 +354,56 @@ export function createDatabaseRouter(input: {
       }
 
       const { ipHash, userAgentHash } = getHashes(request, input.hashClientIp);
+      const requestId = getRequestId(response);
       const revealResult = await input.service.revealPii({
         actor: principal,
         targetId: targetIdParsed.data,
         body: bodyParsed.data,
-        requestId: getRequestId(response),
+        ...(requestId ? { requestId } : {}),
         ipHash,
         userAgentHash
       });
 
       return response.status(200).json(revealResult);
     } catch (error) {
-      return handleRouteError(error, request, response, next);
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method
+      });
+      return handleRouteError(error, request, response);
     }
   });
 
   // 6. DELETE /:targetId/pii-reveal
-  router.delete('/:targetId/pii-reveal', async (request, response, next) => {
+  router.delete('/:targetId/pii-reveal', async (request, response) => {
     try {
       response.setHeader('Cache-Control', 'no-store');
+      const cookieHeader = request.get('cookie');
+      const csrfToken = request.get('x-ops-csrf');
       const principal = await input.authorize({
-        cookieHeader: request.get('cookie'),
-        csrfToken: request.get('x-ops-csrf'),
+        ...(cookieHeader ? { cookieHeader } : {}),
+        ...(csrfToken ? { csrfToken } : {}),
         mutation: true
       });
       if (!principal) return response.status(401).json({ code: 'AUTH_DENIED' });
 
       try {
         assertPermission(principal.role, 'database:pii:reveal');
-      } catch {
+      } catch (error) {
+        captureOpsException(error, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'database',
+          status: 500,
+          requestId: () =>
+            typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+          route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+          method: () => request.method
+        });
         return response.status(403).json({ code: 'PERMISSION_DENIED' });
       }
 
@@ -304,19 +414,29 @@ export function createDatabaseRouter(input: {
 
       const grantId = request.get('x-ops-step-up-grant');
       const { ipHash, userAgentHash } = getHashes(request, input.hashClientIp);
+      const requestId = getRequestId(response);
 
       const revokeResult = await input.service.revokePiiReveal({
         actor: principal,
         targetId: targetIdParsed.data,
-        grantId,
-        requestId: getRequestId(response),
+        ...(grantId ? { grantId } : {}),
+        ...(requestId ? { requestId } : {}),
         ipHash,
         userAgentHash
       });
 
       return response.status(200).json(revokeResult);
     } catch (error) {
-      return handleRouteError(error, request, response, next);
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500,
+        requestId: () =>
+          typeof response.locals?.requestId === 'string' ? response.locals.requestId : undefined,
+        route: () => (request.originalUrl || request.url || '').split('?', 1)[0] || undefined,
+        method: () => request.method
+      });
+      return handleRouteError(error, request, response);
     }
   });
 

@@ -419,7 +419,7 @@ describe('startOpsSqlWorker', () => {
           return 'postgresql://reader:secret@ops-db/edutrack_ops?sslmode=verify-full';
         return null;
       },
-      createExplorerPool: (targetId, url) => {
+      createExplorerPool: (targetId) => {
         if (targetId === 'edutrack_production') {
           return {
             query: async () => {

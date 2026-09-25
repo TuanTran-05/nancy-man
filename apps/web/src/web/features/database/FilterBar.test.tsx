@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FilterBar } from './FilterBar.js';
-import type { DatabaseExplorerColumn } from '../../../../../packages/contracts/src/databaseExplorer.js';
+import type { DatabaseExplorerColumn } from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 afterEach(() => cleanup());
 

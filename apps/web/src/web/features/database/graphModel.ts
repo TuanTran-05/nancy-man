@@ -11,7 +11,7 @@ import type {
   DatabaseExplorerRelation,
   DatabaseExplorerSchemaSnapshot,
   DatabaseRelationEdge
-} from '../../../../../packages/contracts/src/databaseExplorer.js';
+} from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 // ---------------------------------------------------------------------------
 // Public types

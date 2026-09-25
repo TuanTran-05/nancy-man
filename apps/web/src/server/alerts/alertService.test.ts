@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createOpsStore } from '../storage/store.js';
-import { createAlertService, formatAlertText, parseAlertDetails } from './alertService.js';
+import { createAlertService, formatAlertText } from './alertService.js';
 import type { CollectorTransition } from '../collector/collector.js';
 import { encryptSecret } from '../security/crypto.js';
 

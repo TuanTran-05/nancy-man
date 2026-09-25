@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DatabaseExplorerSchemaSnapshot } from '../../../../../packages/contracts/src/databaseExplorer.js';
+import type { DatabaseExplorerSchemaSnapshot } from '../../../../../../packages/contracts/src/databaseExplorer.js';
 import { FullErd } from './FullErd.js';
 
 afterEach(cleanup);
@@ -23,7 +23,7 @@ import React from 'react';
 
 function makeSnap(): DatabaseExplorerSchemaSnapshot {
   return {
-    targetId: 'prod' as any,
+    targetId: 'edutrack_production',
     targetLabel: 'Production',
     checksum: 'x',
     policyVersion: '1',
@@ -33,7 +33,7 @@ function makeSnap(): DatabaseExplorerSchemaSnapshot {
         relations: [
           {
             name: 'users',
-            kind: 'table' as any,
+            kind: 'table',
             primaryKey: ['id'],
             paginationKey: ['id'],
             rowLevelSecurity: { enabled: false, forced: false },
@@ -45,7 +45,7 @@ function makeSnap(): DatabaseExplorerSchemaSnapshot {
                 hasDefault: true,
                 identity: 'always',
                 generated: false,
-                classification: 'public' as any,
+                classification: 'public',
                 selectable: true,
                 filterOperators: []
               }
@@ -59,7 +59,7 @@ function makeSnap(): DatabaseExplorerSchemaSnapshot {
           },
           {
             name: 'orders',
-            kind: 'table' as any,
+            kind: 'table',
             primaryKey: ['id'],
             paginationKey: ['id'],
             rowLevelSecurity: { enabled: false, forced: false },
@@ -71,7 +71,7 @@ function makeSnap(): DatabaseExplorerSchemaSnapshot {
                 hasDefault: true,
                 identity: 'always',
                 generated: false,
-                classification: 'public' as any,
+                classification: 'public',
                 selectable: true,
                 filterOperators: []
               },
@@ -82,7 +82,7 @@ function makeSnap(): DatabaseExplorerSchemaSnapshot {
                 hasDefault: false,
                 identity: null,
                 generated: false,
-                classification: 'public' as any,
+                classification: 'public',
                 selectable: true,
                 filterOperators: []
               }
@@ -101,7 +101,7 @@ function makeSnap(): DatabaseExplorerSchemaSnapshot {
         relations: [
           {
             name: 'logs',
-            kind: 'table' as any,
+            kind: 'table',
             primaryKey: ['id'],
             paginationKey: ['id'],
             rowLevelSecurity: { enabled: false, forced: false },
@@ -113,7 +113,7 @@ function makeSnap(): DatabaseExplorerSchemaSnapshot {
                 hasDefault: true,
                 identity: 'always',
                 generated: false,
-                classification: 'public' as any,
+                classification: 'public',
                 selectable: true,
                 filterOperators: []
               }

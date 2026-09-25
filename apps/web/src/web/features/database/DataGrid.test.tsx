@@ -7,7 +7,7 @@ import type {
   DatabaseExplorerColumn,
   DatabaseRelationEdge,
   DatabaseRowsResponse
-} from '../../../../../packages/contracts/src/databaseExplorer.js';
+} from '../../../../../../packages/contracts/src/databaseExplorer.js';
 
 afterEach(() => cleanup());
 

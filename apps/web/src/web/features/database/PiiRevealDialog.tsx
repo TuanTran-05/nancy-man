@@ -1,3 +1,5 @@
+import { captureBrowserException } from '../../telemetry/runtimeTelemetry.js';
+
 import { useState, type FormEvent } from 'react';
 
 export type PiiRevealDialogProps = {
@@ -52,10 +54,20 @@ export function PiiRevealDialog({ open, targetName, onClose, onSubmit }: PiiReve
     try {
       await onSubmit(submittedPassword, submittedToken, trimmedReason);
       setReason('');
-    } catch (err: any) {
-      setError(
-        err?.code ?? err?.message ?? 'Xác thực thất bại. Vui lòng kiểm tra lại mật khẩu và mã TOTP.'
-      );
+    } catch (err: unknown) {
+      void captureBrowserException(err, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname
+      });
+      const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
+      const msg =
+        typeof errObj['code'] === 'string'
+          ? errObj['code']
+          : typeof errObj['message'] === 'string'
+            ? errObj['message']
+            : 'Xác thực thất bại. Vui lòng kiểm tra lại mật khẩu và mã TOTP.';
+      setError(msg);
     } finally {
       setLoading(false);
     }

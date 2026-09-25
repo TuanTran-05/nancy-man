@@ -52,27 +52,24 @@ export function IssuesPage({
     return () => window.clearInterval(interval);
   }, [loadIssues]);
 
-  const loadDetail = useCallback(
-    async (id: string) => {
-      setSelectedIssueId(id);
-      setDetailLoading(true);
-      setActionError(null);
-      try {
-        const result = await getIssueDetail(id);
-        setDetail(result);
-      } catch (error) {
-        void captureBrowserException(error, {
-          code: 'UNHANDLED_BROWSER_EXCEPTION',
-          source: 'browser',
-          route: () => globalThis.location?.pathname
-        });
-        setActionError('Không thể tải chi tiết sự cố.');
-      } finally {
-        setDetailLoading(false);
-      }
-    },
-    []
-  );
+  const loadDetail = useCallback(async (id: string) => {
+    setSelectedIssueId(id);
+    setDetailLoading(true);
+    setActionError(null);
+    try {
+      const result = await getIssueDetail(id);
+      setDetail(result);
+    } catch (error) {
+      void captureBrowserException(error, {
+        code: 'UNHANDLED_BROWSER_EXCEPTION',
+        source: 'browser',
+        route: () => globalThis.location?.pathname
+      });
+      setActionError('Không thể tải chi tiết sự cố.');
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
 
   const handleStatusChange = async (
     status: 'acknowledged' | 'investigating' | 'resolved' | 'ignored'
@@ -172,18 +169,26 @@ export function IssuesPage({
                     <div className="issue-card-header">
                       <div className="issue-badges">
                         <span className={`level level-${issue.severity}`}>{issue.severity}</span>
-                        <span className={`status-badge status-${issue.status}`}>{issue.status}</span>
+                        <span className={`status-badge status-${issue.status}`}>
+                          {issue.status}
+                        </span>
                         <span className="source-badge">{issue.source}</span>
                       </div>
                       <span className="muted issue-time">
                         {new Date(issue.lastSeenAt).toLocaleString('vi-VN')}
                       </span>
                     </div>
-                    <h4 className="issue-title">{issue.title || issue.errorCode || 'Lỗi không xác định'}</h4>
+                    <h4 className="issue-title">
+                      {issue.title || issue.errorCode || 'Lỗi không xác định'}
+                    </h4>
                     {issue.errorCode ? <p className="issue-code">Mã: {issue.errorCode}</p> : null}
                     <div className="issue-meta muted">
-                      <span>Lặp lại: <strong>{issue.occurrenceCount}</strong> lần</span>
-                      <span>Người dùng ảnh hưởng: <strong>{issue.affectedUserCount}</strong></span>
+                      <span>
+                        Lặp lại: <strong>{issue.occurrenceCount}</strong> lần
+                      </span>
+                      <span>
+                        Người dùng ảnh hưởng: <strong>{issue.affectedUserCount}</strong>
+                      </span>
                     </div>
                   </article>
                 );

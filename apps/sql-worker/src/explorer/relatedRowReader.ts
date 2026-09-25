@@ -67,6 +67,7 @@ export async function readRelatedRows(input: ReadRelatedRowsInput): Promise<Data
   for (let i = 0; i < targetCols.length; i++) {
     const tCol = targetCols[i];
     const sCol = sourceCols[i];
+    if (!tCol || !sCol) continue;
     const val = rowRefData.keys[sCol];
     if (val === undefined || val === null) {
       throw makeExplorerError(
@@ -90,10 +91,10 @@ export async function readRelatedRows(input: ReadRelatedRowsInput): Promise<Data
       schema: targetSchema,
       relation: targetRelation,
       pageSize: request.pageSize,
-      cursor: request.cursor,
+      ...(request.cursor ? { cursor: request.cursor } : {}),
       filters,
       piiMode: request.piiMode
     },
-    now
+    ...(now ? { now } : {})
   });
 }
