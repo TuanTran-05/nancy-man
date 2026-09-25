@@ -32,11 +32,18 @@ export async function readRelatedRows(input: ReadRelatedRowsInput): Promise<Data
     ...(now ? { now } : {})
   });
 
-  const edge = snapshot.edges.find((e) => e.constraint === request.constraint);
+  const matchingEdges = snapshot.edges.filter((e) => e.constraint === request.constraint);
+  const edge = matchingEdges.find(
+    (candidate) =>
+      (candidate.from.schema === request.schema && candidate.from.relation === request.relation) ||
+      (candidate.to.schema === request.schema && candidate.to.relation === request.relation)
+  );
   if (!edge) {
     throw makeExplorerError(
       'DATABASE_RELATION_INVALID',
-      `Foreign key constraint "${request.constraint}" not found in schema snapshot`
+      matchingEdges.length === 0
+        ? `Foreign key constraint "${request.constraint}" not found in schema snapshot`
+        : `Constraint "${request.constraint}" does not connect to relation "${request.schema}.${request.relation}"`
     );
   }
 
@@ -64,11 +71,23 @@ export async function readRelatedRows(input: ReadRelatedRowsInput): Promise<Data
     );
   }
 
+  if (sourceCols.length === 0 || sourceCols.length !== targetCols.length) {
+    throw makeExplorerError(
+      'DATABASE_RELATION_INVALID',
+      `Constraint "${request.constraint}" has invalid column pairing`
+    );
+  }
+
   const filters: Array<{ column: string; operator: DatabaseFilterOperator; value: string }> = [];
   for (let i = 0; i < targetCols.length; i++) {
     const tCol = targetCols[i];
     const sCol = sourceCols[i];
-    if (!tCol || !sCol) continue;
+    if (!tCol || !sCol) {
+      throw makeExplorerError(
+        'DATABASE_RELATION_INVALID',
+        `Constraint "${request.constraint}" has invalid column pairing`
+      );
+    }
     const val = rowRefData.keys[sCol];
     if (val === undefined || val === null) {
       throw makeExplorerError(

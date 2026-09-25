@@ -238,6 +238,86 @@ describe('readProductionSchema', () => {
     }
   });
 
+  it('preserves catalog ordinality for composite foreign keys and indexes', async () => {
+    const calls: string[] = [];
+    const database = {
+      query: async <T>(sql: string) => {
+        calls.push(sql);
+        if (sql.includes('catalog:schemas')) {
+          return { rows: [{ schemaName: 'public' }] as T[] };
+        }
+        if (sql.includes('catalog:relations')) {
+          return {
+            rows: [
+              {
+                schemaName: 'public',
+                relationName: 'students',
+                kind: 'table',
+                rowSecurityEnabled: false,
+                forceRowSecurity: false
+              },
+              {
+                schemaName: 'public',
+                relationName: 'enrollments',
+                kind: 'table',
+                rowSecurityEnabled: false,
+                forceRowSecurity: false
+              }
+            ] as T[]
+          };
+        }
+        if (sql.includes('catalog:constraints')) {
+          return {
+            rows: [
+              {
+                schemaName: 'public',
+                relationName: 'enrollments',
+                constraintName: 'enrollments_student_fkey',
+                kind: 'foreign_key',
+                columns: ['tenant_id', 'student_id'],
+                referencedSchema: 'public',
+                referencedRelation: 'students',
+                referencedColumns: ['tenant_id', 'id'],
+                deferrable: false,
+                initiallyDeferred: false
+              }
+            ] as T[]
+          };
+        }
+        if (sql.includes('catalog:indexes')) {
+          return {
+            rows: [
+              {
+                schemaName: 'public',
+                relationName: 'enrollments',
+                indexName: 'enrollments_order_idx',
+                method: 'btree',
+                columns: ['tenant_id', 'student_id'],
+                unique: false,
+                primary: false,
+                valid: true,
+                hasExpressions: false,
+                isPartial: false
+              }
+            ] as T[]
+          };
+        }
+        return { rows: [] as T[] };
+      }
+    };
+
+    const snapshot = await readProductionSchema({ database });
+    const enrollments = snapshot.schemas[0]?.relations.find(
+      (relation) => relation.name === 'enrollments'
+    );
+
+    expect(enrollments?.constraints[0]?.columns).toEqual(['tenant_id', 'student_id']);
+    expect(enrollments?.constraints[0]?.referencedRelation?.columns).toEqual(['tenant_id', 'id']);
+    expect(enrollments?.indexes[0]?.columns).toEqual(['tenant_id', 'student_id']);
+    expect(calls.find((sql) => sql.includes('catalog:constraints'))).toContain('WITH ORDINALITY');
+    expect(calls.find((sql) => sql.includes('catalog:indexes'))).toContain('WITH ORDINALITY');
+  });
+
   it('caches a database-identity snapshot for at most sixty seconds and releases its connection', async () => {
     const { calls, database } = createCatalogDatabase();
     let released = 0;

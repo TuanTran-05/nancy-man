@@ -110,6 +110,9 @@ export type DatabaseRowsRequest = {
   piiMode: 'masked' | 'revealed';
 };
 
+/** Opaque authenticated row identity returned by the worker and passed back unchanged. */
+export type DatabaseExplorerRowRef = string;
+
 export type DatabaseRowsResponse = {
   targetId: DatabaseTargetId;
   schemaChecksum: string;
@@ -117,7 +120,7 @@ export type DatabaseRowsResponse = {
   schema: string;
   relation: string;
   columns: DatabaseExplorerColumn[];
-  rows: Array<{ rowRef: string | null; cells: Record<string, DatabaseCell> }>;
+  rows: Array<{ rowRef: DatabaseExplorerRowRef | null; cells: Record<string, DatabaseCell> }>;
   nextCursor: string | null;
   truncated: boolean;
   encodedBytes: number;
@@ -128,9 +131,10 @@ export type DatabaseRowsResponse = {
 export type DatabaseRelatedRowsRequest = {
   targetId: DatabaseTargetId;
   schema: string;
+  /** Relation that owns the selected row represented by rowRef. */
   relation: string;
   constraint: string;
-  rowRef: string;
+  rowRef: DatabaseExplorerRowRef;
   pageSize: DatabasePageSize;
   cursor?: string;
   piiMode: 'masked' | 'revealed';

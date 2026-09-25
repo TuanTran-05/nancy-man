@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { readRelatedRows } from './relatedRowReader.js';
 import { encodeRowRef } from './cursorCodec.js';
+import { readDatabaseRows } from './rowReader.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
 import type {
   DatabaseExplorerSchemaSnapshot,
-  DatabaseRelatedRowsRequest
+  DatabaseRelatedRowsRequest,
+  DatabaseRowsRequest,
+  DatabaseTargetId
 } from '../../../../packages/contracts/src/databaseExplorer.js';
 import { readProductionSchema } from '../schema/introspectSchema.js';
 
@@ -65,7 +68,27 @@ function createMockTarget(
                 {
                   schemaName: 'public',
                   relationName: 'students',
+                  columnName: 'tenant_id',
+                  dataType: 'text',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
                   columnName: 'email',
+                  dataType: 'text',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'attendance',
+                  columnName: 'tenant_id',
                   dataType: 'text',
                   nullable: false,
                   hasDefault: false,
@@ -100,13 +123,25 @@ function createMockTarget(
               rows: [
                 {
                   schemaName: 'public',
+                  relationName: 'students',
+                  constraintName: 'students_pkey',
+                  kind: 'primary_key',
+                  columns: ['id'],
+                  referencedSchema: null,
+                  referencedRelation: null,
+                  referencedColumns: [],
+                  deferrable: false,
+                  initiallyDeferred: false
+                },
+                {
+                  schemaName: 'public',
                   relationName: 'attendance',
-                  constraintName: 'attendance_student_id_fkey',
+                  constraintName: 'attendance_student_fkey',
                   kind: 'foreign_key',
-                  columns: ['student_id'],
+                  columns: ['tenant_id', 'student_id'],
                   referencedSchema: 'public',
                   referencedRelation: 'students',
-                  referencedColumns: ['id'],
+                  referencedColumns: ['tenant_id', 'id'],
                   deferrable: false,
                   initiallyDeferred: false
                 }
@@ -140,9 +175,9 @@ function createSnapshotWithEdges(checksum = 'mock_checksum_123'): DatabaseExplor
     policyVersion: '2026-09-25-v2',
     edges: [
       {
-        constraint: 'attendance_student_id_fkey',
-        from: { schema: 'public', relation: 'attendance', columns: ['student_id'] },
-        to: { schema: 'public', relation: 'students', columns: ['id'] }
+        constraint: 'attendance_student_fkey',
+        from: { schema: 'public', relation: 'attendance', columns: ['tenant_id', 'student_id'] },
+        to: { schema: 'public', relation: 'students', columns: ['tenant_id', 'id'] }
       }
     ],
     schemas: [
@@ -167,6 +202,17 @@ function createSnapshotWithEdges(checksum = 'mock_checksum_123'): DatabaseExplor
                 dataType: 'uuid',
                 nullable: false,
                 hasDefault: true,
+                identity: null,
+                generated: false,
+                classification: 'internal',
+                selectable: true,
+                filterOperators: ['eq', 'neq']
+              },
+              {
+                name: 'tenant_id',
+                dataType: 'text',
+                nullable: false,
+                hasDefault: false,
                 identity: null,
                 generated: false,
                 classification: 'internal',
@@ -211,6 +257,17 @@ function createSnapshotWithEdges(checksum = 'mock_checksum_123'): DatabaseExplor
                 filterOperators: ['eq']
               },
               {
+                name: 'tenant_id',
+                dataType: 'text',
+                nullable: false,
+                hasDefault: false,
+                identity: null,
+                generated: false,
+                classification: 'internal',
+                selectable: true,
+                filterOperators: ['eq', 'neq']
+              },
+              {
                 name: 'student_id',
                 dataType: 'uuid',
                 nullable: false,
@@ -244,131 +301,227 @@ async function createSnapshotForTarget(
 describe('readRelatedRows', () => {
   const cursorKey = Buffer.alloc(32, 11).toString('base64');
 
-  it('traverses FK from parent students to child attendance rows', async () => {
-    let executedSql = '';
-    let executedValues: readonly unknown[] = [];
-
-    const target = createMockTarget({
-      queryHandler: async (sql, values) => {
-        executedSql = sql;
-        executedValues = values ?? [];
-        return { rows: [{ id: 'att_1', student_id: 'std_123' }] };
-      }
-    });
-
-    const snapshot = await createSnapshotForTarget(target);
-
-    const rowRef = encodeRowRef(
+  function rowRefFor(
+    snapshot: DatabaseExplorerSchemaSnapshot,
+    relation: string,
+    keys: Record<string, unknown>,
+    options: { targetId?: DatabaseTargetId; checksum?: string } = {}
+  ): string {
+    const issuedAt = Date.now();
+    return encodeRowRef(
       {
         version: 1,
-        targetId: 'edutrack_production',
+        targetId: options.targetId ?? 'edutrack_production',
         schema: 'public',
-        relation: 'students',
-        checksum: snapshot.checksum,
-        issuedAt: Date.now(),
-        expiresAt: Date.now() + 5 * 60 * 1000,
-        keys: { id: 'std_123' }
+        relation,
+        checksum: options.checksum ?? snapshot.checksum,
+        issuedAt,
+        expiresAt: issuedAt + 5 * 60 * 1000,
+        keys
       },
       cursorKey
     );
+  }
 
-    const request: DatabaseRelatedRowsRequest = {
+  function relatedRequest(
+    relation: string,
+    rowRef: string,
+    constraint = 'attendance_student_fkey'
+  ): DatabaseRelatedRowsRequest {
+    return {
       targetId: 'edutrack_production',
       schema: 'public',
-      relation: 'students',
-      constraint: 'attendance_student_id_fkey',
+      relation,
+      constraint,
       rowRef,
       pageSize: 25,
       piiMode: 'masked'
     };
+  }
+
+  it('traverses a composite FK from child to parent using source values outside the pagination key', async () => {
+    const executed: Array<{ sql: string; values: readonly unknown[] }> = [];
+    const target = createMockTarget({
+      queryHandler: async (sql, values) => {
+        executed.push({ sql, values: values ?? [] });
+        if (sql.includes('FROM "public"."attendance"')) {
+          return {
+            rows: [{ id: 'att-child', tenant_id: 'tenant-child', student_id: 'student-child' }]
+          };
+        }
+        return {
+          rows: [{ id: 'student-child', tenant_id: 'tenant-child', email: 'child@example.test' }]
+        };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(target);
+    const sourceRequest: DatabaseRowsRequest = {
+      targetId: 'edutrack_production',
+      schema: 'public',
+      relation: 'attendance',
+      pageSize: 25,
+      filters: [],
+      piiMode: 'masked'
+    };
+    const sourceRows = await readDatabaseRows({
+      target,
+      snapshot,
+      cursorKey,
+      request: sourceRequest
+    });
+    const rowRef = sourceRows.rows[0]?.rowRef;
+    expect(rowRef).toBeTruthy();
+    expect(rowRef).not.toContain('tenant-child');
+    expect(rowRef).not.toContain('student-child');
 
     const response = await readRelatedRows({
       target,
       snapshot,
       cursorKey,
-      request
+      request: relatedRequest('attendance', rowRef!)
     });
+    const parentSelect = executed.find(({ sql }) => sql.includes('FROM "public"."students"'));
 
-    expect(response.relation).toBe('attendance');
-    expect(executedSql).toContain('"student_id" = $1');
-    expect(executedValues).toEqual(['std_123']);
+    expect(response.relation).toBe('students');
+    expect(parentSelect?.sql).toContain('"tenant_id" = $1 AND "id" = $2');
+    expect(parentSelect?.values).toEqual(['tenant-child', 'student-child']);
     expect(response.rows).toHaveLength(1);
   });
 
-  it('rejects missing or wrong constraint with DATABASE_RELATION_INVALID', async () => {
-    const target = createMockTarget({});
+  it('traverses the composite FK from parent to child using paired catalog order', async () => {
+    const executed: Array<{ sql: string; values: readonly unknown[] }> = [];
+    const target = createMockTarget({
+      queryHandler: async (sql, values) => {
+        executed.push({ sql, values: values ?? [] });
+        if (sql.includes('FROM "public"."students"')) {
+          return {
+            rows: [
+              { id: 'student-parent', tenant_id: 'tenant-parent', email: 'parent@example.test' }
+            ]
+          };
+        }
+        return {
+          rows: [{ id: 'att-parent', tenant_id: 'tenant-parent', student_id: 'student-parent' }]
+        };
+      }
+    });
     const snapshot = await createSnapshotForTarget(target);
-
-    const rowRef = encodeRowRef(
-      {
-        version: 1,
+    const sourceRows = await readDatabaseRows({
+      target,
+      snapshot,
+      cursorKey,
+      request: {
         targetId: 'edutrack_production',
         schema: 'public',
         relation: 'students',
-        checksum: snapshot.checksum,
-        issuedAt: Date.now(),
-        expiresAt: Date.now() + 5 * 60 * 1000,
-        keys: { id: 'std_123' }
-      },
-      cursorKey
-    );
+        pageSize: 25,
+        filters: [],
+        piiMode: 'masked'
+      }
+    });
+    const rowRef = sourceRows.rows[0]?.rowRef;
+    expect(rowRef).toBeTruthy();
 
-    const request: DatabaseRelatedRowsRequest = {
-      targetId: 'edutrack_production',
-      schema: 'public',
-      relation: 'students',
-      constraint: 'non_existent_fk',
-      rowRef,
-      pageSize: 25,
-      piiMode: 'masked'
-    };
+    const response = await readRelatedRows({
+      target,
+      snapshot,
+      cursorKey,
+      request: relatedRequest('students', rowRef!)
+    });
+    const childSelect = executed.find(({ sql }) => sql.includes('FROM "public"."attendance"'));
 
-    await expect(
-      readRelatedRows({
-        target,
-        snapshot,
-        cursorKey,
-        request
-      })
-    ).rejects.toThrowError(/DATABASE_RELATION_INVALID/);
+    expect(response.relation).toBe('attendance');
+    expect(childSelect?.sql).toContain('"tenant_id" = $1 AND "student_id" = $2');
+    expect(childSelect?.values).toEqual(['tenant-parent', 'student-parent']);
   });
 
-  it('rejects constraint when rowRef does not contain the needed key', async () => {
-    const target = createMockTarget({});
+  it.each([
+    { name: 'missing', keys: { id: 'att-1', student_id: 'student-1' } },
+    { name: 'null', keys: { id: 'att-1', tenant_id: null, student_id: 'student-1' } }
+  ])(
+    'rejects a $name required composite source key before any relation SELECT',
+    async ({ keys }) => {
+      const relationSelects: string[] = [];
+      const target = createMockTarget({
+        queryHandler: async (sql) => {
+          relationSelects.push(sql);
+          return { rows: [] };
+        }
+      });
+      const snapshot = await createSnapshotForTarget(target);
+      const rowRef = rowRefFor(snapshot, 'attendance', keys);
+
+      await expect(
+        readRelatedRows({
+          target,
+          snapshot,
+          cursorKey,
+          request: relatedRequest('attendance', rowRef)
+        })
+      ).rejects.toThrowError(/DATABASE_RELATION_INVALID/);
+      expect(relationSelects).toEqual([]);
+    }
+  );
+
+  it.each([
+    { name: 'unknown constraint', relation: 'attendance', constraint: 'missing_fk' },
+    {
+      name: 'unconnected source relation',
+      relation: 'unrelated',
+      constraint: 'attendance_student_fkey'
+    }
+  ])('rejects an $name before any relation SELECT', async ({ relation, constraint }) => {
+    const relationSelects: string[] = [];
+    const target = createMockTarget({
+      queryHandler: async (sql) => {
+        relationSelects.push(sql);
+        return { rows: [] };
+      }
+    });
     const snapshot = await createSnapshotForTarget(target);
-
-    // rowRef from attendance without student_id key
-    const rowRef = encodeRowRef(
-      {
-        version: 1,
-        targetId: 'edutrack_production',
-        schema: 'public',
-        relation: 'attendance',
-        checksum: snapshot.checksum,
-        issuedAt: Date.now(),
-        expiresAt: Date.now() + 5 * 60 * 1000,
-        keys: { id: 'att_1' } // missing student_id
-      },
-      cursorKey
-    );
-
-    const request: DatabaseRelatedRowsRequest = {
-      targetId: 'edutrack_production',
-      schema: 'public',
-      relation: 'attendance',
-      constraint: 'attendance_student_id_fkey',
-      rowRef,
-      pageSize: 25,
-      piiMode: 'masked'
-    };
+    const rowRef = rowRefFor(snapshot, relation, {
+      tenant_id: 'tenant-1',
+      student_id: 'student-1'
+    });
 
     await expect(
       readRelatedRows({
         target,
         snapshot,
         cursorKey,
-        request
+        request: relatedRequest(relation, rowRef, constraint)
       })
     ).rejects.toThrowError(/DATABASE_RELATION_INVALID/);
+    expect(relationSelects).toEqual([]);
+  });
+
+  it.each([
+    { name: 'wrong target', options: { targetId: 'ops' as const } },
+    { name: 'stale checksum', options: { checksum: 'stale-checksum' } }
+  ])('rejects a rowRef with $name before any relation SELECT', async ({ options }) => {
+    const relationSelects: string[] = [];
+    const target = createMockTarget({
+      queryHandler: async (sql) => {
+        relationSelects.push(sql);
+        return { rows: [] };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(target);
+    const rowRef = rowRefFor(
+      snapshot,
+      'attendance',
+      { tenant_id: 'tenant-1', student_id: 'student-1' },
+      options
+    );
+
+    await expect(
+      readRelatedRows({
+        target,
+        snapshot,
+        cursorKey,
+        request: relatedRequest('attendance', rowRef)
+      })
+    ).rejects.toThrowError(/DATABASE_CURSOR_INVALID/);
+    expect(relationSelects).toEqual([]);
   });
 });

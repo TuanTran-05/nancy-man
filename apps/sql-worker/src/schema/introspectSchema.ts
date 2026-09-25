@@ -88,6 +88,10 @@ function sortedStrings(values: string[] | null): string[] {
   return [...new Set(values ?? [])].sort(compare);
 }
 
+function orderedColumns(values: string[] | null): string[] {
+  return [...(values ?? [])];
+}
+
 function identity(value: string): DatabaseColumn['identity'] {
   if (value === 'a') return 'always';
   if (value === 'd') return 'by_default';
@@ -291,7 +295,7 @@ function target(
   return {
     schema: row.referencedSchema,
     name: row.referencedRelation,
-    columns: sortedStrings(row.referencedColumns)
+    columns: orderedColumns(row.referencedColumns)
   };
 }
 
@@ -341,7 +345,7 @@ export async function readProductionSchemaInCurrentTransaction(input: {
     relations.get(relationKey(row.schemaName, row.relationName))?.constraints.push({
       name: row.constraintName,
       kind: row.kind,
-      columns: sortedStrings(row.columns),
+      columns: orderedColumns(row.columns),
       referencedRelation: target(row),
       deferrable: row.deferrable,
       initiallyDeferred: row.initiallyDeferred
@@ -351,7 +355,7 @@ export async function readProductionSchemaInCurrentTransaction(input: {
     relations.get(relationKey(row.schemaName, row.relationName))?.indexes.push({
       name: row.indexName,
       method: row.method,
-      columns: sortedStrings(row.columns),
+      columns: orderedColumns(row.columns),
       unique: row.unique,
       primary: row.primary,
       valid: row.valid,

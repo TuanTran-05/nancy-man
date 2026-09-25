@@ -41,6 +41,40 @@ function getCursorKeyColumns(
   return columns;
 }
 
+function getRowRefColumns(input: {
+  schema: string;
+  relation: string;
+  relationColumns: DatabaseExplorerSchemaSnapshot['schemas'][number]['relations'][number]['columns'];
+  paginationKey: string[] | null;
+  snapshot: DatabaseExplorerSchemaSnapshot;
+}): string[] | null {
+  const paginationKey = input.paginationKey;
+  if (!paginationKey || paginationKey.length === 0) return null;
+
+  const allowedColumns = new Set(
+    input.relationColumns
+      .filter((column) => column.selectable && column.classification !== 'blocked')
+      .map((column) => column.name)
+  );
+  if (!paginationKey.every((column) => allowedColumns.has(column))) return null;
+
+  const columns = [...paginationKey];
+  for (const edge of input.snapshot.edges) {
+    const sourceColumns: string[] = [];
+    if (edge.from.schema === input.schema && edge.from.relation === input.relation) {
+      sourceColumns.push(...edge.from.columns);
+    }
+    if (edge.to.schema === input.schema && edge.to.relation === input.relation) {
+      sourceColumns.push(...edge.to.columns);
+    }
+    for (const column of sourceColumns) {
+      if (allowedColumns.has(column) && !columns.includes(column)) columns.push(column);
+    }
+  }
+
+  return columns;
+}
+
 function buildKeysetCondition(
   keys: Array<{ column: string; value: unknown }>,
   direction: 'asc' | 'desc'
@@ -349,6 +383,13 @@ export async function readDatabaseRows(
 
   // Encode rows and cells
   const encodedRows: EncodedRow[] = [];
+  const rowRefColumns = getRowRefColumns({
+    schema: request.schema,
+    relation: request.relation,
+    relationColumns: relationObj.columns,
+    paginationKey: relationObj.paginationKey,
+    snapshot
+  });
   for (const row of pageRows) {
     const cells: Record<string, DatabaseCell> = {};
     for (const col of relationObj.columns) {
@@ -361,10 +402,10 @@ export async function readDatabaseRows(
     }
 
     let rowRef: string | null = null;
-    if (relationObj.paginationKey && relationObj.paginationKey.length > 0) {
+    if (rowRefColumns) {
       const refKeys: Record<string, unknown> = {};
-      for (const pkCol of relationObj.paginationKey) {
-        refKeys[pkCol] = row[pkCol];
+      for (const keyColumn of rowRefColumns) {
+        refKeys[keyColumn] = row[keyColumn];
       }
       const rowRefIssuedAt = now().getTime();
       rowRef = encodeRowRef(

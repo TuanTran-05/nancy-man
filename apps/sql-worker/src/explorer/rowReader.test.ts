@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readDatabaseRows } from './rowReader.js';
-import { decodeCursor } from './cursorCodec.js';
+import { decodeCursor, decodeRowRef } from './cursorCodec.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
 import type {
   DatabaseExplorerSchemaSnapshot,
@@ -347,6 +347,66 @@ describe('readDatabaseRows', () => {
     expect(response.rows[0].rowRef).toBeDefined();
     expect(response.nextCursor).toBeNull();
     expect(response.consistency).toBe('stable');
+  });
+
+  it('encrypts selectable source FK values into rowRefs without including blocked values', async () => {
+    const sourceValue = 'student@example.test';
+    const blockedValue = 'super-secret-hash';
+    const mock = createMockTarget({
+      queryHandler: async () => ({
+        rows: [{ id: 'student-1', email: sourceValue, password_hash: blockedValue }]
+      })
+    });
+    const snapshot = await createSnapshotForTarget(mock.target);
+    snapshot.edges = [
+      {
+        constraint: 'students_email_fkey',
+        from: { schema: 'public', relation: 'students', columns: ['email'] },
+        to: { schema: 'public', relation: 'accounts', columns: ['email'] }
+      },
+      {
+        constraint: 'students_password_fkey',
+        from: { schema: 'public', relation: 'students', columns: ['password_hash'] },
+        to: { schema: 'public', relation: 'accounts', columns: ['password_hash'] }
+      }
+    ];
+
+    const response = await readDatabaseRows({
+      target: mock.target,
+      snapshot,
+      cursorKey,
+      request: {
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'students',
+        pageSize: 25,
+        filters: [],
+        piiMode: 'masked'
+      }
+    });
+
+    const rowRef = response.rows[0]?.rowRef;
+    expect(rowRef).toBeTruthy();
+    expect(rowRef).not.toContain(sourceValue);
+    expect(rowRef).not.toContain('s***@example.test');
+    expect(rowRef).not.toContain(blockedValue);
+    expect(
+      mock.queries.find(
+        (sql) => sql.startsWith('SELECT') && sql.includes('FROM "public"."students"')
+      )
+    ).not.toContain('"password_hash"');
+    expect(
+      decodeRowRef({
+        encodedRowRef: rowRef!,
+        key: cursorKey,
+        expected: {
+          targetId: 'edutrack_production',
+          schema: 'public',
+          relation: 'students',
+          checksum: snapshot.checksum
+        }
+      }).keys
+    ).toEqual({ id: 'student-1', email: sourceValue });
   });
 
   it('reveals PII values when piiMode is revealed', async () => {

@@ -14,6 +14,7 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readDatabaseRows } from '../explorer/rowReader.js';
+import { readProductionSchema } from '../schema/introspectSchema.js';
 import { encodeCell, MAX_CELL_BYTES, MAX_RESPONSE_BYTES } from '../explorer/valueEncoding.js';
 import {
   filterGraph,
@@ -384,7 +385,7 @@ describe('databaseExplorerBounds — large schema projection', () => {
     const RELATION_COUNT = 101;
     const relations = Array.from({ length: RELATION_COUNT }, (_, i) =>
       makeRelation(`table_${String(i).padStart(3, '0')}`, {
-        columns: [makeColumn('id', 'int4'), makeColumn('ref_id', 'int4')]
+        columns: [makeColumn('id', 'int4'), makeColumn('ref_id', 'int4'), makeColumn('tenant_id')]
       })
     );
 
@@ -398,14 +399,74 @@ describe('databaseExplorerBounds — large schema projection', () => {
         from: {
           schema: 'public',
           relation: `table_${String(from).padStart(3, '0')}`,
-          columns: ['ref_id']
+          columns: ['tenant_id', 'ref_id']
         },
-        to: { schema: 'public', relation: `table_${String(to).padStart(3, '0')}`, columns: ['id'] }
+        to: {
+          schema: 'public',
+          relation: `table_${String(to).padStart(3, '0')}`,
+          columns: ['tenant_id', 'id']
+        }
       });
     }
 
-    return makeSnapshot([{ name: 'public', relations }], edges);
+    const relationsWithConstraints = relations.map((relation) => ({
+      ...relation,
+      constraints: edges
+        .filter((edge) => edge.from.relation === relation.name)
+        .map((edge) => ({
+          name: edge.constraint,
+          kind: 'foreign_key' as const,
+          columns: [...edge.from.columns],
+          referencedRelation: {
+            schema: edge.to.schema,
+            name: edge.to.relation,
+            columns: [...edge.to.columns]
+          },
+          deferrable: false,
+          initiallyDeferred: false
+        }))
+    }));
+
+    return makeSnapshot([{ name: 'public', relations: relationsWithConstraints }], edges);
   }
+
+  it('worker introspection returns all 101 relations and 210 ordered FK pairs', async () => {
+    const baseSnapshot = buildLargeSnapshot();
+    const snapshot: DatabaseExplorerSchemaSnapshot = {
+      ...baseSnapshot,
+      schemas: baseSnapshot.schemas.map((schema) => ({
+        ...schema,
+        relations: schema.relations.map((relation) => ({
+          ...relation,
+          columns: [
+            ...relation.columns,
+            ...Array.from({ length: 256 }, (_, index) => makeColumn(`metadata_${index}`))
+          ]
+        }))
+      }))
+    };
+    const { target, queries } = mockTarget([], snapshot);
+    const connection = await target.pool.connect();
+    const structural = await readProductionSchema({ database: connection });
+    connection.release();
+    const relations = structural.schemas.flatMap((schema) => schema.relations);
+    const foreignKeys = relations.flatMap((relation) =>
+      relation.constraints.filter((constraint) => constraint.kind === 'foreign_key')
+    );
+
+    expect(relations).toHaveLength(101);
+    expect(foreignKeys).toHaveLength(210);
+    expect(relations[0]?.columns).toHaveLength(259);
+    expect(relations[0]?.columns[0]?.name).toBe('id');
+    expect(relations[0]?.columns.at(-2)?.name).toBe('ref_id');
+    expect(relations[0]?.columns.at(-1)?.name).toBe('tenant_id');
+    expect(foreignKeys[0]?.columns).toEqual(['tenant_id', 'ref_id']);
+    expect(foreignKeys[0]?.referencedRelation?.columns).toEqual(['tenant_id', 'id']);
+    expect(Buffer.byteLength(JSON.stringify(structural), 'utf8')).toBeGreaterThan(
+      MAX_RESPONSE_BYTES
+    );
+    expect(queries.some((sql) => /FROM\s+"public"\."/.test(sql))).toBe(false);
+  });
 
   it('projectFullGraph handles 101 relations and 210 edges', () => {
     const snap = buildLargeSnapshot();
