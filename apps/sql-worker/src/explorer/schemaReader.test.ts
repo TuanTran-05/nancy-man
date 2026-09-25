@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { createExplorerSchemaReader } from './schemaReader.js';
+import { createExplorerSchemaReader, invalidateExplorerSchemaCache } from './schemaReader.js';
+import { DATABASE_POLICY_VERSION } from '../../../../packages/security/src/database/columnPolicy.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
 import type { DatabasePolicyApproval } from './policyApproval.js';
 
@@ -9,6 +10,8 @@ function createMockTarget(
     targetId?: 'edutrack_production' | 'ops';
     reltuples?: Record<string, number>;
     throwError?: boolean;
+    drift?: { enabled: boolean };
+    blockedPrimaryKey?: boolean;
   } = {}
 ): AvailableTargetEntry {
   const targetId = options.targetId ?? 'edutrack_production';
@@ -148,7 +151,38 @@ function createMockTarget(
                     hasDefault: false,
                     identity: '',
                     generated: ''
-                  }
+                  },
+                  {
+                    schemaName: 'public',
+                    relationName: 'students',
+                    columnName: 'status',
+                    dataType: 'student_status',
+                    nullable: false,
+                    hasDefault: false,
+                    identity: '',
+                    generated: ''
+                  },
+                  ...(options.drift?.enabled
+                    ? [
+                        {
+                          schemaName: 'public',
+                          relationName: 'students',
+                          columnName: 'fresh_column',
+                          dataType: 'text',
+                          nullable: true,
+                          hasDefault: false,
+                          identity: '',
+                          generated: ''
+                        }
+                      ]
+                    : [])
+                ] as T[]
+              };
+            }
+            if (sql.includes('catalog:enum_columns')) {
+              return {
+                rows: [
+                  { schemaName: 'public', relationName: 'students', columnName: 'status' }
                 ] as T[]
               };
             }
@@ -160,7 +194,7 @@ function createMockTarget(
                     relationName: 'students',
                     constraintName: 'students_pkey',
                     kind: 'primary_key',
-                    columns: ['id'],
+                    columns: options.blockedPrimaryKey ? ['password_hash'] : ['id'],
                     referencedSchema: null,
                     referencedRelation: null,
                     referencedColumns: [],
@@ -228,7 +262,7 @@ describe('createExplorerSchemaReader', () => {
     const baseline = await baselineReader();
 
     const approval: DatabasePolicyApproval = {
-      version: '2026-09-25',
+      version: DATABASE_POLICY_VERSION,
       targets: {
         edutrack_production: baseline.checksum
       }
@@ -265,6 +299,7 @@ describe('createExplorerSchemaReader', () => {
     });
     expect(studentCols.email).toMatchObject({ classification: 'pii', selectable: true });
     expect(studentCols.id).toMatchObject({ classification: 'internal', selectable: true });
+    expect(studentCols.status.filterOperators).toEqual(['eq', 'neq', 'is_null', 'is_not_null']);
 
     const nullableUnique = publicSchema?.relations.find((r) => r.name === 'nullable_table');
     expect(nullableUnique?.paginationKey).toBeNull();
@@ -279,19 +314,64 @@ describe('createExplorerSchemaReader', () => {
     expect(reportingStudents?.kind).toBe('view');
   });
 
-  it('rejects schema reading when live checksum does not match policy approval', async () => {
-    const target = createMockTarget({ targetId: 'edutrack_production' });
+  it('keeps fresh unapproved columns visible as blocked metadata and withholds relation rows', async () => {
+    const drift = { enabled: false };
+    const target = createMockTarget({ targetId: 'edutrack_production', drift });
+    let currentTime = 1000;
+    const baseline = await createExplorerSchemaReader({
+      target,
+      now: () => new Date(currentTime)
+    })();
     const approval: DatabasePolicyApproval = {
-      version: '2026-09-25',
-      targets: { edutrack_production: 'mismatched_checksum'.repeat(4) }
+      version: DATABASE_POLICY_VERSION,
+      targets: { edutrack_production: baseline.checksum }
     };
 
     const reader = createExplorerSchemaReader({
       target,
-      getPolicyApproval: () => approval
+      getPolicyApproval: () => approval,
+      now: () => new Date(currentTime)
     });
+    expect((await reader()).schemas[0]?.relations[0]?.dataAvailable).toBe(true);
 
-    await expect(reader()).rejects.toThrowError('DATABASE_SCHEMA_STALE');
+    drift.enabled = true;
+    currentTime += 61_000;
+    const changed = await reader();
+    const students = changed.schemas
+      .find((schema) => schema.name === 'public')
+      ?.relations.find((relation) => relation.name === 'students');
+    const freshColumn = students?.columns.find((column) => column.name === 'fresh_column');
+
+    expect(freshColumn).toMatchObject({
+      dataType: 'text',
+      classification: 'blocked',
+      selectable: false,
+      filterOperators: []
+    });
+    expect(students?.dataAvailable).toBe(false);
+  });
+
+  it('does not use blocked key columns for row pagination references', async () => {
+    const target = createMockTarget({ targetId: 'edutrack_production', blockedPrimaryKey: true });
+    const baseline = await createExplorerSchemaReader({ target })();
+    const approval: DatabasePolicyApproval = {
+      version: DATABASE_POLICY_VERSION,
+      targets: { edutrack_production: baseline.checksum }
+    };
+    const snapshot = await createExplorerSchemaReader({
+      target,
+      getPolicyApproval: () => approval
+    })();
+    const students = snapshot.schemas
+      .find((schema) => schema.name === 'public')
+      ?.relations.find((relation) => relation.name === 'students');
+
+    expect(students?.primaryKey).toEqual(['password_hash']);
+    expect(students?.columns.find((column) => column.name === 'password_hash')).toMatchObject({
+      classification: 'blocked',
+      selectable: false
+    });
+    expect(students?.paginationKey).toBeNull();
   });
 
   it('caches the schema snapshot for 60 seconds and isolates between targets', async () => {
@@ -332,6 +412,56 @@ describe('createExplorerSchemaReader', () => {
     const opsSnapshot = await opsReader();
     expect(opsSnapshot.targetId).toBe('ops');
     expect(opsSnapshot).not.toBe(snapshot3);
+  });
+
+  it('caps configured schema display cache lifetime at 60 seconds', async () => {
+    let connectCount = 0;
+    const target = createMockTarget({ targetId: 'edutrack_production' });
+    const originalConnect = target.pool.connect;
+    target.pool.connect = async () => {
+      connectCount++;
+      return originalConnect();
+    };
+    let currentTime = 1000;
+    const reader = createExplorerSchemaReader({
+      target,
+      cacheTtlMs: 120_000,
+      now: () => new Date(currentTime)
+    });
+
+    await reader();
+    currentTime += 60_001;
+    await reader();
+
+    expect(connectCount).toBe(2);
+  });
+
+  it('invalidates schema display cache for only the stale target', async () => {
+    const edutrack = createMockTarget({ targetId: 'edutrack_production' });
+    const ops = createMockTarget({ targetId: 'ops' });
+    let edutrackConnects = 0;
+    let opsConnects = 0;
+    const edutrackConnect = edutrack.pool.connect;
+    const opsConnect = ops.pool.connect;
+    edutrack.pool.connect = async () => {
+      edutrackConnects++;
+      return edutrackConnect();
+    };
+    ops.pool.connect = async () => {
+      opsConnects++;
+      return opsConnect();
+    };
+    const edutrackReader = createExplorerSchemaReader({ target: edutrack });
+    const opsReader = createExplorerSchemaReader({ target: ops });
+
+    await edutrackReader();
+    await opsReader();
+    invalidateExplorerSchemaCache(edutrack);
+    await edutrackReader();
+    await opsReader();
+
+    expect(edutrackConnects).toBe(2);
+    expect(opsConnects).toBe(1);
   });
 
   it('handles connection error and does not poison subsequent requests', async () => {

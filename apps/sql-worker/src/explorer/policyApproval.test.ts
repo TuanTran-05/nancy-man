@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { assertPolicyApproved, type DatabasePolicyApproval } from './policyApproval.js';
+import {
+  assertPolicyApproved,
+  DATABASE_POLICY_VERSION,
+  type DatabasePolicyApproval
+} from './policyApproval.js';
 
 describe('Database policy approval check', () => {
   it('blocks row access when the live schema checksum is not approved', () => {
@@ -8,7 +12,7 @@ describe('Database policy approval check', () => {
       assertPolicyApproved({
         targetId: 'ops',
         liveChecksum: 'b'.repeat(64),
-        approval: { version: '2026-09-25', targets: { ops: 'a'.repeat(64) } }
+        approval: { version: DATABASE_POLICY_VERSION, targets: { ops: 'a'.repeat(64) } }
       })
     ).toThrowError('DATABASE_SCHEMA_STALE');
   });
@@ -36,7 +40,7 @@ describe('Database policy approval check', () => {
       assertPolicyApproved({
         targetId: 'edutrack_production',
         liveChecksum: 'a'.repeat(64),
-        approval: { version: '2026-09-25', targets: { ops: 'a'.repeat(64) } }
+        approval: { version: DATABASE_POLICY_VERSION, targets: { ops: 'a'.repeat(64) } }
       })
     ).toThrowError('DATABASE_SCHEMA_STALE');
   });
@@ -46,7 +50,7 @@ describe('Database policy approval check', () => {
       assertPolicyApproved({
         targetId: 'ops',
         liveChecksum: 'a'.repeat(64),
-        approval: { version: '2026-09-25', targets: { ops: 'a'.repeat(64) } }
+        approval: { version: DATABASE_POLICY_VERSION, targets: { ops: 'a'.repeat(64) } }
       })
     ).not.toThrow();
   });

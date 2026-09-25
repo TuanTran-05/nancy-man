@@ -168,6 +168,57 @@ describe('Column policy classification and masking', () => {
     ).toBe('pii');
   });
 
+  it.each([
+    'given_name',
+    'first_name',
+    'middle_name',
+    'family_name',
+    'last_name',
+    'preferred_name',
+    'legal_name',
+    'date_of_birth',
+    'birth_date',
+    'dob',
+    'mobile_number',
+    'telephone_number',
+    'street_address',
+    'address_line_1',
+    'house_number',
+    'unit_number',
+    'city',
+    'district',
+    'ward',
+    'postal_code',
+    'notes',
+    'internal_comments',
+    'messages',
+    'free_form_content',
+    'raw_payload'
+  ])('classifies broader PII column %s as pii', (column) => {
+    expect(
+      classifyColumn({
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'records',
+        column
+      })
+    ).toBe('pii');
+  });
+
+  it.each(['email_token', 'raw_payload_secret', 'phone_password_hash'])(
+    'keeps blocked patterns ahead of PII patterns for %s',
+    (column) => {
+      expect(
+        classifyColumn({
+          targetId: 'edutrack_production',
+          schema: 'public',
+          relation: 'records',
+          column
+        })
+      ).toBe('blocked');
+    }
+  );
+
   it('proves an exact public override cannot override a blocked name', () => {
     expect(
       classifyColumn({
@@ -198,6 +249,6 @@ describe('Column policy classification and masking', () => {
   });
 
   it('has a defined policy version', () => {
-    expect(DATABASE_POLICY_VERSION).toBe('2026-09-25');
+    expect(DATABASE_POLICY_VERSION).toBe('2026-09-25-v2');
   });
 });

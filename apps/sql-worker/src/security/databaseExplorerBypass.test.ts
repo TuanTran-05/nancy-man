@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readDatabaseRows } from '../explorer/rowReader.js';
 import { readRelatedRows } from '../explorer/relatedRowReader.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
@@ -16,6 +17,8 @@ import type {
   DatabaseRelatedRowsRequest,
   DatabaseRowsRequest
 } from '../../../../packages/contracts/src/databaseExplorer.js';
+
+const TEST_CURSOR_KEY = Buffer.alloc(32, 1).toString('base64');
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -34,6 +37,7 @@ function makeMockTarget(
     rejectMutations?: boolean;
   } = {}
 ): MockTargetResult {
+  const schemaSnapshot = makeSnapshot();
   const queries: string[] = [];
   const values: Array<readonly unknown[] | undefined> = [];
   let released = false;
@@ -59,6 +63,8 @@ function makeMockTarget(
             const err = Object.assign(new Error('permission denied'), { code: '42501' });
             throw err;
           }
+          const catalogRows = schemaCatalogRows(schemaSnapshot, sql);
+          if (catalogRows !== undefined) return { rows: catalogRows as T[] };
           if (options.queryHandler) {
             return (await options.queryHandler(sql, vals)) as { rows: T[] };
           }
@@ -77,11 +83,11 @@ function makeMockTarget(
 
 /** A minimal schema snapshot with one table, blocked and pii columns. */
 function makeSnapshot(): DatabaseExplorerSchemaSnapshot {
-  return {
+  const snapshot: DatabaseExplorerSchemaSnapshot = {
     targetId: 'ops',
     targetLabel: 'Ops DB',
-    checksum: 'deadbeef',
-    policyVersion: '2026-09-25',
+    checksum: '',
+    policyVersion: '2026-09-25-v2',
     schemas: [
       {
         name: 'public',
@@ -139,6 +145,80 @@ function makeSnapshot(): DatabaseExplorerSchemaSnapshot {
     ],
     edges: []
   };
+  const structural = {
+    schemas: snapshot.schemas.map((schema) => ({
+      name: schema.name,
+      relations: schema.relations
+        .map((relation) => ({
+          name: relation.name,
+          kind: relation.kind,
+          rowLevelSecurity: relation.rowLevelSecurity,
+          columns: relation.columns
+            .map(({ name, dataType, nullable, hasDefault, identity, generated }) => ({
+              name,
+              dataType,
+              nullable,
+              hasDefault,
+              identity,
+              generated
+            }))
+            .sort((left, right) => left.name.localeCompare(right.name)),
+          constraints: relation.constraints,
+          indexes: relation.indexes,
+          triggers: relation.triggers,
+          policies: relation.policies
+        }))
+        .sort((left, right) => left.name.localeCompare(right.name))
+    }))
+  };
+  snapshot.checksum = createHash('sha256').update(JSON.stringify(structural), 'utf8').digest('hex');
+  return snapshot;
+}
+
+function schemaCatalogRows(
+  snapshot: DatabaseExplorerSchemaSnapshot,
+  sql: string
+): unknown[] | undefined {
+  if (sql.includes('/* catalog:schemas */')) {
+    return snapshot.schemas.map(({ name }) => ({ schemaName: name }));
+  }
+  if (sql.includes('/* catalog:relations */')) {
+    return snapshot.schemas.flatMap((schema) =>
+      schema.relations.map((relation) => ({
+        schemaName: schema.name,
+        relationName: relation.name,
+        kind: relation.kind,
+        rowSecurityEnabled: relation.rowLevelSecurity.enabled,
+        forceRowSecurity: relation.rowLevelSecurity.forced
+      }))
+    );
+  }
+  if (sql.includes('/* catalog:columns */')) {
+    return snapshot.schemas.flatMap((schema) =>
+      schema.relations.flatMap((relation) =>
+        relation.columns.map((column) => ({
+          schemaName: schema.name,
+          relationName: relation.name,
+          columnName: column.name,
+          dataType: column.dataType,
+          nullable: column.nullable,
+          hasDefault: column.hasDefault,
+          identity:
+            column.identity === 'always' ? 'a' : column.identity === 'by_default' ? 'd' : '',
+          generated: column.generated ? 's' : ''
+        }))
+      )
+    );
+  }
+  if (
+    sql.includes('/* catalog:constraints */') ||
+    sql.includes('/* catalog:indexes */') ||
+    sql.includes('/* catalog:triggers */') ||
+    sql.includes('/* catalog:policies */')
+  ) {
+    return [];
+  }
+  return undefined;
 }
 
 function makeRowsRequest(overrides: Partial<DatabaseRowsRequest> = {}): DatabaseRowsRequest {
@@ -173,12 +253,12 @@ describe('databaseExplorerBypass — blocked column protection', () => {
     const result = await readDatabaseRows({
       target,
       snapshot,
-      cursorKey: 'test-key',
+      cursorKey: TEST_CURSOR_KEY,
       request: makeRowsRequest()
     });
 
     // The SQL must not select the blocked column
-    const selectQuery = queries.find((q) => q.trim().toUpperCase().startsWith('SELECT'));
+    const selectQuery = queries.find((q) => q.includes('FROM "public"."users"'));
     expect(selectQuery).toBeDefined();
     expect(selectQuery).not.toMatch(/\bssn\b/i);
 
@@ -211,7 +291,7 @@ describe('databaseExplorerBypass — blocked column protection', () => {
     const result = await readDatabaseRows({
       target,
       snapshot,
-      cursorKey: 'test-key',
+      cursorKey: TEST_CURSOR_KEY,
       request: makeRowsRequest()
     });
 
@@ -242,7 +322,7 @@ describe('databaseExplorerBypass — forged worker payload rejection', () => {
     // At the rowReader level, we verify schema/relation validation catches unknown schemas:
     const badRequest = makeRowsRequest({ schema: 'hacked_schema' });
     await expect(
-      readDatabaseRows({ target, snapshot, cursorKey: 'k', request: badRequest })
+      readDatabaseRows({ target, snapshot, cursorKey: TEST_CURSOR_KEY, request: badRequest })
     ).rejects.toMatchObject({ message: expect.stringContaining('DATABASE_RELATION_INVALID') });
   });
 
@@ -254,7 +334,7 @@ describe('databaseExplorerBypass — forged worker payload rejection', () => {
       readDatabaseRows({
         target,
         snapshot,
-        cursorKey: 'k',
+        cursorKey: TEST_CURSOR_KEY,
         request: makeRowsRequest({ relation: 'nonexistent_table' })
       })
     ).rejects.toMatchObject({ message: expect.stringContaining('DATABASE_RELATION_INVALID') });
@@ -268,7 +348,7 @@ describe('databaseExplorerBypass — forged worker payload rejection', () => {
       readDatabaseRows({
         target,
         snapshot,
-        cursorKey: 'k',
+        cursorKey: TEST_CURSOR_KEY,
         request: makeRowsRequest({ pageSize: 101 as unknown as DatabasePageSize })
       })
     ).rejects.toMatchObject({ message: expect.stringContaining('DATABASE_PAGE_TOO_LARGE') });
@@ -282,7 +362,7 @@ describe('databaseExplorerBypass — forged worker payload rejection', () => {
       readDatabaseRows({
         target,
         snapshot,
-        cursorKey: 'k',
+        cursorKey: TEST_CURSOR_KEY,
         request: makeRowsRequest({
           filters: [{ column: 'ssn', operator: 'eq', value: 'anything' }]
         })
@@ -299,7 +379,7 @@ describe('databaseExplorerBypass — forged worker payload rejection', () => {
       readDatabaseRows({
         target,
         snapshot,
-        cursorKey: 'test-key',
+        cursorKey: TEST_CURSOR_KEY,
         request: makeRowsRequest({ cursor: 'invalid.tampered.cursor' })
       })
     ).rejects.toMatchObject({ message: expect.stringContaining('DATABASE_CURSOR_INVALID') });
@@ -320,7 +400,7 @@ describe('databaseExplorerBypass — forged worker payload rejection', () => {
 
     // Invalid rowRef is caught before constraint lookup
     await expect(
-      readRelatedRows({ target, snapshot, cursorKey: 'k', request: relatedRequest })
+      readRelatedRows({ target, snapshot, cursorKey: TEST_CURSOR_KEY, request: relatedRequest })
     ).rejects.toMatchObject({
       message: expect.stringContaining('DATABASE_CURSOR_INVALID')
     });
@@ -361,7 +441,7 @@ describe('databaseExplorerBypass — mutation command rejection', () => {
     await readDatabaseRows({
       target,
       snapshot,
-      cursorKey: 'k',
+      cursorKey: TEST_CURSOR_KEY,
       request: makeRowsRequest()
     });
 

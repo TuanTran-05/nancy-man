@@ -1,6 +1,7 @@
 import type { DatabaseTargetId } from '../../../../packages/contracts/src/databaseExplorer.js';
+import { DATABASE_POLICY_VERSION } from '../../../../packages/security/src/database/columnPolicy.js';
 
-export const DATABASE_POLICY_VERSION = '2026-09-25';
+export { DATABASE_POLICY_VERSION };
 
 export type DatabasePolicyApproval = {
   version: string;

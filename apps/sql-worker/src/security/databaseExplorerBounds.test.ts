@@ -12,6 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readDatabaseRows } from '../explorer/rowReader.js';
 import { encodeCell, MAX_CELL_BYTES, MAX_RESPONSE_BYTES } from '../explorer/valueEncoding.js';
 import {
@@ -27,6 +28,8 @@ import type {
   DatabaseRelationEdge,
   DatabaseRowsRequest
 } from '../../../../packages/contracts/src/databaseExplorer.js';
+
+const TEST_CURSOR_KEY = Buffer.alloc(32, 1).toString('base64');
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -78,17 +81,148 @@ function makeSnapshot(
   schemas: DatabaseExplorerSchema[],
   edges: DatabaseRelationEdge[] = []
 ): DatabaseExplorerSchemaSnapshot {
+  const structural = {
+    schemas: schemas.map((schema) => ({
+      name: schema.name,
+      relations: schema.relations
+        .map((relation) => ({
+          name: relation.name,
+          kind: relation.kind,
+          rowLevelSecurity: relation.rowLevelSecurity,
+          columns: relation.columns
+            .map(({ name, dataType, nullable, hasDefault, identity, generated }) => ({
+              name,
+              dataType,
+              nullable,
+              hasDefault,
+              identity,
+              generated
+            }))
+            .sort((left, right) => left.name.localeCompare(right.name)),
+          constraints: relation.constraints,
+          indexes: relation.indexes,
+          triggers: relation.triggers,
+          policies: relation.policies
+        }))
+        .sort((left, right) => left.name.localeCompare(right.name))
+    }))
+  };
   return {
     targetId: 'ops',
     targetLabel: 'Ops',
-    checksum: 'abc123',
-    policyVersion: '2026-09-25',
+    checksum: createHash('sha256').update(JSON.stringify(structural), 'utf8').digest('hex'),
+    policyVersion: '2026-09-25-v2',
     schemas,
     edges
   };
 }
 
-function mockTarget(queryRows: unknown[] = []): {
+function schemaCatalogRows(
+  snapshot: DatabaseExplorerSchemaSnapshot,
+  sql: string
+): unknown[] | undefined {
+  if (sql.includes('/* catalog:schemas */')) {
+    return snapshot.schemas.map(({ name }) => ({ schemaName: name }));
+  }
+  if (sql.includes('/* catalog:relations */')) {
+    return snapshot.schemas.flatMap((schema) =>
+      schema.relations.map((relation) => ({
+        schemaName: schema.name,
+        relationName: relation.name,
+        kind: relation.kind,
+        rowSecurityEnabled: relation.rowLevelSecurity.enabled,
+        forceRowSecurity: relation.rowLevelSecurity.forced
+      }))
+    );
+  }
+  if (sql.includes('/* catalog:columns */')) {
+    return snapshot.schemas.flatMap((schema) =>
+      schema.relations.flatMap((relation) =>
+        relation.columns.map((column) => ({
+          schemaName: schema.name,
+          relationName: relation.name,
+          columnName: column.name,
+          dataType: column.dataType,
+          nullable: column.nullable,
+          hasDefault: column.hasDefault,
+          identity:
+            column.identity === 'always' ? 'a' : column.identity === 'by_default' ? 'd' : '',
+          generated: column.generated ? 's' : ''
+        }))
+      )
+    );
+  }
+  if (sql.includes('/* catalog:constraints */')) {
+    return snapshot.schemas.flatMap((schema) =>
+      schema.relations.flatMap((relation) =>
+        relation.constraints.map((constraint) => ({
+          schemaName: schema.name,
+          relationName: relation.name,
+          constraintName: constraint.name,
+          kind: constraint.kind,
+          columns: constraint.columns,
+          referencedSchema: constraint.referencedRelation?.schema ?? null,
+          referencedRelation: constraint.referencedRelation?.name ?? null,
+          referencedColumns: constraint.referencedRelation?.columns ?? null,
+          deferrable: constraint.deferrable,
+          initiallyDeferred: constraint.initiallyDeferred
+        }))
+      )
+    );
+  }
+  if (sql.includes('/* catalog:indexes */')) {
+    return snapshot.schemas.flatMap((schema) =>
+      schema.relations.flatMap((relation) =>
+        relation.indexes.map((index) => ({
+          schemaName: schema.name,
+          relationName: relation.name,
+          indexName: index.name,
+          method: index.method,
+          columns: index.columns,
+          unique: index.unique,
+          primary: index.primary,
+          valid: index.valid,
+          hasExpressions: index.hasExpressions,
+          isPartial: index.partial
+        }))
+      )
+    );
+  }
+  if (sql.includes('/* catalog:triggers */')) {
+    return snapshot.schemas.flatMap((schema) =>
+      schema.relations.flatMap((relation) =>
+        relation.triggers.map((trigger) => ({
+          schemaName: schema.name,
+          relationName: relation.name,
+          triggerName: trigger.name,
+          timing: trigger.timing,
+          events: trigger.events,
+          enabled: trigger.enabled
+        }))
+      )
+    );
+  }
+  if (sql.includes('/* catalog:policies */')) {
+    return snapshot.schemas.flatMap((schema) =>
+      schema.relations.flatMap((relation) =>
+        relation.policies.map((policy) => ({
+          schemaName: schema.name,
+          relationName: relation.name,
+          policyName: policy.name,
+          command: policy.command,
+          permissive: policy.permissive,
+          roles: policy.roles
+        }))
+      )
+    );
+  }
+  return undefined;
+}
+
+function mockTarget(
+  queryRows: unknown[] = [],
+  snapshot?: DatabaseExplorerSchemaSnapshot
+): {
   target: AvailableTargetEntry;
   queries: string[];
   rolledBack: boolean;
@@ -113,6 +247,8 @@ function mockTarget(queryRows: unknown[] = []): {
             rolledBack = true;
             return { rows: [] as T[] };
           }
+          const catalogRows = snapshot ? schemaCatalogRows(snapshot, sql) : undefined;
+          if (catalogRows !== undefined) return { rows: catalogRows as T[] };
           return { rows: queryRows as T[] };
         },
         release: () => {
@@ -146,7 +282,7 @@ describe('databaseExplorerBounds — filter limits', () => {
   it('accepts exactly 5 filters', async () => {
     const schema = makeSchema('public', 1);
     const snap = makeSnapshot([schema]);
-    const { target } = mockTarget([{ id: 1, data: 'x' }]);
+    const { target } = mockTarget([{ id: 1, data: 'x' }], snap);
     const filters = [
       { column: 'data', operator: 'contains' as const, value: 'a' },
       { column: 'data', operator: 'contains' as const, value: 'b' },
@@ -159,7 +295,7 @@ describe('databaseExplorerBounds — filter limits', () => {
       readDatabaseRows({
         target,
         snapshot: snap,
-        cursorKey: 'k',
+        cursorKey: TEST_CURSOR_KEY,
         request: makeRowsRequest({ filters })
       })
     ).resolves.toBeDefined();
@@ -168,7 +304,7 @@ describe('databaseExplorerBounds — filter limits', () => {
   it('rejects a 6th filter with DATABASE_FILTER_INVALID', async () => {
     const schema = makeSchema('public', 1);
     const snap = makeSnapshot([schema]);
-    const { target } = mockTarget([]);
+    const { target } = mockTarget([], snap);
     const filters = Array.from({ length: 6 }, () => ({
       column: 'data',
       operator: 'eq' as const,
@@ -178,7 +314,7 @@ describe('databaseExplorerBounds — filter limits', () => {
       readDatabaseRows({
         target,
         snapshot: snap,
-        cursorKey: 'k',
+        cursorKey: TEST_CURSOR_KEY,
         request: makeRowsRequest({ filters })
       })
     ).rejects.toMatchObject({ message: expect.stringContaining('DATABASE_FILTER_INVALID') });
@@ -318,6 +454,8 @@ describe('databaseExplorerBounds — query timeout', () => {
   it('query statement timeout causes rollback and releases connection', async () => {
     const queries: string[] = [];
     let released = false;
+    const schema = makeSchema('public', 1);
+    const snap = makeSnapshot([schema]);
 
     const target: AvailableTargetEntry = {
       id: 'ops',
@@ -333,6 +471,8 @@ describe('databaseExplorerBounds — query timeout', () => {
             if (sql.trim() === 'ROLLBACK') {
               return { rows: [] as T[] };
             }
+            const catalogRows = schemaCatalogRows(snap, sql);
+            if (catalogRows !== undefined) return { rows: catalogRows as T[] };
             if (sql.trim().startsWith('SELECT')) {
               const err = Object.assign(new Error('canceling statement due to statement timeout'), {
                 code: '57014'
@@ -349,14 +489,11 @@ describe('databaseExplorerBounds — query timeout', () => {
       }
     };
 
-    const schema = makeSchema('public', 1);
-    const snap = makeSnapshot([schema]);
-
     await expect(
       readDatabaseRows({
         target,
         snapshot: snap,
-        cursorKey: 'k',
+        cursorKey: TEST_CURSOR_KEY,
         request: makeRowsRequest()
       })
     ).rejects.toMatchObject({ message: expect.stringContaining('DATABASE_QUERY_TIMEOUT') });
@@ -384,13 +521,14 @@ describe('databaseExplorerBounds — pagination stability', () => {
     ];
     const snap = makeSnapshot([{ name: 'public', relations }]);
     const { target } = mockTarget(
-      Array.from({ length: 25 }, (_, i) => ({ id: null, name: `event_${i}` }))
+      Array.from({ length: 25 }, (_, i) => ({ id: null, name: `event_${i}` })),
+      snap
     );
 
     const result = await readDatabaseRows({
       target,
       snapshot: snap,
-      cursorKey: 'k',
+      cursorKey: TEST_CURSOR_KEY,
       request: { ...makeRowsRequest(), relation: 'events' }
     });
 

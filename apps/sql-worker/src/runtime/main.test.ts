@@ -19,7 +19,47 @@ const disabledConfig: SqlWorkerRuntimeConfig = {
   explorer: { enabled: false }
 };
 
+const explorerConfig: SqlWorkerRuntimeConfig = {
+  ...disabledConfig,
+  explorer: {
+    enabled: true,
+    cursorKeyReference: 'ops-database-cursor-key',
+    policyApprovalReference: 'ops-database-policy-approval',
+    targets: {
+      edutrack_production: { enabled: false },
+      ops: { enabled: false }
+    }
+  }
+};
+
 describe('resolveSqlWorkerCredentials', () => {
+  it('accepts only canonical Base64 encoding of exactly 32 cursor-key bytes', async () => {
+    const key = Buffer.alloc(32, 13).toString('base64');
+    await expect(
+      resolveSqlWorkerCredentials({
+        config: explorerConfig,
+        resolveSecret: async (reference) => {
+          if (reference === 'ops-sql-worker-hmac') return 'shared-hmac';
+          if (reference === 'ops-database-cursor-key') return key;
+          if (reference === 'ops-database-policy-approval') return '{}';
+          return null;
+        }
+      })
+    ).resolves.toMatchObject({ explorer: { enabled: true, cursorKey: key } });
+
+    await expect(
+      resolveSqlWorkerCredentials({
+        config: explorerConfig,
+        resolveSecret: async (reference) => {
+          if (reference === 'ops-sql-worker-hmac') return 'shared-hmac';
+          if (reference === 'ops-database-cursor-key') return 'a'.repeat(32);
+          if (reference === 'ops-database-policy-approval') return '{}';
+          return null;
+        }
+      })
+    ).rejects.toThrowError('SQL worker runtime credentials are unavailable');
+  });
+
   it('does not resolve or expose a production database credential while reads are disabled', async () => {
     const requested: string[] = [];
 
@@ -411,7 +451,7 @@ describe('startOpsSqlWorker', () => {
       },
       resolveSecret: async (ref) => {
         if (ref === 'ops-sql-worker-hmac') return 'shared-hmac';
-        if (ref === 'cursor-key-ref') return 'a'.repeat(32);
+        if (ref === 'cursor-key-ref') return Buffer.alloc(32, 13).toString('base64');
         if (ref === 'policy-approval-ref') return '{}';
         if (ref === 'edutrack-url-ref')
           return 'postgresql://reader:secret@edutrack-broken/edutrack?sslmode=verify-full';

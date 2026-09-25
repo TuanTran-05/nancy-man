@@ -104,6 +104,14 @@ describe('readSqlWorkerRuntimeConfig', () => {
         OPS_DATABASE_ARBITRARY_TARGET_ENABLED: 'true'
       })
     ).toThrow(/arbitrary target|unknown/i);
+
+    expect(() =>
+      readSqlWorkerRuntimeConfig({
+        ...disabledEnvironment,
+        OPS_DATABASE_EXPLORER_ENABLED: 'true',
+        OPS_DATABASE_CURSOR_KEY: Buffer.alloc(32, 13).toString('base64')
+      })
+    ).toThrow(/Raw production credentials are forbidden/i);
   });
 
   it('parses explorer config when enabled', () => {

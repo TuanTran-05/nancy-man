@@ -8,6 +8,7 @@ import {
   type DatabaseRowsResponse
 } from '../../../../packages/contracts/src/databaseExplorer.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
+import { readProductionSchema } from '../schema/introspectSchema.js';
 import {
   CURSOR_EXPIRY_MS,
   decodeCursor,
@@ -17,8 +18,68 @@ import {
   type OffsetCursorData
 } from './cursorCodec.js';
 import { buildRowsQuery, makeExplorerError } from './filterSql.js';
+import { invalidateExplorerSchemaCache } from './schemaReader.js';
 import { quoteIdentifier } from './identifier.js';
 import { encodeCell, encodeRowPage, type EncodedRow } from './valueEncoding.js';
+
+function sameSort(
+  stored: { column: string; direction: 'asc' | 'desc' } | null,
+  requested: { column: string; direction: 'asc' | 'desc' } | undefined
+): boolean {
+  if (stored === null || requested === undefined) return stored === null && requested === undefined;
+  return stored.column === requested.column && stored.direction === requested.direction;
+}
+
+function getCursorKeyColumns(
+  sort: { column: string; direction: 'asc' | 'desc' } | undefined,
+  paginationKey: string[]
+): string[] {
+  const columns = sort ? [sort.column] : [];
+  for (const column of paginationKey) {
+    if (!columns.includes(column)) columns.push(column);
+  }
+  return columns;
+}
+
+function buildKeysetCondition(
+  keys: Array<{ column: string; value: unknown }>,
+  direction: 'asc' | 'desc'
+): { predicate: string; values: unknown[] } {
+  const values: unknown[] = [];
+  const terms: string[] = [];
+  const operator = direction === 'desc' ? '<' : '>';
+  const parameter = (value: unknown): string => {
+    const index = values.length;
+    values.push(value);
+    return `$__CURSOR_PARAM_${index}__`;
+  };
+
+  for (let index = 0; index < keys.length; index++) {
+    const key = keys[index]!;
+    const column = quoteIdentifier(key.column);
+    const prefix: string[] = [];
+    for (let prefixIndex = 0; prefixIndex < index; prefixIndex++) {
+      const prefixKey = keys[prefixIndex]!;
+      const prefixColumn = quoteIdentifier(prefixKey.column);
+      prefix.push(
+        prefixKey.value === null
+          ? `${prefixColumn} IS NULL`
+          : `${prefixColumn} = ${parameter(prefixKey.value)}`
+      );
+    }
+
+    // With NULLS LAST, no value follows a null at this component; later key
+    // components still continue rows tied on that null value.
+    if (key.value === null) continue;
+    const comparison = `(${column} ${operator} ${parameter(key.value)} OR ${column} IS NULL)`;
+    terms.push(prefix.length > 0 ? `(${prefix.join(' AND ')} AND ${comparison})` : comparison);
+  }
+
+  return {
+    predicate: terms.length > 0 ? `(${terms.join(' OR ')})` : 'FALSE',
+    values
+  };
+}
 
 export type ReadDatabaseRowsInput = {
   target: AvailableTargetEntry;
@@ -39,6 +100,10 @@ export async function readDatabaseRows(
       'DATABASE_PAGE_TOO_LARGE',
       `Invalid page size: ${request.pageSize}. Allowed page sizes: 25, 50, 100`
     );
+  }
+
+  if (request.targetId !== target.id || snapshot.targetId !== target.id) {
+    throw makeExplorerError('DATABASE_TARGET_INVALID');
   }
 
   const schemaObj = snapshot.schemas.find((s) => s.name === request.schema);
@@ -64,6 +129,28 @@ export async function readDatabaseRows(
     );
   }
 
+  let schemaConnection;
+  let liveChecksum: string;
+  try {
+    schemaConnection = await target.pool.connect();
+    const liveSchema = await readProductionSchema({ database: schemaConnection });
+    liveChecksum = liveSchema.checksum;
+  } catch {
+    const error = makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
+    captureOpsException(error, {
+      code: 'DATABASE_SCHEMA_CHECK_FAILED',
+      source: 'database',
+      status: 500
+    });
+    throw error;
+  } finally {
+    schemaConnection?.release();
+  }
+  if (liveChecksum !== snapshot.checksum) {
+    invalidateExplorerSchemaCache(target);
+    throw makeExplorerError('DATABASE_SCHEMA_STALE');
+  }
+
   // Handle cursor
   let decodedCursor: (KeysetCursorData | OffsetCursorData) | undefined;
   if (request.cursor) {
@@ -78,6 +165,22 @@ export async function readDatabaseRows(
       },
       now
     });
+    if (decodedCursor.nullOrder !== 'last' || !sameSort(decodedCursor.sort, request.sort)) {
+      throw makeExplorerError('DATABASE_CURSOR_INVALID');
+    }
+    if (decodedCursor.kind === 'keyset') {
+      const paginationKey = relationObj.paginationKey;
+      if (!paginationKey || paginationKey.length === 0) {
+        throw makeExplorerError('DATABASE_CURSOR_INVALID');
+      }
+      const expectedKeys = getCursorKeyColumns(request.sort, paginationKey);
+      if (
+        decodedCursor.keys.length !== expectedKeys.length ||
+        decodedCursor.keys.some((key, index) => key.column !== expectedKeys[index])
+      ) {
+        throw makeExplorerError('DATABASE_CURSOR_INVALID');
+      }
+    }
   }
 
   const hasPaginationKey = Boolean(
@@ -91,29 +194,7 @@ export async function readDatabaseRows(
 
   if (decodedCursor) {
     if (decodedCursor.kind === 'keyset') {
-      const dir = (request.sort?.direction ?? 'asc').toUpperCase();
-      const op = dir === 'DESC' ? '<' : '>';
-      const colNames: string[] = [];
-      const placeholders: string[] = [];
-      const values: unknown[] = [];
-
-      for (const [i, item] of decodedCursor.keys.entries()) {
-        colNames.push(quoteIdentifier(item.column));
-        placeholders.push(`$${i + 1}`); // buildRowsQuery will offset parameter indexes
-        values.push(item.value);
-      }
-
-      if (colNames.length === 1) {
-        cursorCondition = {
-          predicate: `${colNames[0]} ${op} $__CURSOR_PARAM_0__`,
-          values
-        };
-      } else if (colNames.length > 1) {
-        cursorCondition = {
-          predicate: `(${colNames.join(', ')}) ${op} (${colNames.map((_, i) => `$__CURSOR_PARAM_${i}__`).join(', ')})`,
-          values
-        };
-      }
+      cursorCondition = buildKeysetCondition(decodedCursor.keys, request.sort?.direction ?? 'asc');
     } else if (decodedCursor.kind === 'offset') {
       offset = decodedCursor.offset;
     }
@@ -142,15 +223,14 @@ export async function readDatabaseRows(
   let connection;
   try {
     connection = await target.pool.connect();
-  } catch (err: unknown) {
-    captureOpsException(err, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
+  } catch {
+    const error = makeExplorerError('DATABASE_TARGET_UNAVAILABLE');
+    captureOpsException(error, {
+      code: 'DATABASE_TARGET_UNAVAILABLE',
       source: 'database',
       status: 500
     });
-    const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
-    if (!errObj['code']) errObj['code'] = 'DATABASE_TARGET_UNAVAILABLE';
-    throw err;
+    throw error;
   }
 
   let queryRows: Record<string, unknown>[];
@@ -176,23 +256,30 @@ export async function readDatabaseRows(
     const result = await connection.query<Record<string, unknown>>(finalSql, finalValues);
     queryRows = result.rows;
   } catch (err: unknown) {
-    captureOpsException(err, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'database',
-      status: 500
-    });
     const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
     const message = typeof errObj['message'] === 'string' ? errObj['message'] : '';
     if (errObj['code'] === '57014' || /timeout|canceling statement/i.test(message)) {
-      throw makeExplorerError('DATABASE_QUERY_TIMEOUT', 'Database query timed out');
+      const error = makeExplorerError('DATABASE_QUERY_TIMEOUT');
+      captureOpsException(error, {
+        code: 'DATABASE_QUERY_TIMEOUT',
+        source: 'database',
+        status: 500
+      });
+      throw error;
     }
-    throw err;
+    const error = makeExplorerError('DATABASE_QUERY_FAILED');
+    captureOpsException(error, {
+      code: 'DATABASE_QUERY_FAILED',
+      source: 'database',
+      status: 500
+    });
+    throw error;
   } finally {
     try {
       await connection.query('ROLLBACK');
-    } catch (error) {
-      captureOpsException(error, {
-        code: 'UNHANDLED_OPS_EXCEPTION',
+    } catch {
+      captureOpsException(makeExplorerError('DATABASE_ROLLBACK_FAILED'), {
+        code: 'DATABASE_ROLLBACK_FAILED',
         source: 'database',
         status: 500
       });
@@ -212,13 +299,10 @@ export async function readDatabaseRows(
     const expiresAt = issuedAt + CURSOR_EXPIRY_MS;
 
     if (consistency === 'stable' && relationObj.paginationKey) {
-      const keys: Array<{ column: string; value: unknown }> = [];
-      if (request.sort && !relationObj.paginationKey.includes(request.sort.column)) {
-        keys.push({ column: request.sort.column, value: lastRow[request.sort.column] });
-      }
-      for (const pkCol of relationObj.paginationKey) {
-        keys.push({ column: pkCol, value: lastRow[pkCol] });
-      }
+      const keys = getCursorKeyColumns(request.sort, relationObj.paginationKey).map((column) => ({
+        column,
+        value: lastRow[column]
+      }));
 
       nextCursor = encodeCursor(
         {
@@ -231,6 +315,7 @@ export async function readDatabaseRows(
           issuedAt,
           expiresAt,
           sort: request.sort ?? null,
+          nullOrder: 'last',
           keys
         },
         cursorKey
@@ -250,7 +335,9 @@ export async function readDatabaseRows(
             checksum: snapshot.checksum,
             issuedAt,
             expiresAt,
-            offset: nextOffset
+            offset: nextOffset,
+            sort: request.sort ?? null,
+            nullOrder: 'last'
           },
           cursorKey
         );
@@ -277,6 +364,7 @@ export async function readDatabaseRows(
       for (const pkCol of relationObj.paginationKey) {
         refKeys[pkCol] = row[pkCol];
       }
+      const rowRefIssuedAt = now().getTime();
       rowRef = encodeRowRef(
         {
           version: 1,
@@ -284,6 +372,8 @@ export async function readDatabaseRows(
           schema: request.schema,
           relation: request.relation,
           checksum: snapshot.checksum,
+          issuedAt: rowRefIssuedAt,
+          expiresAt: rowRefIssuedAt + CURSOR_EXPIRY_MS,
           keys: refKeys
         },
         cursorKey

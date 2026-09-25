@@ -70,7 +70,7 @@ export const EXACT_PII_OVERRIDES: readonly ExactColumnTarget[] = [];
 
 export const EXACT_PUBLIC_OVERRIDES: readonly ExactColumnTarget[] = [];
 
-export const DATABASE_POLICY_VERSION = '2026-09-25';
+export const DATABASE_POLICY_VERSION = '2026-09-25-v2';
 
 function makeKey(target: ExactColumnTarget): string {
   return `${target.targetId}:${target.schema}.${target.relation}.${target.column}`.toLowerCase();
@@ -97,12 +97,49 @@ const BLOCKED_TOKENS = [
 const PII_TOKENS = [
   'email',
   'phone',
+  'telephone',
+  'mobile',
   'display_name',
   'full_name',
+  'given_name',
+  'first_name',
+  'middle_name',
+  'family_name',
+  'last_name',
+  'preferred_name',
+  'legal_name',
+  'date_of_birth',
+  'birth_date',
+  'dob',
   'address',
+  'address1',
+  'address2',
+  'address_line1',
+  'address_line2',
+  'street',
+  'house_number',
+  'unit_number',
+  'city',
+  'state',
+  'province',
+  'district',
+  'ward',
+  'region',
+  'postal',
+  'zip',
+  'country',
+  'notes',
+  'note',
+  'comments',
   'content',
   'answer',
   'comment',
+  'messages',
+  'message',
+  'free_form',
+  'freeform',
+  'description',
+  'body',
   'raw_payload'
 ];
 

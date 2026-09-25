@@ -27,7 +27,7 @@ function createSnapshotFixture(
     targetId: 'edutrack_production',
     targetLabel: 'EduTrack Production',
     checksum: 'mock_checksum',
-    policyVersion: '2026-09-25',
+    policyVersion: '2026-09-25-v2',
     edges: [],
     schemas: [
       {
@@ -117,6 +117,26 @@ describe('buildRowsQuery and buildFilterSql', () => {
     expect(built.selectableColumns).not.toContain('secret_token');
     expect(built.selectableColumns).toContain('id');
     expect(built.selectableColumns).toContain('email');
+  });
+
+  it('orders by the requested sort followed by the complete stable key with explicit null order', () => {
+    const snapshot = createSnapshotFixture({
+      columnNames: ['tenant_id', 'id', 'display_name', 'secret_token'],
+      paginationKey: ['tenant_id', 'id']
+    });
+
+    const built = buildRowsQuery({
+      snapshot,
+      schema: 'public',
+      relation: 'students',
+      pageSize: 25,
+      filters: [],
+      sort: { column: 'display_name', direction: 'desc' }
+    });
+
+    expect(built.text).toContain(
+      'ORDER BY "display_name" DESC NULLS LAST, "tenant_id" DESC NULLS LAST, "id" DESC NULLS LAST'
+    );
   });
 
   it('rejects filtering on a blocked column with DATABASE_FILTER_INVALID', () => {

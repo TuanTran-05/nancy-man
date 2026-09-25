@@ -105,7 +105,7 @@ describe('Database explorer contracts', () => {
     const rowsRes: DatabaseRowsResponse = {
       targetId: 'edutrack_production',
       schemaChecksum: 'checksum1',
-      policyVersion: '2026-09-25',
+      policyVersion: '2026-09-25-v2',
       schema: 'public',
       relation: 'students',
       columns: [col],
@@ -122,7 +122,7 @@ describe('Database explorer contracts', () => {
       targetId: 'edutrack_production',
       targetLabel: 'EduTrack Production',
       checksum: 'snap-checksum',
-      policyVersion: '2026-09-25',
+      policyVersion: '2026-09-25-v2',
       schemas: [],
       edges: [edge]
     };

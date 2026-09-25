@@ -6,13 +6,16 @@ import type {
   DatabaseExplorerSchemaSnapshot,
   DatabaseRelatedRowsRequest
 } from '../../../../packages/contracts/src/databaseExplorer.js';
+import { readProductionSchema } from '../schema/introspectSchema.js';
 
-function createMockTarget(options: {
-  queryHandler?: (
-    sql: string,
-    values?: readonly unknown[]
-  ) => Promise<{ rows: Record<string, unknown>[] }>;
-}): AvailableTargetEntry {
+function createMockTarget(
+  options: {
+    queryHandler?: (
+      sql: string,
+      values?: readonly unknown[]
+    ) => Promise<{ rows: Record<string, unknown>[] }>;
+  } = {}
+): AvailableTargetEntry {
   return {
     id: 'edutrack_production',
     label: 'EduTrack Production',
@@ -23,6 +26,100 @@ function createMockTarget(options: {
       query: async () => ({ rows: [] }),
       connect: async () => ({
         query: async <T>(sql: string, values?: readonly unknown[]) => {
+          if (sql.includes('catalog:schemas')) {
+            return { rows: [{ schemaName: 'public' }] as T[] };
+          }
+          if (sql.includes('catalog:relations')) {
+            return {
+              rows: [
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  kind: 'table',
+                  rowSecurityEnabled: false,
+                  forceRowSecurity: false
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'attendance',
+                  kind: 'table',
+                  rowSecurityEnabled: false,
+                  forceRowSecurity: false
+                }
+              ] as T[]
+            };
+          }
+          if (sql.includes('catalog:columns')) {
+            return {
+              rows: [
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  columnName: 'id',
+                  dataType: 'uuid',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  columnName: 'email',
+                  dataType: 'text',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'attendance',
+                  columnName: 'id',
+                  dataType: 'uuid',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'attendance',
+                  columnName: 'student_id',
+                  dataType: 'uuid',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                }
+              ] as T[]
+            };
+          }
+          if (sql.includes('catalog:constraints')) {
+            return {
+              rows: [
+                {
+                  schemaName: 'public',
+                  relationName: 'attendance',
+                  constraintName: 'attendance_student_id_fkey',
+                  kind: 'foreign_key',
+                  columns: ['student_id'],
+                  referencedSchema: 'public',
+                  referencedRelation: 'students',
+                  referencedColumns: ['id'],
+                  deferrable: false,
+                  initiallyDeferred: false
+                }
+              ] as T[]
+            };
+          }
+          if (
+            sql.includes('catalog:indexes') ||
+            sql.includes('catalog:triggers') ||
+            sql.includes('catalog:policies')
+          ) {
+            return { rows: [] as T[] };
+          }
           if (options.queryHandler && sql.startsWith('SELECT')) {
             return (await options.queryHandler(sql, values)) as { rows: T[] };
           }
@@ -35,12 +132,12 @@ function createMockTarget(options: {
   };
 }
 
-function createSnapshotWithEdges(): DatabaseExplorerSchemaSnapshot {
+function createSnapshotWithEdges(checksum = 'mock_checksum_123'): DatabaseExplorerSchemaSnapshot {
   return {
     targetId: 'edutrack_production',
     targetLabel: 'EduTrack Production',
-    checksum: 'mock_checksum_123',
-    policyVersion: '2026-09-25',
+    checksum,
+    policyVersion: '2026-09-25-v2',
     edges: [
       {
         constraint: 'attendance_student_id_fkey',
@@ -132,8 +229,20 @@ function createSnapshotWithEdges(): DatabaseExplorerSchemaSnapshot {
   };
 }
 
+async function createSnapshotForTarget(
+  target: AvailableTargetEntry
+): Promise<DatabaseExplorerSchemaSnapshot> {
+  const connection = await target.pool.connect();
+  try {
+    const structural = await readProductionSchema({ database: connection });
+    return createSnapshotWithEdges(structural.checksum);
+  } finally {
+    connection.release();
+  }
+}
+
 describe('readRelatedRows', () => {
-  const cursorKey = '01234567890123456789012345678901';
+  const cursorKey = Buffer.alloc(32, 11).toString('base64');
 
   it('traverses FK from parent students to child attendance rows', async () => {
     let executedSql = '';
@@ -147,7 +256,7 @@ describe('readRelatedRows', () => {
       }
     });
 
-    const snapshot = createSnapshotWithEdges();
+    const snapshot = await createSnapshotForTarget(target);
 
     const rowRef = encodeRowRef(
       {
@@ -155,7 +264,9 @@ describe('readRelatedRows', () => {
         targetId: 'edutrack_production',
         schema: 'public',
         relation: 'students',
-        checksum: 'mock_checksum_123',
+        checksum: snapshot.checksum,
+        issuedAt: Date.now(),
+        expiresAt: Date.now() + 5 * 60 * 1000,
         keys: { id: 'std_123' }
       },
       cursorKey
@@ -186,7 +297,7 @@ describe('readRelatedRows', () => {
 
   it('rejects missing or wrong constraint with DATABASE_RELATION_INVALID', async () => {
     const target = createMockTarget({});
-    const snapshot = createSnapshotWithEdges();
+    const snapshot = await createSnapshotForTarget(target);
 
     const rowRef = encodeRowRef(
       {
@@ -194,7 +305,9 @@ describe('readRelatedRows', () => {
         targetId: 'edutrack_production',
         schema: 'public',
         relation: 'students',
-        checksum: 'mock_checksum_123',
+        checksum: snapshot.checksum,
+        issuedAt: Date.now(),
+        expiresAt: Date.now() + 5 * 60 * 1000,
         keys: { id: 'std_123' }
       },
       cursorKey
@@ -222,7 +335,7 @@ describe('readRelatedRows', () => {
 
   it('rejects constraint when rowRef does not contain the needed key', async () => {
     const target = createMockTarget({});
-    const snapshot = createSnapshotWithEdges();
+    const snapshot = await createSnapshotForTarget(target);
 
     // rowRef from attendance without student_id key
     const rowRef = encodeRowRef(
@@ -231,7 +344,9 @@ describe('readRelatedRows', () => {
         targetId: 'edutrack_production',
         schema: 'public',
         relation: 'attendance',
-        checksum: 'mock_checksum_123',
+        checksum: snapshot.checksum,
+        issuedAt: Date.now(),
+        expiresAt: Date.now() + 5 * 60 * 1000,
         keys: { id: 'att_1' } // missing student_id
       },
       cursorKey

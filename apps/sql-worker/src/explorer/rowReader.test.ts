@@ -1,18 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { readDatabaseRows } from './rowReader.js';
+import { decodeCursor } from './cursorCodec.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
 import type {
   DatabaseExplorerSchemaSnapshot,
   DatabaseRowsRequest
 } from '../../../../packages/contracts/src/databaseExplorer.js';
+import { readProductionSchema } from '../schema/introspectSchema.js';
+import { installOpsRuntimeTelemetry } from '../telemetry/runtimeTelemetry.js';
 
-function createMockTarget(options: {
-  queryHandler?: (
-    sql: string,
-    values?: readonly unknown[]
-  ) => Promise<{ rows: Record<string, unknown>[] }>;
-  throwTimeout?: boolean;
-}): { target: AvailableTargetEntry; queries: string[]; rolledBack: boolean; released: boolean } {
+function createMockTarget(
+  options: {
+    queryHandler?: (
+      sql: string,
+      values?: readonly unknown[]
+    ) => Promise<{ rows: Record<string, unknown>[] }>;
+    throwTimeout?: boolean;
+    drift?: { enabled: boolean };
+  } = {}
+): { target: AvailableTargetEntry; queries: string[]; rolledBack: boolean; released: boolean } {
   const queries: string[] = [];
   let rolledBack = false;
   let released = false;
@@ -32,13 +38,122 @@ function createMockTarget(options: {
             rolledBack = true;
             return { rows: [] as T[] };
           }
-          if (options.throwTimeout && sql.startsWith('SELECT')) {
+          if (sql.includes('catalog:schemas')) {
+            return { rows: [{ schemaName: 'public' }] as T[] };
+          }
+          if (sql.includes('catalog:relations')) {
+            return {
+              rows: [
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  kind: 'table',
+                  rowSecurityEnabled: false,
+                  forceRowSecurity: false
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'unbrowseable_table',
+                  kind: 'foreign_table',
+                  rowSecurityEnabled: false,
+                  forceRowSecurity: false
+                }
+              ] as T[]
+            };
+          }
+          if (sql.includes('catalog:columns')) {
+            return {
+              rows: [
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  columnName: 'id',
+                  dataType: 'uuid',
+                  nullable: false,
+                  hasDefault: true,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  columnName: 'email',
+                  dataType: 'text',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  columnName: 'password_hash',
+                  dataType: 'text',
+                  nullable: false,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                {
+                  schemaName: 'public',
+                  relationName: 'unbrowseable_table',
+                  columnName: 'raw_data',
+                  dataType: 'text',
+                  nullable: true,
+                  hasDefault: false,
+                  identity: '',
+                  generated: ''
+                },
+                ...(options.drift?.enabled
+                  ? [
+                      {
+                        schemaName: 'public',
+                        relationName: 'students',
+                        columnName: 'new_column',
+                        dataType: 'text',
+                        nullable: true,
+                        hasDefault: false,
+                        identity: '',
+                        generated: ''
+                      }
+                    ]
+                  : [])
+              ] as T[]
+            };
+          }
+          if (sql.includes('catalog:constraints')) {
+            return {
+              rows: [
+                {
+                  schemaName: 'public',
+                  relationName: 'students',
+                  constraintName: 'students_pkey',
+                  kind: 'primary_key',
+                  columns: ['id'],
+                  referencedSchema: null,
+                  referencedRelation: null,
+                  referencedColumns: [],
+                  deferrable: false,
+                  initiallyDeferred: false
+                }
+              ] as T[]
+            };
+          }
+          if (
+            sql.includes('catalog:indexes') ||
+            sql.includes('catalog:triggers') ||
+            sql.includes('catalog:policies')
+          ) {
+            return { rows: [] as T[] };
+          }
+          const isRowSelect = sql.startsWith('SELECT') && sql.includes('FROM "public"."students"');
+          if (options.throwTimeout && isRowSelect) {
             const err = Object.assign(new Error('canceling statement due to statement timeout'), {
               code: '57014'
             });
             throw err;
           }
-          if (options.queryHandler) {
+          if (options.queryHandler && isRowSelect) {
             return (await options.queryHandler(sql, values)) as { rows: T[] };
           }
           return { rows: [] as T[] };
@@ -63,12 +178,12 @@ function createMockTarget(options: {
   };
 }
 
-function createSnapshotFixture(): DatabaseExplorerSchemaSnapshot {
+function createSnapshotFixture(checksum = 'mock_checksum_123'): DatabaseExplorerSchemaSnapshot {
   return {
     targetId: 'edutrack_production',
     targetLabel: 'EduTrack Production',
-    checksum: 'mock_checksum_123',
-    policyVersion: '2026-09-25',
+    checksum,
+    policyVersion: '2026-09-25-v2',
     edges: [],
     schemas: [
       {
@@ -154,8 +269,20 @@ function createSnapshotFixture(): DatabaseExplorerSchemaSnapshot {
   };
 }
 
+async function createSnapshotForTarget(
+  target: AvailableTargetEntry
+): Promise<DatabaseExplorerSchemaSnapshot> {
+  const connection = await target.pool.connect();
+  try {
+    const structural = await readProductionSchema({ database: connection });
+    return createSnapshotFixture(structural.checksum);
+  } finally {
+    connection.release();
+  }
+}
+
 describe('readDatabaseRows', () => {
-  const cursorKey = '01234567890123456789012345678901';
+  const cursorKey = Buffer.alloc(32, 11).toString('base64');
 
   it('executes read transaction with read-only, timeouts, fetches rows, and rolls back', async () => {
     const rows = [
@@ -172,7 +299,7 @@ describe('readDatabaseRows', () => {
       }
     });
 
-    const snapshot = createSnapshotFixture();
+    const snapshot = await createSnapshotForTarget(mock.target);
     const request: DatabaseRowsRequest = {
       targetId: 'edutrack_production',
       schema: 'public',
@@ -214,7 +341,7 @@ describe('readDatabaseRows', () => {
       }
     });
 
-    const snapshot = createSnapshotFixture();
+    const snapshot = await createSnapshotForTarget(mock.target);
     const request: DatabaseRowsRequest = {
       targetId: 'edutrack_production',
       schema: 'public',
@@ -251,7 +378,7 @@ describe('readDatabaseRows', () => {
       }
     });
 
-    const snapshot = createSnapshotFixture();
+    const snapshot = await createSnapshotForTarget(mock.target);
     const request: DatabaseRowsRequest = {
       targetId: 'edutrack_production',
       schema: 'public',
@@ -273,9 +400,304 @@ describe('readDatabaseRows', () => {
     expect(typeof response.nextCursor).toBe('string');
   });
 
+  it('rejects schema drift before issuing the row SELECT', async () => {
+    const drift = { enabled: false };
+    let rowSelectCount = 0;
+    const mock = createMockTarget({
+      drift,
+      queryHandler: async () => {
+        rowSelectCount++;
+        return { rows: [{ id: '1', email: 'alice@example.com' }] };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(mock.target);
+    drift.enabled = true;
+
+    await expect(
+      readDatabaseRows({
+        target: mock.target,
+        snapshot,
+        cursorKey,
+        request: {
+          targetId: 'edutrack_production',
+          schema: 'public',
+          relation: 'students',
+          pageSize: 25,
+          filters: [],
+          piiMode: 'masked'
+        }
+      })
+    ).rejects.toThrowError('DATABASE_SCHEMA_STALE');
+
+    expect(rowSelectCount).toBe(0);
+    expect(
+      mock.queries.some(
+        (sql) => sql.startsWith('SELECT') && sql.includes('FROM "public"."students"')
+      )
+    ).toBe(false);
+  });
+
+  it('rejects cursor continuation after the requested sort changes', async () => {
+    let rowSelectCount = 0;
+    const mock = createMockTarget({
+      queryHandler: async () => {
+        rowSelectCount++;
+        return {
+          rows: Array.from({ length: 26 }, (_, index) => ({
+            id: `id_${index + 1}`,
+            email: `user${index + 1}@example.com`
+          }))
+        };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(mock.target);
+    const firstPage = await readDatabaseRows({
+      target: mock.target,
+      snapshot,
+      cursorKey,
+      request: {
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'students',
+        pageSize: 25,
+        sort: { column: 'email', direction: 'asc' },
+        filters: [],
+        piiMode: 'masked'
+      }
+    });
+
+    await expect(
+      readDatabaseRows({
+        target: mock.target,
+        snapshot,
+        cursorKey,
+        request: {
+          targetId: 'edutrack_production',
+          schema: 'public',
+          relation: 'students',
+          pageSize: 25,
+          cursor: firstPage.nextCursor!,
+          sort: { column: 'email', direction: 'desc' },
+          filters: [],
+          piiMode: 'masked'
+        }
+      })
+    ).rejects.toThrowError('DATABASE_CURSOR_INVALID');
+    expect(rowSelectCount).toBe(1);
+  });
+
+  it('keeps cursor values out of database errors and telemetry', async () => {
+    const marker = 'sort-claim-sensitive-marker';
+    let rowSelectCount = 0;
+    const mock = createMockTarget({
+      queryHandler: async () => {
+        rowSelectCount++;
+        if (rowSelectCount > 1) throw new Error(`invalid sort value ${marker}`);
+        return {
+          rows: Array.from({ length: 26 }, (_, index) => ({
+            id: `id_${index + 1}`,
+            email: `user${index + 1}@example.com`
+          }))
+        };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(mock.target);
+    const firstPage = await readDatabaseRows({
+      target: mock.target,
+      snapshot,
+      cursorKey,
+      request: {
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'students',
+        pageSize: 25,
+        sort: { column: 'email', direction: 'asc' },
+        filters: [],
+        piiMode: 'masked'
+      }
+    });
+    const captured: Array<{ message: string; code: string }> = [];
+    const uninstall = installOpsRuntimeTelemetry({
+      captureException: (error, context) => {
+        captured.push({
+          message: error instanceof Error ? error.message : String(error),
+          code: context.code
+        });
+        return 'EVT_00000000000000000000000000';
+      },
+      flush: async () => undefined,
+      healthy: () => true
+    });
+
+    try {
+      await expect(
+        readDatabaseRows({
+          target: mock.target,
+          snapshot,
+          cursorKey,
+          request: {
+            targetId: 'edutrack_production',
+            schema: 'public',
+            relation: 'students',
+            pageSize: 25,
+            cursor: firstPage.nextCursor!,
+            sort: { column: 'email', direction: 'asc' },
+            filters: [],
+            piiMode: 'masked'
+          }
+        })
+      ).rejects.toThrowError('DATABASE_QUERY_FAILED');
+    } finally {
+      uninstall();
+    }
+
+    expect(captured).toEqual([{ message: 'DATABASE_QUERY_FAILED', code: 'DATABASE_QUERY_FAILED' }]);
+    expect(JSON.stringify(captured)).not.toContain(marker);
+  });
+
+  it.each(['asc', 'desc'] as const)(
+    'pages duplicate and nullable sort values once in %s order with a composite stable key',
+    async (direction) => {
+      const data = Array.from({ length: 56 }, (_, index) => ({
+        id: `id_${String(index + 1).padStart(2, '0')}`,
+        tenant_id: `tenant_${String((index % 3) + 1)}`,
+        sort_value: index < 8 ? 'alpha' : index < 17 ? 'beta' : index < 26 ? 'gamma' : null
+      }));
+      const compareText = (left: string, right: string): number => left.localeCompare(right);
+      const compareRows = (
+        left: Record<string, unknown>,
+        right: Record<string, unknown>
+      ): number => {
+        const leftSort = left.sort_value as string | null;
+        const rightSort = right.sort_value as string | null;
+        let compared =
+          leftSort === null
+            ? rightSort === null
+              ? 0
+              : 1
+            : rightSort === null
+              ? -1
+              : compareText(leftSort, rightSort) * (direction === 'desc' ? -1 : 1);
+        if (compared !== 0) return compared;
+        compared = compareText(left.tenant_id as string, right.tenant_id as string);
+        if (compared !== 0) return compared * (direction === 'desc' ? -1 : 1);
+        return compareText(left.id as string, right.id as string) * (direction === 'desc' ? -1 : 1);
+      };
+      const ordered = [...data].sort(compareRows);
+      let snapshot!: DatabaseExplorerSchemaSnapshot;
+      let currentCursor: string | undefined;
+      let nowCalls = 0;
+      const now = () => new Date(Date.now() + nowCalls++ * 10);
+      const dataQueries: Array<{ sql: string; values: readonly unknown[] }> = [];
+      const mock = createMockTarget({
+        queryHandler: async (sql, values) => {
+          dataQueries.push({ sql, values: values ?? [] });
+          const after = currentCursor
+            ? decodeCursor({
+                encodedCursor: currentCursor,
+                key: cursorKey,
+                expected: {
+                  targetId: 'edutrack_production',
+                  schema: 'public',
+                  relation: 'students',
+                  checksum: snapshot.checksum
+                }
+              })
+            : undefined;
+          const afterValues =
+            after?.kind === 'keyset'
+              ? Object.fromEntries(after.keys.map((key) => [key.column, key.value]))
+              : undefined;
+          const remaining = afterValues
+            ? ordered.filter(
+                (row) =>
+                  compareRows(row, {
+                    sort_value: afterValues.sort_value,
+                    tenant_id: afterValues.tenant_id,
+                    id: afterValues.id
+                  }) > 0
+              )
+            : ordered;
+          return { rows: remaining.slice(0, 26) };
+        }
+      });
+      snapshot = await createSnapshotForTarget(mock.target);
+      const relation = snapshot.schemas[0]?.relations[0];
+      if (!relation) throw new Error('student relation fixture missing');
+      relation.paginationKey = ['tenant_id', 'id'];
+      relation.columns.push(
+        {
+          name: 'tenant_id',
+          dataType: 'text',
+          nullable: false,
+          hasDefault: false,
+          identity: null,
+          generated: false,
+          classification: 'internal',
+          selectable: true,
+          filterOperators: ['eq', 'neq', 'contains', 'is_null', 'is_not_null']
+        },
+        {
+          name: 'sort_value',
+          dataType: 'text',
+          nullable: true,
+          hasDefault: false,
+          identity: null,
+          generated: false,
+          classification: 'internal',
+          selectable: true,
+          filterOperators: ['eq', 'neq', 'contains', 'is_null', 'is_not_null']
+        }
+      );
+
+      const seenIds: string[] = [];
+      let cursor: string | undefined;
+      do {
+        currentCursor = cursor;
+        const response = await readDatabaseRows({
+          target: mock.target,
+          snapshot,
+          cursorKey,
+          now,
+          request: {
+            targetId: 'edutrack_production',
+            schema: 'public',
+            relation: 'students',
+            pageSize: 25,
+            ...(cursor ? { cursor } : {}),
+            sort: { column: 'sort_value', direction },
+            filters: [],
+            piiMode: 'masked'
+          }
+        });
+        seenIds.push(
+          ...response.rows.map((row) =>
+            String(row.cells.id?.state === 'value' ? row.cells.id.value : '')
+          )
+        );
+        cursor = response.nextCursor ?? undefined;
+      } while (cursor);
+
+      expect(seenIds).toEqual(ordered.map((row) => row.id));
+      expect(new Set(seenIds).size).toBe(data.length);
+      expect(dataQueries[0]?.sql).toContain(
+        '"sort_value" ' + direction.toUpperCase() + ' NULLS LAST'
+      );
+      expect(dataQueries[0]?.sql).toContain(
+        '"tenant_id" ' + direction.toUpperCase() + ' NULLS LAST'
+      );
+      expect(dataQueries[0]?.sql).toContain('"id" ' + direction.toUpperCase() + ' NULLS LAST');
+      expect(dataQueries[1]?.sql).toContain(
+        `"sort_value" ${direction === 'desc' ? '<' : '>'} $1 OR "sort_value" IS NULL`
+      );
+      expect(dataQueries[2]?.sql).toContain('"sort_value" IS NULL');
+      expect(dataQueries[2]?.sql).toContain(`"tenant_id" ${direction === 'desc' ? '<' : '>'}`);
+    }
+  );
+
   it('maps statement timeout to DATABASE_QUERY_TIMEOUT and still rolls back', async () => {
     const mock = createMockTarget({ throwTimeout: true });
-    const snapshot = createSnapshotFixture();
+    const snapshot = await createSnapshotForTarget(mock.target);
     const request: DatabaseRowsRequest = {
       targetId: 'edutrack_production',
       schema: 'public',
@@ -300,7 +722,7 @@ describe('readDatabaseRows', () => {
 
   it('rejects data browsing on unbrowseable tables with DATABASE_DATA_PERMISSION_DENIED', async () => {
     const mock = createMockTarget();
-    const snapshot = createSnapshotFixture();
+    const snapshot = await createSnapshotForTarget(mock.target);
     const request: DatabaseRowsRequest = {
       targetId: 'edutrack_production',
       schema: 'public',

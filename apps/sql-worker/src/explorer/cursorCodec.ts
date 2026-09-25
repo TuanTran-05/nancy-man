@@ -1,222 +1,314 @@
-import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto';
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { DatabaseTargetId } from '../../../../packages/contracts/src/databaseExplorer.js';
+import {
+  isDatabaseTargetId,
+  type DatabaseTargetId
+} from '../../../../packages/contracts/src/databaseExplorer.js';
 import { makeExplorerError } from './filterSql.js';
 
 export const MAX_CURSOR_BYTES = 4096;
-export const CURSOR_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+export const CURSOR_EXPIRY_MS = 5 * 60 * 1000;
 
-export type KeysetCursorData = {
-  version: 1;
-  kind: 'keyset';
+const ENVELOPE_VERSION = 'v2';
+const TOKEN_KINDS = ['cursor', 'row-ref'] as const;
+type TokenKind = (typeof TOKEN_KINDS)[number];
+type Context = {
   targetId: DatabaseTargetId;
   schema: string;
   relation: string;
   checksum: string;
+};
+type SortDefinition = { column: string; direction: 'asc' | 'desc' };
+
+export type KeysetCursorData = Context & {
+  version: 1;
+  kind: 'keyset';
   issuedAt: number;
   expiresAt: number;
-  sort?: { column: string; direction: 'asc' | 'desc' } | null;
+  sort: SortDefinition | null;
+  nullOrder: 'last';
   keys: Array<{ column: string; value: unknown }>;
 };
 
-export type OffsetCursorData = {
+export type OffsetCursorData = Context & {
   version: 1;
   kind: 'offset';
-  targetId: DatabaseTargetId;
-  schema: string;
-  relation: string;
-  checksum: string;
   issuedAt: number;
   expiresAt: number;
   offset: number;
+  sort: SortDefinition | null;
+  nullOrder: 'last';
 };
 
 export type CursorData = KeysetCursorData | OffsetCursorData;
 
-export type RowRefData = {
+export type RowRefData = Context & {
   version: 1;
-  targetId: DatabaseTargetId;
-  schema: string;
-  relation: string;
-  checksum: string;
+  issuedAt: number;
+  expiresAt: number;
   keys: Record<string, unknown>;
 };
 
-function signPayload(payloadJson: string, key: string): string {
-  return createHmac('sha256', key).update(payloadJson).digest('base64url');
+function cursorError(): Error {
+  return makeExplorerError('DATABASE_CURSOR_INVALID');
 }
 
-function verifySignature(payloadJson: string, signature: string, key: string): boolean {
-  const expected = signPayload(payloadJson, key);
-  const expectedBuf = Buffer.from(expected);
-  const sigBuf = Buffer.from(signature);
-  if (expectedBuf.length !== sigBuf.length) {
+export function isValidCursorKey(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^(?:[A-Za-z0-9+/]{4}){10}[A-Za-z0-9+/]{3}=$/.test(value)) {
     return false;
   }
-  return timingSafeEqual(expectedBuf, sigBuf);
+  const decoded = Buffer.from(value, 'base64');
+  return decoded.length === 32 && decoded.toString('base64') === value;
+}
+
+function decodeMasterKey(value: string): Buffer {
+  if (!isValidCursorKey(value)) throw cursorError();
+  return Buffer.from(value, 'base64');
+}
+
+function deriveEncryptionKey(value: string, kind: TokenKind): Buffer {
+  const masterKey = decodeMasterKey(value);
+  const info = kind === 'cursor' ? 'cursor/v2' : 'row-ref/v2';
+  return Buffer.from(hkdfSync('sha256', masterKey, 'database-explorer/v2', info, 32));
+}
+
+function contextAad(kind: TokenKind, context: Context): Buffer {
+  return Buffer.from(
+    JSON.stringify([
+      ENVELOPE_VERSION,
+      kind,
+      context.targetId,
+      context.schema,
+      context.relation,
+      context.checksum
+    ]),
+    'utf8'
+  );
+}
+
+function validateContext(value: unknown): value is Context {
+  if (!value || typeof value !== 'object') return false;
+  const context = value as Partial<Context>;
+  return (
+    isDatabaseTargetId(context.targetId) &&
+    typeof context.schema === 'string' &&
+    context.schema.length > 0 &&
+    typeof context.relation === 'string' &&
+    context.relation.length > 0 &&
+    typeof context.checksum === 'string' &&
+    context.checksum.length > 0
+  );
+}
+
+function validateSort(value: unknown): value is SortDefinition | null {
+  if (value === null) return true;
+  if (!value || typeof value !== 'object') return false;
+  const sort = value as Partial<SortDefinition>;
+  return (
+    typeof sort.column === 'string' &&
+    sort.column.length > 0 &&
+    (sort.direction === 'asc' || sort.direction === 'desc')
+  );
+}
+
+function validateTimes(value: { issuedAt?: unknown; expiresAt?: unknown }): boolean {
+  return (
+    Number.isSafeInteger(value.issuedAt) &&
+    Number.isSafeInteger(value.expiresAt) &&
+    (value.expiresAt as number) > (value.issuedAt as number) &&
+    (value.expiresAt as number) - (value.issuedAt as number) <= CURSOR_EXPIRY_MS
+  );
+}
+
+function validateCursor(value: unknown): value is CursorData {
+  if (!validateContext(value) || !value || typeof value !== 'object') return false;
+  const cursor = value as Partial<CursorData>;
+  if (
+    cursor.version !== 1 ||
+    !validateTimes(cursor) ||
+    !validateSort(cursor.sort) ||
+    cursor.nullOrder !== 'last'
+  ) {
+    return false;
+  }
+  if (cursor.kind === 'offset') {
+    return Number.isSafeInteger(cursor.offset) && (cursor.offset as number) >= 0;
+  }
+  if (cursor.kind !== 'keyset' || !Array.isArray(cursor.keys) || cursor.keys.length === 0) {
+    return false;
+  }
+  const columns = new Set<string>();
+  return cursor.keys.every((entry) => {
+    if (
+      !entry ||
+      typeof entry !== 'object' ||
+      typeof entry.column !== 'string' ||
+      entry.column.length === 0 ||
+      !Object.prototype.hasOwnProperty.call(entry, 'value') ||
+      columns.has(entry.column)
+    ) {
+      return false;
+    }
+    columns.add(entry.column);
+    return true;
+  });
+}
+
+function validateRowRef(value: unknown): value is RowRefData {
+  if (!validateContext(value) || !value || typeof value !== 'object') return false;
+  const rowRef = value as Partial<RowRefData>;
+  if (
+    rowRef.version !== 1 ||
+    !validateTimes(rowRef) ||
+    !rowRef.keys ||
+    typeof rowRef.keys !== 'object' ||
+    Array.isArray(rowRef.keys)
+  ) {
+    return false;
+  }
+  const keys = Object.entries(rowRef.keys);
+  return keys.length > 0 && keys.every(([column]) => column.length > 0);
+}
+
+function seal(kind: TokenKind, value: CursorData | RowRefData, key: string): string {
+  if (!validateContext(value)) throw cursorError();
+  const nonce = randomBytes(12);
+  let plaintext: string;
+  try {
+    plaintext = JSON.stringify(value);
+  } catch {
+    throw cursorError();
+  }
+  if (!plaintext) throw cursorError();
+
+  try {
+    const cipher = createCipheriv('aes-256-gcm', deriveEncryptionKey(key, kind), nonce);
+    cipher.setAAD(contextAad(kind, value));
+    const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+    const token = [
+      ENVELOPE_VERSION,
+      kind,
+      nonce.toString('base64url'),
+      ciphertext.toString('base64url'),
+      cipher.getAuthTag().toString('base64url')
+    ].join('.');
+    if (Buffer.byteLength(token, 'utf8') > MAX_CURSOR_BYTES) throw cursorError();
+    return token;
+  } catch {
+    throw cursorError();
+  }
+}
+
+function open(input: { token: string; kind: TokenKind; key: string; expected: Context }): unknown {
+  if (
+    typeof input.token !== 'string' ||
+    input.token.length === 0 ||
+    Buffer.byteLength(input.token, 'utf8') > MAX_CURSOR_BYTES ||
+    !validateContext(input.expected)
+  ) {
+    throw cursorError();
+  }
+  const parts = input.token.split('.');
+  if (
+    parts.length !== 5 ||
+    parts[0] !== ENVELOPE_VERSION ||
+    parts[1] !== input.kind ||
+    !parts[2] ||
+    !parts[3] ||
+    !parts[4]
+  ) {
+    throw cursorError();
+  }
+
+  try {
+    const nonce = Buffer.from(parts[2]!, 'base64url');
+    const ciphertext = Buffer.from(parts[3]!, 'base64url');
+    const tag = Buffer.from(parts[4]!, 'base64url');
+    if (
+      nonce.length !== 12 ||
+      ciphertext.length === 0 ||
+      tag.length !== 16 ||
+      nonce.toString('base64url') !== parts[2] ||
+      ciphertext.toString('base64url') !== parts[3] ||
+      tag.toString('base64url') !== parts[4]
+    ) {
+      throw cursorError();
+    }
+
+    const decipher = createDecipheriv(
+      'aes-256-gcm',
+      deriveEncryptionKey(input.key, input.kind),
+      nonce
+    );
+    decipher.setAAD(contextAad(input.kind, input.expected));
+    decipher.setAuthTag(tag);
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    return JSON.parse(plaintext.toString('utf8')) as unknown;
+  } catch {
+    throw cursorError();
+  }
+}
+
+function assertContextMatches(value: Context, expected: Context): void {
+  if (
+    value.targetId !== expected.targetId ||
+    value.schema !== expected.schema ||
+    value.relation !== expected.relation ||
+    value.checksum !== expected.checksum
+  ) {
+    throw cursorError();
+  }
+}
+
+function assertNotExpired(value: { issuedAt: number; expiresAt: number }, now: Date): void {
+  if (!validateTimes(value) || now.getTime() >= value.expiresAt) throw cursorError();
 }
 
 export function encodeCursor(cursor: CursorData, key: string): string {
-  const payloadJson = JSON.stringify(cursor);
-  const encodedPayload = Buffer.from(payloadJson, 'utf8').toString('base64url');
-  const signature = signPayload(encodedPayload, key);
-  const result = `${encodedPayload}.${signature}`;
-
-  if (Buffer.byteLength(result, 'utf8') > MAX_CURSOR_BYTES) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Cursor payload exceeds 4 KiB limit');
-  }
-
-  return result;
+  if (!validateCursor(cursor)) throw cursorError();
+  return seal('cursor', cursor, key);
 }
 
 export function decodeCursor(input: {
   encodedCursor: string;
   key: string;
-  expected: {
-    targetId: DatabaseTargetId;
-    schema: string;
-    relation: string;
-    checksum: string;
-  };
+  expected: Context;
   now?: () => Date;
 }): CursorData {
-  if (
-    !input.encodedCursor ||
-    typeof input.encodedCursor !== 'string' ||
-    Buffer.byteLength(input.encodedCursor, 'utf8') > MAX_CURSOR_BYTES
-  ) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Invalid cursor format or length');
-  }
-
-  const parts = input.encodedCursor.split('.');
-  if (parts.length !== 2) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Malformed cursor structure');
-  }
-
-  const encodedPayload = parts[0];
-  const signature = parts[1];
-  if (!encodedPayload || !signature) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Malformed cursor structure');
-  }
-  if (!verifySignature(encodedPayload, signature, input.key)) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Cursor signature verification failed');
-  }
-
-  let cursor: CursorData;
-  try {
-    const json = Buffer.from(encodedPayload, 'base64url').toString('utf8');
-    cursor = JSON.parse(json);
-  } catch (error) {
-    captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500
-    });
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Cursor JSON decoding failed');
-  }
-
-  if (cursor.version !== 1 || (cursor.kind !== 'keyset' && cursor.kind !== 'offset')) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Unsupported cursor version or kind');
-  }
-
-  const currentTime = (input.now ? input.now() : new Date()).getTime();
-  if (currentTime > cursor.expiresAt) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Cursor has expired');
-  }
-
-  if (
-    cursor.targetId !== input.expected.targetId ||
-    cursor.schema !== input.expected.schema ||
-    cursor.relation !== input.expected.relation ||
-    cursor.checksum !== input.expected.checksum
-  ) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Cursor context mismatch or schema drift');
-  }
-
+  const cursor = open({
+    token: input.encodedCursor,
+    kind: 'cursor',
+    key: input.key,
+    expected: input.expected
+  });
+  if (!validateCursor(cursor)) throw cursorError();
+  assertNotExpired(cursor, (input.now ?? (() => new Date()))());
+  assertContextMatches(cursor, input.expected);
   if (cursor.kind === 'offset' && cursor.offset > 10_000) {
-    throw makeExplorerError(
-      'DATABASE_PAGE_TOO_LARGE',
-      'Offset pagination exceeds 10,000 row limit'
-    );
+    throw makeExplorerError('DATABASE_PAGE_TOO_LARGE');
   }
-
   return cursor;
 }
 
 export function encodeRowRef(rowRef: RowRefData, key: string): string {
-  const payloadJson = JSON.stringify(rowRef);
-  const encodedPayload = Buffer.from(payloadJson, 'utf8').toString('base64url');
-  const signature = signPayload(encodedPayload, key);
-  const result = `${encodedPayload}.${signature}`;
-
-  if (Buffer.byteLength(result, 'utf8') > MAX_CURSOR_BYTES) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Row reference payload exceeds 4 KiB limit');
-  }
-
-  return result;
+  if (!validateRowRef(rowRef)) throw cursorError();
+  return seal('row-ref', rowRef, key);
 }
 
 export function decodeRowRef(input: {
   encodedRowRef: string;
   key: string;
-  expected: {
-    targetId: DatabaseTargetId;
-    schema: string;
-    relation: string;
-    checksum: string;
-  };
+  expected: Context;
+  now?: () => Date;
 }): RowRefData {
-  if (
-    !input.encodedRowRef ||
-    typeof input.encodedRowRef !== 'string' ||
-    Buffer.byteLength(input.encodedRowRef, 'utf8') > MAX_CURSOR_BYTES
-  ) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Invalid row reference format or length');
-  }
-
-  const parts = input.encodedRowRef.split('.');
-  if (parts.length !== 2) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Malformed row reference structure');
-  }
-
-  const encodedPayload = parts[0];
-  const signature = parts[1];
-  if (!encodedPayload || !signature) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Malformed row reference structure');
-  }
-  if (!verifySignature(encodedPayload, signature, input.key)) {
-    throw makeExplorerError(
-      'DATABASE_CURSOR_INVALID',
-      'Row reference signature verification failed'
-    );
-  }
-
-  let rowRef: RowRefData;
-  try {
-    const json = Buffer.from(encodedPayload, 'base64url').toString('utf8');
-    rowRef = JSON.parse(json);
-  } catch (error) {
-    captureOpsException(error, {
-      code: 'UNHANDLED_OPS_EXCEPTION',
-      source: 'job',
-      status: 500
-    });
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Row reference JSON decoding failed');
-  }
-
-  if (rowRef.version !== 1) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Unsupported row reference version');
-  }
-
-  if (
-    rowRef.targetId !== input.expected.targetId ||
-    rowRef.schema !== input.expected.schema ||
-    rowRef.relation !== input.expected.relation ||
-    rowRef.checksum !== input.expected.checksum
-  ) {
-    throw makeExplorerError('DATABASE_CURSOR_INVALID', 'Row reference context mismatch');
-  }
-
+  const rowRef = open({
+    token: input.encodedRowRef,
+    kind: 'row-ref',
+    key: input.key,
+    expected: input.expected
+  });
+  if (!validateRowRef(rowRef)) throw cursorError();
+  assertNotExpired(rowRef, (input.now ?? (() => new Date()))());
+  assertContextMatches(rowRef, input.expected);
   return rowRef;
 }

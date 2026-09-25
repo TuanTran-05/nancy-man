@@ -28,7 +28,8 @@ export async function readRelatedRows(input: ReadRelatedRowsInput): Promise<Data
       schema: request.schema,
       relation: request.relation,
       checksum: snapshot.checksum
-    }
+    },
+    ...(now ? { now } : {})
   });
 
   const edge = snapshot.edges.find((e) => e.constraint === request.constraint);

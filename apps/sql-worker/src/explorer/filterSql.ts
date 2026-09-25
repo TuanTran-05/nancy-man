@@ -167,6 +167,10 @@ export function buildRowsQuery(input: BuildRowsQueryInput): BuildRowsQueryResult
     );
   }
 
+  if (!relationObj.dataAvailable) {
+    throw makeExplorerError('DATABASE_DATA_PERMISSION_DENIED');
+  }
+
   const selectableCols = relationObj.columns.filter(
     (c) => c.selectable && c.classification !== 'blocked'
   );
@@ -227,7 +231,7 @@ export function buildRowsQuery(input: BuildRowsQueryInput): BuildRowsQueryResult
   const orderItems: string[] = [];
   if (input.sort) {
     const dir = input.sort.direction.toUpperCase();
-    orderItems.push(`${quoteIdentifier(input.sort.column)} ${dir}`);
+    orderItems.push(`${quoteIdentifier(input.sort.column)} ${dir} NULLS LAST`);
   }
 
   // If there's a pagination key, append its columns for deterministic tie-breaking
@@ -236,7 +240,7 @@ export function buildRowsQuery(input: BuildRowsQueryInput): BuildRowsQueryResult
     const dir = input.sort?.direction ? input.sort.direction.toUpperCase() : 'ASC';
     for (const pkCol of relationObj.paginationKey) {
       if (pkCol !== sortColName) {
-        orderItems.push(`${quoteIdentifier(pkCol)} ${dir}`);
+        orderItems.push(`${quoteIdentifier(pkCol)} ${dir} NULLS LAST`);
       }
     }
   }
@@ -252,10 +256,7 @@ export function buildRowsQuery(input: BuildRowsQueryInput): BuildRowsQueryResult
   // Offset if offset pagination
   if (input.offset !== undefined && input.offset > 0) {
     if (input.offset > 10_000) {
-      throw makeExplorerError(
-        'Offset pagination is limited to at most 10,000 rows',
-        'DATABASE_PAGE_TOO_LARGE'
-      );
+      throw makeExplorerError('DATABASE_PAGE_TOO_LARGE');
     }
     const offsetPlaceholder = `$${nextParamIndex}`;
     queryText += ` OFFSET ${offsetPlaceholder}`;

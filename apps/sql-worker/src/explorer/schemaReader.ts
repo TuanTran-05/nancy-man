@@ -14,7 +14,7 @@ import {
 } from '../../../../packages/security/src/database/columnPolicy.js';
 import type { AvailableTargetEntry } from '../database/targetRegistry.js';
 import { readProductionSchema } from '../schema/introspectSchema.js';
-import { assertPolicyApproved, type DatabasePolicyApproval } from './policyApproval.js';
+import type { DatabasePolicyApproval } from './policyApproval.js';
 
 const TEXT_TYPES = new Set([
   'text',
@@ -64,10 +64,16 @@ const TEMPORAL_TYPES = new Set([
 
 const BOOLEAN_TYPES = new Set(['bool', 'boolean']);
 
-function getFilterOperators(dataType: string, classification: string): DatabaseFilterOperator[] {
+function getFilterOperators(
+  dataType: string,
+  classification: string,
+  isEnum: boolean
+): DatabaseFilterOperator[] {
   if (classification === 'blocked') {
     return [];
   }
+
+  if (isEnum) return ['eq', 'neq', 'is_null', 'is_not_null'];
 
   const baseType = dataType
     .toLowerCase()
@@ -90,16 +96,35 @@ function getFilterOperators(dataType: string, classification: string): DatabaseF
   return ['is_null', 'is_not_null'];
 }
 
+type CachedSchema = { expiresAt: number; snapshot: DatabaseExplorerSchemaSnapshot };
+type SchemaCache = Map<string, CachedSchema>;
+const targetSchemaCaches = new Map<string, Set<SchemaCache>>();
+
+function targetCacheKey(
+  target: Pick<AvailableTargetEntry, 'id' | 'role' | 'databaseName'>
+): string {
+  return `${target.id}\u0000${target.role}\u0000${target.databaseName}\u0000${DATABASE_POLICY_VERSION}`;
+}
+
+export function invalidateExplorerSchemaCache(
+  target: Pick<AvailableTargetEntry, 'id' | 'role' | 'databaseName'>
+): void {
+  for (const cache of targetSchemaCaches.get(targetCacheKey(target)) ?? []) cache.clear();
+}
+
 export function createExplorerSchemaReader(input: {
   target: AvailableTargetEntry;
   getPolicyApproval?: () => DatabasePolicyApproval | undefined;
   now?: () => Date;
   cacheTtlMs?: number;
 }): () => Promise<DatabaseExplorerSchemaSnapshot> {
-  const cache = new Map<string, { expiresAt: number; snapshot: DatabaseExplorerSchemaSnapshot }>();
-  const cacheKey = `${input.target.id}\u0000${input.target.role}\u0000${input.target.databaseName}\u0000${DATABASE_POLICY_VERSION}`;
+  const cache: SchemaCache = new Map();
+  const cacheKey = targetCacheKey(input.target);
+  const registeredCaches = targetSchemaCaches.get(cacheKey) ?? new Set<SchemaCache>();
+  registeredCaches.add(cache);
+  targetSchemaCaches.set(cacheKey, registeredCaches);
   const now = input.now ?? (() => new Date());
-  const cacheTtlMs = input.cacheTtlMs ?? 60_000;
+  const cacheTtlMs = Math.min(input.cacheTtlMs ?? 60_000, 60_000);
 
   return async () => {
     const cached = cache.get(cacheKey);
@@ -122,16 +147,12 @@ export function createExplorerSchemaReader(input: {
 
     try {
       const baseSnapshot = await readProductionSchema({ database: connection });
-
-      // Approval check
-      if (input.getPolicyApproval) {
-        const approval = input.getPolicyApproval();
-        assertPolicyApproved({
-          targetId: input.target.id,
-          liveChecksum: baseSnapshot.checksum,
-          ...(approval ? { approval } : {})
-        });
-      }
+      const approval = input.getPolicyApproval?.();
+      const policyApproved = Boolean(
+        approval &&
+        approval.version === DATABASE_POLICY_VERSION &&
+        approval.targets?.[input.target.id] === baseSnapshot.checksum
+      );
 
       // Query estimated rows
       const schemaNames = baseSnapshot.schemas.map((s) => s.name);
@@ -175,6 +196,35 @@ export function createExplorerSchemaReader(input: {
           `${row.schemaName}\u0000${row.relationName}`,
           Number.isFinite(val) ? val : 0
         );
+      }
+
+      const enumColumnKeys = new Set<string>();
+      if (schemaNames.length > 0) {
+        const enumColumns = await connection.query<{
+          schemaName: string;
+          relationName: string;
+          columnName: string;
+        }>(
+          `
+          /* catalog:enum_columns */
+          SELECT
+            namespace.nspname AS "schemaName",
+            relation.relname AS "relationName",
+            attribute.attname AS "columnName"
+          FROM pg_catalog.pg_attribute AS attribute
+          JOIN pg_catalog.pg_class AS relation ON relation.oid = attribute.attrelid
+          JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+          JOIN pg_catalog.pg_type AS enum_type ON enum_type.oid = attribute.atttypid
+          WHERE namespace.nspname = ANY($1::text[])
+            AND relation.relkind IN ('r', 'p', 'v', 'm', 'f')
+            AND attribute.attnum > 0 AND NOT attribute.attisdropped
+            AND enum_type.typtype = 'e'
+          `,
+          [schemaNames]
+        );
+        for (const row of enumColumns.rows) {
+          enumColumnKeys.add(`${row.schemaName}\u0000${row.relationName}\u0000${row.columnName}`);
+        }
       }
 
       // Foreign key edges
@@ -249,7 +299,7 @@ export function createExplorerSchemaReader(input: {
           }
 
           // Data available
-          const dataAvailable = relation.kind !== 'foreign_table';
+          const dataAvailable = relation.kind !== 'foreign_table' && policyApproved;
 
           // Estimated rows
           const estimatedRows =
@@ -257,14 +307,20 @@ export function createExplorerSchemaReader(input: {
 
           // Columns
           const columns: DatabaseExplorerColumn[] = relation.columns.map((col) => {
-            const classification = classifyColumn({
-              targetId: input.target.id,
-              schema: schema.name,
-              relation: relation.name,
-              column: col.name
-            });
+            const classification = policyApproved
+              ? classifyColumn({
+                  targetId: input.target.id,
+                  schema: schema.name,
+                  relation: relation.name,
+                  column: col.name
+                })
+              : 'blocked';
             const selectable = classification !== 'blocked';
-            const filterOperators = getFilterOperators(col.dataType, classification);
+            const filterOperators = getFilterOperators(
+              col.dataType,
+              classification,
+              enumColumnKeys.has(`${schema.name}\u0000${relation.name}\u0000${col.name}`)
+            );
 
             return {
               name: col.name,
@@ -278,6 +334,16 @@ export function createExplorerSchemaReader(input: {
               filterOperators
             };
           });
+
+          if (
+            paginationKey &&
+            paginationKey.some(
+              (keyColumn) =>
+                !columns.some((column) => column.name === keyColumn && column.selectable)
+            )
+          ) {
+            paginationKey = null;
+          }
 
           return {
             name: relation.name,

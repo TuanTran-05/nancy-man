@@ -29,6 +29,7 @@ import { createSqlWorkerCommandHandler } from './commandHandler.js';
 import { createExpiringNonceStore } from './nonceStore.js';
 import type { DatabaseTargetId } from '../../../../packages/contracts/src/databaseExplorer.js';
 import { createTargetRegistry, type TargetEntry } from '../database/targetRegistry.js';
+import { isValidCursorKey } from '../explorer/cursorCodec.js';
 import type { DatabaseTargetConfig, SqlWorkerRuntimeConfig } from './runtimeConfig.js';
 import { readSqlWorkerRuntimeConfig } from './runtimeConfig.js';
 
@@ -149,7 +150,9 @@ export async function resolveSqlWorkerCredentials(input: {
   let explorer: ExplorerCredentials = { enabled: false };
   if (input.config.explorer.enabled) {
     const cursorKey = await input.resolveSecret(input.config.explorer.cursorKeyReference);
-    if (!cursorKey) throw new Error('SQL worker runtime credentials are unavailable');
+    if (!isValidCursorKey(cursorKey)) {
+      throw new Error('SQL worker runtime credentials are unavailable');
+    }
     const policyApproval = await input.resolveSecret(input.config.explorer.policyApprovalReference);
     if (!policyApproval) throw new Error('SQL worker runtime credentials are unavailable');
 

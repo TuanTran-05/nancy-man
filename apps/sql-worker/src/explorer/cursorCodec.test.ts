@@ -10,10 +10,10 @@ import {
 } from './cursorCodec.js';
 
 describe('cursorCodec', () => {
-  const testKey = '01234567890123456789012345678901'; // 32 bytes
-  const wrongKey = 'wrongkeywrongkeywrongkeywrongkey';
+  const testKey = Buffer.alloc(32, 11).toString('base64');
+  const wrongKey = Buffer.alloc(32, 12).toString('base64');
 
-  const baseKeysetCursor: KeysetCursorData = {
+  const baseKeysetCursor = {
     version: 1,
     kind: 'keyset',
     targetId: 'edutrack_production',
@@ -23,8 +23,9 @@ describe('cursorCodec', () => {
     issuedAt: 1000,
     expiresAt: 1000 + 5 * 60 * 1000,
     keys: [{ column: 'id', value: 'std_100' }],
-    sort: { column: 'email', direction: 'asc' }
-  };
+    sort: { column: 'email', direction: 'asc' },
+    nullOrder: 'last'
+  } as KeysetCursorData & { nullOrder: 'last' };
 
   const expectedContext = {
     targetId: 'edutrack_production' as const,
@@ -48,8 +49,36 @@ describe('cursorCodec', () => {
     expect(decoded).toEqual(baseKeysetCursor);
   });
 
+  it('keeps sort values and row-reference foreign-key values confidential', () => {
+    const sortMarker = 'known-sort-value-7b2c';
+    const fkMarker = 'known-foreign-key-value-1e9a';
+    const cursor = encodeCursor(
+      { ...baseKeysetCursor, keys: [{ column: 'email', value: sortMarker }] },
+      testKey
+    );
+    const rowRef = encodeRowRef(
+      {
+        version: 1,
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'students',
+        checksum: 'mock_checksum_123',
+        issuedAt: 1000,
+        expiresAt: 301_000,
+        keys: { student_id: fkMarker }
+      } as RowRefData,
+      testKey
+    );
+    const decodedSegments = [cursor, rowRef]
+      .flatMap((token) => token.split('.'))
+      .map((segment) => Buffer.from(segment, 'base64url').toString('utf8'));
+
+    expect(decodedSegments.join('\n')).not.toContain(sortMarker);
+    expect(decodedSegments.join('\n')).not.toContain(fkMarker);
+  });
+
   it('encodes and decodes offset cursor successfully', () => {
-    const offsetCursor: OffsetCursorData = {
+    const offsetCursor = {
       version: 1,
       kind: 'offset',
       targetId: 'ops',
@@ -58,8 +87,10 @@ describe('cursorCodec', () => {
       checksum: 'ops_checksum_456',
       issuedAt: 2000,
       expiresAt: 2000 + 5 * 60 * 1000,
-      offset: 50
-    };
+      offset: 50,
+      sort: null,
+      nullOrder: 'last'
+    } as OffsetCursorData & { sort: null; nullOrder: 'last' };
 
     const encoded = encodeCursor(offsetCursor, testKey);
     const decoded = decodeCursor({
@@ -118,6 +149,59 @@ describe('cursorCodec', () => {
     ).toThrowError(/DATABASE_CURSOR_INVALID/);
   });
 
+  it('rejects a row reference after its five-minute expiry', () => {
+    const rowRef = encodeRowRef(
+      {
+        version: 1,
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'students',
+        checksum: 'mock_checksum_123',
+        issuedAt: 1000,
+        expiresAt: 301_000,
+        keys: { id: 'std_123' }
+      } as RowRefData,
+      testKey
+    );
+
+    expect(() =>
+      decodeRowRef({ encodedRowRef: rowRef, key: testKey, expected: expectedContext })
+    ).toThrowError(/DATABASE_CURSOR_INVALID/);
+  });
+
+  it('rejects row references with a different key or context', () => {
+    const rowRef = encodeRowRef(
+      {
+        version: 1,
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'students',
+        checksum: 'mock_checksum_123',
+        issuedAt: 1000,
+        expiresAt: 301_000,
+        keys: { student_id: 'fk-marker' }
+      },
+      testKey
+    );
+
+    expect(() =>
+      decodeRowRef({
+        encodedRowRef: rowRef,
+        key: wrongKey,
+        expected: expectedContext,
+        now: () => new Date(61_000)
+      })
+    ).toThrowError(/DATABASE_CURSOR_INVALID/);
+    expect(() =>
+      decodeRowRef({
+        encodedRowRef: rowRef,
+        key: testKey,
+        expected: { ...expectedContext, relation: 'attendance' },
+        now: () => new Date(61_000)
+      })
+    ).toThrowError(/DATABASE_CURSOR_INVALID/);
+  });
+
   it('rejects cursor when targetId, schema, relation, or checksum mismatch', () => {
     const encoded = encodeCursor(baseKeysetCursor, testKey);
 
@@ -168,10 +252,10 @@ describe('cursorCodec', () => {
       value: 'x'.repeat(50)
     }));
 
-    const hugeCursor: KeysetCursorData = {
+    const hugeCursor = {
       ...baseKeysetCursor,
       keys: hugeKeys
-    };
+    } as KeysetCursorData & { nullOrder: 'last' };
 
     expect(() => encodeCursor(hugeCursor, testKey)).toThrowError(/DATABASE_CURSOR_INVALID/);
 
@@ -186,8 +270,28 @@ describe('cursorCodec', () => {
     ).toThrowError(/DATABASE_CURSOR_INVALID/);
   });
 
+  it('rejects row references larger than 4 KiB on encode and decode', () => {
+    const hugeRowRef = {
+      version: 1 as const,
+      ...expectedContext,
+      issuedAt: 1000,
+      expiresAt: 301_000,
+      keys: { marker: 'x'.repeat(5000) }
+    };
+
+    expect(() => encodeRowRef(hugeRowRef, testKey)).toThrowError(/DATABASE_CURSOR_INVALID/);
+    expect(() =>
+      decodeRowRef({
+        encodedRowRef: 'a'.repeat(4097),
+        key: testKey,
+        expected: expectedContext,
+        now: () => new Date(61_000)
+      })
+    ).toThrowError(/DATABASE_CURSOR_INVALID/);
+  });
+
   it('rejects offset beyond 10,000 rows with DATABASE_PAGE_TOO_LARGE', () => {
-    const excessiveOffsetCursor: OffsetCursorData = {
+    const excessiveOffsetCursor = {
       version: 1,
       kind: 'offset',
       targetId: 'edutrack_production',
@@ -196,8 +300,10 @@ describe('cursorCodec', () => {
       checksum: 'mock_checksum_123',
       issuedAt: 1000,
       expiresAt: 1000 + 5 * 60 * 1000,
-      offset: 10_001
-    };
+      offset: 10_001,
+      sort: null,
+      nullOrder: 'last'
+    } as OffsetCursorData & { sort: null; nullOrder: 'last' };
 
     const encoded = encodeCursor(excessiveOffsetCursor, testKey);
 
@@ -212,14 +318,16 @@ describe('cursorCodec', () => {
   });
 
   it('encodes and decodes rowRef successfully and rejects tampering', () => {
-    const rowRefData: RowRefData = {
+    const rowRefData = {
       version: 1,
       targetId: 'edutrack_production',
       schema: 'public',
       relation: 'students',
       checksum: 'mock_checksum_123',
+      issuedAt: 1000,
+      expiresAt: 301_000,
       keys: { id: 'std_123', school_id: 42 }
-    };
+    } as RowRefData & { issuedAt: number; expiresAt: number };
 
     const encoded = encodeRowRef(rowRefData, testKey);
     expect(typeof encoded).toBe('string');
@@ -227,7 +335,8 @@ describe('cursorCodec', () => {
     const decoded = decodeRowRef({
       encodedRowRef: encoded,
       key: testKey,
-      expected: expectedContext
+      expected: expectedContext,
+      now: () => new Date(61_000)
     });
 
     expect(decoded).toEqual(rowRefData);
@@ -237,7 +346,8 @@ describe('cursorCodec', () => {
       decodeRowRef({
         encodedRowRef: encoded.slice(0, -4) + 'zzzz',
         key: testKey,
-        expected: expectedContext
+        expected: expectedContext,
+        now: () => new Date(61_000)
       })
     ).toThrowError(/DATABASE_CURSOR_INVALID/);
   });
