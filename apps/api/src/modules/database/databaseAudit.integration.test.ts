@@ -176,6 +176,7 @@ describe('Database Explorer Audit Integration', () => {
         expiresAt: '2026-09-25T12:10:00.000Z',
         reusable: true
       }),
+      activateDatabasePiiGrant: async () => true,
       revokeDatabasePii: async () => 1,
       revokeSessionDatabasePii: async () => undefined,
       grant: async () => ({

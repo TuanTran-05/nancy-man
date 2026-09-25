@@ -84,8 +84,8 @@ export class PostgresStepUpRepository implements StepUpRepository {
       `
         INSERT INTO ops_secret_elevations (
           id, capability, user_id, session_id, ip_hash, user_agent_hash,
-          subject_digest, granted_at, expires_at, reusable
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          subject_digest, granted_at, expires_at, reusable, audit_completed_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL)
         RETURNING id
       `,
       [
@@ -112,6 +112,7 @@ export class PostgresStepUpRepository implements StepUpRepository {
         WHERE id = $1 AND capability = $2 AND user_id = $3 AND session_id = $4
           AND ip_hash = $5 AND user_agent_hash = $6
           AND COALESCE(subject_digest, '') = COALESCE($7, '')
+          AND ($2 <> 'database_pii' OR audit_completed_at IS NOT NULL)
           AND revoked_at IS NULL AND consumed_at IS NULL AND expires_at > now()
         RETURNING id, capability, user_id AS "userId", session_id AS "sessionId",
           ip_hash AS "ipHash", user_agent_hash AS "userAgentHash",
@@ -141,6 +142,7 @@ export class PostgresStepUpRepository implements StepUpRepository {
         WHERE capability = $1 AND user_id = $2 AND session_id = $3
           AND ip_hash = $4 AND user_agent_hash = $5 AND subject_digest = $6
           AND reusable IS TRUE AND consumed_at IS NULL AND revoked_at IS NULL
+          AND audit_completed_at IS NOT NULL
           AND expires_at > now()
         RETURNING id, capability, user_id AS "userId", session_id AS "sessionId",
           ip_hash AS "ipHash", user_agent_hash AS "userAgentHash",
@@ -158,6 +160,38 @@ export class PostgresStepUpRepository implements StepUpRepository {
       ]
     );
     return rows[0] ?? null;
+  }
+
+  async activateDatabasePiiGrant(input: {
+    grantId: string;
+    capability: 'database_pii';
+    userId: string;
+    sessionId: string;
+    ipHash: string;
+    userAgentHash: string;
+    subjectDigest: string;
+  }): Promise<boolean> {
+    const { rows } = await this.database.query<{ id: string }>(
+      `
+        UPDATE ops_secret_elevations
+        SET audit_completed_at = now()
+        WHERE id = $1 AND capability = $2 AND user_id = $3 AND session_id = $4
+          AND ip_hash = $5 AND user_agent_hash = $6 AND subject_digest = $7
+          AND reusable IS TRUE AND audit_completed_at IS NULL
+          AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+        RETURNING id
+      `,
+      [
+        input.grantId,
+        input.capability,
+        input.userId,
+        input.sessionId,
+        input.ipHash,
+        input.userAgentHash,
+        input.subjectDigest
+      ]
+    );
+    return rows.length > 0;
   }
 
   async revokeDatabasePii(input: {

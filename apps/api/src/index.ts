@@ -80,7 +80,13 @@ export function createOpsApi(input: {
   }
 
   const errorHandler: ErrorRequestHandler = (error, request, response, next) => {
-    if (error && typeof error === 'object' && 'type' in error) {
+    const databaseExplorerPath =
+      request.path === '/api/v1/database/targets' ||
+      request.path === '/api/v1/database/pii-reveal' ||
+      /^\/api\/v1\/database\/[^/]+\/schema$/u.test(request.path) ||
+      /^\/api\/v1\/database\/[^/]+\/rows\/query$/u.test(request.path) ||
+      /^\/api\/v1\/database\/[^/]+\/relations\/query$/u.test(request.path);
+    if (databaseExplorerPath && error && typeof error === 'object' && 'type' in error) {
       const parserError = error as { type?: unknown };
       if (parserError.type === 'entity.parse.failed') {
         response.status(400).json({ code: 'INVALID_JSON' });

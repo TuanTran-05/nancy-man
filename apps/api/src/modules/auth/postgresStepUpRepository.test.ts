@@ -92,6 +92,7 @@ describe('PostgresStepUpRepository', () => {
     expect(capturedSql).toContain(
       "(capability IN ('variables_secret', 'database_pii')) AS reusable"
     );
+    expect(capturedSql).toContain("($2 <> 'database_pii' OR audit_completed_at IS NOT NULL)");
     expect(grant?.reusable).toBe(true);
   });
 
@@ -123,6 +124,7 @@ describe('PostgresStepUpRepository', () => {
     });
 
     expect(capturedSql).toContain('reusable');
+    expect(capturedSql).toContain('audit_completed_at');
     expect(parameters.at(-1)).toBe(true);
   });
 
@@ -179,7 +181,58 @@ describe('PostgresStepUpRepository', () => {
     ).resolves.toMatchObject({ id: 'grant-id', subjectDigest: 'c'.repeat(64), reusable: true });
     expect(calls[0]?.sql).toContain('subject_digest = $6');
     expect(calls[0]?.sql).toContain('user_agent_hash = $5');
+    expect(calls[0]?.sql).toContain('audit_completed_at IS NOT NULL');
     expect(calls[0]?.parameters).toEqual([
+      'database_pii',
+      'user-id',
+      'session-id',
+      'a'.repeat(64),
+      'b'.repeat(64),
+      'c'.repeat(64)
+    ]);
+  });
+
+  it('activates only the exact pending database PII grant after audit completes', async () => {
+    let capturedSql = '';
+    let parameters: readonly unknown[] = [];
+    const repository = new PostgresStepUpRepository({
+      query: async <T>(sql: string, values: readonly unknown[] = []) => {
+        capturedSql = sql;
+        parameters = values;
+        return { rows: [{ id: 'grant-id' }] as T[] };
+      }
+    });
+    const activateDatabasePiiGrant = (
+      repository as unknown as {
+        activateDatabasePiiGrant?: (input: {
+          grantId: string;
+          capability: 'database_pii';
+          userId: string;
+          sessionId: string;
+          ipHash: string;
+          userAgentHash: string;
+          subjectDigest: string;
+        }) => Promise<boolean>;
+      }
+    ).activateDatabasePiiGrant;
+
+    expect(typeof activateDatabasePiiGrant).toBe('function');
+    if (!activateDatabasePiiGrant) return;
+    await expect(
+      activateDatabasePiiGrant.call(repository, {
+        grantId: 'grant-id',
+        capability: 'database_pii',
+        userId: 'user-id',
+        sessionId: 'session-id',
+        ipHash: 'a'.repeat(64),
+        userAgentHash: 'b'.repeat(64),
+        subjectDigest: 'c'.repeat(64)
+      })
+    ).resolves.toBe(true);
+    expect(capturedSql).toContain('audit_completed_at = now()');
+    expect(capturedSql).toContain('audit_completed_at IS NULL');
+    expect(parameters).toEqual([
+      'grant-id',
       'database_pii',
       'user-id',
       'session-id',
@@ -226,7 +279,9 @@ describe('PostgresStepUpRepository', () => {
     });
     expect(calls[0]?.sql).toContain('capability = $1');
     expect(calls[0]?.sql).toContain('($6::char(64) IS NULL OR subject_digest = $6)');
+    expect(calls[0]?.sql).not.toContain('audit_completed_at IS NOT NULL');
     expect(calls[1]?.sql).toContain('session_id = $1');
     expect(calls[1]?.sql).toContain("capability = 'database_pii'");
+    expect(calls[1]?.sql).not.toContain('audit_completed_at IS NOT NULL');
   });
 });

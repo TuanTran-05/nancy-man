@@ -44,6 +44,10 @@ describe('schema view audit limiting', () => {
 
     await service.getSchema(input);
     await service.getSchema(input);
+    await service.getSchema({
+      ...input,
+      actor: { ...actor, sessionId: 'session-2' }
+    });
     expect(auditChecksums).toEqual(['a'.repeat(64)]);
 
     now = new Date('2026-09-25T12:01:00.000Z');

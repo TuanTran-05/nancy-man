@@ -46,6 +46,10 @@ export type DatabasePiiStepUpBinding = {
   subjectDigest: string;
 };
 
+export type DatabasePiiGrantActivationBinding = DatabasePiiStepUpBinding & {
+  grantId: string;
+};
+
 export type StepUpRepository = {
   findProof: (input: { userId: string; factorId: string }) => Promise<{
     passwordHash: string;
@@ -65,6 +69,7 @@ export type StepUpRepository = {
   consume: (input: StepUpBinding) => Promise<boolean>;
   revoke: (input: StepUpBinding) => Promise<void>;
   findActiveDatabasePii?: (input: DatabasePiiStepUpBinding) => Promise<StepUpGrant | null>;
+  activateDatabasePiiGrant?: (input: DatabasePiiGrantActivationBinding) => Promise<boolean>;
   revokeDatabasePii?: (input: {
     capability: 'database_pii';
     userId: string;
@@ -290,6 +295,24 @@ export class StepUpService {
       throw new StepUpError('STEP_UP_REQUIRED');
     }
     return grant;
+  }
+
+  async activateDatabasePiiGrant(input: DatabasePiiGrantActivationBinding): Promise<boolean> {
+    if (
+      !input.grantId ||
+      input.capability !== 'database_pii' ||
+      !input.userId ||
+      !input.sessionId ||
+      !input.ipHash ||
+      !input.userAgentHash ||
+      !input.subjectDigest
+    ) {
+      throw new StepUpError('STEP_UP_REQUIRED');
+    }
+    if (!this.input.repository.activateDatabasePiiGrant) {
+      throw new StepUpError('STEP_UP_INVALID');
+    }
+    return this.input.repository.activateDatabasePiiGrant(input);
   }
 
   async revokeDatabasePii(input: {

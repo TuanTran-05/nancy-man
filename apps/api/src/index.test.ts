@@ -99,6 +99,39 @@ describe('createOpsApi', () => {
     expect(serviceCalled).toBe(false);
   });
 
+  it.each([
+    ['/api/v1/auth/login', '{invalid'],
+    ['/api/v1/auth/login', JSON.stringify({ identifier: 'operator', password: 'x'.repeat(9_000) })],
+    ['/api/v1/sql/classify', '{invalid'],
+    ['/api/v1/sql/classify', JSON.stringify({ sql: 'x'.repeat(75_000) })]
+  ])(
+    'preserves the existing parser error response for non-Database routes: %s',
+    async (path, body) => {
+      const app = createOpsApi({
+        ingest: unusedIngest,
+        auth: {
+          service: {
+            beginLogin: async () => ({ status: 'denied' as const }),
+            completeTotpLogin: async () => ({ status: 'denied' as const })
+          },
+          hashClientIp: () => 'b'.repeat(64)
+        },
+        sql: {
+          authorize: async () => null,
+          worker: { command: async () => ({ ok: false, error: { code: 'UNUSED' } }) }
+        }
+      });
+
+      const response = await request(app)
+        .post(path)
+        .set('content-type', 'application/json')
+        .send(body);
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ accepted: false, code: 'INTERNAL_ERROR' });
+    }
+  );
+
   it('exposes a health check, disables framework disclosure and does not trust arbitrary proxies by default', async () => {
     const app = createOpsApi({
       ingest: {

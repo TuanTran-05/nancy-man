@@ -137,6 +137,7 @@ export const opsSecretElevations = pgTable(
     grantedAt: timestamp('granted_at', { withTimezone: true }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    auditCompletedAt: timestamp('audit_completed_at', { withTimezone: true }),
     consumedAt: timestamp('consumed_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     reusable: boolean('reusable').default(false).notNull()
@@ -154,6 +155,7 @@ export const opsSecretElevations = pgTable(
       )
       .where(
         sql`${table.capability} = 'database_pii' AND ${table.reusable} IS TRUE
+          AND ${table.auditCompletedAt} IS NOT NULL
           AND ${table.consumedAt} IS NULL AND ${table.revokedAt} IS NULL`
       )
   ]

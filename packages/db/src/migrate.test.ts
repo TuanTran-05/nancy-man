@@ -65,6 +65,8 @@ describe('Ops database migration runner', () => {
       expect(migrationSql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
     }
     expect(migrationSql).toMatch(/CREATE TABLE IF NOT EXISTS ingest_envelopes/);
+    expect(migrationSql).toContain('audit_completed_at');
+    expect(migrationSql).toContain('ops_secret_elevations_database_pii_grants_binding_active_idx');
   });
 
   it('upgrades a database with pinned 0022 applied by running additive 0023', async () => {
@@ -93,6 +95,7 @@ describe('Ops database migration runner', () => {
     expect(result.appliedMigrations).toEqual(['0023_database_pii_grant_binding']);
     expect(executed.join('\n')).toContain('ops_secret_elevations');
     expect(executed.join('\n')).toContain('database_pii_grants_binding');
+    expect(executed.join('\n')).toContain('audit_completed_at');
     expect(executed.join('\n')).not.toContain(
       'DROP CONSTRAINT IF EXISTS ops_secret_elevations_capability_check'
     );

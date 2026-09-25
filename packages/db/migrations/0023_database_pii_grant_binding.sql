@@ -5,6 +5,12 @@ UPDATE ops_secret_elevations
 SET reusable = TRUE
 WHERE capability = 'database_pii' AND reusable IS FALSE;
 
+-- Database PII grants remain unusable until their grant audit entry persists.
+-- Existing 0022 grants intentionally remain pending because their audit state
+-- cannot be proven from this table alone.
+ALTER TABLE ops_secret_elevations
+  ADD COLUMN audit_completed_at timestamptz;
+
 ALTER TABLE ops_secret_elevations
   ADD CONSTRAINT ops_secret_elevations_database_pii_binding_check
   CHECK (
@@ -23,5 +29,6 @@ CREATE INDEX ops_secret_elevations_database_pii_grants_binding_active_idx
   )
   WHERE capability = 'database_pii'
     AND reusable IS TRUE
+    AND audit_completed_at IS NOT NULL
     AND consumed_at IS NULL
     AND revoked_at IS NULL;

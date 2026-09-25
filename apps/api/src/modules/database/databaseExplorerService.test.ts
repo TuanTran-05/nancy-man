@@ -138,6 +138,7 @@ describe('DatabaseExplorerService', () => {
         if (options.revokeFail) throw new Error('revoke unavailable');
         return 1;
       },
+      activateDatabasePiiGrant: async () => true,
       revokeSession: async () => undefined,
       grant: async () => ({
         id: 'grant_1',

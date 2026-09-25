@@ -170,7 +170,6 @@ export class DatabaseExplorerService {
       await this.schemaViewAuditLimiter.run(
         {
           actorUserId: input.actor.userId,
-          actorSessionId: input.actor.sessionId,
           targetId: input.targetId,
           schemaChecksum: snapshot.checksum
         },
@@ -490,6 +489,42 @@ export class DatabaseExplorerService {
         });
       }
       throw makeExplorerServiceError('DATABASE_AUDIT_UNAVAILABLE', 503);
+    }
+
+    try {
+      const activated = await this.input.stepUp.activateDatabasePiiGrant({
+        grantId: grant.id,
+        capability: 'database_pii',
+        userId: input.actor.userId,
+        sessionId: input.actor.sessionId,
+        ipHash: input.ipHash,
+        userAgentHash: input.userAgentHash,
+        subjectDigest
+      });
+      if (!activated) throw new Error('DATABASE_PII_GRANT_ACTIVATION_FAILED');
+    } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'database',
+        status: 500
+      });
+      try {
+        await this.input.stepUp.revokeDatabasePii({
+          capability: 'database_pii',
+          userId: input.actor.userId,
+          sessionId: input.actor.sessionId,
+          ipHash: input.ipHash,
+          userAgentHash: input.userAgentHash,
+          subjectDigest
+        });
+      } catch (revokeError) {
+        captureOpsException(revokeError, {
+          code: 'UNHANDLED_OPS_EXCEPTION',
+          source: 'api',
+          status: 500
+        });
+      }
+      throw makeExplorerServiceError('DATABASE_PII_GRANT_ACTIVATION_FAILED', 503);
     }
 
     return { expiresAt: grant.expiresAt };

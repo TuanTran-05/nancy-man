@@ -397,8 +397,8 @@ export function createOpsApiRuntime(input: {
               repository: sessionRepository
             }),
           revoke: async (sessionId) => {
-            await stepUpService.revokeSessionDatabasePii(sessionId);
             await sessionRepository.revokeById(sessionId, 'LOGOUT');
+            await stepUpService.revokeSessionDatabasePii(sessionId);
           }
         },
         sqlElevation: new SqlElevationService({

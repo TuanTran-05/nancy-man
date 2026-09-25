@@ -2,11 +2,11 @@ import type { DatabaseTargetId } from '../../../../../packages/contracts/src/dat
 
 export type SchemaViewAuditKey = {
   actorUserId: string;
-  actorSessionId: string;
   targetId: DatabaseTargetId;
   schemaChecksum: string;
 };
 
+// Process-local by design: production currently runs a single API runtime.
 export class SchemaViewAuditLimiter {
   private readonly lastWrittenAt = new Map<string, number>();
   private readonly pending = new Map<string, Promise<void>>();
@@ -30,12 +30,7 @@ export class SchemaViewAuditLimiter {
       if (currentTime - lastWritten >= this.windowMs) this.lastWrittenAt.delete(key);
     }
 
-    const key = JSON.stringify([
-      input.actorUserId,
-      input.actorSessionId,
-      input.targetId,
-      input.schemaChecksum
-    ]);
+    const key = JSON.stringify([input.actorUserId, input.targetId, input.schemaChecksum]);
     const lastWrittenAt = this.lastWrittenAt.get(key);
     if (lastWrittenAt !== undefined && currentTime - lastWrittenAt < this.windowMs) return;
 

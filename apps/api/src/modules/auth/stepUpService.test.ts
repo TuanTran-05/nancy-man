@@ -207,4 +207,54 @@ describe('StepUpService', () => {
       );
     }
   });
+
+  it('activates a pending database PII grant only for its full binding after audit', async () => {
+    const received: unknown[] = [];
+    const repositoryValue = repository() as StepUpRepository & {
+      activateDatabasePiiGrant?: (input: unknown) => Promise<boolean>;
+    };
+    repositoryValue.activateDatabasePiiGrant = async (input) => {
+      received.push(input);
+      return true;
+    };
+    const service = new StepUpService({ repository: repositoryValue });
+    const activate = (
+      service as unknown as {
+        activateDatabasePiiGrant?: (input: {
+          grantId: string;
+          capability: 'database_pii';
+          userId: string;
+          sessionId: string;
+          ipHash: string;
+          userAgentHash: string;
+          subjectDigest: string;
+        }) => Promise<boolean>;
+      }
+    ).activateDatabasePiiGrant;
+
+    expect(typeof activate).toBe('function');
+    if (!activate) return;
+    await expect(
+      activate.call(service, {
+        grantId: 'grant-id',
+        capability: 'database_pii',
+        userId: 'user-id',
+        sessionId: 'session-id',
+        ipHash: 'a'.repeat(64),
+        userAgentHash: 'b'.repeat(64),
+        subjectDigest: 'c'.repeat(64)
+      })
+    ).resolves.toBe(true);
+    expect(received).toEqual([
+      {
+        grantId: 'grant-id',
+        capability: 'database_pii',
+        userId: 'user-id',
+        sessionId: 'session-id',
+        ipHash: 'a'.repeat(64),
+        userAgentHash: 'b'.repeat(64),
+        subjectDigest: 'c'.repeat(64)
+      }
+    ]);
+  });
 });
