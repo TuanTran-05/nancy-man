@@ -652,6 +652,78 @@ describe('readRelatedRows', () => {
     expect((relatedSelect?.values[0] as Buffer).equals(expectedBytes)).toBe(true);
   });
 
+  it('traverses timestamp FK claims as revived Date parameters without exposing ISO text', async () => {
+    const dateMarker = '2026-09-25T12:34:56.789Z';
+    const expectedDate = new Date(dateMarker);
+    const executed: Array<{ sql: string; values: readonly unknown[] }> = [];
+    const target = createMockTarget({
+      queryHandler: async (sql, values) => {
+        executed.push({ sql, values: values ?? [] });
+        if (sql.includes('FROM "public"."attendance"')) {
+          return {
+            rows: [
+              {
+                id: 'att-date',
+                tenant_id: 'tenant-date',
+                student_id: 'student-date',
+                started_at: expectedDate
+              }
+            ]
+          };
+        }
+        return {
+          rows: [
+            {
+              id: 'student-date',
+              tenant_id: 'tenant-date',
+              email: 'date@example.test',
+              started_at: expectedDate
+            }
+          ]
+        };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(target);
+    addSelectableColumn(snapshot, 'attendance', 'started_at', 'timestamp with time zone');
+    addSelectableColumn(snapshot, 'students', 'started_at', 'timestamp with time zone');
+    snapshot.edges.push({
+      constraint: 'attendance_started_at_fkey',
+      from: { schema: 'public', relation: 'attendance', columns: ['started_at'] },
+      to: { schema: 'public', relation: 'students', columns: ['started_at'] }
+    });
+    const sourceRows = await readDatabaseRows({
+      target,
+      snapshot,
+      cursorKey,
+      request: {
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'attendance',
+        pageSize: 25,
+        filters: [],
+        piiMode: 'masked'
+      }
+    });
+    const rowRef = sourceRows.rows[0]?.rowRef;
+
+    expect(rowRef).toBeTruthy();
+    expect(rowRef).not.toContain(dateMarker);
+    expect(sourceRows.rows[0]?.cells.started_at).toEqual({ state: 'value', value: dateMarker });
+
+    await readRelatedRows({
+      target,
+      snapshot,
+      cursorKey,
+      request: relatedRequest('attendance', rowRef!, 'attendance_started_at_fkey')
+    });
+    const relatedSelect = executed.find(({ sql }) => sql.includes('FROM "public"."students"'));
+
+    expect(relatedSelect?.sql).toContain('"started_at" = $1');
+    expect(relatedSelect?.values).toHaveLength(1);
+    expect(relatedSelect?.values[0]).toBeInstanceOf(Date);
+    expect((relatedSelect?.values[0] as Date).toISOString()).toBe(dateMarker);
+  });
+
   it('rejects a blocked target FK column before any relation SELECT', async () => {
     const relationSelects: string[] = [];
     const target = createMockTarget({

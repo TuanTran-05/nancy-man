@@ -1,9 +1,11 @@
+import { createCipheriv, hkdfSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   decodeCursor,
   decodeRowRef,
   encodeCursor,
   encodeRowRef,
+  encodeRowRefIfWithinLimit,
   type KeysetCursorData,
   type OffsetCursorData,
   type RowRefData
@@ -33,6 +35,38 @@ describe('cursorCodec', () => {
     relation: 'students',
     checksum: 'mock_checksum_123'
   };
+
+  function encodeAuthenticatedRowRefPayload(payload: unknown): string {
+    const key = Buffer.from(testKey, 'base64');
+    const encryptionKey = Buffer.from(
+      hkdfSync('sha256', key, 'database-explorer/v2', 'row-ref/v2', 32)
+    );
+    const nonce = Buffer.alloc(12, 7);
+    const aad = Buffer.from(
+      JSON.stringify([
+        'v2',
+        'row-ref',
+        expectedContext.targetId,
+        expectedContext.schema,
+        expectedContext.relation,
+        expectedContext.checksum
+      ]),
+      'utf8'
+    );
+    const cipher = createCipheriv('aes-256-gcm', encryptionKey, nonce);
+    cipher.setAAD(aad);
+    const ciphertext = Buffer.concat([
+      cipher.update(JSON.stringify(payload), 'utf8'),
+      cipher.final()
+    ]);
+    return [
+      'v2',
+      'row-ref',
+      nonce.toString('base64url'),
+      ciphertext.toString('base64url'),
+      cipher.getAuthTag().toString('base64url')
+    ].join('.');
+  }
 
   it('encodes and decodes keyset cursor successfully', () => {
     const encoded = encodeCursor(baseKeysetCursor, testKey);
@@ -75,6 +109,69 @@ describe('cursorCodec', () => {
 
     expect(decodedSegments.join('\n')).not.toContain(sortMarker);
     expect(decodedSegments.join('\n')).not.toContain(fkMarker);
+  });
+
+  it('round-trips Date claims through an encrypted canonical tag', () => {
+    const dateMarker = '2026-09-25T12:34:56.789Z';
+    const rowRef = encodeRowRef(
+      {
+        version: 1,
+        ...expectedContext,
+        issuedAt: 1000,
+        expiresAt: 301_000,
+        keys: { started_at: new Date(dateMarker) }
+      } as RowRefData,
+      testKey
+    );
+
+    expect(rowRef).not.toContain(dateMarker);
+    const decoded = decodeRowRef({
+      encodedRowRef: rowRef,
+      key: testKey,
+      expected: expectedContext,
+      now: () => new Date(61_000)
+    });
+
+    expect(decoded.keys.started_at).toBeInstanceOf(Date);
+    expect((decoded.keys.started_at as Date).toISOString()).toBe(dateMarker);
+  });
+
+  it('rejects invalid Date claims without calling an overridden toJSON', () => {
+    let toJsonCalls = 0;
+    const invalidDate = new Date(Number.NaN);
+    invalidDate.toJSON = () => {
+      toJsonCalls++;
+      return '2026-09-25T12:34:56.789Z';
+    };
+    const rowRef = {
+      version: 1 as const,
+      ...expectedContext,
+      issuedAt: 1000,
+      expiresAt: 301_000,
+      keys: { started_at: invalidDate }
+    } as RowRefData;
+
+    expect(encodeRowRefIfWithinLimit(rowRef, testKey)).toBeNull();
+    expect(toJsonCalls).toBe(0);
+  });
+
+  it('rejects authenticated rowRefs with malformed Date tags', () => {
+    const token = encodeAuthenticatedRowRefPayload({
+      version: 1,
+      ...expectedContext,
+      issuedAt: 1000,
+      expiresAt: 301_000,
+      keys: { started_at: { $databaseExplorerDateV1: '2026-09-25' } }
+    });
+
+    expect(() =>
+      decodeRowRef({
+        encodedRowRef: token,
+        key: testKey,
+        expected: expectedContext,
+        now: () => new Date(61_000)
+      })
+    ).toThrowError(/DATABASE_CURSOR_INVALID/);
   });
 
   it('encodes and decodes offset cursor successfully', () => {

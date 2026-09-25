@@ -13,6 +13,7 @@ const ENVELOPE_VERSION = 'v2';
 const TOKEN_KINDS = ['cursor', 'row-ref'] as const;
 type TokenKind = (typeof TOKEN_KINDS)[number];
 const ROW_REF_BINARY_TAG = '$databaseExplorerBinaryV1';
+const ROW_REF_DATE_TAG = '$databaseExplorerDateV1';
 const ROW_REF_PREFLIGHT_PLAINTEXT_BYTES =
   Math.floor(
     (MAX_CURSOR_BYTES -
@@ -189,10 +190,23 @@ function isRowRefScalar(value: unknown): value is null | boolean | number | stri
   );
 }
 
+function canonicalDateIso(value: Date): string | null {
+  try {
+    if (!Number.isFinite(Date.prototype.getTime.call(value))) return null;
+    return Date.prototype.toISOString.call(value);
+  } catch {
+    return null;
+  }
+}
+
+function isValidRowRefDate(value: unknown): value is Date {
+  return value instanceof Date && canonicalDateIso(value) !== null;
+}
+
 function validateRowRef(value: unknown): value is RowRefData {
   if (!validateRowRefShape(value)) return false;
   return Object.values(value.keys).every(
-    (claim) => isRowRefScalar(claim) || Buffer.isBuffer(claim)
+    (claim) => isRowRefScalar(claim) || Buffer.isBuffer(claim) || isValidRowRefDate(claim)
   );
 }
 
@@ -248,6 +262,14 @@ function jsonValueByteLength(value: unknown, maximumBytes: number): number | nul
     return maximumBytes >= bytes ? bytes : null;
   }
   if (typeof value === 'string') return jsonStringByteLength(value, maximumBytes);
+  if (value instanceof Date) {
+    const iso = canonicalDateIso(value);
+    if (iso === null) return null;
+    const tagKeyBytes = Buffer.byteLength(JSON.stringify(ROW_REF_DATE_TAG), 'utf8');
+    const dateBytes = jsonStringByteLength(iso, maximumBytes - tagKeyBytes - 3);
+    if (dateBytes === null) return null;
+    return 2 + tagKeyBytes + 1 + dateBytes;
+  }
   if (Buffer.isBuffer(value)) {
     const base64Bytes = Math.ceil(value.byteLength / 3) * 4;
     const tagBytes =
@@ -307,10 +329,17 @@ function estimateRowRefPlaintextBytes(rowRef: RowRefData): number | null {
 
 function rowRefPayloadForEncryption(rowRef: RowRefData): unknown {
   const keys = Object.fromEntries(
-    Object.entries(rowRef.keys).map(([column, claim]) => [
-      column,
-      Buffer.isBuffer(claim) ? { [ROW_REF_BINARY_TAG]: claim.toString('base64') } : claim
-    ])
+    Object.entries(rowRef.keys).map(([column, claim]) => {
+      if (Buffer.isBuffer(claim)) {
+        return [column, { [ROW_REF_BINARY_TAG]: claim.toString('base64') }];
+      }
+      if (claim instanceof Date) {
+        const iso = canonicalDateIso(claim);
+        if (iso === null) throw cursorError();
+        return [column, { [ROW_REF_DATE_TAG]: iso }];
+      }
+      return [column, claim];
+    })
   );
   return { ...rowRef, keys };
 }
@@ -325,17 +354,24 @@ function reviveRowRefPayload(value: unknown): RowRefData | null {
     }
     if (!claim || typeof claim !== 'object' || Array.isArray(claim)) return null;
     const entries = Object.entries(claim);
-    if (
-      entries.length !== 1 ||
-      entries[0]?.[0] !== ROW_REF_BINARY_TAG ||
-      typeof entries[0]?.[1] !== 'string'
-    ) {
-      return null;
+    if (entries.length !== 1 || typeof entries[0]?.[1] !== 'string') return null;
+    if (entries[0][0] === ROW_REF_BINARY_TAG) {
+      const base64 = entries[0][1];
+      const bytes = Buffer.from(base64, 'base64');
+      if (bytes.toString('base64') !== base64) return null;
+      keys[column] = bytes;
+      continue;
     }
-    const base64 = entries[0][1];
-    const bytes = Buffer.from(base64, 'base64');
-    if (bytes.toString('base64') !== base64) return null;
-    keys[column] = bytes;
+    if (entries[0][0] === ROW_REF_DATE_TAG) {
+      const iso = entries[0][1];
+      const timestamp = Date.parse(iso);
+      if (!Number.isFinite(timestamp)) return null;
+      const date = new Date(timestamp);
+      if (canonicalDateIso(date) !== iso) return null;
+      keys[column] = date;
+      continue;
+    }
+    return null;
   }
   return { ...value, keys };
 }
