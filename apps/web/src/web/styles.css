@@ -1465,3 +1465,395 @@ textarea:focus-visible {
     width: 100vw;
   }
 }
+
+/* =========================================================
+   Graph / ERD styles (Task 10)
+   ========================================================= */
+
+/* RelationshipGraph container */
+.relationship-graph-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 500px;
+  gap: 0;
+}
+
+.graph-controls-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #1e2d4a;
+  background: #0d1b2e;
+  flex-shrink: 0;
+}
+
+.graph-info {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  flex: 1;
+}
+
+.graph-canvas-wrapper {
+  flex: 1;
+  min-height: 400px;
+  background: #0b1020;
+  border-bottom: 1px solid #1e2d4a;
+}
+
+/* React Flow custom node */
+.graph-node {
+  background: #1a2744;
+  border: 1.5px solid #2d4a7a;
+  border-radius: 8px;
+  min-width: 180px;
+  max-width: 220px;
+  overflow: hidden;
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: border-color 0.15s;
+}
+
+.graph-node:hover,
+.graph-node:focus {
+  border-color: #4f80c0;
+  outline: none;
+}
+
+.graph-node--selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+}
+
+.graph-node-header {
+  padding: 7px 10px 4px;
+  border-bottom: 1px solid #1e3056;
+}
+
+.graph-node-schema {
+  display: block;
+  font-size: 0.68rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.graph-node-name {
+  display: block;
+  font-weight: 600;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+}
+
+.graph-node-columns {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.graph-node-col {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 10px;
+  gap: 6px;
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.graph-node-col--pk {
+  color: #fbbf24;
+}
+
+.graph-node-col--fk {
+  color: #60a5fa;
+}
+
+.graph-node-col--more {
+  color: #475569;
+  font-style: italic;
+}
+
+.graph-col-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-col-type {
+  color: #475569;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+/* Self-loop edge */
+.graph-edge--self .react-flow__edge-path {
+  stroke-dasharray: 5 3;
+}
+
+/* Accessible relationship table */
+.graph-a11y-details {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  border-top: 1px solid #1e2d4a;
+  padding: 4px 12px 8px;
+}
+
+.graph-a11y-details summary {
+  cursor: pointer;
+  padding: 6px 0;
+  color: #64748b;
+  user-select: none;
+}
+
+.graph-a11y-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 6px;
+  font-size: 0.78rem;
+}
+
+.graph-a11y-table th {
+  text-align: left;
+  padding: 4px 8px;
+  color: #64748b;
+  border-bottom: 1px solid #1e2d4a;
+}
+
+.graph-a11y-table td {
+  padding: 3px 8px;
+  border-bottom: 1px solid #141e33;
+  color: #94a3b8;
+}
+
+/* Empty graph state */
+.graph-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+/* FullErd container */
+.full-erd-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 600px;
+}
+
+.erd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #1e2d4a;
+  background: #0d1b2e;
+  flex-shrink: 0;
+}
+
+.erd-search-input {
+  flex: 1;
+  max-width: 320px;
+  padding: 5px 10px;
+  background: #0b1020;
+  border: 1px solid #1e3056;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.84rem;
+}
+
+.erd-search-input:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+}
+
+.erd-info {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.erd-schema-groups {
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #1e2d4a;
+  background: #0e1929;
+  flex-shrink: 0;
+}
+
+.erd-schema-label {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #1a2744;
+  color: #60a5fa;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.erd-canvas-wrapper {
+  flex: 1;
+  min-height: 480px;
+  background: #0b1020;
+  border-bottom: 1px solid #1e2d4a;
+}
+
+/* ERD custom node */
+.erd-node {
+  background: #111d35;
+  border: 1.5px solid #1e3056;
+  border-radius: 8px;
+  min-width: 180px;
+  max-width: 220px;
+  overflow: hidden;
+  font-size: 0.78rem;
+}
+
+.erd-node-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px 4px;
+  border-bottom: 1px solid #1e3056;
+  background: #1a2744;
+}
+
+.erd-node-schema {
+  font-size: 0.65rem;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.erd-node-title {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: #bfdbfe;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.erd-node-title:hover {
+  text-decoration: underline;
+  color: #60a5fa;
+}
+
+.erd-expand-btn {
+  background: none;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.erd-expand-btn:hover {
+  color: #94a3b8;
+}
+
+.erd-node-meta {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 3px 8px;
+  flex-wrap: wrap;
+}
+
+.erd-kind-badge {
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #1e3056;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.erd-pk-badge {
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #422006;
+  color: #fbbf24;
+}
+
+.erd-col-count {
+  font-size: 0.65rem;
+  color: #475569;
+  margin-left: auto;
+}
+
+.erd-node-columns {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.erd-node-col {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 8px;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.erd-node-col--pk {
+  color: #fbbf24;
+}
+
+.erd-node-col--fk {
+  color: #60a5fa;
+}
+
+.erd-col-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.erd-col-type {
+  color: #475569;
+  font-size: 0.68rem;
+  flex-shrink: 0;
+}
+
+/* ERD accessible section */
+.erd-a11y-details {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  border-top: 1px solid #1e2d4a;
+  padding: 4px 12px 8px;
+}
+
+.erd-a11y-details summary {
+  cursor: pointer;
+  padding: 6px 0;
+  color: #64748b;
+  user-select: none;
+}
+
+.erd-a11y-schema-section {
+  margin-top: 10px;
+}
+
+.erd-a11y-schema-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #60a5fa;
+  margin: 0 0 4px 0;
+}

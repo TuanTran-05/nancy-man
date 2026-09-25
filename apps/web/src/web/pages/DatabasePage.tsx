@@ -8,6 +8,8 @@ import { DataGrid } from '../features/database/DataGrid.js';
 import { CellDetailDialog } from '../features/database/CellDetailDialog.js';
 import { RelatedRowsDrawer } from '../features/database/RelatedRowsDrawer.js';
 import { PiiRevealDialog } from '../features/database/PiiRevealDialog.js';
+import { RelationshipGraph } from '../features/database/RelationshipGraph.js';
+import { FullErd } from '../features/database/FullErd.js';
 
 export type DatabasePageProps = {
   session: SessionInfo;
@@ -236,37 +238,38 @@ export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
 
             {activeTab === 'relations' && (
               <div className="relations-panel-content">
-                <h3>Quan hệ khóa ngoại của {selectedRelationName}</h3>
-                {schema?.edges.filter(
-                  (e) =>
-                    e.from.relation === selectedRelationName ||
-                    e.to.relation === selectedRelationName
-                ).length === 0 ? (
-                  <p>Không có quan hệ khóa ngoại nào được định nghĩa.</p>
+                {schema && selectedSchemaName && selectedRelationName ? (
+                  <RelationshipGraph
+                    snapshot={schema}
+                    targetId={selectedTargetId ?? ''}
+                    selectedSchema={selectedSchemaName}
+                    selectedRelation={selectedRelationName}
+                    onSelectRelation={(schema, relation) => selectRelation(schema, relation)}
+                  />
                 ) : (
-                  <ul className="relation-edges-list">
-                    {schema?.edges
-                      .filter(
-                        (e) =>
-                          e.from.relation === selectedRelationName ||
-                          e.to.relation === selectedRelationName
-                      )
-                      .map((e) => (
-                        <li key={e.constraint}>
-                          <strong>{e.constraint}</strong>: {e.from.schema}.{e.from.relation} (
-                          {e.from.columns.join(', ')}) &rarr; {e.to.schema}.{e.to.relation} (
-                          {e.to.columns.join(', ')})
-                        </li>
-                      ))}
-                  </ul>
+                  <div className="empty-state">
+                    <p>Chọn một bảng để xem quan hệ khóa ngoại.</p>
+                  </div>
                 )}
               </div>
             )}
 
             {activeTab === 'erd' && (
               <div className="erd-panel-content">
-                <h3>Toàn bộ ERD</h3>
-                <p>Tổng quan cấu trúc và liên kết của tất cả các bảng trong database.</p>
+                {schema ? (
+                  <FullErd
+                    snapshot={schema}
+                    targetId={selectedTargetId ?? ''}
+                    onSelectRelation={(schemaName, relation) => {
+                      selectRelation(schemaName, relation);
+                      setActiveTab('data');
+                    }}
+                  />
+                ) : (
+                  <div className="empty-state">
+                    <p>Chọn một target để xem ERD toàn bộ.</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
