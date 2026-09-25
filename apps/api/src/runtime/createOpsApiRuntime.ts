@@ -41,6 +41,7 @@ import {
   PostgresConfigChangeRepository,
   configFingerprint
 } from '../modules/variables/postgresConfigChangeRepository.js';
+import { DatabaseExplorerService } from '../modules/database/databaseExplorerService.js';
 
 import { type TransactionalQueryDatabase } from './poolDatabase.js';
 import { type OpsRuntimeConfig } from './runtimeConfig.js';
@@ -358,6 +359,37 @@ export function createOpsApiRuntime(input: {
         })
       : undefined;
 
+  const databaseExplorerService = sqlWorker
+    ? new DatabaseExplorerService({
+        worker: sqlWorker,
+        audit: new PostgresOpsAuditLedger({ database: input.database }),
+        stepUp: stepUpService,
+        findUserTotpFactorId: async (userId: string) => {
+          const { rows } = await input.database.query<{ id: string }>(
+            `SELECT id FROM ops_mfa_factors
+             WHERE user_id = $1 AND factor_type = 'totp' AND revoked_at IS NULL
+             ORDER BY created_at DESC LIMIT 1`,
+            [userId]
+          );
+          return rows[0]?.id ?? null;
+        },
+        getTargetSummaries: () => [
+          {
+            id: 'edutrack_production',
+            label: 'EduTrack Production',
+            status: 'available',
+            readOnly: true
+          },
+          {
+            id: 'ops',
+            label: 'Ops Database',
+            status: 'available',
+            readOnly: true
+          }
+        ]
+      })
+    : undefined;
+
   return {
     app: createOpsApi({
       ingest: { browser, server, browserCorsOrigins: input.config.browserCorsOrigins },
@@ -530,16 +562,18 @@ export function createOpsApiRuntime(input: {
           }),
         incidents: incidentStore
       },
-      ...(sqlWorker
+      ...(sqlWorker && databaseExplorerService
         ? {
             database: {
+              service: databaseExplorerService,
               authorize: (request) =>
                 authorizeOpsSession({
                   ...request,
                   sessionPepper: input.authSessionPepper,
                   repository: sessionRepository
                 }),
-              worker: sqlWorker
+              hashClientIp: (ip: string) =>
+                createHash('sha256').update(`${ip}${input.rateLimitPepper}`).digest('hex')
             },
             sql: {
               authorize: (request) =>

@@ -135,4 +135,25 @@ describe('StepUpService', () => {
       })
     ).resolves.toMatchObject({ expiresAt: '2026-08-31T12:05:00.000Z' });
   });
+
+  it('issues reusable database_pii grant valid for 10 minutes', async () => {
+    const repositoryValue = repository();
+    const service = new StepUpService({
+      repository: repositoryValue,
+      now: () => now,
+      verifyPassword: async () => true,
+      verifyTotp: () => true,
+      issueId: () => 'db-pii-grant'
+    });
+
+    const granted = await service.grant({
+      capability: 'database_pii',
+      subjectDigest: 'd'.repeat(64),
+      ...baseProof
+    });
+
+    expect(Date.parse(granted.expiresAt) - Date.parse(granted.grantedAt)).toBe(600_000);
+    expect(granted.reusable).toBe(true);
+    expect(granted.capability).toBe('database_pii');
+  });
 });

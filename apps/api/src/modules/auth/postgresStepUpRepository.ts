@@ -116,7 +116,7 @@ export class PostgresStepUpRepository implements StepUpRepository {
           subject_digest AS "subjectDigest", granted_at AS "grantedAt",
           expires_at AS "expiresAt", last_used_at AS "lastUsedAt",
           consumed_at AS "consumedAt", revoked_at AS "revokedAt",
-          (capability = 'variables_secret') AS reusable
+          (capability IN ('variables_secret', 'database_pii')) AS reusable
       `,
       [
         input.grantId,

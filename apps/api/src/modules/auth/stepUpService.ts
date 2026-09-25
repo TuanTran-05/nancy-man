@@ -5,7 +5,11 @@ import { randomUUID } from 'node:crypto';
 import { verifyTotp as verifyEncryptedTotp } from '../../../../../packages/security/src/mfa/totp.js';
 import { verifyPassword as verifyArgonPassword } from '../../../../../packages/security/src/passwords.js';
 
-export type StepUpCapability = 'accounts_write' | 'variables_secret' | 'variables_apply';
+export type StepUpCapability =
+  | 'accounts_write'
+  | 'variables_secret'
+  | 'variables_apply'
+  | 'database_pii';
 
 export type StepUpGrant = {
   id: string;
@@ -56,7 +60,8 @@ export type StepUpRepository = {
 const policies: Readonly<Record<StepUpCapability, { lifetimeMs: number; reusable: boolean }>> = {
   accounts_write: { lifetimeMs: 5 * 60 * 1_000, reusable: false },
   variables_secret: { lifetimeMs: 10 * 60 * 1_000, reusable: true },
-  variables_apply: { lifetimeMs: 5 * 60 * 1_000, reusable: false }
+  variables_apply: { lifetimeMs: 5 * 60 * 1_000, reusable: false },
+  database_pii: { lifetimeMs: 10 * 60 * 1_000, reusable: true }
 };
 
 export class StepUpError extends Error {

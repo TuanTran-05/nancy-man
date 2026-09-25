@@ -51,4 +51,47 @@ describe('PostgresStepUpRepository', () => {
     expect(sql).toContain('expires_at > now()');
     expect(sql).not.toMatch(/password_hash|encrypted_totp|cleartext/iu);
   });
+
+  it('marks database_pii elevations as reusable in authorize query', async () => {
+    let capturedSql = '';
+    const repository = new PostgresStepUpRepository({
+      query: async <T>(sql: string) => {
+        capturedSql = sql;
+        return {
+          rows: [
+            {
+              id: 'grant-id',
+              capability: 'database_pii',
+              userId: 'u1',
+              sessionId: 's1',
+              ipHash: 'a'.repeat(64),
+              userAgentHash: 'b'.repeat(64),
+              subjectDigest: 'd'.repeat(64),
+              grantedAt: '2026-09-25T00:00:00Z',
+              expiresAt: '2026-09-25T00:10:00Z',
+              lastUsedAt: null,
+              consumedAt: null,
+              revokedAt: null,
+              reusable: true
+            }
+          ] as T[]
+        };
+      }
+    });
+
+    const grant = await repository.authorize({
+      grantId: 'grant-id',
+      capability: 'database_pii',
+      userId: 'u1',
+      sessionId: 's1',
+      ipHash: 'a'.repeat(64),
+      userAgentHash: 'b'.repeat(64),
+      subjectDigest: 'd'.repeat(64)
+    });
+
+    expect(capturedSql).toContain(
+      "(capability IN ('variables_secret', 'database_pii')) AS reusable"
+    );
+    expect(grant?.reusable).toBe(true);
+  });
 });

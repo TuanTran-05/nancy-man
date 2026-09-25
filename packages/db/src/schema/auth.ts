@@ -127,7 +127,7 @@ export const opsSecretElevations = pgTable(
   {
     id: uuid('id').primaryKey(),
     capability: text('capability')
-      .$type<'accounts_write' | 'variables_secret' | 'variables_apply'>()
+      .$type<'accounts_write' | 'variables_secret' | 'variables_apply' | 'database_pii'>()
       .notNull(),
     userId: uuid('user_id').notNull(),
     sessionId: uuid('session_id').notNull(),
