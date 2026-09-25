@@ -25,6 +25,27 @@ type MutationConfiguration =
       role: string;
     };
 
+export type DatabaseTargetConfig =
+  | { enabled: false }
+  | {
+      enabled: true;
+      databaseUrlReference: string;
+      databaseName: string;
+      role: string;
+    };
+
+export type DatabaseExplorerConfig =
+  | { enabled: false }
+  | {
+      enabled: true;
+      cursorKeyReference: string;
+      policyApprovalReference: string;
+      targets: {
+        edutrack_production: DatabaseTargetConfig;
+        ops: DatabaseTargetConfig;
+      };
+    };
+
 export type SqlWorkerRuntimeConfig = {
   secretDirectory: string;
   socketPath: string;
@@ -33,6 +54,7 @@ export type SqlWorkerRuntimeConfig = {
   telemetryHmacPath?: string;
   read: ReadConfiguration;
   mutation: MutationConfiguration;
+  explorer: DatabaseExplorerConfig;
 };
 
 const credentialReference = /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/;
@@ -93,11 +115,66 @@ function mutationConfiguration(environment: Environment): MutationConfiguration 
   };
 }
 
+const ALLOWED_DATABASE_KEYS = new Set([
+  'OPS_DATABASE_EXPLORER_ENABLED',
+  'OPS_DATABASE_EDUTRACK_ENABLED',
+  'OPS_DATABASE_EDUTRACK_URL_REFERENCE',
+  'OPS_DATABASE_EDUTRACK_NAME',
+  'OPS_DATABASE_EDUTRACK_ROLE',
+  'OPS_DATABASE_OPS_ENABLED',
+  'OPS_DATABASE_OPS_URL_REFERENCE',
+  'OPS_DATABASE_OPS_NAME',
+  'OPS_DATABASE_OPS_ROLE',
+  'OPS_DATABASE_CURSOR_KEY_REFERENCE',
+  'OPS_DATABASE_POLICY_APPROVAL_REFERENCE'
+]);
+
+function targetConfiguration(
+  environment: Environment,
+  prefix: 'OPS_DATABASE_EDUTRACK' | 'OPS_DATABASE_OPS'
+): DatabaseTargetConfig {
+  const enabled = environment[`${prefix}_ENABLED`]?.trim();
+  if (enabled === 'false' || enabled === undefined) return { enabled: false };
+  if (enabled !== 'true') throw new Error(`${prefix}_ENABLED must be true or false`);
+  return {
+    enabled: true,
+    databaseUrlReference: credential(environment, `${prefix}_URL_REFERENCE`),
+    databaseName: postgresName(environment, `${prefix}_NAME`),
+    role: postgresName(environment, `${prefix}_ROLE`)
+  };
+}
+
+function explorerConfiguration(environment: Environment): DatabaseExplorerConfig {
+  const enabled = environment.OPS_DATABASE_EXPLORER_ENABLED?.trim();
+  if (enabled === 'false' || enabled === undefined) return { enabled: false };
+  if (enabled !== 'true') throw new Error('OPS_DATABASE_EXPLORER_ENABLED must be true or false');
+
+  for (const key of Object.keys(environment)) {
+    if (key.startsWith('OPS_DATABASE_') && !ALLOWED_DATABASE_KEYS.has(key)) {
+      throw new Error(`Unknown or arbitrary target environment key: ${key}`);
+    }
+  }
+
+  return {
+    enabled: true,
+    cursorKeyReference: credential(environment, 'OPS_DATABASE_CURSOR_KEY_REFERENCE'),
+    policyApprovalReference: credential(environment, 'OPS_DATABASE_POLICY_APPROVAL_REFERENCE'),
+    targets: {
+      edutrack_production: targetConfiguration(environment, 'OPS_DATABASE_EDUTRACK'),
+      ops: targetConfiguration(environment, 'OPS_DATABASE_OPS')
+    }
+  };
+}
+
 export function readSqlWorkerRuntimeConfig(environment: Environment): SqlWorkerRuntimeConfig {
   if (
     environment.OPS_PRODUCTION_READ_DATABASE_URL ||
     environment.OPS_PRODUCTION_MUTATION_DATABASE_URL ||
-    environment.OPS_SQL_WORKER_HMAC
+    environment.OPS_SQL_WORKER_HMAC ||
+    environment.OPS_DATABASE_EDUTRACK_URL ||
+    environment.OPS_DATABASE_OPS_URL ||
+    environment.OPS_DATABASE_CURSOR_KEY ||
+    environment.OPS_DATABASE_POLICY_APPROVAL
   ) {
     throw new Error('Raw production credentials are forbidden; use a credential reference instead');
   }
@@ -115,6 +192,7 @@ export function readSqlWorkerRuntimeConfig(environment: Environment): SqlWorkerR
     telemetry,
     ...(telemetryHmacPath ? { telemetryHmacPath } : {}),
     read: readConfiguration(environment),
-    mutation: mutationConfiguration(environment)
+    mutation: mutationConfiguration(environment),
+    explorer: explorerConfiguration(environment)
   };
 }

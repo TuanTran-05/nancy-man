@@ -144,4 +144,76 @@ describe('createSqlWorkerCommandHandler', () => {
 
     await expect(handler(command({ kind: 'schema.read', payload: {} }))).resolves.toBe(snapshot);
   });
+
+  it('allows ops_viewer to read schema but rejects data and related rows', async () => {
+    const viewerActor = {
+      userId: 'usr_viewer',
+      sessionId: 'ses_viewer',
+      role: 'ops_viewer' as const
+    };
+    const handler = createSqlWorkerCommandHandler({
+      read: { enabled: false },
+      explorer: {
+        enabled: true,
+        schema: async (targetId) => ({ targetId, ok: true }),
+        rows: async () => ({ rows: [] }),
+        relatedRows: async () => ({ rows: [] })
+      }
+    });
+
+    await expect(
+      handler({
+        protocolVersion: 1,
+        commandId: 'cmd_s',
+        issuedAt: new Date().toISOString(),
+        nonce: 'n1',
+        actor: viewerActor,
+        kind: 'database.schema',
+        payload: { targetId: 'ops' },
+        signature: 's'
+      })
+    ).resolves.toEqual({ targetId: 'ops', ok: true });
+
+    await expect(
+      handler({
+        protocolVersion: 1,
+        commandId: 'cmd_r',
+        issuedAt: new Date().toISOString(),
+        nonce: 'n2',
+        actor: viewerActor,
+        kind: 'database.rows',
+        payload: { targetId: 'ops' },
+        signature: 's'
+      })
+    ).rejects.toMatchObject({ code: 'DATABASE_DATA_PERMISSION_DENIED' });
+
+    await expect(
+      handler({
+        protocolVersion: 1,
+        commandId: 'cmd_rel',
+        issuedAt: new Date().toISOString(),
+        nonce: 'n3',
+        actor: viewerActor,
+        kind: 'database.relatedRows',
+        payload: { targetId: 'ops' },
+        signature: 's'
+      })
+    ).rejects.toMatchObject({ code: 'DATABASE_DATA_PERMISSION_DENIED' });
+  });
+
+  it('rejects invalid target ID in database.schema', async () => {
+    const handler = createSqlWorkerCommandHandler({
+      read: { enabled: false },
+      explorer: {
+        enabled: true,
+        schema: async () => ({}),
+        rows: async () => ({}),
+        relatedRows: async () => ({})
+      }
+    });
+
+    await expect(
+      handler(command({ kind: 'database.schema', payload: { targetId: 'invalid_target' } }))
+    ).rejects.toMatchObject({ code: 'DATABASE_TARGET_INVALID' });
+  });
 });

@@ -15,7 +15,8 @@ export async function authenticateWorkerCommand(input: {
   consumeNonce: (nonce: string) => Promise<boolean>;
   now?: Date;
 }): Promise<boolean> {
-  const isSchemaRead = input.command.kind === 'schema.read';
+  const isSchemaRead =
+    input.command.kind === 'schema.read' || input.command.kind === 'database.schema';
   const isMaintainer =
     input.command.actor.role === 'ops_maintainer' || input.command.actor.role === 'ops_owner';
   if (!isSchemaRead && !isMaintainer) return false;

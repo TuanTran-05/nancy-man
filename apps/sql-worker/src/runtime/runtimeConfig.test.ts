@@ -18,7 +18,8 @@ describe('readSqlWorkerRuntimeConfig', () => {
       hmacSecretReference: 'ops-sql-worker-hmac',
       telemetry: { enabled: false },
       read: { enabled: false },
-      mutation: { enabled: false }
+      mutation: { enabled: false },
+      explorer: { enabled: false }
     });
   });
 
@@ -42,7 +43,8 @@ describe('readSqlWorkerRuntimeConfig', () => {
         databaseName: 'edutrack_production',
         role: 'ops_production_reader'
       },
-      mutation: { enabled: false }
+      mutation: { enabled: false },
+      explorer: { enabled: false }
     });
   });
 
@@ -66,7 +68,8 @@ describe('readSqlWorkerRuntimeConfig', () => {
         databaseUrlReference: 'production-mutation-database-url',
         databaseName: 'edutrack_production',
         role: 'ops_production_mutator'
-      }
+      },
+      explorer: { enabled: false }
     });
   });
 
@@ -83,5 +86,54 @@ describe('readSqlWorkerRuntimeConfig', () => {
         OPS_PRODUCTION_MUTATION_DATABASE_URL: 'postgresql://mutator:secret@db/edutrack_production'
       })
     ).toThrow(/credential reference/i);
+  });
+
+  it('rejects raw URLs and arbitrary target environment keys', () => {
+    expect(() =>
+      readSqlWorkerRuntimeConfig({
+        ...disabledEnvironment,
+        OPS_DATABASE_EXPLORER_ENABLED: 'true',
+        OPS_DATABASE_EDUTRACK_URL: 'postgresql://leak'
+      })
+    ).toThrow(/Raw production credentials are forbidden/i);
+
+    expect(() =>
+      readSqlWorkerRuntimeConfig({
+        ...disabledEnvironment,
+        OPS_DATABASE_EXPLORER_ENABLED: 'true',
+        OPS_DATABASE_ARBITRARY_TARGET_ENABLED: 'true'
+      })
+    ).toThrow(/arbitrary target|unknown/i);
+  });
+
+  it('parses explorer config when enabled', () => {
+    expect(
+      readSqlWorkerRuntimeConfig({
+        ...disabledEnvironment,
+        OPS_DATABASE_EXPLORER_ENABLED: 'true',
+        OPS_DATABASE_CURSOR_KEY_REFERENCE: 'ops-database-cursor-key',
+        OPS_DATABASE_POLICY_APPROVAL_REFERENCE: 'ops-database-policy-approval',
+        OPS_DATABASE_EDUTRACK_ENABLED: 'true',
+        OPS_DATABASE_EDUTRACK_URL_REFERENCE: 'ops-database-edutrack-reader-url',
+        OPS_DATABASE_EDUTRACK_NAME: 'edutrack',
+        OPS_DATABASE_EDUTRACK_ROLE: 'ops_database_browser',
+        OPS_DATABASE_OPS_ENABLED: 'false'
+      }).explorer
+    ).toEqual({
+      enabled: true,
+      cursorKeyReference: 'ops-database-cursor-key',
+      policyApprovalReference: 'ops-database-policy-approval',
+      targets: {
+        edutrack_production: {
+          enabled: true,
+          databaseUrlReference: 'ops-database-edutrack-reader-url',
+          databaseName: 'edutrack',
+          role: 'ops_database_browser'
+        },
+        ops: {
+          enabled: false
+        }
+      }
+    });
   });
 });

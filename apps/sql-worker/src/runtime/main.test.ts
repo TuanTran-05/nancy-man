@@ -15,7 +15,8 @@ const disabledConfig: SqlWorkerRuntimeConfig = {
   hmacSecretReference: 'ops-sql-worker-hmac',
   telemetry: { enabled: false },
   read: { enabled: false },
-  mutation: { enabled: false }
+  mutation: { enabled: false },
+  explorer: { enabled: false }
 };
 
 describe('resolveSqlWorkerCredentials', () => {
@@ -33,7 +34,8 @@ describe('resolveSqlWorkerCredentials', () => {
     ).resolves.toEqual({
       hmacSecret: 'shared-hmac',
       read: { enabled: false },
-      mutation: { enabled: false }
+      mutation: { enabled: false },
+      explorer: { enabled: false }
     });
     expect(requested).toEqual(['ops-sql-worker-hmac']);
   });
@@ -66,7 +68,8 @@ describe('resolveSqlWorkerCredentials', () => {
         databaseName: 'edutrack_production',
         role: 'ops_production_reader'
       },
-      mutation: { enabled: false }
+      mutation: { enabled: false },
+      explorer: { enabled: false }
     });
   });
 
@@ -98,7 +101,8 @@ describe('resolveSqlWorkerCredentials', () => {
           'postgresql://mutator:secret@db.internal/edutrack_production?sslmode=verify-full',
         databaseName: 'edutrack_production',
         role: 'ops_production_mutator'
-      }
+      },
+      explorer: { enabled: false }
     });
   });
 });
@@ -383,6 +387,134 @@ describe('startOpsSqlWorker', () => {
       await rm(directory, { recursive: true, force: true });
     }
     expect(ended).toBe(true);
+  });
+
+  it('serves ops schema when edutrack target is unavailable, without fallback', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'ops-sql-worker-'));
+    const socketPath = join(directory, 'worker.sock');
+    let opsPoolClosed = false;
+
+    const worker = await startOpsSqlWorker({
+      environment: {
+        ...disabledEnvironment(socketPath),
+        OPS_DATABASE_EXPLORER_ENABLED: 'true',
+        OPS_DATABASE_CURSOR_KEY_REFERENCE: 'cursor-key-ref',
+        OPS_DATABASE_POLICY_APPROVAL_REFERENCE: 'policy-approval-ref',
+        OPS_DATABASE_EDUTRACK_ENABLED: 'true',
+        OPS_DATABASE_EDUTRACK_URL_REFERENCE: 'edutrack-url-ref',
+        OPS_DATABASE_EDUTRACK_NAME: 'edutrack',
+        OPS_DATABASE_EDUTRACK_ROLE: 'ops_database_browser',
+        OPS_DATABASE_OPS_ENABLED: 'true',
+        OPS_DATABASE_OPS_URL_REFERENCE: 'ops-url-ref',
+        OPS_DATABASE_OPS_NAME: 'edutrack_ops',
+        OPS_DATABASE_OPS_ROLE: 'ops_database_browser'
+      },
+      resolveSecret: async (ref) => {
+        if (ref === 'ops-sql-worker-hmac') return 'shared-hmac';
+        if (ref === 'cursor-key-ref') return 'a'.repeat(32);
+        if (ref === 'policy-approval-ref') return '{}';
+        if (ref === 'edutrack-url-ref')
+          return 'postgresql://reader:secret@edutrack-broken/edutrack?sslmode=verify-full';
+        if (ref === 'ops-url-ref')
+          return 'postgresql://reader:secret@ops-db/edutrack_ops?sslmode=verify-full';
+        return null;
+      },
+      createExplorerPool: (targetId, url) => {
+        if (targetId === 'edutrack_production') {
+          return {
+            query: async () => {
+              throw new Error('connection refused to edutrack');
+            },
+            connect: async () => {
+              throw new Error('connection refused to edutrack');
+            },
+            end: async () => undefined
+          };
+        }
+        return {
+          query: async <T>() => ({
+            rows: [
+              {
+                role: 'ops_database_browser',
+                database: 'edutrack_ops',
+                defaultTransactionReadOnly: 'on'
+              }
+            ] as T[]
+          }),
+          connect: async () => ({
+            query: async <T>() => ({ rows: [] as T[] }),
+            release: () => undefined
+          }),
+          end: async () => {
+            opsPoolClosed = true;
+          }
+        };
+      }
+    });
+
+    try {
+      // Query Ops target schema -> should succeed
+      const opsCmd = {
+        protocolVersion: 1 as const,
+        commandId: 'cmd_ops',
+        issuedAt: new Date().toISOString(),
+        nonce: 'nonce_ops_0123456789',
+        actor: { userId: 'u1', sessionId: 's1', role: 'ops_maintainer' as const },
+        kind: 'database.schema' as const,
+        payload: { targetId: 'ops' }
+      };
+      const signedOps = { ...opsCmd, signature: signWorkerCommand(opsCmd, 'shared-hmac') };
+
+      const opsResponse = await new Promise<unknown>((resolve, reject) => {
+        const socket = createConnection(socketPath);
+        const decoder = new FrameDecoder();
+        socket.on('connect', () => socket.write(encodeFrame(signedOps)));
+        socket.on('data', (chunk) => {
+          const [value] = decoder.push(chunk);
+          if (value) {
+            socket.end();
+            resolve(value);
+          }
+        });
+        socket.on('error', reject);
+      });
+      expect(opsResponse).toMatchObject({ ok: true, result: { targetId: 'ops' } });
+
+      // Query EduTrack target schema -> should fail with error without falling back to Ops
+      const eduCmd = {
+        protocolVersion: 1 as const,
+        commandId: 'cmd_edu',
+        issuedAt: new Date().toISOString(),
+        nonce: 'nonce_edu_0123456789',
+        actor: { userId: 'u1', sessionId: 's1', role: 'ops_maintainer' as const },
+        kind: 'database.schema' as const,
+        payload: { targetId: 'edutrack_production' }
+      };
+      const signedEdu = { ...eduCmd, signature: signWorkerCommand(eduCmd, 'shared-hmac') };
+
+      const eduResponse = await new Promise<unknown>((resolve, reject) => {
+        const socket = createConnection(socketPath);
+        const decoder = new FrameDecoder();
+        socket.on('connect', () => socket.write(encodeFrame(signedEdu)));
+        socket.on('data', (chunk) => {
+          const [value] = decoder.push(chunk);
+          if (value) {
+            socket.end();
+            resolve(value);
+          }
+        });
+        socket.on('error', reject);
+      });
+      expect(eduResponse).toMatchObject({
+        ok: false,
+        error: { code: 'DATABASE_TARGET_UNAVAILABLE' }
+      });
+    } finally {
+      await worker.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+
+    expect(opsPoolClosed).toBe(true);
   });
 });
 

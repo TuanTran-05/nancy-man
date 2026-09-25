@@ -27,8 +27,31 @@ import { createProductionSchemaReader } from '../schema/introspectSchema.js';
 import { startWorkerProtocolServer } from '../protocol/server.js';
 import { createSqlWorkerCommandHandler } from './commandHandler.js';
 import { createExpiringNonceStore } from './nonceStore.js';
-import type { SqlWorkerRuntimeConfig } from './runtimeConfig.js';
+import type { DatabaseTargetId } from '../../../../packages/contracts/src/databaseExplorer.js';
+import { createTargetRegistry, type TargetEntry } from '../database/targetRegistry.js';
+import type { DatabaseTargetConfig, SqlWorkerRuntimeConfig } from './runtimeConfig.js';
 import { readSqlWorkerRuntimeConfig } from './runtimeConfig.js';
+
+type TargetCredentials =
+  | { enabled: false }
+  | {
+      enabled: true;
+      databaseUrl: string;
+      databaseName: string;
+      role: string;
+    };
+
+type ExplorerCredentials =
+  | { enabled: false }
+  | {
+      enabled: true;
+      cursorKey: string;
+      policyApproval: string;
+      targets: {
+        edutrack_production: TargetCredentials;
+        ops: TargetCredentials;
+      };
+    };
 
 type SqlWorkerCredentials = {
   hmacSecret: string;
@@ -48,6 +71,7 @@ type SqlWorkerCredentials = {
         databaseName: string;
         role: string;
       };
+  explorer: ExplorerCredentials;
 };
 
 type ProductionReadPool = {
@@ -85,6 +109,15 @@ function createProductionMutationPool(databaseUrl: string): ProductionMutationPo
   });
 }
 
+function createExplorerTargetPool(targetId: string, databaseUrl: string): ProductionReadPool {
+  return new Pool({
+    connectionString: databaseUrl,
+    application_name: `edutrack-ops-database-explorer:${targetId}`,
+    max: 2,
+    idleTimeoutMillis: 30_000
+  });
+}
+
 export async function resolveSqlWorkerCredentials(input: {
   config: SqlWorkerRuntimeConfig;
   resolveSecret: (reference: string) => Promise<string | null>;
@@ -113,10 +146,45 @@ export async function resolveSqlWorkerCredentials(input: {
       role: input.config.mutation.role
     };
   }
+  let explorer: ExplorerCredentials = { enabled: false };
+  if (input.config.explorer.enabled) {
+    const cursorKey = await input.resolveSecret(input.config.explorer.cursorKeyReference);
+    if (!cursorKey) throw new Error('SQL worker runtime credentials are unavailable');
+    const policyApproval = await input.resolveSecret(input.config.explorer.policyApprovalReference);
+    if (!policyApproval) throw new Error('SQL worker runtime credentials are unavailable');
+
+    const resolveTarget = async (
+      targetConfig: DatabaseTargetConfig
+    ): Promise<TargetCredentials> => {
+      if (!targetConfig.enabled) return { enabled: false };
+      const databaseUrl = await input.resolveSecret(targetConfig.databaseUrlReference);
+      if (!databaseUrl) throw new Error('SQL worker runtime credentials are unavailable');
+      return {
+        enabled: true,
+        databaseUrl,
+        databaseName: targetConfig.databaseName,
+        role: targetConfig.role
+      };
+    };
+
+    const edutrack = await resolveTarget(input.config.explorer.targets.edutrack_production);
+    const ops = await resolveTarget(input.config.explorer.targets.ops);
+
+    explorer = {
+      enabled: true,
+      cursorKey,
+      policyApproval,
+      targets: {
+        edutrack_production: edutrack,
+        ops
+      }
+    };
+  }
   return {
     hmacSecret,
     read,
-    mutation
+    mutation,
+    explorer
   };
 }
 
@@ -126,6 +194,7 @@ export async function startOpsSqlWorker(
     resolveSecret?: (reference: string) => Promise<string | null>;
     createReadPool?: (databaseUrl: string) => ProductionReadPool;
     createMutationPool?: (databaseUrl: string) => ProductionMutationPool;
+    createExplorerPool?: (targetId: DatabaseTargetId, databaseUrl: string) => ProductionReadPool;
     telemetry?: RuntimeTelemetry;
   } = {}
 ): Promise<{ close: () => Promise<void> }> {
@@ -188,6 +257,7 @@ export async function startOpsSqlWorker(
   const nonceStore = createExpiringNonceStore();
   let readPool: ProductionReadPool | undefined;
   let mutationPool: ProductionMutationPool | undefined;
+  const explorerPools: ProductionReadPool[] = [];
   try {
     const workerInput: Parameters<typeof createSqlWorkerCommandHandler>[0] = {
       read: { enabled: false },
@@ -225,6 +295,65 @@ export async function startOpsSqlWorker(
       workerInput.mutation = {
         enabled: true,
         preview: createMutationPreviewer({ pool: mutationPool })
+      };
+    }
+    if (credentials.explorer.enabled) {
+      const targetEntries: TargetEntry[] = [];
+      const setupTarget = async (
+        targetId: DatabaseTargetId,
+        label: string,
+        targetCreds: TargetCredentials
+      ) => {
+        if (!targetCreds.enabled) {
+          targetEntries.push({ id: targetId, label, status: 'disabled' });
+          return;
+        }
+        try {
+          assertTlsProtectedPostgresUrl(targetCreds.databaseUrl);
+          const pool = input.createExplorerPool
+            ? input.createExplorerPool(targetId, targetCreds.databaseUrl)
+            : createExplorerTargetPool(targetId, targetCreds.databaseUrl);
+          explorerPools.push(pool);
+          await assertProductionReadIdentity({
+            database: pool,
+            expectedRole: targetCreds.role,
+            expectedDatabase: targetCreds.databaseName
+          });
+          targetEntries.push({
+            id: targetId,
+            label,
+            status: 'available',
+            pool,
+            databaseName: targetCreds.databaseName,
+            role: targetCreds.role
+          });
+        } catch (targetError) {
+          targetEntries.push({
+            id: targetId,
+            label,
+            status: 'unavailable',
+            code: 'DATABASE_TARGET_UNAVAILABLE',
+            error: targetError
+          });
+        }
+      };
+
+      await setupTarget(
+        'edutrack_production',
+        'EduTrack Production',
+        credentials.explorer.targets.edutrack_production
+      );
+      await setupTarget('ops', 'Ops Database', credentials.explorer.targets.ops);
+
+      const registry = createTargetRegistry(targetEntries);
+      workerInput.explorer = {
+        enabled: true,
+        schema: async (targetId: DatabaseTargetId) => {
+          const target = registry.get(targetId);
+          return { targetId: target.id, targetLabel: target.label, schemas: [] };
+        },
+        rows: async () => ({ rows: [] }),
+        relatedRows: async () => ({ rows: [] })
       };
     }
     const handle = createSqlWorkerCommandHandler(workerInput);
@@ -272,8 +401,22 @@ export async function startOpsSqlWorker(
               source: 'database'
             });
             rememberCloseFailure(error);
-          } finally {
+          }
+          for (const pool of explorerPools) {
+            try {
+              await pool.end();
+            } catch (error) {
+              captureOpsException(error, {
+                code: 'SQL_WORKER_EXPLORER_POOL_CLOSE_FAILED',
+                source: 'database'
+              });
+              rememberCloseFailure(error);
+            }
+          }
+          try {
             await stopRuntimeTelemetry();
+          } catch (error) {
+            rememberCloseFailure(error);
           }
           if (hasCloseError) throw closeError;
         })();
@@ -302,9 +445,20 @@ export async function startOpsSqlWorker(
         code: 'SQL_WORKER_MUTATION_POOL_CLOSE_FAILED',
         source: 'database'
       });
-    } finally {
-      await stopRuntimeTelemetry();
     }
+    for (const pool of explorerPools) {
+      try {
+        await pool.end();
+      } catch (cleanupError) {
+        captureOpsException(cleanupError, {
+          code: 'SQL_WORKER_EXPLORER_POOL_CLOSE_FAILED',
+          source: 'database'
+        });
+      }
+    }
+    try {
+      await stopRuntimeTelemetry();
+    } catch {}
     throw error;
   }
 }

@@ -225,6 +225,9 @@ describe('canonical Ops systemd assets', () => {
 
     expect(apiEnvironment).toContain('OPS_SQL_WORKER_ENABLED=false');
     expect(sqlWorkerEnvironment).toContain('OPS_SQL_READ_ENABLED=false');
+    expect(sqlWorkerEnvironment).toContain('OPS_DATABASE_EXPLORER_ENABLED=false');
+    expect(sqlWorkerEnvironment).toContain('OPS_DATABASE_EDUTRACK_ENABLED=false');
+    expect(sqlWorkerEnvironment).toContain('OPS_DATABASE_OPS_ENABLED=false');
     expect(mandatorySourceIds).not.toContain('ops.credentials.ops_sql_audit_encryption_key');
     expect(mandatorySourceIds).not.toContain('ops.credentials.production_read_database_url');
     expect(manifest.sources.find((source) => source.id === 'edutrack.shared_env')).toMatchObject({

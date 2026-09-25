@@ -1,8 +1,14 @@
-import type { WorkerCommand } from '../../../../packages/contracts/src/workerProtocol.js';
+import type { DatabaseTargetId } from '../../../../packages/contracts/src/databaseExplorer.js';
+import { isDatabaseTargetId } from '../../../../packages/contracts/src/databaseExplorer.js';
+import type {
+  SqlWorkerActor,
+  WorkerCommand
+} from '../../../../packages/contracts/src/workerProtocol.js';
 import type { DatabaseSchemaSnapshot } from '../../../../packages/contracts/src/databaseSchema.js';
 
 import { classifyReadOnlySql } from '../execution/readClassification.js';
 import { classifyMutationSql } from '../execution/mutationClassification.js';
+
 type ReadWorker =
   | { enabled: false }
   | {
@@ -24,6 +30,15 @@ type MutationWorker =
         sql: string;
         maxChanges?: number;
       }) => Promise<unknown>;
+    };
+
+type ExplorerWorker =
+  | { enabled: false }
+  | {
+      enabled: true;
+      schema: (targetId: DatabaseTargetId) => Promise<unknown>;
+      rows: (payload: unknown, actor: SqlWorkerActor) => Promise<unknown>;
+      relatedRows: (payload: unknown, actor: SqlWorkerActor) => Promise<unknown>;
     };
 
 export class SqlWorkerCommandError extends Error {
@@ -112,6 +127,7 @@ function mutationPayload(payload: unknown): {
 export function createSqlWorkerCommandHandler(input: {
   read: ReadWorker;
   mutation?: MutationWorker;
+  explorer?: ExplorerWorker;
 }): {
   handle: (command: WorkerCommand) => Promise<unknown>;
 }['handle'] {
@@ -141,6 +157,35 @@ export function createSqlWorkerCommandHandler(input: {
         actorUserId: command.actor.userId,
         actorSessionId: command.actor.sessionId
       });
+    }
+    if (command.kind === 'database.schema') {
+      if (!input.explorer || !input.explorer.enabled) {
+        throw new SqlWorkerCommandError('DATABASE_EXPLORER_DISABLED');
+      }
+      const payload = command.payload as { targetId?: unknown } | undefined;
+      const targetId = payload?.targetId;
+      if (!isDatabaseTargetId(targetId)) {
+        throw new SqlWorkerCommandError('DATABASE_TARGET_INVALID');
+      }
+      return input.explorer.schema(targetId);
+    }
+    if (command.kind === 'database.rows') {
+      if (command.actor.role === 'ops_viewer') {
+        throw new SqlWorkerCommandError('DATABASE_DATA_PERMISSION_DENIED');
+      }
+      if (!input.explorer || !input.explorer.enabled) {
+        throw new SqlWorkerCommandError('DATABASE_EXPLORER_DISABLED');
+      }
+      return input.explorer.rows(command.payload, command.actor);
+    }
+    if (command.kind === 'database.relatedRows') {
+      if (command.actor.role === 'ops_viewer') {
+        throw new SqlWorkerCommandError('DATABASE_DATA_PERMISSION_DENIED');
+      }
+      if (!input.explorer || !input.explorer.enabled) {
+        throw new SqlWorkerCommandError('DATABASE_EXPLORER_DISABLED');
+      }
+      return input.explorer.relatedRows(command.payload, command.actor);
     }
     throw new SqlWorkerCommandError('WORKER_COMMAND_UNSUPPORTED');
   };
