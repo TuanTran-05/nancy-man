@@ -60,12 +60,13 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
 
   const [relatedRowsDrawer, setRelatedRowsDrawer] = useState<{
     open: boolean;
-    constraint?: string;
-    rowRef?: string;
-    relation?: string;
-    targetRelation?: string;
-    loading?: boolean;
-    rows?: DatabaseRowsResponse | null;
+    edge: any | null;
+    rowRef: string | null;
+    loading: boolean;
+    rows: DatabaseRowsResponse | null;
+    error?: string | null;
+    cursorStack: string[];
+    currentCursor?: string;
   } | null>(null);
 
   const [piiReveal, setPiiReveal] = useState<{
@@ -260,6 +261,73 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     }
   }, [cursorStack]);
 
+  const toggleSort = useCallback((column: string) => {
+    setCursorStack([]);
+    setCurrentCursor(undefined);
+    setSort((prev) => {
+      if (prev?.column === column) {
+        if (prev.direction === 'asc') return { column, direction: 'desc' };
+        return undefined;
+      }
+      return { column, direction: 'asc' };
+    });
+  }, []);
+
+  const addFilter = useCallback((filter: DatabaseFilter) => {
+    setCursorStack([]);
+    setCurrentCursor(undefined);
+    setFilters((prev) => (prev.length < 5 ? [...prev, filter] : prev));
+  }, []);
+
+  const removeFilter = useCallback((index: number) => {
+    setCursorStack([]);
+    setCurrentCursor(undefined);
+    setFilters((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const followRelation = useCallback(
+    async (edge: any, rowRef: string) => {
+      if (!selectedTargetId || !session.csrfToken) return;
+      setRelatedRowsDrawer({
+        open: true,
+        edge,
+        rowRef,
+        loading: true,
+        rows: null,
+        error: null,
+        cursorStack: [],
+        currentCursor: undefined
+      });
+      try {
+        const res = await queryRelatedRows(
+          selectedTargetId,
+          {
+            schema: edge.from.schema,
+            relation: edge.from.relation,
+            constraint: edge.constraint,
+            rowRef,
+            pageSize: 25,
+            piiMode: piiReveal.active ? 'revealed' : 'masked'
+          },
+          session.csrfToken
+        );
+        setRelatedRowsDrawer((prev) => (prev ? { ...prev, loading: false, rows: res } : null));
+      } catch (err: any) {
+        if (err?.status === 401) onUnauthorizedRef.current();
+        else {
+          setRelatedRowsDrawer((prev) =>
+            prev ? { ...prev, loading: false, error: err?.code ?? err?.message } : null
+          );
+        }
+      }
+    },
+    [selectedTargetId, session.csrfToken, piiReveal.active]
+  );
+
+  const closeRelatedDrawer = useCallback(() => {
+    setRelatedRowsDrawer(null);
+  }, []);
+
   // Privacy reveal
   const handleReveal = useCallback(
     async (password: string, token: string, reason: string) => {
@@ -391,8 +459,11 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     setPageSize,
     filters,
     setFilters,
+    addFilter,
+    removeFilter,
     sort,
     setSort,
+    toggleSort,
     cursorStack,
     currentCursor,
     goToNextPage,
@@ -401,6 +472,8 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     setSelectedCell,
     relatedRowsDrawer,
     setRelatedRowsDrawer,
+    followRelation,
+    closeRelatedDrawer,
     piiReveal,
     isRevealDialogOpen,
     setIsRevealDialogOpen,

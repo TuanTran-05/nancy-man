@@ -1,7 +1,12 @@
-import { useState } from 'react';
 import type { SessionInfo } from '../api.js';
 import type { DatabaseTargetId } from '../../../../../packages/contracts/src/databaseExplorer.js';
 import { useDatabaseExplorer } from '../features/database/useDatabaseExplorer.js';
+import { SchemaTree } from '../features/database/SchemaTree.js';
+import { StructurePanel } from '../features/database/StructurePanel.js';
+import { FilterBar } from '../features/database/FilterBar.js';
+import { DataGrid } from '../features/database/DataGrid.js';
+import { CellDetailDialog } from '../features/database/CellDetailDialog.js';
+import { RelatedRowsDrawer } from '../features/database/RelatedRowsDrawer.js';
 import { PiiRevealDialog } from '../features/database/PiiRevealDialog.js';
 
 export type DatabasePageProps = {
@@ -22,6 +27,21 @@ export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
     activeTab,
     setActiveTab,
     rows,
+    pageSize,
+    setPageSize,
+    filters,
+    addFilter,
+    removeFilter,
+    sort,
+    toggleSort,
+    cursorStack,
+    goToNextPage,
+    goToPreviousPage,
+    selectedCell,
+    setSelectedCell,
+    relatedRowsDrawer,
+    followRelation,
+    closeRelatedDrawer,
     piiReveal,
     isRevealDialogOpen,
     setIsRevealDialogOpen,
@@ -33,8 +53,6 @@ export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
     error,
     isViewer
   } = useDatabaseExplorer({ session, onUnauthorized });
-
-  const [schemaSearch, setSchemaSearch] = useState('');
 
   const currentTarget = targets.find((t) => t.id === selectedTargetId);
   const targetLabel = currentTarget?.label ?? selectedTargetId ?? 'Database';
@@ -115,60 +133,15 @@ export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
       ) : null}
 
       <div className="database-workspace">
-        {/* Left Sidebar: Schema and Table Tree */}
+        {/* Left Sidebar: Schema Tree */}
         <aside className="database-sidebar" aria-label="Danh sách bảng">
-          <div className="sidebar-search">
-            <input
-              type="search"
-              aria-label="Tìm kiếm bảng hoặc view"
-              placeholder="Lọc bảng..."
-              value={schemaSearch}
-              onChange={(e) => setSchemaSearch(e.target.value)}
-              className="tree-search-input"
-            />
-          </div>
-
-          <div className="sidebar-tree">
-            {loadingSchema ? (
-              <div className="tree-loading">Đang tải cấu trúc…</div>
-            ) : (
-              schema?.schemas.map((s) => {
-                const filteredRelations = s.relations.filter(
-                  (r) =>
-                    !schemaSearch ||
-                    r.name.toLowerCase().includes(schemaSearch.toLowerCase()) ||
-                    s.name.toLowerCase().includes(schemaSearch.toLowerCase())
-                );
-                if (filteredRelations.length === 0) return null;
-
-                return (
-                  <div key={s.name} className="tree-schema-group">
-                    <div className="tree-schema-title">{s.name}</div>
-                    <ul className="tree-relation-list">
-                      {filteredRelations.map((r) => {
-                        const isSelected =
-                          s.name === selectedSchemaName && r.name === selectedRelationName;
-                        return (
-                          <li key={r.name}>
-                            <button
-                              type="button"
-                              className={`tree-relation-item ${isSelected ? 'active' : ''}`}
-                              onClick={() => selectRelation(s.name, r.name)}
-                            >
-                              <span className="relation-name">{r.name}</span>
-                              {r.estimatedRows != null ? (
-                                <span className="relation-count">~{r.estimatedRows}</span>
-                              ) : null}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })
-            )}
-          </div>
+          <SchemaTree
+            schemas={schema?.schemas ?? []}
+            selectedSchema={selectedSchemaName}
+            selectedRelation={selectedRelationName}
+            onSelectRelation={selectRelation}
+            loading={loadingSchema}
+          />
         </aside>
 
         {/* Main Content Area: Tabs and Content */}
@@ -223,122 +196,41 @@ export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
                       liệu, cần quyền Maintainer hoặc Owner.
                     </p>
                   </div>
-                ) : loadingRows ? (
-                  <div className="loading-state">Đang tải dữ liệu…</div>
-                ) : rows ? (
-                  <div className="data-grid-container">
-                    <div className="grid-summary-bar">
-                      <span>
-                        Bảng{' '}
-                        <strong>
-                          {selectedSchemaName}.{selectedRelationName}
-                        </strong>
-                        : {rows.rows.length} dòng
-                      </span>
-                    </div>
-                    {/* Bounded Data Grid view */}
-                    <div className="table-responsive">
-                      <table className="ops-data-table">
-                        <thead>
-                          <tr>
-                            {rows.columns.map((col) => (
-                              <th key={col.name}>{col.name}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.rows.map((row, idx) => (
-                            <tr key={row.rowRef ?? idx}>
-                              {rows.columns.map((col) => {
-                                const cell = row.cells[col.name];
-                                if (!cell) return <td key={col.name}>-</td>;
-                                if (cell.state === 'blocked') {
-                                  return (
-                                    <td key={col.name} className="cell-blocked">
-                                      <em>[Blocked]</em>
-                                    </td>
-                                  );
-                                }
-                                if (cell.state === 'masked') {
-                                  return (
-                                    <td key={col.name} className="cell-masked">
-                                      {cell.display}
-                                    </td>
-                                  );
-                                }
-                                if (cell.state === 'truncated') {
-                                  return (
-                                    <td key={col.name} className="cell-truncated">
-                                      {cell.display}
-                                    </td>
-                                  );
-                                }
-                                return (
-                                  <td key={col.name}>
-                                    {cell.value === null
-                                      ? 'NULL'
-                                      : typeof cell.value === 'object'
-                                        ? JSON.stringify(cell.value)
-                                        : String(cell.value)}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
                 ) : (
-                  <div className="empty-state">
-                    <p>Chọn một bảng ở danh sách bên trái để bắt đầu duyệt dữ liệu.</p>
-                  </div>
+                  <>
+                    <FilterBar
+                      columns={currentRelation?.columns ?? []}
+                      filters={filters}
+                      onAddFilter={addFilter}
+                      onRemoveFilter={removeFilter}
+                      pageSize={pageSize}
+                      onPageSizeChange={setPageSize}
+                      loading={loadingRows}
+                    />
+
+                    <DataGrid
+                      rowsResponse={rows}
+                      loading={loadingRows}
+                      sort={sort}
+                      onSortChange={toggleSort}
+                      onNextPage={goToNextPage}
+                      onPreviousPage={goToPreviousPage}
+                      hasPreviousPage={cursorStack.length > 0}
+                      hasNextPage={Boolean(rows?.nextCursor)}
+                      edges={schema?.edges ?? []}
+                      onOpenCellDetail={(column, cell) =>
+                        setSelectedCell({ rowRef: null, column, cell })
+                      }
+                      onFollowRelation={followRelation}
+                    />
+                  </>
                 )}
               </div>
             )}
 
             {activeTab === 'structure' && (
               <div className="structure-panel-content">
-                {currentRelation ? (
-                  <div className="structure-details">
-                    <h3>
-                      {selectedSchemaName}.{selectedRelationName}
-                    </h3>
-                    <table className="ops-structure-table">
-                      <thead>
-                        <tr>
-                          <th>Cột</th>
-                          <th>Kiểu dữ liệu</th>
-                          <th>Nullable</th>
-                          <th>Phân loại</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {currentRelation.columns.map((col) => (
-                          <tr key={col.name}>
-                            <td>
-                              <strong>{col.name}</strong>
-                              {currentRelation.primaryKey?.includes(col.name) && (
-                                <span className="badge-pk">PK</span>
-                              )}
-                            </td>
-                            <td>{col.dataType}</td>
-                            <td>{col.nullable ? 'Có' : 'Không'}</td>
-                            <td>
-                              <span className={`badge-classification ${col.classification}`}>
-                                {col.classification === 'blocked'
-                                  ? 'Never exposed'
-                                  : col.classification.toUpperCase()}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="empty-state">Chưa chọn quan hệ nào.</div>
-                )}
+                <StructurePanel schemaName={selectedSchemaName} relation={currentRelation} />
               </div>
             )}
 
@@ -381,6 +273,31 @@ export function DatabasePage({ session, onUnauthorized }: DatabasePageProps) {
         </section>
       </div>
 
+      {/* Cell Detail Dialog */}
+      <CellDetailDialog
+        open={Boolean(selectedCell)}
+        columnName={selectedCell?.column ?? ''}
+        cell={selectedCell?.cell ?? null}
+        onClose={() => setSelectedCell(null)}
+      />
+
+      {/* Related Rows Drawer */}
+      <RelatedRowsDrawer
+        open={Boolean(relatedRowsDrawer?.open)}
+        edge={relatedRowsDrawer?.edge ?? null}
+        sourceRowRef={relatedRowsDrawer?.rowRef ?? null}
+        rowsResponse={relatedRowsDrawer?.rows ?? null}
+        loading={relatedRowsDrawer?.loading}
+        error={relatedRowsDrawer?.error}
+        onClose={closeRelatedDrawer}
+        onNextPage={() => {}}
+        onPreviousPage={() => {}}
+        hasPreviousPage={false}
+        hasNextPage={false}
+        onOpenCellDetail={(column, cell) => setSelectedCell({ rowRef: null, column, cell })}
+      />
+
+      {/* PII Reveal Step-Up Dialog */}
       <PiiRevealDialog
         open={isRevealDialogOpen}
         targetName={targetLabel}
