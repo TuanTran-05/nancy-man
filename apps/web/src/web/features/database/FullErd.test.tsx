@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DatabaseExplorerSchemaSnapshot } from '../../../../../../packages/contracts/src/databaseExplorer.js';
@@ -12,18 +12,59 @@ const { fitViewMock } = vi.hoisted(() => ({ fitViewMock: vi.fn() }));
 vi.mock('@xyflow/react', () => ({
   ReactFlow: ({
     children,
-    onInit
+    onInit,
+    nodes,
+    onNodesChange
   }: {
     children?: React.ReactNode;
     onInit?: (instance: { fitView: typeof fitViewMock }) => void;
+    nodes: Array<{ id: string; selected?: boolean }>;
+    onNodesChange: (changes: Array<{ type: 'select'; id: string; selected: boolean }>) => void;
   }) => {
     React.useEffect(() => onInit?.({ fitView: fitViewMock }), [onInit]);
-    return <div data-testid="react-flow-erd">{children}</div>;
+    return (
+      <>
+        <div
+          data-testid="react-flow-erd"
+          data-selected-node-count={nodes.filter((node) => node.selected).length}
+        >
+          {children}
+        </div>
+        <button
+          type="button"
+          data-testid="select-first-erd-node"
+          onClick={() => {
+            const firstNode = nodes[0];
+            if (firstNode) {
+              onNodesChange([{ type: 'select', id: firstNode.id, selected: true }]);
+            }
+          }}
+        >
+          Select first canvas node
+        </button>
+      </>
+    );
   },
   Background: () => null,
   Controls: () => null,
   MiniMap: () => null,
-  useNodesState: (initial: unknown[]) => [initial, vi.fn(), vi.fn()],
+  useNodesState: (initial: Array<{ id: string; selected?: boolean }>) => {
+    const [nodes, setNodes] = React.useState(initial);
+    const onNodesChange = React.useCallback(
+      (changes: Array<{ type: 'select'; id: string; selected: boolean }>) => {
+        setNodes((current) =>
+          current.map((node) => {
+            const selectionChange = changes.find(
+              (change) => change.type === 'select' && change.id === node.id
+            );
+            return selectionChange ? { ...node, selected: selectionChange.selected } : node;
+          })
+        );
+      },
+      []
+    );
+    return [nodes, setNodes, onNodesChange] as const;
+  },
   useEdgesState: (initial: unknown[]) => [initial, vi.fn(), vi.fn()],
   MarkerType: { ArrowClosed: 'arrowclosed' }
 }));
@@ -232,6 +273,19 @@ describe('FullErd', () => {
     expect(screen.getByTestId('react-flow-erd')).toBeTruthy();
   });
 
+  it('does not refit after the initial fit when a canvas node is selected', async () => {
+    fitViewMock.mockClear();
+    render(<FullErd snapshot={makeSnap()} targetId="prod" onSelectRelation={vi.fn()} />);
+
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId('select-first-erd-node'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('react-flow-erd')).toHaveAttribute('data-selected-node-count', '1')
+    );
+    expect(fitViewMock).toHaveBeenCalledTimes(1);
+  });
+
   it('shows schema group labels', () => {
     render(<FullErd snapshot={makeSnap()} targetId="prod" onSelectRelation={vi.fn()} />);
     // Schema names visible in multiple elements (group label + a11y heading)
@@ -296,13 +350,12 @@ describe('FullErd', () => {
   });
 
   it('restores the complete 101-relation and 210-edge projection after clearing search', async () => {
-    const user = userEvent.setup();
     render(<FullErd snapshot={makeLargeSnap()} targetId="prod" onSelectRelation={vi.fn()} />);
     const search = screen.getByRole('searchbox');
-    await user.type(search, 'table_007');
+    fireEvent.change(search, { target: { value: 'table_007' } });
     expect(screen.getByText('1 bảng · 0 quan hệ')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
 
     expect(screen.getByText('101 bảng · 210 quan hệ')).toBeInTheDocument();
   });
@@ -313,20 +366,19 @@ describe('FullErd', () => {
       const relation = `table_${String(index).padStart(3, '0')}`;
       return { id: `prod/${schema}/${relation}` };
     });
+    fitViewMock.mockClear();
+    render(<FullErd snapshot={makeLargeSnap()} targetId="prod" onSelectRelation={vi.fn()} />);
+    const search = screen.getByRole('searchbox');
 
     for (const query of ['table_007', 'table_0']) {
-      cleanup();
-      fitViewMock.mockClear();
-      const user = userEvent.setup();
-      render(<FullErd snapshot={makeLargeSnap()} targetId="prod" onSelectRelation={vi.fn()} />);
-      await user.type(screen.getByRole('searchbox'), query);
+      fireEvent.change(search, { target: { value: query } });
 
       const expectedRelation = query === 'table_007' ? 'table_007' : 'table_000';
       expect(
         screen.getByRole('button', { name: `Chọn schema_a.${expectedRelation}` })
       ).toHaveAttribute('aria-current', 'true');
 
-      await user.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
       await waitFor(() =>
         expect(fitViewMock).toHaveBeenLastCalledWith(
           expect.objectContaining({ nodes: expectedFitNodes })
@@ -342,14 +394,13 @@ describe('FullErd', () => {
       const relation = `table_${String(index).padStart(3, '0')}`;
       return { id: `prod/${schema}/${relation}` };
     });
-    const user = userEvent.setup();
     fitViewMock.mockClear();
     render(<FullErd snapshot={makeLargeSnap()} targetId="prod" onSelectRelation={vi.fn()} />);
-    await user.type(screen.getByRole('searchbox'), 'there-is-no-match');
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'there-is-no-match' } });
     expect(screen.getByText('0 bảng · 0 quan hệ')).toBeInTheDocument();
 
     const callsBeforeClear = fitViewMock.mock.calls.length;
-    await user.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
     await waitFor(() =>
       expect(fitViewMock).toHaveBeenLastCalledWith(
         expect.objectContaining({ nodes: expectedFitNodes })

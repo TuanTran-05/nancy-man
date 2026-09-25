@@ -157,6 +157,10 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
     applyDagreLayout(g.nodes, g.edges, 'TB');
     return g;
   }, [snapshot, targetId]);
+  const lastFitRequestRef = useRef<{
+    fullGraph: typeof fullGraph;
+    normalizedSearchQuery: string;
+  } | null>(null);
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const filteredGraph = useMemo(
@@ -222,8 +226,20 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
       nodes.every((node, index) => node.id === flowNodes[index]?.id);
     if (!nodeStateMatchesProjection) return;
 
+    const previousFitRequest = lastFitRequestRef.current;
+    if (
+      previousFitRequest?.fullGraph === fullGraph &&
+      previousFitRequest.normalizedSearchQuery === normalizedSearchQuery
+    ) {
+      return;
+    }
+
+    const currentFitRequest = { fullGraph, normalizedSearchQuery };
     if (normalizedSearchQuery) {
-      if (!searchFocusedNode) return;
+      if (!searchFocusedNode) {
+        lastFitRequestRef.current = currentFitRequest;
+        return;
+      }
       void instance.fitView({
         nodes: [{ id: searchFocusedNode.id }],
         padding: 0.35,
@@ -236,7 +252,8 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
         duration: 200
       });
     }
-  }, [canvasReady, flowNodes, nodes, normalizedSearchQuery, searchFocusedNode?.id]);
+    lastFitRequestRef.current = currentFitRequest;
+  }, [canvasReady, flowNodes, fullGraph, nodes, normalizedSearchQuery, searchFocusedNode?.id]);
 
   // Group nodes by schema for the accessible table
   const schemaGroups = useMemo(() => {
