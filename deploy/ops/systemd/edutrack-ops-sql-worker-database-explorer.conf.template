@@ -1,0 +1,5 @@
+[Service]
+LoadCredential=ops-database-edutrack-reader-url:/etc/edutrack-ops/credentials/ops-database-edutrack-reader-url
+LoadCredential=ops-database-ops-reader-url:/etc/edutrack-ops/credentials/ops-database-ops-reader-url
+LoadCredential=ops-database-cursor-key:/etc/edutrack-ops/credentials/ops-database-cursor-key
+LoadCredential=ops-database-policy-approval:/etc/edutrack-ops/credentials/ops-database-policy-approval

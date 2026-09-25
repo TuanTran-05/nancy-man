@@ -228,6 +228,22 @@ describe('canonical Ops systemd assets', () => {
     expect(sqlWorkerEnvironment).toContain('OPS_DATABASE_EXPLORER_ENABLED=false');
     expect(sqlWorkerEnvironment).toContain('OPS_DATABASE_EDUTRACK_ENABLED=false');
     expect(sqlWorkerEnvironment).toContain('OPS_DATABASE_OPS_ENABLED=false');
+    for (const [name, value] of apiEnvironment
+      .split('\n')
+      .concat(sqlWorkerEnvironment.split('\n'))
+      .filter((line) => line && !line.startsWith('#'))
+      .map((line) => {
+        const separator = line.indexOf('=');
+        return [line.slice(0, separator), line.slice(separator + 1)] as const;
+      })) {
+      if (
+        /^OPS_(?:SQL_(?:WORKER|READ|MUTATION|DDL|BREAK_GLASS)|DATABASE_(?:EXPLORER|EDUTRACK|OPS))_ENABLED$/u.test(
+          name
+        )
+      ) {
+        expect(value, `${name} must remain disabled`).toBe('false');
+      }
+    }
     expect(mandatorySourceIds).not.toContain('ops.credentials.ops_sql_audit_encryption_key');
     expect(mandatorySourceIds).not.toContain('ops.credentials.production_read_database_url');
     expect(manifest.sources.find((source) => source.id === 'edutrack.shared_env')).toMatchObject({
@@ -251,6 +267,36 @@ describe('canonical Ops systemd assets', () => {
         mode: '0440'
       });
     }
+  });
+
+  it('loads Explorer credentials only from an explicit drop-in after credential checks', async () => {
+    const [worker, dropIn, installer] = await Promise.all([
+      unit('sql-worker'),
+      readFile(
+        new URL('edutrack-ops-sql-worker-database-explorer.conf.template', systemdDirectory),
+        'utf8'
+      ),
+      readFile(new URL('../scripts/install-systemd-assets.sh', import.meta.url), 'utf8')
+    ]);
+    const explorerCredentials = [
+      'ops-database-edutrack-reader-url',
+      'ops-database-ops-reader-url',
+      'ops-database-cursor-key',
+      'ops-database-policy-approval'
+    ];
+
+    for (const credential of explorerCredentials) {
+      expect(setting(worker, 'LoadCredential')).not.toContain(
+        `${credential}:/etc/edutrack-ops/credentials/${credential}`
+      );
+      expect(setting(dropIn, 'LoadCredential')).toContain(
+        `${credential}:/etc/edutrack-ops/credentials/${credential}`
+      );
+      expect(installer).toContain(credential);
+    }
+    expect(installer).toContain('EDUTRACK_OPS_INSTALL_DATABASE_EXPLORER_DROPIN:-false');
+    expect(installer).toContain('SQL_WORKER_DROPIN_DEST');
+    expect(installer).toContain('validate_credential "$EXPLORER_');
   });
 
   it('contains the inactive install, signed negotiation, feature-flag, restart, and smoke sequence', async () => {

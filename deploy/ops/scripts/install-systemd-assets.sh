@@ -55,6 +55,9 @@ readonly RELEASE_INPUT="${1:-}"
 readonly RELEASE="$(unset CDPATH; cd -P -- "$RELEASE_INPUT" && pwd)" || fail CONFIG_AGENT_RELEASE_INVALID
 readonly VERSION="${RELEASE##*/}"
 [[ "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || fail CONFIG_AGENT_RELEASE_VERSION_INVALID
+readonly INSTALL_DATABASE_EXPLORER_DROPIN="${EDUTRACK_OPS_INSTALL_DATABASE_EXPLORER_DROPIN:-false}"
+[[ "$INSTALL_DATABASE_EXPLORER_DROPIN" == 'true' || "$INSTALL_DATABASE_EXPLORER_DROPIN" == 'false' ]] ||
+  fail DATABASE_EXPLORER_DROPIN_OPT_IN_INVALID
 
 readonly CONFIG_DIRECTORY="$ROOT/etc/edutrack-ops"
 readonly CREDENTIAL_DIRECTORY="$CONFIG_DIRECTORY/credentials"
@@ -65,6 +68,9 @@ readonly AGENT_RELEASES="$AGENT_DIRECTORY/releases"
 readonly AGENT_VERSION="$AGENT_RELEASES/$VERSION"
 readonly AGENT_CURRENT="$AGENT_DIRECTORY/current"
 readonly SERVICE_DEST="$SYSTEMD_DIRECTORY/ops-config-agent.service"
+readonly SQL_WORKER_DROPIN_SOURCE="$ASSET_ROOT/systemd/edutrack-ops-sql-worker-database-explorer.conf.template"
+readonly SQL_WORKER_DROPIN_DIRECTORY="$SYSTEMD_DIRECTORY/edutrack-ops-sql-worker.service.d"
+readonly SQL_WORKER_DROPIN_DEST="$SQL_WORKER_DROPIN_DIRECTORY/90-database-explorer.conf"
 readonly CLEANUP_SERVICE_DEST="$SYSTEMD_DIRECTORY/ops-config-agent-cleanup.service"
 readonly CLEANUP_TIMER_DEST="$SYSTEMD_DIRECTORY/ops-config-agent-cleanup.timer"
 readonly TMPFILES_DEST="$TMPFILES_DIRECTORY/ops-config-agent.conf"
@@ -75,6 +81,10 @@ readonly FINGERPRINT_DEST="$CREDENTIAL_DIRECTORY/$FINGERPRINT_CREDENTIAL"
 readonly STAGING_DEST="$CREDENTIAL_DIRECTORY/$STAGING_CREDENTIAL"
 readonly SNAPSHOT_DEST="$CREDENTIAL_DIRECTORY/$SNAPSHOT_CREDENTIAL"
 readonly TELEMETRY_DEST="$CREDENTIAL_DIRECTORY/$TELEMETRY_CREDENTIAL"
+readonly EXPLORER_EDUTRACK_URL_DEST="$CREDENTIAL_DIRECTORY/ops-database-edutrack-reader-url"
+readonly EXPLORER_OPS_URL_DEST="$CREDENTIAL_DIRECTORY/ops-database-ops-reader-url"
+readonly EXPLORER_CURSOR_KEY_DEST="$CREDENTIAL_DIRECTORY/ops-database-cursor-key"
+readonly EXPLORER_POLICY_APPROVAL_DEST="$CREDENTIAL_DIRECTORY/ops-database-policy-approval"
 
 [[ -f "$AGENT_SERVICE_SOURCE" && ! -L "$AGENT_SERVICE_SOURCE" ]] || fail CONFIG_AGENT_SERVICE_ASSET_ABSENT
 [[ -f "$CLEANUP_SERVICE_SOURCE" && ! -L "$CLEANUP_SERVICE_SOURCE" ]] || fail CONFIG_AGENT_CLEANUP_SERVICE_ASSET_ABSENT
@@ -246,6 +256,14 @@ validate_credential "${OPS_CONFIG_AGENT_FINGERPRINT_HMAC_SOURCE:-$FINGERPRINT_DE
 validate_credential "${OPS_CONFIG_AGENT_STAGING_KEY_SOURCE:-$STAGING_DEST}" 32
 validate_credential "${OPS_CONFIG_AGENT_SNAPSHOT_KEY_SOURCE:-$SNAPSHOT_DEST}" 32
 validate_credential "${OPS_TELEMETRY_HMAC_SOURCE:-$TELEMETRY_DEST}"
+if [[ "$INSTALL_DATABASE_EXPLORER_DROPIN" == 'true' ]]; then
+  [[ -f "$SQL_WORKER_DROPIN_SOURCE" && ! -L "$SQL_WORKER_DROPIN_SOURCE" ]] ||
+    fail DATABASE_EXPLORER_DROPIN_TEMPLATE_ABSENT
+  validate_credential "$EXPLORER_EDUTRACK_URL_DEST"
+  validate_credential "$EXPLORER_OPS_URL_DEST"
+  validate_credential "$EXPLORER_CURSOR_KEY_DEST"
+  validate_credential "$EXPLORER_POLICY_APPROVAL_DEST"
+fi
 # systemd-analyze verify runs before any live asset is replaced.
 "$SYSTEMD_ANALYZE" verify "$AGENT_SERVICE_SOURCE" >/dev/null 2>&1 || fail CONFIG_AGENT_SYSTEMD_PREFLIGHT_FAILED
 
@@ -315,6 +333,9 @@ atomic_install "$CLEANUP_TIMER_SOURCE" "$CLEANUP_TIMER_DEST" 0644
 atomic_install "$TMPFILES_SOURCE" "$TMPFILES_DEST" 0644
 atomic_install "$ENV_EXAMPLE_SOURCE" "$ENV_EXAMPLE_DEST" 0644
 atomic_install "$RELEASE/$SMOKE_CLIENT_RELATIVE_BINARY" "$SMOKE_CLIENT_DEST" 0755
+if [[ "$INSTALL_DATABASE_EXPLORER_DROPIN" == 'true' ]]; then
+  atomic_install "$SQL_WORKER_DROPIN_SOURCE" "$SQL_WORKER_DROPIN_DEST" 0644
+fi
 
 install_credential() {
   local source="$1" destination="$2" temporary

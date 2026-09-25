@@ -48,6 +48,7 @@ require_fixture_relation() {
 }
 
 role_type='readonly'
+target_id=''
 database_name=''
 admin_pgpass_file=''
 read_login=''
@@ -69,6 +70,7 @@ revoke_public_privileges=false
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --role-type) role_type="${2:-}"; shift 2 ;;
+    --target) target_id="${2:-}"; shift 2 ;;
     --database) database_name="${2:-}"; shift 2 ;;
     --admin-pgpass-file) admin_pgpass_file="${2:-}"; shift 2 ;;
     --read-login|--browser-login) read_login="${2:-}"; shift 2 ;;
@@ -105,6 +107,9 @@ require_identifier "$read_login"
 require_identifier "$schema_owner_role"
 require_fixture_relation "$fixture"
 
+[[ "$role_type" == 'readonly' || "$role_type" == 'explorer' ]] || fail 'role type must be readonly or explorer'
+
+
 IFS=',' read -r -a schema_list <<< "$business_schemas"
 [ "${#schema_list[@]}" -gt 0 ] || fail 'at least one business schema is required'
 for schema_name in "${schema_list[@]}"; do
@@ -122,6 +127,20 @@ command -v node >/dev/null 2>&1 || fail 'node is unavailable'
 read_password="$(read_generated_password "$read_password_file")"
 
 if [ "$role_type" = 'explorer' ]; then
+  case "$target_id" in
+    edutrack_production)
+      expected_browser_login='ops_browser_edutrack'
+      expected_database='edutrack_production'
+      ;;
+    ops)
+      expected_browser_login='ops_browser_ops'
+      expected_database='edutrack_ops'
+      ;;
+    *) fail '--target must be edutrack_production or ops' ;;
+  esac
+  [ "$read_login" = "$expected_browser_login" ] || fail "--browser-login must be $expected_browser_login for target $target_id"
+  [ "$database_name" = "$expected_database" ] || fail "--database must be $expected_database for target $target_id"
+
   [ -r "$EXPLORER_ROLE_SQL_PATH" ] || fail "explorer role SQL is unavailable: $EXPLORER_ROLE_SQL_PATH"
   [ -r "$EXPLORER_VERIFIER_PATH" ] || fail "explorer verifier is unavailable: $EXPLORER_VERIFIER_PATH"
 
@@ -134,6 +153,7 @@ if [ "$role_type" = 'explorer' ]; then
 
   {
     psql_set ops_database_name "$database_name"
+    psql_set ops_target_id "$target_id"
     psql_set ops_business_schemas "$business_schemas"
     psql_set ops_schema_owner_role "$schema_owner_role"
     psql_set ops_browser_login "$read_login"

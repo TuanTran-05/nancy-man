@@ -12,10 +12,6 @@ EnvironmentFile=/etc/edutrack-ops/sql-worker.env
 Environment=OPS_SECRET_DIRECTORY=%d
 LoadCredential=ops-sql-worker-hmac:/etc/edutrack-ops/credentials/ops-sql-worker-hmac
 LoadCredential=ops-telemetry-hmac:/etc/edutrack-ops/credentials/ops-telemetry-hmac
-LoadCredential=ops-database-edutrack-reader-url:/etc/edutrack-ops/credentials/ops-database-edutrack-reader-url
-LoadCredential=ops-database-ops-reader-url:/etc/edutrack-ops/credentials/ops-database-ops-reader-url
-LoadCredential=ops-database-cursor-key:/etc/edutrack-ops/credentials/ops-database-cursor-key
-LoadCredential=ops-database-policy-approval:/etc/edutrack-ops/credentials/ops-database-policy-approval
 RuntimeDirectory=edutrack-ops
 RuntimeDirectoryMode=0750
 ExecStart=/usr/bin/node apps/sql-worker/dist/apps/sql-worker/src/index.js

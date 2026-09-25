@@ -1,124 +1,146 @@
 # Quy trình Rollout Database Explorer
 
-Tài liệu này hướng dẫn chi tiết quy trình chuẩn bị, cấp phát quyền, kiểm chứng và rollout theo từng giai đoạn cho tính năng Database Explorer trên hệ thống `man.thienuy.edu.vn`.
+Tài liệu này mô tả cách kiểm tra snapshot, duyệt policy, cấp role chỉ đọc và chuẩn bị credentials cho Database Explorer. Không bật feature gate cho đến khi cả hai target đã qua verifier và có phê duyệt rollout riêng.
 
-## 1. Nguyên tắc an toàn
+## Mặc định và danh tính PostgreSQL
 
-1. **Mặc định tắt:** Tính năng và cả hai target (`edutrack_production`, `ops`) mặc định bị tắt cho đến khi hoàn thành toàn bộ các bước kiểm tra.
-2. **Quyền tối thiểu:** Role database browser (`ops_database_browser`) chỉ được cấp quyền `SELECT` ở mức cột (column-level) cho các cột an toàn; hoàn toàn không có quyền trên các cột bị đánh dấu `blocked` (mật khẩu, khóa bảo mật, OTP, token).
-3. **Kiểm tra độc lập:** Mỗi target database phải được chạy script verifier độc lập và đạt kết quả `pass` trước khi cấu hình vào worker.
-4. **Không rò rỉ credential:** Không in hoặc lưu DSN, connection URL, mật khẩu vào log, ticket hay shell history. File credential phải có mode `0600`.
+API, SQL worker và từng target đều tắt trong các file môi trường mẫu. SQL worker chỉ nhận credential qua `FileSecretResolver`; file môi trường chứa reference, không chứa URL hay secret.
 
-## 2. Thứ tự triển khai chuẩn (Phased Rollout)
+`ops_database_browser` là capability role `NOLOGIN`. Hai kết nối dùng danh tính riêng: `ops_browser_edutrack` trên database `edutrack_production` và `ops_browser_ops` trên database `edutrack_ops`. Mỗi login kế thừa capability với `INHERIT TRUE, SET FALSE`, tối đa hai kết nối, `default_transaction_read_only=on`, và không có quyền elevated. Chỉ capability role nhận column grants đã duyệt.
 
-Quá trình triển khai bắt buộc phải tuân thủ nghiêm ngặt theo thứ tự 11 bước sau:
+## 1. Lấy snapshot cấu trúc đã xác thực
 
-### Bước 1: Render policy report
-Chạy script render báo cáo chính sách dữ liệu cho từng database target:
+Dùng session cookie đã xác thực của Ops API trong cookie jar có quyền đọc riêng (mode `0600`). Không đặt cookie hoặc bearer token trực tiếp trong lệnh hay shell history. Lưu response của `GET /api/v1/database/:targetId/schema` thành snapshot riêng cho từng target:
+
 ```bash
-node scripts/database-explorer/render-policy-report.mjs --target edutrack_production > policy-edutrack.json
-node scripts/database-explorer/render-policy-report.mjs --target ops > policy-ops.json
+umask 077
+OPS_BASE_URL=https://man.thienuy.edu.vn
+OPS_COOKIE_JAR=/secure/path/ops-session-cookie-jar
+
+curl --fail --silent --show-error --cookie "$OPS_COOKIE_JAR" \
+  "$OPS_BASE_URL/api/v1/database/edutrack_production/schema" \
+  --output schema-edutrack.json
+curl --fail --silent --show-error --cookie "$OPS_COOKIE_JAR" \
+  "$OPS_BASE_URL/api/v1/database/ops/schema" \
+  --output schema-ops.json
+
+jq -e '.targetId == "edutrack_production" and (.checksum | test("^[a-f0-9]{64}$")) and (.schemas | type == "array" and length > 0)' schema-edutrack.json >/dev/null
+jq -e '.targetId == "ops" and (.checksum | test("^[a-f0-9]{64}$")) and (.schemas | type == "array" and length > 0)' schema-ops.json >/dev/null
 ```
 
-### Bước 2: Review classifications
-DBA và Security Lead rà soát toàn bộ phân loại cột:
-- Đảm bảo 100% cột nhạy cảm (passwords, tokens, OTP hashes, private keys) được phân loại `blocked`.
-- Xác nhận các cột PII (email, phone, họ tên học sinh/giáo viên) được phân loại `pii`.
-- Xác nhận checksum dữ liệu khớp với snapshot đã kiểm duyệt.
+Các lệnh `jq` phải thành công; snapshot rỗng hoặc không có schema không được dùng để cấp quyền. Duyệt đúng structural response từ endpoint. Không dùng response chứa `rows`, `cells` hoặc `rowRefs`.
 
-### Bước 3: Render role grants
-Sử dụng công cụ `render-database-explorer-grants.ts` để sinh ra các câu lệnh SQL `GRANT SELECT (<safe_columns>)` dựa trên snapshot và policy đã được duyệt:
+## 2. Render và review policy report
+
+Truyền trực tiếp snapshot không rỗng vào report CLI. CLI vẫn hỗ trợ stdin cho thao tác tương tác, nhưng quy trình rollout luôn dùng `--snapshot-file` và target phải khớp snapshot:
+
+```bash
+node scripts/database-explorer/render-policy-report.mjs \
+  --target edutrack_production --snapshot-file schema-edutrack.json \
+  > policy-edutrack.txt
+node scripts/database-explorer/render-policy-report.mjs \
+  --target ops --snapshot-file schema-ops.json \
+  > policy-ops.txt
+```
+
+DBA và Security Lead rà soát toàn bộ tên cột và classification trong hai báo cáo. Đảm bảo cột mật khẩu, token, OTP, khóa riêng và credential là `blocked`; PII được gắn `pii`. Ghi lại đúng `policyVersion` và checksum của từng snapshot sau khi hoàn tất review.
+
+Sau khi được duyệt, tạo approval JSON cho SQL worker. `version` phải bằng `policyVersion`; checksum từng target phải khớp snapshot đã review:
+
+```json
+{
+  "version": "<policyVersion đã duyệt>",
+  "targets": {
+    "edutrack_production": "<checksum trong schema-edutrack.json>",
+    "ops": "<checksum trong schema-ops.json>"
+  }
+}
+```
+
+Không render grants bằng approval rỗng, checksum suy đoán hoặc snapshot khác target.
+
+## 3. Render column grants đã duyệt
+
+CLI yêu cầu snapshot, approval, target, capability role và output path. Output path phải mới. Mọi trực tiếp bảng hiện có sẽ bị thu hồi trước khi cấp schema usage và SELECT cột được duyệt; blocked, không-selectable, foreign-table và relation không khả dụng không nhận SELECT. CLI không tạo sequence hoặc function grants.
+
 ```bash
 node --experimental-strip-types deploy/postgres/render-database-explorer-grants.ts \
+  --snapshot-file schema-edutrack.json \
+  --approval-file /secure/path/database-policy-approval.json \
   --target edutrack_production \
+  --role ops_database_browser \
   --output edutrack-grants.sql
+
+node --experimental-strip-types deploy/postgres/render-database-explorer-grants.ts \
+  --snapshot-file schema-ops.json \
+  --approval-file /secure/path/database-policy-approval.json \
+  --target ops \
+  --role ops_database_browser \
+  --output ops-grants.sql
 ```
 
-### Bước 4: Apply role grants on each target
-Chạy script `apply-role-grants.sh` với tham số `--role-type explorer` cho từng database target:
+Renderer dừng mà không tạo SQL nếu thiếu tham số, target mở/không khớp, snapshot có row data, policy version không khớp, hay checksum không có trong approval.
+
+## 4. Provision và xác minh từng login
+
+Provision riêng từng database. `--target` đóng xác định login được phép; `--database` phải là database đúng của target. Mật khẩu lấy từ file mode `0600`, URL verifier kết nối bằng TLS `verify-full`, không đưa secret vào command arguments.
+
+Ví dụ target EduTrack Production:
+
 ```bash
 deploy/postgres/apply-role-grants.sh \
-  --role-type explorer \
+  --role-type explorer --target edutrack_production \
   --database edutrack_production \
-  --admin-pgpass-file /path/to/dba.pgpass \
+  --admin-pgpass-file /secure/path/dba.pgpass \
   --browser-login ops_browser_edutrack \
-  --browser-password-file /secrets/edutrack_browser.pass \
-  --business-schemas public \
-  --schema-owner-role edutrack_owner \
-  --browser-database-url-file /secrets/edutrack_browser.url \
+  --browser-password-file /secure/path/edutrack-browser.pass \
+  --business-schemas public --schema-owner-role edutrack_owner \
+  --browser-database-url-file /secure/path/edutrack-browser.url \
   --grants-file edutrack-grants.sql \
-  --fixture public.users \
-  --safe-column id \
-  --blocked-column password_hash \
-  --revoke-public-privileges \
-  --require-tls
+  --fixture public.users --safe-column id --blocked-column password_hash \
+  --revoke-public-privileges --require-tls
 ```
 
-### Bước 5: Run verifier on each target
-Chạy độc lập `verify-database-explorer-role.ts` để kiểm chứng toàn bộ posture bảo mật:
+Target Ops dùng `--target ops`, `--database edutrack_ops`, `--browser-login ops_browser_ops`, cùng snapshot, grant SQL, URL và fixture tương ứng. Không dùng chung login giữa hai target.
+
+Verifier phải báo `status: "pass"`, đúng database và login đã cấu hình, TLS đang hoạt động, SELECT cột blocked bị từ chối, và mọi mutation bị từ chối. Ví dụ verifier của target EduTrack Production:
+
 ```bash
 node --experimental-strip-types deploy/postgres/verify-database-explorer-role.ts \
-  --database-url-file /secrets/edutrack_browser.url \
-  --fixture public.users \
-  --safe-column id \
-  --blocked-column password_hash \
+  --database-url-file /secure/path/edutrack-browser.url \
+  --fixture public.users --safe-column id --blocked-column password_hash \
   --expected-database edutrack_production \
-  --expected-role ops_browser_edutrack \
-  --require-tls
+  --expected-role ops_browser_edutrack --require-tls
 ```
-Báo cáo JSON xuất ra phải có `"status": "pass"` và không có bất kỳ failure nào.
 
-### Bước 6: Capture approved checksums
-Ghi nhận schema checksum và data policy checksum đã duyệt vào cấu hình worker để ngăn chặn schema drift hoặc truy cập khi schema bị thay đổi mà chưa duyệt lại.
+Lặp lại với `edutrack_ops` và `ops_browser_ops`. Giữ feature gates false nếu bất kỳ verifier nào fail.
 
-### Bước 7: Install credentials
-Lưu trữ an toàn các file URL credential vào server chạy SQL worker với phân quyền mode `0600` thuộc sở hữu của service account chạy worker.
+## 5. Credentials systemd và enablement
 
-### Bước 8: Enable Ops target for owner
-Bật cờ cho target nội bộ Ops database trước, chỉ mở cho role `ops_owner`:
-- Đặt `OPS_DATABASE_EXPLORER_ENABLED=true`
-- Đặt `OPS_DATABASE_OPS_ENABLED=true`
-- Giữ `OPS_DATABASE_EDUTRACK_ENABLED=false`
-- Khởi động lại service worker và api:
-  ```bash
-  sudo systemctl restart edutrack-ops-sql-worker edutrack-ops-api
-  ```
+Base `edutrack-ops-sql-worker.service` không tải database URL, cursor key hoặc approval. Chỉ sau khi cả bốn file tồn tại dưới `/etc/edutrack-ops/credentials/`, thuộc `root:root`, mode `0400`, không phải symlink, mới chạy installer với opt-in tường minh:
 
-### Bước 9: Observe
-Quan sát log hệ thống và audit ledger trong tối thiểu 24 giờ:
-- Kiểm tra query timeout (15s) và lock timeout (2s).
-- Xác nhận các sự kiện `database.schema_viewed` và `database.rows_viewed` được ghi vào hash chain đầy đủ.
-- Xác nhận không có lỗi kết nối hoặc deadlock.
+```bash
+sudo EDUTRACK_OPS_INSTALL_DATABASE_EXPLORER_DROPIN=true \
+  deploy/ops/scripts/install-systemd-assets.sh /srv/edutrack-ops/releases/<release>
+```
 
-### Bước 10: Enable EduTrack target for owner
-Kích hoạt target `edutrack_production` cho role `ops_owner`:
-- Đặt `OPS_DATABASE_EDUTRACK_ENABLED=true`.
-- Restart worker và api.
-- Kiểm tra chức năng duyệt bảng masked và quy trình step-up xác thực MFA/TOTP để reveal PII trong 10 phút.
+Installer kiểm tra hai target URL, `ops-database-cursor-key` và `ops-database-policy-approval` trước khi cài drop-in. Không có opt-in thì các file này không được kiểm tra và drop-in không được cài.
 
-### Bước 11: Observe & Enable maintainers
-- Tiếp tục theo dõi telemetry và audit logs.
-- Sau khi mọi kiểm tra ổn định, mở quyền duyệt bảng cho role `ops_maintainer` (role `ops_viewer` vẫn chỉ được phép duyệt cấu trúc schema và quan hệ ERD, không được duyệt dữ liệu).
+Giữ `OPS_SQL_WORKER_ENABLED=false` ở API, `OPS_DATABASE_EXPLORER_ENABLED=false` ở worker và hai target gate false cho tới khi hoàn tất role verification cùng phê duyệt triển khai. Enable từng target cho một `ops_owner`, bật API bridge và worker gates theo thứ tự, rồi theo dõi target health, timeout, latency và audit đầy đủ ít nhất 24 giờ trước khi xét target còn lại. Chỉ mở maintainer sau khi hai cửa sổ quan sát được review riêng. Local tests không thay thế quan sát production.
 
-## 3. Quy trình Rollback
+## 6. Cursor key rotation
 
-Trong trường hợp phát hiện bất kỳ dấu hiệu bất thường, suy giảm hiệu năng cơ sở dữ liệu production hoặc cảnh báo bảo mật:
+Giữ nguyên reference `ops-database-cursor-key`. Khi chủ động xoay key, thay nội dung bằng canonical standard Base64 của đúng 32 byte ngẫu nhiên (tạo bằng `openssl rand -base64 32`), lưu file credential an toàn mode `0600`, rồi restart SQL worker trong change được duyệt. Key mới làm cursor và rowRef cũ không còn hợp lệ; client bắt đầu lại từ trang đầu. Không bật fallback cho token cũ.
 
-1. **Khóa truy cập tức thời:**
-   Đặt cả hai biến cờ về `false`:
-   ```bash
-   OPS_DATABASE_OPS_ENABLED=false
-   OPS_DATABASE_EDUTRACK_ENABLED=false
-   ```
-2. **Khởi động lại bridge:**
-   ```bash
-   sudo systemctl restart edutrack-ops-sql-worker edutrack-ops-api
-   ```
-   Hệ thống Ops API sẽ lập tức từ chối mọi yêu cầu truy vấn bảng với mã lỗi `DATABASE_TARGET_UNAVAILABLE`. Không cần can thiệp hay restart database PostgreSQL production.
+## 7. Rollback
 
-3. **Thu hồi quyền tại Database (nếu có nghi vấn xâm nhập credential):**
-   Chạy lệnh thu hồi quyền hoặc vô hiệu hóa login của browser:
-   ```sql
-   ALTER ROLE ops_browser_edutrack NOLOGIN;
-   REVOKE ops_database_browser FROM ops_browser_edutrack;
-   ```
+Tắt target bị ảnh hưởng ngay. Nếu cần, tắt thêm Database Explorer toàn cục ở worker và API-to-worker bridge:
+
+```dotenv
+OPS_DATABASE_EDUTRACK_ENABLED=false
+OPS_DATABASE_OPS_ENABLED=false
+OPS_DATABASE_EXPLORER_ENABLED=false
+OPS_SQL_WORKER_ENABLED=false
+```
+
+Áp dụng env change và restart SQL worker/API theo quy trình vận hành. Nếu nghi credential bị lộ, đặt login liên quan thành `NOLOGIN`, revoke membership `ops_database_browser`, rồi rotate credential qua change được duyệt. Không sửa role hoặc xoay credential như một phần của local test.

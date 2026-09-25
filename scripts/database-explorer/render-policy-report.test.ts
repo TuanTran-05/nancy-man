@@ -1,6 +1,9 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { DATABASE_POLICY_VERSION } from '../../packages/security/src/database/columnPolicy.js';
 
 const scriptPath = resolve(process.cwd(), 'scripts/database-explorer/render-policy-report.mjs');
 
@@ -8,7 +11,10 @@ describe('render-policy-report script', () => {
   it('renders table/column classifications from structural snapshot', () => {
     const validSnapshot = {
       targetId: 'edutrack_production',
+      targetLabel: 'EduTrack Production',
       checksum: '1234567890abcdef'.repeat(4),
+      policyVersion: DATABASE_POLICY_VERSION,
+      edges: [],
       schemas: [
         {
           name: 'public',
@@ -40,10 +46,13 @@ describe('render-policy-report script', () => {
     expect(run.stdout).toContain(validSnapshot.checksum);
   });
 
-  it('rejects snapshots that contain row values or leaked data', () => {
-    const dirtySnapshot = {
+  it('supports a structural snapshot file and confirms that its target matches', async () => {
+    const validSnapshot = {
       targetId: 'edutrack_production',
+      targetLabel: 'EduTrack Production',
       checksum: '1234567890abcdef'.repeat(4),
+      policyVersion: DATABASE_POLICY_VERSION,
+      edges: [],
       schemas: [
         {
           name: 'public',
@@ -51,21 +60,65 @@ describe('render-policy-report script', () => {
             {
               name: 'students',
               kind: 'table',
-              columns: [{ name: 'email', dataType: 'text' }],
-              rows: [{ email: 'leaked@example.com' }]
+              columns: [{ name: 'email', dataType: 'text' }]
             }
           ]
         }
       ]
     };
+    const directory = await mkdtemp(join(tmpdir(), 'database-explorer-policy-'));
+    try {
+      const snapshotPath = join(directory, 'schema.json');
+      await writeFile(snapshotPath, `${JSON.stringify(validSnapshot)}\n`, 'utf8');
+      const run = spawnSync(
+        'node',
+        [scriptPath, '--snapshot-file', snapshotPath, '--target', 'edutrack_production'],
+        { encoding: 'utf-8' }
+      );
 
-    const run = spawnSync('node', [scriptPath], {
-      input: JSON.stringify(dirtySnapshot),
-      encoding: 'utf-8'
-    });
+      expect(run.status).toBe(0);
+      expect(run.stdout).toContain('Checksum:');
+      expect(run.stdout).toContain('public.students.email: pii');
+      expect(run.stdout).not.toContain('dataType');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 
-    expect(run.status).not.toBe(0);
-    expect(run.stderr).toMatch(/row values forbidden|invalid structural snapshot/i);
-    expect(run.stdout).not.toContain('leaked@example.com');
+  it('rejects empty input and row payload fields without echoing sample values', () => {
+    const empty = spawnSync('node', [scriptPath], { input: '', encoding: 'utf-8' });
+    expect(empty.status).not.toBe(0);
+
+    const rowPayloads = ['rows', 'cells', 'rowRefs'];
+    for (const field of rowPayloads) {
+      const dirtySnapshot = {
+        targetId: 'edutrack_production',
+        targetLabel: 'EduTrack Production',
+        checksum: '1234567890abcdef'.repeat(4),
+        policyVersion: DATABASE_POLICY_VERSION,
+        edges: [],
+        schemas: [
+          {
+            name: 'public',
+            relations: [
+              {
+                name: 'students',
+                kind: 'table',
+                columns: [{ name: 'email', dataType: 'text' }],
+                [field]: [{ email: 'LEAKED_ROW_VALUE_DO_NOT_PRINT' }]
+              }
+            ]
+          }
+        ]
+      };
+
+      const run = spawnSync('node', [scriptPath], {
+        input: JSON.stringify(dirtySnapshot),
+        encoding: 'utf-8'
+      });
+
+      expect(run.status, `${field} payload should be rejected`).not.toBe(0);
+      expect(run.stdout + run.stderr).not.toContain('LEAKED_ROW_VALUE_DO_NOT_PRINT');
+    }
   });
 });

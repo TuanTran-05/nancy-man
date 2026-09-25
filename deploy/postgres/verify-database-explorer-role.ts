@@ -18,6 +18,7 @@ export type ExplorerFixture = {
 type RolePosture = {
   role: string;
   database: string;
+  canLogin: boolean;
   defaultTransactionReadOnly: string | null;
   hasExplorerMembership: boolean;
   isSuperuser: boolean;
@@ -80,6 +81,9 @@ function rolePostureFailures(
       `connected role ${posture.role} does not match expected role ${options.expectedRole}`
     );
   }
+  if (!posture.canLogin) {
+    failures.push('current role is not a LOGIN role');
+  }
   if (posture.defaultTransactionReadOnly !== 'on') {
     failures.push('default_transaction_read_only is not on');
   }
@@ -119,6 +123,7 @@ async function readPosture(database: Queryable): Promise<RolePosture> {
     SELECT
       current_user AS role,
       current_database() AS database,
+      (SELECT rolcanlogin FROM pg_roles WHERE rolname = current_user) AS "canLogin",
       current_setting('default_transaction_read_only', true) AS "defaultTransactionReadOnly",
       pg_has_role(current_user, 'ops_database_browser', 'member') AS "hasExplorerMembership",
       current_setting('is_superuser', true) = 'on' AS "isSuperuser",
@@ -147,6 +152,7 @@ async function readPosture(database: Queryable): Promise<RolePosture> {
   return {
     role: String(row.role),
     database: String(row.database),
+    canLogin: normalizeBoolean(row.canLogin),
     defaultTransactionReadOnly:
       row.defaultTransactionReadOnly == null ? null : String(row.defaultTransactionReadOnly),
     hasExplorerMembership: normalizeBoolean(row.hasExplorerMembership),

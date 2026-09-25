@@ -1,4 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   verifyDatabaseExplorerRole,
@@ -25,6 +28,11 @@ describe('database explorer roles and verifier', () => {
     expect(sql).toContain(
       'CREATE ROLE ops_database_browser NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS'
     );
+    expect(sql).toMatch(/ALTER ROLE ops_database_browser NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS/i);
+    expect(sql).toContain('ops_browser_edutrack');
+    expect(sql).toContain('ops_browser_ops');
+    expect(sql).toContain('CONNECTION LIMIT 2');
+    expect(sql).toContain('WITH INHERIT TRUE, SET FALSE');
     expect(sql).toContain('REVOKE TEMPORARY ON DATABASE :"ops_database_name" FROM PUBLIC');
     expect(sql).toContain('GRANT CONNECT ON DATABASE :"ops_database_name" TO ops_database_browser');
     expect(sql).toContain("default_transaction_read_only = 'on'");
@@ -35,11 +43,54 @@ describe('database explorer roles and verifier', () => {
     expect(sql).toContain('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I FROM PUBLIC');
     expect(sql).toContain('REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I FROM PUBLIC');
     expect(sql).toContain('REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA %I FROM PUBLIC');
+    expect(sql).toContain('REVOKE ALL PRIVILEGES ON SCHEMA %I FROM ops_database_browser');
+    expect(sql).toContain('REVOKE ALL PRIVILEGES ON SCHEMA %I FROM %I');
     expect(sql).toContain(
       'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I REVOKE ALL ON TABLES FROM PUBLIC'
     );
+    expect(sql).toContain(
+      'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I REVOKE ALL ON SEQUENCES FROM ops_database_browser'
+    );
+    expect(sql).toContain(
+      'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I REVOKE ALL ON SEQUENCES FROM %I'
+    );
+    expect(sql).toContain(
+      'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I REVOKE EXECUTE ON FUNCTIONS FROM ops_database_browser'
+    );
+    expect(sql).toContain(
+      'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I REVOKE EXECUTE ON FUNCTIONS FROM %I'
+    );
     expect(sql).toContain('REVOKE ALL ON SCHEMA _ops FROM ops_database_browser');
+    expect(sql).toContain('REVOKE ALL ON SCHEMA _ops FROM %I');
+    expect(sql).toContain(
+      'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE ALL ON TABLES FROM ops_database_browser'
+    );
+    expect(sql).toContain(
+      'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE ALL ON SEQUENCES FROM ops_database_browser'
+    );
+    expect(sql).toContain(
+      'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE EXECUTE ON FUNCTIONS FROM ops_database_browser'
+    );
     expect(sql).not.toMatch(/GRANT\s+(?:ALL|SELECT)\s+ON\s+ALL\s+TABLES/i);
+  });
+
+  it('documents authenticated structural snapshots, approvals, both gates, and the approved grant CLI', async () => {
+    const runbook = await readArtifact(artifacts.rolloutRunbook);
+    const rotation = await readArtifact(artifacts.rotationRunbook);
+
+    expect(runbook).toContain('GET /api/v1/database/:targetId/schema');
+    expect(runbook).toContain('--snapshot-file');
+    expect(runbook).toContain('--approval-file');
+    expect(runbook).toContain('--target');
+    expect(runbook).toContain('--role ops_database_browser');
+    expect(runbook).toContain('--output');
+    expect(runbook).toContain('OPS_SQL_WORKER_ENABLED=false');
+    expect(runbook).toContain('OPS_DATABASE_EXPLORER_ENABLED=false');
+    expect(runbook).toContain('ops_browser_edutrack');
+    expect(runbook).toContain('ops_browser_ops');
+    expect(runbook).toContain('ops-database-cursor-key');
+    expect(rotation).toContain('ops_browser_edutrack');
+    expect(rotation).toContain('ops_browser_ops');
   });
 
   it('passes verification when posture is valid and prohibited actions are rejected', async () => {
@@ -64,6 +115,7 @@ describe('database explorer roles and verifier', () => {
               {
                 role: 'ops_browser_login',
                 database: 'edutrack_production',
+                canLogin: true,
                 defaultTransactionReadOnly: 'on',
                 hasExplorerMembership: true,
                 isSuperuser: false,
@@ -137,6 +189,7 @@ describe('database explorer roles and verifier', () => {
               {
                 role: 'ops_browser_login',
                 database: 'edutrack_production',
+                canLogin: true,
                 defaultTransactionReadOnly: 'on',
                 hasExplorerMembership: true,
                 isSuperuser: false,
@@ -188,6 +241,7 @@ describe('database explorer roles and verifier', () => {
               {
                 role: 'postgres',
                 database: 'edutrack_production',
+                canLogin: false,
                 defaultTransactionReadOnly: 'off',
                 hasExplorerMembership: false,
                 isSuperuser: true,
@@ -235,5 +289,113 @@ describe('database explorer roles and verifier', () => {
       'default privileges grant table access to ops_database_browser'
     );
     expect(report.failures.some((f) => f.includes('prohibited operation succeeded'))).toBe(true);
+  });
+
+  it('fails verification when current_user is not a LOGIN identity', async () => {
+    const mockDb: Queryable = {
+      query: async <T extends Record<string, unknown>>(sql: string) => {
+        if (sql.includes('current_user AS role')) {
+          return {
+            rows: [
+              {
+                role: 'ops_database_browser',
+                database: 'edutrack_production',
+                canLogin: false,
+                defaultTransactionReadOnly: 'on',
+                hasExplorerMembership: true,
+                isSuperuser: false,
+                hasBypassRls: false,
+                hasReplication: false,
+                isMemberOfElevatedRole: false,
+                hasTemporaryPrivilege: false,
+                canAccessOpsSchema: false,
+                sslSetting: 'on',
+                hasDefaultPrivileges: false
+              }
+            ] as T[]
+          };
+        }
+        if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
+        if (
+          /(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/.test(
+            sql
+          )
+        ) {
+          throw new Error('permission denied');
+        }
+        return { rows: [] as T[] };
+      }
+    };
+
+    const report = await verifyDatabaseExplorerRole({
+      database: mockDb,
+      fixture: { schema: 'public', table: 'users', safeColumn: 'id' },
+      expectedDatabase: 'edutrack_production',
+      expectedRole: 'ops_browser_edutrack',
+      now: () => new Date('2026-09-25T00:00:00Z')
+    });
+
+    expect(report.status).toBe('fail');
+    expect(report.failures).toContain('current role is not a LOGIN role');
+  });
+
+  it('rejects an explorer LOGIN that does not belong to the closed target before applying grants', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'database-explorer-role-'));
+    try {
+      const pgpassPath = join(directory, 'admin.pgpass');
+      const passwordPath = join(directory, 'browser.pass');
+      const urlPath = join(directory, 'browser.url');
+      await writeFile(pgpassPath, 'localhost:5432:edutrack_ops:admin:unused\n', { mode: 0o600 });
+      await writeFile(passwordPath, 'A'.repeat(32), { mode: 0o600 });
+      await writeFile(urlPath, 'postgresql://reader:unused@localhost/edutrack_ops', {
+        mode: 0o600
+      });
+
+      const invoke = (database: string, browserLogin: string) =>
+        spawnSync(
+          'bash',
+          [
+          artifacts.apply.pathname,
+          '--role-type',
+          'explorer',
+          '--target',
+          'ops',
+          '--database',
+          database,
+          '--admin-pgpass-file',
+          pgpassPath,
+          '--browser-login',
+          browserLogin,
+          '--browser-password-file',
+          passwordPath,
+          '--business-schemas',
+          'public',
+          '--schema-owner-role',
+          'edutrack_owner',
+          '--browser-database-url-file',
+          urlPath,
+          '--fixture',
+          'public.users',
+          '--safe-column',
+          'id',
+          '--blocked-column',
+          'password_hash',
+          '--revoke-public-privileges'
+        ],
+        { encoding: 'utf8', env: { ...process.env, PSQL_BIN: '/bin/true' } }
+      );
+
+      const wrongLogin = invoke('edutrack_ops', 'ops_browser_edutrack');
+      expect(wrongLogin.status).not.toBe(0);
+      expect(wrongLogin.stderr).toContain(
+        '--browser-login must be ops_browser_ops for target ops'
+      );
+
+      const wrongDatabase = invoke('edutrack_production', 'ops_browser_ops');
+      expect(wrongDatabase.status).not.toBe(0);
+      expect(wrongDatabase.stderr).toContain('--database must be edutrack_ops for target ops');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });
