@@ -3,7 +3,12 @@ import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { classifyColumn, DATABASE_POLICY_VERSION } from '../../packages/security/src/database/columnPolicy.ts';
+// @ts-expect-error -- This CLI runs directly via Node's strip-types mode, which requires
+// an explicit .ts specifier. Spawned CLI tests protect the runtime resolution path.
+import {
+  classifyColumn,
+  DATABASE_POLICY_VERSION
+} from '../../packages/security/src/database/columnPolicy.ts';
 import type {
   DatabaseExplorerSchemaSnapshot,
   DatabaseTargetId

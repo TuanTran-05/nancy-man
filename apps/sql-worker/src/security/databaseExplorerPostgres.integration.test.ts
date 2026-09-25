@@ -577,7 +577,6 @@ describe('Database Explorer against isolated PostgreSQL 16', () => {
     const before = await targets();
     expect(before.find((entry) => entry.id === 'ops')?.status).toBe('available');
     runTargetControl(target, 'stop');
-    let stopped = true;
     try {
       await delay(5_100);
       const unavailable = await targets();
@@ -588,10 +587,7 @@ describe('Database Explorer against isolated PostgreSQL 16', () => {
         error: { code: 'DATABASE_TARGET_UNAVAILABLE' }
       });
     } finally {
-      if (stopped) {
-        runTargetControl(target, 'start');
-        stopped = false;
-      }
+      runTargetControl(target, 'start');
     }
 
     let recovered = false;

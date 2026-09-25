@@ -146,6 +146,15 @@ if [ "$operation" = start ]; then
   count=$((count + 1))
   printf '%s\n' "$count" > "$FAKE_PG_CTL_START_COUNT"
   printf 'start\t%s\t%s\n' "$data_directory" "$port" >> "$FAKE_PG_CTL_EVENTS"
+  if [ "$FAKE_NATIVE_START_FAILURE" = non-bind ]; then
+    printf 'FATAL: injected startup configuration failure\n' >> "$log_file"
+    exit 1
+  fi
+  if [ "$FAKE_NATIVE_START_FAILURE" = bind-always ]; then
+    printf 'could not bind IPv4 address "127.0.0.1": Address already in use\n' >> "$log_file"
+    printf 'FATAL: could not create any TCP/IP sockets\n' >> "$log_file"
+    exit 1
+  fi
   if [ "$FAKE_BIND_CONFLICT_ONCE" = 1 ] && [ "$count" = 1 ]; then
     printf 'could not bind IPv4 address "127.0.0.1": Address already in use\n' >> "$log_file"
     printf 'FATAL: could not create any TCP/IP sockets\n' >> "$log_file"
@@ -175,6 +184,7 @@ exit 2
     FAKE_PG_CTL_START_COUNT: startCountPath,
     FAKE_PORT_COUNT: portCountPath,
     FAKE_BIND_CONFLICT_ONCE: runtime === 'native' ? '1' : '0',
+    FAKE_NATIVE_START_FAILURE: '',
     ...(runtime === 'native' ? { PG16_BIN: pg16Directory } : {})
   };
   return { directory, eventsPath, composeCheckPath, environment };
@@ -217,6 +227,66 @@ describe('PostgreSQL integration fixture runner', () => {
       expect(starts[0]?.[1]).toBe(starts[1]?.[1]);
       expect(starts[1]?.[1]).not.toBe(starts[2]?.[1]);
       expect(events.slice(0, 3).map(([kind]) => kind)).toEqual(['start', 'stop', 'start']);
+      expect(
+        events
+          .filter(([kind]) => kind === 'stop')
+          .every(([, dataDirectory]) =>
+            dataDirectory?.startsWith(
+              `${String(harness.environment.TMPDIR)}/edx-database-explorer.`
+            )
+          )
+      ).toBe(true);
+    } finally {
+      await rm(harness.directory, { recursive: true, force: true });
+    }
+  }, 100_000);
+
+  it('fails immediately for a native startup error that is not a bind conflict', async () => {
+    const harness = await createRunnerHarness('native');
+    try {
+      const result = runFixtureRunner({
+        ...harness.environment,
+        FAKE_NATIVE_START_FAILURE: 'non-bind'
+      });
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain('fixture could not start for target');
+      const events = (await readFile(harness.eventsPath, 'utf8'))
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => line.split('\t'));
+      expect(events.filter(([kind]) => kind === 'start')).toHaveLength(1);
+      expect(
+        events
+          .filter(([kind]) => kind === 'stop')
+          .every(([, dataDirectory]) =>
+            dataDirectory?.startsWith(
+              `${String(harness.environment.TMPDIR)}/edx-database-explorer.`
+            )
+          )
+      ).toBe(true);
+    } finally {
+      await rm(harness.directory, { recursive: true, force: true });
+    }
+  }, 100_000);
+
+  it('stops after five consecutive native bind conflicts', async () => {
+    const harness = await createRunnerHarness('native');
+    try {
+      const result = runFixtureRunner({
+        ...harness.environment,
+        FAKE_NATIVE_START_FAILURE: 'bind-always'
+      });
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain('after 5 attempts');
+      const events = (await readFile(harness.eventsPath, 'utf8'))
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => line.split('\t'));
+      expect(events.filter(([kind]) => kind === 'start')).toHaveLength(5);
       expect(
         events
           .filter(([kind]) => kind === 'stop')
