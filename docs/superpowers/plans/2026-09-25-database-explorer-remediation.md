@@ -19,18 +19,20 @@
 - Each target uses a separate TLS verify-full pool, expected database and LOGIN role identity, default_transaction_read_only=on, and pool maximum two.
 - Each row request allows at most five filters, values up to 200 characters, and page sizes 25/50/100; statement timeout is 15 seconds, lock timeout two seconds, response maximum 2 MiB, scalar cell maximum 64 KiB.
 - Cursors and rowRefs are confidential, authenticated, at most 4 KiB, expire within five minutes, and bind target, schema, relation, and structural checksum.
+- Newly discovered columns may appear in structural metadata, but remain classification=blocked, selectable=false, with no returnable cell data until the new structural checksum and policy are explicitly reviewed and approved; affected relation row browsing remains unavailable while approval is pending.
 - No raw SQL, export, mutation, DDL, cross-target join, or browser credential surface is added.
-- Row and reveal HTTP responses use Cache-Control: no-store. Never log row values, PII, cursor/rowRef contents, SQL, or grant bearer material.
+- Every Database Explorer HTTP route (GET targets/schema/rows/relations/reveal and DELETE /pii-reveal) uses Cache-Control: no-store. Never log row values, PII, cursor/rowRef contents, SQL, or grant bearer material.
 - Audit append and revoke failures fail closed; no data or reveal-success response is returned on those failures.
 - Feature, API-to-worker bridge, and target flags remain false in committed defaults. Local tests never count as production observation.
 
 ## Review Focus
 
-- A schema change after metadata load must be caught before a row SELECT; Task 1 tests checksum drift and cache invalidation.
+- A schema change after metadata load must be caught before a row SELECT; Task 1 also tests that new columns remain structurally visible but blocked/data-unavailable until policy/checksum approval.
 - Duplicate and nullable sort values, including composite keys, must not skip or repeat rows; Task 1 tests ascending and descending page boundaries.
 - Composite FK columns must remain paired and traversal must work from either endpoint; Tasks 2 and 5 test worker mapping and browser requests.
 - Hide, expiry, target switch, and revoke/audit failure must clear every sensitive layer before another request; Task 5 tests delayed responses and request order.
-- Disabled, unavailable, and healthy target status must match worker registry state while every default-off gate remains dark; Tasks 3, 4, and 6 test these states.
+- Disabled, healthy, outage, and recovery target states must refresh after startup with bounded probes while every default-off gate remains dark; Tasks 3, 4, and 6 test these states.
+- A 101-relation/210-FK snapshot must project into a deterministic usable ERD; Task 5 owns web graph projection while Task 2 keeps worker snapshot bounds independent.
 
 ## Dependency and Execution Order
 
@@ -68,13 +70,13 @@ Task 1 establishes secure tokens, query semantics, schema freshness, and policy.
 
 In cursorCodec.test.ts, encode known sort/FK marker values and assert no marker is present in base64url-decoded token segments. Assert round trip, wrong-key/tamper rejection, target/schema/relation/checksum mismatch, five-minute expiry for both token types, and rejection above 4096 bytes. In schemaReader/rowReader tests, load metadata, change the catalog checksum, issue a row query, and assert DATABASE_SCHEMA_STALE before any row SELECT. Test that cursors cannot be reused after changing the sort definition.
 
-Test ascending and descending pages with duplicate sort values, nullable sort values, and composite non-null keys; concatenated pages must equal the ordered source rows exactly once. Test the 10,000-row offset ceiling. Test enum columns support eq, neq, is_null, and is_not_null; preserve the spec operator matrix for text, numeric, temporal, and boolean columns. Add PII corpus names for given/first/middle/family/last/preferred/legal name, date_of_birth/birth_date/dob, email/phone/mobile, address parts, notes/comments/messages/free-form content, and raw payload; blocked patterns must win over PII/public patterns.
+Test ascending and descending pages with duplicate sort values, nullable sort values, and composite non-null keys; concatenated pages must equal the ordered source rows exactly once. Test the 10,000-row offset ceiling. Test enum columns support eq, neq, is_null, and is_not_null; preserve the spec operator matrix for text, numeric, temporal, and boolean columns. Add PII corpus names for given/first/middle/family/last/preferred/legal name, date_of_birth/birth_date/dob, email/phone/mobile, address parts, notes/comments/messages/free-form content, and raw payload; blocked patterns must win over PII/public patterns. Add a fresh unapproved column to a schema fixture: schema output still lists its structural metadata, but marks it classification=blocked/selectable=false with no returnable cell data; the affected relation's rows remain unavailable pending explicit checksum and policy approval.
 
 - [ ] **Step 2: Run the focused tests and verify RED**
 
 Run: npx vitest run apps/sql-worker/src/explorer/cursorCodec.test.ts apps/sql-worker/src/explorer/schemaReader.test.ts apps/sql-worker/src/explorer/filterSql.test.ts apps/sql-worker/src/explorer/rowReader.test.ts apps/sql-worker/src/runtime/runtimeConfig.test.ts packages/security/src/database/columnPolicy.test.ts
 
-Expected: FAIL because tokens expose base64url JSON, schema freshness is TTL-only, null cursor continuation is unsafe, enums lack operators, and PII name coverage is narrow.
+Expected: FAIL because tokens expose base64url JSON, schema freshness is TTL-only, new columns can inherit availability, null cursor continuation is unsafe, enums lack operators, and PII name coverage is narrow.
 
 - [ ] **Step 3: Implement confidential AEAD tokens and exact key migration**
 
@@ -84,7 +86,7 @@ Keep the FileSecretResolver credential name/path. Replace its contents with open
 
 - [ ] **Step 4: Implement query semantics and policy**
 
-Before every rows or relatedRows SELECT, compute a fresh target-specific structural checksum and compare it with the approved snapshot; invalidate only that target cache and fail DATABASE_SCHEMA_STALE before selecting data on mismatch. Keep schema display cache at most 60 seconds.
+Before every rows or relatedRows SELECT, compute a fresh target-specific structural checksum and compare it with the approved snapshot; invalidate only that target cache and fail DATABASE_SCHEMA_STALE before selecting data on mismatch. Keep schema display cache at most 60 seconds. Preserve structurally discovered columns in metadata, but assign classification=blocked/selectable=false and no returnable cell data unless their current checksum and policy version are explicitly approved; keep affected relation browsing unavailable while approval is pending and never add unknown columns to SELECT lists.
 
 Build stable ordering as requested sort followed by the complete stable key, with a fixed explicit null order. Generate expanded lexicographic predicates for null and equal-prefix cases, and require the cursor sort/null-order to match the new request. Discover PostgreSQL enum types and expose equality/inequality plus null checks. Broaden boundary-aware PII patterns for person names, birth dates, contact/address fields, free-form text, and raw payload; exact blocked/name rules retain precedence. Bump DATABASE_POLICY_VERSION when these reviewed rules change.
 
@@ -101,7 +103,7 @@ git add apps/sql-worker/src/explorer/cursorCodec.ts apps/sql-worker/src/explorer
 git commit -m "fix(database): secure tokens and schema-bound queries"
 ~~~
 
-**Acceptance:** Cursor and rowRef are confidential, authenticated, context-bound, <=4 KiB, and <=5 minutes. Query checks live schema before data access and meets nullable/duplicate pagination, enum-filter, and conservative classification requirements.
+**Acceptance:** Cursor and rowRef are confidential, authenticated, context-bound, <=4 KiB, and <=5 minutes. Query checks live schema before data access and meets nullable/duplicate pagination, enum-filter, conservative classification, and unapproved-column blocking requirements.
 
 ### Task 2: Preserve FK column order and implement encrypted row traversal
 
@@ -119,22 +121,24 @@ git commit -m "fix(database): secure tokens and schema-bound queries"
 **Interfaces:**
 
 - Consumes: ordered encrypted token codec from Task 1 and catalog FK metadata.
-- Produces: FK edge arrays paired by catalog ordinality; rowRefs containing encrypted stable-key plus allowed source FK values; readRelatedRows resolves named edges from either endpoint and uses ordered bound values.
+- Produces: FK edge arrays paired by catalog ordinality; rowRefs containing encrypted stable-key plus allowed source FK values; readRelatedRows resolves named edges from either endpoint and uses ordered bound values. Worker schema snapshot serialization enforces the independent 2 MiB response bound and returns a stable error without a partial snapshot when exceeded.
 - A request identifies the relation that owns the selected source row; the worker never infers values from browser cell text.
 
 - [ ] **Step 1: Add failing composite-FK and direction tests**
 
 Build a composite FK (tenant_id, student_id) referencing (tenant_id, id) and deliberately shuffle catalog fixture rows. Assert the snapshot preserves pair order. Create a source row whose FK column is not in its pagination key; assert the rowRef can be used for traversal but reveals neither source value in its token text. Test child-to-parent and parent-to-child mapping, missing/null source keys, unknown constraint/source, wrong target, and checksum mismatch. Assert rejected requests issue no relation SELECT.
 
+Add direct worker snapshot-boundary tests: a schema snapshot at the configured 2 MiB response limit is complete and valid; one over the limit fails with DATABASE_SCHEMA_TOO_LARGE and returns no partial schema. Keep this as a worker serialization/introspection assertion, independent of the browser's 101-relation/210-FK graph projection test in Task 5.
+
 - [ ] **Step 2: Run worker tests and verify RED**
 
-Run: npx vitest run apps/sql-worker/src/schema/introspectSchema.test.ts apps/sql-worker/src/explorer/rowReader.test.ts apps/sql-worker/src/explorer/relatedRowReader.test.ts
+Run: npx vitest run apps/sql-worker/src/schema/introspectSchema.test.ts apps/sql-worker/src/explorer/rowReader.test.ts apps/sql-worker/src/explorer/relatedRowReader.test.ts apps/sql-worker/src/security/databaseExplorerBounds.test.ts
 
-Expected: FAIL because constraint arrays are sorted independently and rowRefs contain pagination keys only.
+Expected: FAIL because constraint arrays are sorted independently, rowRefs contain pagination keys only, and worker schema snapshots do not reject over-limit serialization atomically.
 
 - [ ] **Step 3: Implement ordered catalog and source-key mapping**
 
-Use WITH ORDINALITY for FK and index attributes, preserving semantic order rather than alphabetical sorting. Build rowRef keys from the pagination key plus the union of allowed source FK columns for the selected row. Never select or encode blocked values. Decode the rowRef using Task 1 confidentiality/context checks, resolve source endpoint and edge from the same checksum, map paired source/target columns by index, and create parameterized equality predicates. Keep the ordinary 25/50/100 row bounds and read-only transaction.
+Use WITH ORDINALITY for FK and index attributes, preserving semantic order rather than alphabetical sorting. Build rowRef keys from the pagination key plus the union of allowed source FK columns for the selected row. Never select or encode blocked values. Decode the rowRef using Task 1 confidentiality/context checks, resolve source endpoint and edge from the same checksum, map paired source/target columns by index, and create parameterized equality predicates. Keep the ordinary 25/50/100 row bounds and read-only transaction. Bound the serialized schema snapshot at 2 MiB; fail with DATABASE_SCHEMA_TOO_LARGE before returning any partial schema.
 
 - [ ] **Step 4: Run worker tests and verify GREEN**
 
@@ -149,7 +153,7 @@ git add apps/sql-worker/src/schema/introspectSchema.ts apps/sql-worker/src/schem
 git commit -m "fix(database): preserve FK traversal values"
 ~~~
 
-**Acceptance:** Composite relationships retain ordered pairs; rowRefs keep required allowed FK values encrypted; traversal succeeds from parent or child without raw cell-derived filters.
+**Acceptance:** Composite relationships retain ordered pairs; rowRefs keep required allowed FK values encrypted; traversal succeeds from parent or child without raw cell-derived filters; worker snapshot overflow fails atomically at its independent 2 MiB boundary.
 
 ### Task 3: Wire production worker readers and expose target health
 
@@ -169,12 +173,12 @@ git commit -m "fix(database): preserve FK traversal values"
 **Interfaces:**
 
 - Consumes: production pools, target registry, schemaReader, readDatabaseRows, and readRelatedRows from Tasks 1–2.
-- Produces: database.targets, database.schema, database.rows, and database.relatedRows worker commands. database.targets returns only the closed target set with available/disabled/unavailable state.
+- Produces: database.targets, database.schema, database.rows, and database.relatedRows worker commands. database.targets returns only the closed target set with available/disabled/unavailable state. After startup, each target's health refresh is bounded: one in-flight SELECT 1 probe at most every 5 seconds, 1-second probe timeout, cached state between probes; a failed probe marks unavailable and a successful later probe restores available.
 - Shared Zod command/result schemas validate runtime payloads and outputs; every available target has a separate verify-full, read-only pool with max two.
 
 - [ ] **Step 1: Add failing production-runtime and Zod-boundary tests**
 
-Extend main.test.ts to send signed commands through the real Unix-socket protocol with fixture catalog and row results. Assert database.schema contains the live fixture table, database.rows returns its row and masked PII cell, and database.relatedRows calls the real traversal reader. Assert the other target pool is untouched. Test disabled target, one unavailable target with the other healthy, malformed payload, malformed reader output, viewer row denial before reader call, and target IDs outside the closed set. No test should assert only that a stub was called.
+Extend main.test.ts to send signed commands through the real Unix-socket protocol with fixture catalog and row results. Assert database.schema contains the live fixture table, database.rows returns its row and masked PII cell, and database.relatedRows calls the real traversal reader. Assert the other target pool is untouched. With an injected clock and probe, test disabled target, startup health, a post-start database outage changing available to unavailable, later recovery changing it back to available, one unavailable target with the other healthy, malformed payload, malformed reader output, viewer row denial before reader call, and target IDs outside the closed set. No test should assert only that a stub was called.
 
 - [ ] **Step 2: Run worker tests and verify RED**
 
@@ -184,7 +188,7 @@ Expected: FAIL because main.ts wires empty schema/row handlers and there is no d
 
 - [ ] **Step 3: Implement runtime readers, status command, and schemas**
 
-Create schema-reader closures per available registry target after URL TLS and current_user/current_database identity checks. Dispatch each command to the matching target and real reader. Never substitute one target for another. Return registry summaries for database.targets without revealing credentials. Validate target, command payload, and worker result with strict Zod schemas. Allow authenticated viewers to ask for targets/schema but reject rows and relatedRows before touching a pool.
+Create schema-reader closures per available registry target after URL TLS and current_user/current_database identity checks. Dispatch each command to the matching target and real reader. Never substitute one target for another. Return registry summaries for database.targets without revealing credentials. After startup, refresh each target with a single-flight SELECT 1 no more than once per five seconds and a one-second timeout; report cached state between bounded probes, transition to unavailable on probe failure, and permit recovery on the next successful probe. Validate target, command payload, and worker result with strict Zod schemas. Allow authenticated viewers to ask for targets/schema but reject rows and relatedRows before touching a pool.
 
 On partial startup or shutdown, close each created pool exactly once. Preserve existing SQL console/mutation commands and flags unchanged.
 
@@ -192,7 +196,7 @@ On partial startup or shutdown, close each created pool exactly once. Preserve e
 
 Run: npx vitest run apps/sql-worker/src/runtime apps/sql-worker/src/database/targetRegistry.test.ts apps/sql-worker/src/protocol/authenticateCommand.test.ts apps/sql-worker/src/explorer
 
-Expected: PASS with real reader results, target-specific health, runtime Zod rejection, role checks, and pool isolation.
+Expected: PASS with real reader results, startup and refreshed outage/recovery health, runtime Zod rejection, role checks, and pool isolation.
 
 - [ ] **Step 5: Commit**
 
@@ -201,7 +205,7 @@ git add packages/contracts/src/workerProtocol.ts packages/contracts/src/database
 git commit -m "fix(database): wire worker readers and target health"
 ~~~
 
-**Acceptance:** Production no longer returns empty placeholders; worker status reflects flags and health; all worker inputs/results are schema-validated; no fallback crosses target boundaries.
+**Acceptance:** Production no longer returns empty placeholders; worker status reflects flags and bounded current health, including outage/recovery after startup; all worker inputs/results are schema-validated; no fallback crosses target boundaries.
 
 ### Task 4: Fix production API parsing, server-bound PII, and fail-closed audit
 
@@ -214,7 +218,12 @@ git commit -m "fix(database): wire worker readers and target health"
 - Modify: apps/api/src/modules/auth/postgresStepUpRepository.ts
 - Modify: apps/api/src/modules/auth/postgresStepUpRepository.test.ts
 - Modify: packages/db/src/schema/auth.ts
-- Modify: packages/db/migrations/0022_database_pii_reveal.sql
+- Create: packages/db/migrations/0023_database_pii_grant_binding.sql
+- Modify: packages/db/src/migrationManifest.ts
+- Modify: packages/db/src/migrationManifest.test.ts
+- Modify: packages/db/src/migrate.test.ts
+- Create: apps/api/src/modules/database/schemaViewAuditLimiter.ts
+- Create: apps/api/src/modules/database/schemaViewAuditLimiter.test.ts
 - Modify: apps/api/src/modules/database/databaseSchemas.ts
 - Modify: apps/api/src/modules/database/databaseExplorerService.ts
 - Modify: apps/api/src/modules/database/databaseExplorerService.test.ts
@@ -237,36 +246,42 @@ Call createOpsApi directly without a test-installed express.json parser; POST va
 
 For PII, test that a reusable grant authorizes only when user, session, IP hash, user-agent hash, and target all match. Assert reveal response has exactly the expiresAt property, row/relation calls never read X-Ops-Step-Up-Grant, DELETE /pii-reveal requires no grant ID, and expired/revoked/wrong-binding requests fail before worker dispatch. Force grant audit, row audit, revoke, and revoke-audit failures; assert none returns success or row bytes. Assert rows_viewed and pii_rows_viewed metadata includes schemaChecksum without values, cursor, rowRef, or SQL.
 
+Inject a fake clock into schema-view audit limiting: the same actor+target+checksum yields at most one schema_viewed audit in each 60-second window; the exact window boundary opens a new entry, and a changed checksum opens a new entry immediately. Force limiter/audit persistence failure and assert the schema response fails closed. Assert Cache-Control: no-store on GET targets, schema, rows, relations, reveal, and DELETE /pii-reveal, including the DELETE hide/revoke response.
+
+Test migrations through the manifest/migrator: 0022 remains byte-for-byte/checksum pinned, 0023 adds the server-side binding fields/indexes required by the repository, and fresh migration plus upgrade-from-0022 succeeds.
+
 - [ ] **Step 2: Run API tests and verify RED**
 
-Run: npx vitest run apps/api/src/index.test.ts apps/api/src/modules/auth/stepUpService.test.ts apps/api/src/modules/auth/postgresStepUpRepository.test.ts apps/api/src/modules/database apps/api/src/runtime/createOpsApiRuntime.test.ts
+Run: npx vitest run apps/api/src/index.test.ts apps/api/src/modules/auth/stepUpService.test.ts apps/api/src/modules/auth/postgresStepUpRepository.test.ts apps/api/src/modules/database apps/api/src/runtime/createOpsApiRuntime.test.ts packages/db/src/migrationManifest.test.ts packages/db/src/migrate.test.ts
 
-Expected: FAIL because production has no JSON body parser, targets are hard-coded available, grantId is returned/required in a header, and revoke/audit failures are swallowed.
+Expected: FAIL because production has no JSON body parser, targets are hard-coded available, grantId is returned/required in a header, revoke/audit failures are swallowed, schema-view audit is unbounded, no-store omits targets/DELETE, and 0023 binding migration is absent.
 
 - [ ] **Step 3: Implement parser, worker validation, and live target projection**
 
-Install bounded strict JSON parsing before API routers. Validate targets, schema snapshots, row results, and related-row results before audit or response; invalid worker results become WORKER_DATABASE_RESPONSE_INVALID without details. Source target state from database.targets. Keep Cache-Control: no-store on schema, rows, relations, and reveal routes. Add schemaChecksum to row and PII audit records.
+Install bounded strict JSON parsing before API routers. Validate targets, schema snapshots, row results, and related-row results before audit or response; invalid worker results become WORKER_DATABASE_RESPONSE_INVALID without details. Source target state from database.targets. Set Cache-Control: no-store on every Database Explorer route, including GET targets/schema/rows/relations/reveal and DELETE /pii-reveal. Add schemaChecksum to row and PII audit records.
 
 - [ ] **Step 4: Implement server-side grant resolution and fail-closed revoke**
 
 Add repository/service operations to find or revoke active reusable database_pii grants by capability + user/session/IP hash/user-agent hash + target subject digest. Derive target digest on the server. Do not store password/TOTP and do not expose grant ID. POST reveal returns { expiresAt }; move revoke to DELETE /api/v1/database/pii-reveal. Resolve the current grant for each revealed page before contacting the worker.
 
+Create additive migration 0023_database_pii_grant_binding.sql for the grant-binding columns and lookup index; update the manifest and migration tests without editing or rehashing pinned 0022_database_pii_reveal.sql. Add schema-view audit deduplication keyed by actor+target+structural checksum, with a 60-second window and injected clock. Persist/append schema_viewed before returning schema on a new key/window; a new checksum is a new key. Suppress only duplicate audit writes inside the active window, not schema authorization. If limiter state or required audit append is unavailable, return a stable failure and no schema response.
+
 If grant audit fails, revoke the just-created grant and return failure. If revoke or audit fails, do not claim success. If any row audit append fails, discard worker rows and return failure. Revoke database_pii grants during logout/session teardown; expired sessions cannot access revealed rows.
 
 - [ ] **Step 5: Run API/auth tests and verify GREEN**
 
-Run: npx vitest run apps/api/src/index.test.ts apps/api/src/modules/auth apps/api/src/modules/database apps/api/src/runtime/createOpsApiRuntime.test.ts packages/db/src/schema
+Run: npx vitest run apps/api/src/index.test.ts apps/api/src/modules/auth apps/api/src/modules/database apps/api/src/runtime/createOpsApiRuntime.test.ts packages/db/src/schema packages/db/src/migrationManifest.test.ts packages/db/src/migrate.test.ts
 
-Expected: PASS for production JSON parsing, strict worker validation, live target health, expiry-only reveal response, binding checks, and fail-closed row/revoke/audit paths.
+Expected: PASS for production JSON parsing, strict worker validation, live target health, expiry-only reveal response, binding checks, 60-second schema audit window/checksum rollover, all-route no-store, pinned 0022 plus additive 0023, and fail-closed row/revoke/audit paths.
 
 - [ ] **Step 6: Commit**
 
 ~~~bash
-git add apps/api/src/index.ts apps/api/src/index.test.ts apps/api/src/modules/auth apps/api/src/modules/database apps/api/src/runtime/createOpsApiRuntime.ts apps/api/src/runtime/createOpsApiRuntime.test.ts packages/db/src/schema/auth.ts packages/db/migrations/0022_database_pii_reveal.sql
+git add apps/api/src/index.ts apps/api/src/index.test.ts apps/api/src/modules/auth apps/api/src/modules/database apps/api/src/runtime/createOpsApiRuntime.ts apps/api/src/runtime/createOpsApiRuntime.test.ts packages/db/src/schema/auth.ts packages/db/migrations/0023_database_pii_grant_binding.sql packages/db/src/migrationManifest.ts packages/db/src/migrationManifest.test.ts packages/db/src/migrate.test.ts
 git commit -m "fix(database): enforce API reveal and audit contract"
 ~~~
 
-**Acceptance:** Production accepts structured row requests; worker data is validated; availability is real; grant IDs never cross HTTP; bindings and audit/revoke fail closed; audit includes schema checksum.
+**Acceptance:** Production accepts structured row requests; worker data is validated; availability is current; grant IDs never cross HTTP; bindings and audit/revoke fail closed; schema audits are rate-limited by actor+target+checksum; every route including targets/DELETE is no-store; audit includes schema checksum; 0022 remains pinned and 0023 is additive.
 
 ### Task 5: Complete browser privacy lifecycle, FK direction/paging, and accessibility
 
@@ -282,6 +297,8 @@ git commit -m "fix(database): enforce API reveal and audit contract"
 - Modify: apps/web/src/web/features/database/DataGrid.test.tsx
 - Modify: apps/web/src/web/features/database/RelatedRowsDrawer.tsx
 - Modify: apps/web/src/web/features/database/RelatedRowsDrawer.test.tsx
+- Modify: apps/web/src/web/features/database/graphModel.ts
+- Modify: apps/web/src/web/features/database/graphModel.test.ts
 - Modify: apps/web/src/web/pages/DatabasePage.tsx
 - Modify: apps/web/src/web/pages/DatabasePage.test.tsx
 - Modify: apps/web/src/web/styles.css
@@ -298,11 +315,13 @@ Use a deferred revealed-row promise; start it, hide/switch, then resolve it with
 
 For FK tests, select a parent endpoint and assert the request sends that selected schema/relation, not always edge.from. Test composite edges, drawer next with returned cursor, previous restoring the prior cursor, close/source switch reset, and no cursor reuse after target/checksum change. Add keyboard/focus tests for opening/closing the drawer, semantic table headers, button names, sort state, and accessible loading/error/empty messages.
 
+Add a web-only full-ERD fixture with 101 relations and 210 FK edges. Assert projection contains all 101 usable relation nodes and 210 usable edges, produces identical ordered node/edge IDs when schemas, relations, and edges are shuffled, and search deterministically focuses one matching relation. The worker snapshot byte bound is independently tested in Task 2; do not couple this graph-model test to worker serialization.
+
 - [ ] **Step 2: Run UI tests and verify RED**
 
-Run: npx vitest run apps/web/src/web/features/database apps/web/src/web/pages/DatabasePage.test.tsx
+Run: npx vitest run apps/web/src/web/features/database apps/web/src/web/features/database/graphModel.test.ts apps/web/src/web/pages/DatabasePage.test.tsx
 
-Expected: FAIL because target switch does not revoke, hide leaves related/selected-cell state, FK requests always use edge.from, and drawer pagination handlers are no-ops.
+Expected: FAIL because target switch does not revoke, hide leaves related/selected-cell state, FK requests always use edge.from, drawer pagination handlers are no-ops, or full-ERD projection drops/reorders the 101-relation/210-edge fixture.
 
 - [ ] **Step 3: Implement clear-before-revoke and race protection**
 
@@ -316,18 +335,18 @@ Preserve accessible semantic tables and labels. Add keyboard-accessible actions,
 
 - [ ] **Step 5: Run UI tests and verify GREEN**
 
-Run: npx vitest run apps/web/src/web/features/database apps/web/src/web/pages/DatabasePage.test.tsx
+Run: npx vitest run apps/web/src/web/features/database apps/web/src/web/features/database/graphModel.test.ts apps/web/src/web/pages/DatabasePage.test.tsx
 
 Expected: PASS for privacy clear ordering, delayed-response rejection, expiry, both FK directions, related pagination, and accessibility behaviors.
 
 - [ ] **Step 6: Commit**
 
 ~~~bash
-git add apps/web/src/web/features/database/databaseApi.ts apps/web/src/web/features/database/databaseApi.test.ts apps/web/src/web/features/database/useDatabaseExplorer.ts apps/web/src/web/features/database/useDatabaseExplorer.test.tsx apps/web/src/web/features/database/PiiRevealDialog.tsx apps/web/src/web/features/database/PiiRevealDialog.test.tsx apps/web/src/web/features/database/DataGrid.tsx apps/web/src/web/features/database/DataGrid.test.tsx apps/web/src/web/features/database/RelatedRowsDrawer.tsx apps/web/src/web/features/database/RelatedRowsDrawer.test.tsx apps/web/src/web/pages/DatabasePage.tsx apps/web/src/web/pages/DatabasePage.test.tsx apps/web/src/web/styles.css
+git add apps/web/src/web/features/database/databaseApi.ts apps/web/src/web/features/database/databaseApi.test.ts apps/web/src/web/features/database/useDatabaseExplorer.ts apps/web/src/web/features/database/useDatabaseExplorer.test.tsx apps/web/src/web/features/database/PiiRevealDialog.tsx apps/web/src/web/features/database/PiiRevealDialog.test.tsx apps/web/src/web/features/database/DataGrid.tsx apps/web/src/web/features/database/DataGrid.test.tsx apps/web/src/web/features/database/RelatedRowsDrawer.tsx apps/web/src/web/features/database/RelatedRowsDrawer.test.tsx apps/web/src/web/features/database/graphModel.ts apps/web/src/web/features/database/graphModel.test.ts apps/web/src/web/pages/DatabasePage.tsx apps/web/src/web/pages/DatabasePage.test.tsx apps/web/src/web/styles.css
 git commit -m "fix(database): reset privacy and FK browser state"
 ~~~
 
-**Acceptance:** Reveal expires and is revoked without a client grant ID; old requests cannot restore values; both FK directions and relation pagination work; accessible controls preserve the read-only experience.
+**Acceptance:** Reveal expires and is revoked without a client grant ID; old requests cannot restore values; both FK directions and relation pagination work; accessible controls preserve the read-only experience; 101 relation nodes/210 FK edges remain complete and deterministic in the usable ERD projection.
 
 ### Task 6: Repair role provisioning, command-line renderers, and default-off deployment
 
@@ -412,6 +431,7 @@ git commit -m "fix(database): repair explorer provisioning gates"
 - Create: apps/sql-worker/src/security/databaseExplorerPostgres.integration.test.ts
 - Modify: apps/sql-worker/src/security/databaseExplorerBypass.test.ts
 - Modify: apps/sql-worker/src/security/databaseExplorerBounds.test.ts
+- Modify: apps/api/src/modules/database/databaseAudit.integration.test.ts
 - Modify: deploy/postgres/verify-database-explorer-role.test.ts
 - Modify: package.json
 
@@ -422,34 +442,34 @@ git commit -m "fix(database): repair explorer provisioning gates"
 
 - [ ] **Step 1: Remove fake security evidence and add a failing live suite**
 
-Remove expect(true) and regex-only “mutation denied” claims from databaseExplorerBypass.test.ts. Keep useful mocks labeled as unit tests, not evidence of PostgreSQL enforcement. Use a fixture relation with safe_value, pii_email, nullable_sort, tenant_id, student_id, and blocked_token plus a composite FK.
+Remove expect(true) and regex-only “mutation denied” claims from databaseExplorerBypass.test.ts. Keep useful mocks labeled as unit tests, not evidence of PostgreSQL enforcement. Remove browser graphModel imports/assertions from the worker bounds suite; worker tests cover only worker snapshot serialization and query/result bounds, while Task 5 owns web graph projection. Use a fixture relation with safe_value, pii_email, nullable_sort, tenant_id, student_id, and blocked_token plus a composite FK. Add a second live `wide_rows` relation with 33 approved text columns, each seeded with an actual 64 KiB value in one row; a page-size-25 response is therefore over 2 MiB before JSON envelope overhead. Add a separate 64 KiB + 1 cell fixture for cell-bound behavior.
 
-Add live tests using actual LOGIN roles and independent target databases: safe SELECT succeeds; SELECT blocked_token fails at PostgreSQL; INSERT/UPDATE/DELETE/TRUNCATE/CREATE TEMP/CREATE FUNCTION/COPY PROGRAM/SET ROLE are denied; read-only setting, TLS, current_user/current_database, and pool limits are correct. Read duplicate/null keyset pages and compare exact rows; exercise five/six filter boundary, response/cell bounds, timeout rollback, target isolation, and schema drift. No mock object can satisfy these assertions.
+Add live tests using actual LOGIN roles and independent target databases: safe SELECT succeeds; SELECT blocked_token fails at PostgreSQL; INSERT/UPDATE/DELETE/TRUNCATE/CREATE TEMP/CREATE FUNCTION/COPY PROGRAM/SET ROLE are denied. Inside the worker's explicit BEGIN READ ONLY transaction, SET TRANSACTION READ WRITE is rejected. Attempt SET SESSION default_transaction_read_only=off, then prove it cannot change the already-open worker transaction's transaction_read_only state or enable a write; any direct write is still rejected by the select-only grants. Compare structural checksum and fixture data before/after all attempts and prove unchanged. Read duplicate/null keyset pages and compare exact rows; exercise five/six filter boundary, response/cell bounds, timeout rollback, target isolation, outage/recovery health, and schema drift. Query the actual wide row through the real worker and API path: worker must return a stable over-limit failure with no rows, API must return a stable error with no row bytes/sentinel, and the stored database row remains intact. No mock/generated-only bound assertion can satisfy these tests.
 
 - [ ] **Step 2: Run the live gate and verify RED**
 
 Run: npm run test:database-explorer:postgres
 
-Expected: FAIL against current worker/role artifacts or a missing prerequisite, with the prerequisite named; never skip and never report pass when PostgreSQL is unavailable.
+Expected: FAIL against current worker/role artifacts or a missing prerequisite, with the prerequisite named; never skip and never report pass when PostgreSQL is unavailable. In particular, the live wide-row assertion fails until both worker and API refuse to return any partial row bytes above 2 MiB.
 
 - [ ] **Step 3: Build the ephemeral TLS fixture**
 
-Use a Compose project name unique to each run with no persistent named volume. Generate a temporary CA and server certificate with a DNS SAN matching the PostgreSQL service name; connect with sslmode=verify-full and that CA. Create separate edutrack_production and edutrack_ops databases, safe/PII/blocked fixtures, capability group, and distinct LOGIN roles. Store URLs/passwords only in mode-0600 temp files, not shell arguments or logs. The runner checks Docker/Compose, opens ports, certificates, and DB readiness before starting Vitest, and tears down only its own ephemeral project in a finally/trap path.
+Use a Compose project name unique to each run with no persistent named volume. Generate a temporary CA and server certificate with a DNS SAN matching the PostgreSQL service name; connect with sslmode=verify-full and that CA. Create separate edutrack_production and edutrack_ops databases, safe/PII/blocked/wide fixtures, capability group, and distinct LOGIN roles. Store URLs/passwords only in mode-0600 temp files, not shell arguments or logs. The runner checks Docker/Compose, opens ports, certificates, and DB readiness before starting worker and API live tests included in the integration config, and tears down only its own ephemeral project in a finally/trap path.
 
 - [ ] **Step 4: Run the live suite and verify GREEN**
 
 Run: npm run test:database-explorer:postgres
 
-Expected: PASS only when actual PostgreSQL rejects blocked reads and all writes and worker pagination/bounds match the fixture. Missing Docker, certificates, credentials, or databases is a hard failure.
+Expected: PASS only when actual PostgreSQL rejects blocked reads and all writes; SET TRANSACTION READ WRITE is rejected inside worker READ ONLY transactions; attempting to change default_transaction_read_only cannot make the active worker transaction writable, and select-only ACLs still reject writes; pre/post checksum and data are identical; worker/API return no bytes for the live >2 MiB page; and worker pagination/bounds match the fixture. Missing Docker, certificates, credentials, or databases is a hard failure.
 
 - [ ] **Step 5: Commit**
 
 ~~~bash
-git add deploy/postgres/database-explorer-test.compose.yaml deploy/postgres/database-explorer-test-init.sql scripts/database-explorer/run-postgres-integration.sh vitest.database-explorer.integration.config.ts apps/sql-worker/src/security/databaseExplorerPostgres.integration.test.ts apps/sql-worker/src/security/databaseExplorerBypass.test.ts apps/sql-worker/src/security/databaseExplorerBounds.test.ts deploy/postgres/verify-database-explorer-role.test.ts package.json
+git add deploy/postgres/database-explorer-test.compose.yaml deploy/postgres/database-explorer-test-init.sql scripts/database-explorer/run-postgres-integration.sh vitest.database-explorer.integration.config.ts apps/sql-worker/src/security/databaseExplorerPostgres.integration.test.ts apps/sql-worker/src/security/databaseExplorerBypass.test.ts apps/sql-worker/src/security/databaseExplorerBounds.test.ts apps/api/src/modules/database/databaseAudit.integration.test.ts deploy/postgres/verify-database-explorer-role.test.ts package.json
 git commit -m "test(database): enforce explorer rules in postgres"
 ~~~
 
-**Acceptance:** Database-level bypass and bounds claims are backed by the actual target-style PostgreSQL login roles. Unit mocks remain useful but do not count toward this gate.
+**Acceptance:** Database-level bypass and bounds claims are backed by actual target-style PostgreSQL LOGIN roles; write-mode/read-only bypass attempts are denied and checksum/data remain unchanged; the live >2 MiB worker/API probe returns no row bytes; worker schema bounds stay separate from browser graph projection. Unit mocks do not count toward this gate.
 
 ### Task 8: Exercise the real application stack and separate local from external gates
 
@@ -506,7 +526,7 @@ npm run typecheck
 npm run lint
 npm run format:check
 npm test
-npm run build
+VITE_OPS_BROWSER_TELEMETRY_ENABLED=true VITE_OPS_BROWSER_INGEST_URL=https://man.thienuy.edu.vn/api/v1/ingest/browser VITE_OPS_BROWSER_PROJECT_KEY=ops-web-public-key VITE_APP_RELEASE_SHA="$(git rev-parse HEAD)" npm run build
 npm run test:database-explorer:postgres
 npm run test:e2e --workspace @edutrack-ops/web -- database-explorer.spec.ts
 ~~~
@@ -527,9 +547,12 @@ git commit -m "test(database): exercise explorer real stack and gates"
 ### Local code and test DoD
 
 - All eight tasks are implemented in dependency order, with a focused RED result before the change and GREEN result before that task’s commit.
-- typecheck, lint, format check, unit tests, production build, live PostgreSQL integration, and real-stack Playwright pass.
-- Runtime readers are wired; tokens are confidential; drift and cursor semantics are correct; FK traversal works both directions; PII binding, worker validation, audit, and no-store behavior match the approved spec.
+- typecheck, lint, format check, unit tests, production build with enabled/valid browser telemetry configuration and the checked-out release SHA, live PostgreSQL integration, and real-stack Playwright pass.
+- Runtime readers are wired; target health refreshes after startup within the bounded probe interval and recovers after a successful probe; tokens are confidential; drift and cursor semantics are correct; unapproved columns remain blocked/data-unavailable; FK traversal works both directions; PII binding, worker validation, rate-limited schema audit, all-route no-store, and fail-closed behavior match the approved spec.
 - Actual PostgreSQL proves blocked-column and mutation enforcement for the browser LOGIN roles.
+- PostgreSQL live probes reject READ WRITE escalation inside worker transactions and show that overriding the default cannot enable writes; fixture checksum and data remain unchanged, and actual wide-row pages over 2 MiB produce no worker/API row bytes.
+- Worker schema snapshot byte bounds are tested independently from the browser's deterministic 101-relation/210-FK ERD projection.
+- Migration 0022 remains pinned; server-side PII grant binding is delivered additively by migration 0023.
 - Explorer, API bridge, and both targets remain false in committed defaults.
 
 ### External staged observation gate
@@ -539,11 +562,16 @@ Production rollout is complete only after the separately recorded 24-hour Ops-ow
 ## Self-Review and Traceability
 
 - HMAC-readable cursors/rowRefs, 4 KiB/5 minute bounds, context binding, key migration, and no logging: Task 1.
-- Schema drift timing, nullable pagination, enum operators, conservative PII patterns: Task 1.
+- Schema drift timing, unapproved newly discovered columns, nullable pagination, enum operators, conservative PII patterns: Task 1.
+- Ordered FK pairing, encrypted source FK rowRef, traversal, independent worker schema snapshot bounds: Task 2.
+- Bounded post-start health refresh, outage/recovery, runtime reader wiring and Zod validation: Task 3.
+- Pinned 0022 plus additive 0023, actor+target+checksum 60-second schema audit window, checksum rollover, all-route no-store including targets and DELETE, PII binding/audit fail-closed: Task 4.
+- Deterministic full ERD for 101 relations/210 FKs in web graphModel tests, privacy lifecycle, reverse FK and drawer paging: Task 5.
 - Composite FK ordinality, source FK rowRef values, both traversal directions: Task 2.
 - Production worker stubs, target health/flags, worker Zod boundaries: Task 3.
 - Production JSON parsing, server-side PII bindings, expiry-only response, fail-closed audit/revoke, schema checksum: Task 4.
 - Clear-before-revoke privacy transitions, target/expiry behavior, reverse FK source, drawer pagination, accessibility: Task 5.
 - NOLOGIN group vs LOGIN examples, policy input, executable TS renderer, old grant revocation, OPS_SQL_WORKER_ENABLED, optional systemd credentials: Task 6.
-- Fake assertions, regex-only bypass, mock-only bounds, live database-level enforcement: Task 7.
+- Fake assertions, regex-only bypass, mock-only bounds, live database-level enforcement, attempted READ WRITE/default override, unchanged checksum/data, >2 MiB wide-cell page rejected without API/worker bytes: Task 7.
 - SQLite/skip removal, API+worker+web E2E, local gate versus external staged observation, default-off: Task 8.
+- Valid production-shaped browser telemetry environment and current release SHA on final build: Task 8.
