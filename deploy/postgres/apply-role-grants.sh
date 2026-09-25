@@ -6,6 +6,7 @@ readonly ROLE_SQL_PATH="${SCRIPT_DIRECTORY}/001_ops_readonly_roles.sql"
 readonly VERIFIER_PATH="${SCRIPT_DIRECTORY}/verify-readonly-role.ts"
 readonly EXPLORER_ROLE_SQL_PATH="${SCRIPT_DIRECTORY}/003_database_explorer_roles.sql"
 readonly EXPLORER_VERIFIER_PATH="${SCRIPT_DIRECTORY}/verify-database-explorer-role.ts"
+readonly SCRAM_VERIFIER_PATH="${SCRIPT_DIRECTORY}/derive-scram-verifier.mjs"
 readonly PSQL_BIN="${PSQL_BIN:-psql}"
 
 fail() {
@@ -32,10 +33,15 @@ read_generated_password() {
   value="$(tr -d '\r\n' < "$path")"
   [[ "$value" =~ ^[A-Za-z0-9_-]{32,}$ ]] || fail "generated password must be at least 32 URL-safe characters: $path"
   printf '%s' "$value"
+  unset value
 }
 
 psql_set() {
   printf '\\set %s %s\n' "$1" "$2"
+}
+
+psql_set_quoted() {
+  printf "\\set %s '%s'\n" "$1" "$2"
 }
 
 require_identifier() {
@@ -124,8 +130,6 @@ require_mode_0600 "$readonly_database_url_file"
 command -v "$PSQL_BIN" >/dev/null 2>&1 || fail "psql is unavailable: $PSQL_BIN"
 command -v node >/dev/null 2>&1 || fail 'node is unavailable'
 
-read_password="$(read_generated_password "$read_password_file")"
-
 if [ "$role_type" = 'explorer' ]; then
   case "$target_id" in
     edutrack_production)
@@ -143,6 +147,7 @@ if [ "$role_type" = 'explorer' ]; then
 
   [ -r "$EXPLORER_ROLE_SQL_PATH" ] || fail "explorer role SQL is unavailable: $EXPLORER_ROLE_SQL_PATH"
   [ -r "$EXPLORER_VERIFIER_PATH" ] || fail "explorer verifier is unavailable: $EXPLORER_VERIFIER_PATH"
+  [ -r "$SCRAM_VERIFIER_PATH" ] || fail "SCRAM verifier helper is unavailable: $SCRAM_VERIFIER_PATH"
 
   effective_safe_column="${safe_column:-$fixture_column}"
   [ -n "$effective_safe_column" ] || fail '--safe-column or --fixture-column is required'
@@ -151,13 +156,19 @@ if [ "$role_type" = 'explorer' ]; then
     require_identifier "$blocked_column"
   fi
 
+  read_password="$(read_generated_password "$read_password_file")"
+  browser_password_verifier="$(printf '%s' "$read_password" | node "$SCRAM_VERIFIER_PATH")"
+  unset read_password
+  [[ "$browser_password_verifier" =~ ^SCRAM-SHA-256\$4096:[A-Za-z0-9+/]{22}==\$[A-Za-z0-9+/]{43}=:[A-Za-z0-9+/]{43}=$ ]] \
+    || fail 'could not derive a PostgreSQL SCRAM-SHA-256 verifier'
+
   {
     psql_set ops_database_name "$database_name"
     psql_set ops_target_id "$target_id"
     psql_set ops_business_schemas "$business_schemas"
     psql_set ops_schema_owner_role "$schema_owner_role"
     psql_set ops_browser_login "$read_login"
-    psql_set ops_browser_password "$read_password"
+    psql_set_quoted ops_browser_password_verifier "$browser_password_verifier"
     psql_set ops_revoke_public_privileges true
     printf '\\i %s\n' "$EXPLORER_ROLE_SQL_PATH"
     if [ -n "$grants_file" ]; then
@@ -165,6 +176,7 @@ if [ "$role_type" = 'explorer' ]; then
       printf '\\i %s\n' "$grants_file"
     fi
   } | PGPASSFILE="$admin_pgpass_file" "$PSQL_BIN" --no-psqlrc --quiet --set ON_ERROR_STOP=1 --dbname="$database_name"
+  unset browser_password_verifier
 
   verifier_args=(
     --database-url-file "$readonly_database_url_file"
@@ -217,6 +229,7 @@ else
   [ -r "$ROLE_SQL_PATH" ] || fail "role SQL is unavailable: $ROLE_SQL_PATH"
   [ -r "$VERIFIER_PATH" ] || fail "role verifier is unavailable: $VERIFIER_PATH"
 
+  read_password="$(read_generated_password "$read_password_file")"
   cancel_password="$(read_generated_password "$cancel_password_file")"
 
   {

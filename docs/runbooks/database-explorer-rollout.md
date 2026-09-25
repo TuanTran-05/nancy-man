@@ -85,6 +85,10 @@ Renderer dừng mà không tạo SQL nếu thiếu tham số, target mở/không
 
 Provision riêng từng database. `--target` đóng xác định login được phép; `--database` phải là database đúng của target. Mật khẩu lấy từ file mode `0600`, URL verifier kết nối bằng TLS `verify-full`, không đưa secret vào command arguments.
 
+Wrapper đưa mật khẩu từ file qua `stdin` cho helper Node để tạo SCRAM-SHA-256 verifier với salt ngẫu nhiên 16 byte và 4096 vòng PBKDF2. Biến mật khẩu trong shell được unset sau đó; chỉ verifier được gửi tới `psql`, staging table và `CREATE/ALTER ROLE`. PostgreSQL 16 lưu verifier SCRAM đã mã hóa được chỉ định trong `PASSWORD` nguyên trạng theo [hợp đồng CREATE ROLE](https://www.postgresql.org/docs/16/sql-createrole.html); [ví dụ `createuser`](https://www.postgresql.org/docs/16/app-createuser.html) cũng gửi verifier tới client thay vì mật khẩu gốc.
+
+`log_statement = 'mod'` hoặc `'all'` có thể ghi verifier từ câu lệnh staging hoặc cập nhật role. Verifier không phải mật khẩu gốc nhưng cho phép thử mật khẩu ngoại tuyến; bảo vệ quyền đọc và thời hạn lưu log như dữ liệu credential, không chép verifier vào audit evidence. Nếu nghi verifier hoặc mật khẩu bị lộ, thay mật khẩu ngẫu nhiên mới trong file credential, chạy lại provisioning và verifier, cập nhật PostgreSQL URL của worker trong secret store rồi restart worker theo change được duyệt.
+
 Provisioning yêu cầu `current_user` phải là PostgreSQL `superuser` (`rolsuper = true`). Preflight kiểm tra quyền này và CREATE ACL trong tất cả business schema trước khi đổi role hoặc ACL. Các role membership REVOKE chạy với `CASCADE` để xóa cả membership được cấp tiếp qua `ADMIN OPTION`.
 
 Nếu có unexpected CREATE ACL do role khác `current_user` cấp, PostgreSQL 16 sẽ dừng preflight trước mọi thay đổi. PG16 chỉ chấp nhận `GRANTED BY current_user` cho object privilege; kể cả superuser cũng không thể chỉ định grantor khác. Lỗi nêu schema cần xử lý và yêu cầu thu hồi CREATE trong context của grantor gốc. Xem grantor/grantee của các CREATE ACL trực tiếp bằng truy vấn sau, thay danh sách schema bằng đúng `--business-schemas`:

@@ -25,9 +25,9 @@
   \echo 'ops_target_id is required and must be edutrack_production or ops'
   \quit
 \endif
-\if :{?ops_browser_password}
+\if :{?ops_browser_password_verifier}
 \else
-  \echo 'ops_browser_password is required'
+  \echo 'ops_browser_password_verifier is required'
   \quit
 \endif
 \if :{?ops_revoke_public_privileges}
@@ -45,6 +45,7 @@ BEGIN;
 
 -- psql does not interpolate variables inside dollar-quoted DO bodies. Stage
 -- quoted inputs as session-local, typed values before any provisioning block.
+-- The browser password is SCRAM-derived client-side; only its verifier enters SQL.
 CREATE TEMP TABLE ops_database_explorer_input (
   singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
   database_name text NOT NULL,
@@ -52,7 +53,7 @@ CREATE TEMP TABLE ops_database_explorer_input (
   schema_owner_role text NOT NULL,
   browser_login text NOT NULL,
   target_id text NOT NULL,
-  browser_password text
+  browser_password_verifier text
 ) ON COMMIT DROP;
 
 INSERT INTO ops_database_explorer_input (
@@ -61,14 +62,14 @@ INSERT INTO ops_database_explorer_input (
   schema_owner_role,
   browser_login,
   target_id,
-  browser_password
+  browser_password_verifier
 ) VALUES (
   :'ops_database_name',
   string_to_array(:'ops_business_schemas', ','),
   :'ops_schema_owner_role',
   :'ops_browser_login',
   :'ops_target_id',
-  :'ops_browser_password'
+  :'ops_browser_password_verifier'
 );
 
 DO $provisioning_preflight$
@@ -78,7 +79,7 @@ DECLARE
   input_schema_owner text;
   input_browser_login text;
   input_target_id text;
-  input_browser_password text;
+  input_browser_password_verifier text;
   schema_name text;
   schema_count bigint;
   distinct_schema_count bigint;
@@ -90,14 +91,14 @@ BEGIN
     input.schema_owner_role,
     input.browser_login,
     input.target_id,
-    input.browser_password
+    input.browser_password_verifier
   INTO STRICT
     input_database_name,
     input_business_schemas,
     input_schema_owner,
     input_browser_login,
     input_target_id,
-    input_browser_password
+    input_browser_password_verifier
   FROM pg_temp.ops_database_explorer_input AS input;
 
   IF input_database_name !~ '^[a-z][a-z0-9_]{0,62}$' THEN
@@ -115,13 +116,13 @@ BEGIN
       AND (input_database_name <> 'edutrack_ops' OR input_browser_login <> 'ops_browser_ops')) THEN
     RAISE EXCEPTION 'Ops browser target, database, and login must match an approved target';
   END IF;
-  IF input_browser_password IS NULL OR input_browser_password !~ '^[A-Za-z0-9_-]{32,}$' THEN
-    RAISE EXCEPTION 'ops_browser_password must be at least 32 URL-safe characters';
+  IF input_browser_password_verifier IS NULL OR input_browser_password_verifier !~ '^SCRAM-SHA-256\$4096:[A-Za-z0-9+/]{22}==\$[A-Za-z0-9+/]{43}=:[A-Za-z0-9+/]{43}=$' THEN
+    RAISE EXCEPTION 'ops_browser_password_verifier must be a PostgreSQL SCRAM-SHA-256 verifier';
   END IF;
   IF cardinality(input_business_schemas) = 0 THEN
     RAISE EXCEPTION 'At least one business schema is required';
   END IF;
-  SELECT count(*), count(DISTINCT btrim(schema_name))
+  SELECT count(*), count(DISTINCT btrim(schemas.schema_name))
   INTO schema_count, distinct_schema_count
   FROM unnest(input_business_schemas) AS schemas(schema_name);
   IF schema_count = 0 OR schema_count <> distinct_schema_count THEN
@@ -231,13 +232,13 @@ REVOKE TEMPORARY ON DATABASE :"ops_database_name" FROM PUBLIC;
 DO $logins$
 DECLARE
   browser_login text;
-  browser_password text;
+  browser_password_verifier text;
   target_id text;
   membership record;
   capability_member record;
 BEGIN
-  SELECT input.browser_login, input.browser_password, input.target_id
-  INTO STRICT browser_login, browser_password, target_id
+  SELECT input.browser_login, input.browser_password_verifier, input.target_id
+  INTO STRICT browser_login, browser_password_verifier, target_id
   FROM pg_temp.ops_database_explorer_input AS input;
 
   IF target_id NOT IN ('edutrack_production', 'ops') THEN
@@ -271,20 +272,21 @@ BEGIN
   END LOOP;
 
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = browser_login) THEN
+    -- CREATE/ALTER ROLE accepts a pre-encrypted SCRAM verifier and stores it as-is.
     EXECUTE format(
       'ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 2 PASSWORD %L',
       browser_login,
-      browser_password
+      browser_password_verifier
     );
   ELSE
     EXECUTE format(
       'CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 2 PASSWORD %L',
       browser_login,
-      browser_password
+      browser_password_verifier
     );
   END IF;
-  UPDATE pg_temp.ops_database_explorer_input SET browser_password = NULL;
-  browser_password := NULL;
+  UPDATE pg_temp.ops_database_explorer_input SET browser_password_verifier = NULL;
+  browser_password_verifier := NULL;
 
   -- Remove all direct memberships first; this also removes every inherited or SET path.
   FOR membership IN

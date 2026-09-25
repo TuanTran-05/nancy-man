@@ -143,6 +143,20 @@ describe('database explorer roles and verifier', () => {
     expect(preflightStart).toBeLessThan(sql.indexOf('GRANT CONNECT ON DATABASE'));
   });
 
+  it('qualifies the schema column that collides with the preflight PL/pgSQL variable', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+    const preflight = extractDoBodies(sql).find(({ tag }) => tag === '$provisioning_preflight$');
+    const schemaCountQuery = preflight?.body.match(
+      /\bSELECT\s+count\(\*\)\s*,\s*count\s*\(\s*DISTINCT[\s\S]*?FROM\s+unnest\(input_business_schemas\)\s+AS\s+schemas\(schema_name\);/i
+    )?.[0];
+
+    expect(preflight?.body).toMatch(/\bDECLARE[\s\S]*?\bschema_name\s+text\s*;/i);
+    expect(schemaCountQuery).toBeDefined();
+    expect(schemaCountQuery).toMatch(
+      /count\s*\(\s*DISTINCT\s+btrim\s*\(\s*schemas\.schema_name\s*\)\s*\)/i
+    );
+  });
+
   it('keeps psql variables outside every dollar-quoted DO body', async () => {
     const sql = await readArtifact(artifacts.rolesSql);
     const doBodies = extractDoBodies(sql);
@@ -151,9 +165,14 @@ describe('database explorer roles and verifier', () => {
     expect(doBodies).toHaveLength(doStatementCount);
     expect(doBodies.length).toBeGreaterThan(0);
     for (const { tag, body } of doBodies) {
-      expect(body, `DO ${tag} body must SELECT values from the session input table`).toContain(
-        'FROM pg_temp.ops_database_explorer_input AS input'
-      );
+      const strictInputReads =
+        body.match(
+          /\bSELECT\b[^;]*?\bINTO\s+STRICT\b[^;]*?\bFROM\s+pg_temp\.ops_database_explorer_input\b[^;]*?;/gims
+        ) ?? [];
+      expect(
+        strictInputReads,
+        `DO ${tag} body must have exactly one strict staged-input read`
+      ).toHaveLength(1);
       expect(body, `DO ${tag} body must read staged values instead of psql variables`).not.toMatch(
         /(?<!:):(?!:)(?:'[^']*'|"[^"]*"|\{[^}]*\}|[A-Za-z_][A-Za-z0-9_]*)/
       );
@@ -180,7 +199,7 @@ describe('database explorer roles and verifier', () => {
       'ops_schema_owner_role',
       'ops_browser_login',
       'ops_target_id',
-      'ops_browser_password'
+      'ops_browser_password_verifier'
     ]) {
       expect(stagedSql).toContain(`:'${input}'`);
     }
@@ -191,14 +210,39 @@ describe('database explorer roles and verifier', () => {
     const loginBlock = extractDoBodies(sql).find(({ tag }) => tag === '$logins$');
     const passwordUse = loginBlock?.body.lastIndexOf('PASSWORD %L') ?? -1;
     const stagedPasswordClear = loginBlock?.body.indexOf(
-      'UPDATE pg_temp.ops_database_explorer_input SET browser_password = NULL'
+      'UPDATE pg_temp.ops_database_explorer_input SET browser_password_verifier = NULL'
     ) ?? -1;
-    const localPasswordClear = loginBlock?.body.indexOf('browser_password := NULL') ?? -1;
+    const localPasswordClear = loginBlock?.body.indexOf('browser_password_verifier := NULL') ?? -1;
 
     expect(loginBlock).toBeDefined();
     expect(passwordUse).toBeGreaterThanOrEqual(0);
     expect(stagedPasswordClear).toBeGreaterThan(passwordUse);
     expect(localPasswordClear).toBeGreaterThan(stagedPasswordClear);
+  });
+
+  it('stages and sets the browser role password only from a SCRAM verifier', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+    const insertStart = sql.indexOf('INSERT INTO ops_database_explorer_input');
+    const firstDoStart = extractDoBodies(sql)[0]?.start ?? -1;
+    const stagedSql = sql.slice(insertStart, firstDoStart);
+    const preflight =
+      extractDoBodies(sql).find(({ tag }) => tag === '$provisioning_preflight$')?.body ?? '';
+    const loginBlock = extractDoBodies(sql).find(({ tag }) => tag === '$logins$')?.body ?? '';
+
+    expect(stagedSql).toContain(":'ops_browser_password_verifier'");
+    expect(stagedSql).not.toContain(":'ops_browser_password'");
+    expect(preflight).toContain(
+      "input_browser_password_verifier !~ '^SCRAM-SHA-256\\$4096:[A-Za-z0-9+/]{22}==\\$[A-Za-z0-9+/]{43}=:[A-Za-z0-9+/]{43}=$'"
+    );
+    const dynamicPasswordValues = Array.from(
+      loginBlock.matchAll(/PASSWORD %L'[\s\S]*?browser_login,\s*([A-Za-z_]\w*)\s*\)/g),
+      ([, value]) => value
+    );
+    expect(dynamicPasswordValues).toEqual([
+      'browser_password_verifier',
+      'browser_password_verifier'
+    ]);
+    expect(loginBlock).not.toMatch(/\bbrowser_password\b/);
   });
 
   it('removes direct CREATE ACLs from PUBLIC and unapproved role grantees in each business schema', async () => {
@@ -817,17 +861,86 @@ describe('database explorer roles and verifier', () => {
         spawnSync(
           'bash',
           [
+            artifacts.apply.pathname,
+            '--role-type',
+            'explorer',
+            '--target',
+            'ops',
+            '--database',
+            database,
+            '--admin-pgpass-file',
+            pgpassPath,
+            '--browser-login',
+            browserLogin,
+            '--browser-password-file',
+            passwordPath,
+            '--business-schemas',
+            'public',
+            '--schema-owner-role',
+            'edutrack_owner',
+            '--browser-database-url-file',
+            urlPath,
+            '--fixture',
+            'public.users',
+            '--safe-column',
+            'id',
+            '--blocked-column',
+            'password_hash',
+            '--revoke-public-privileges'
+          ],
+          { encoding: 'utf8', env: { ...process.env, PSQL_BIN: '/bin/true' } }
+        );
+
+      const wrongLogin = invoke('edutrack_ops', 'ops_browser_edutrack');
+      expect(wrongLogin.status).not.toBe(0);
+      expect(wrongLogin.stderr).toContain('--browser-login must be ops_browser_ops for target ops');
+
+      const wrongDatabase = invoke('edutrack_production', 'ops_browser_ops');
+      expect(wrongDatabase.status).not.toBe(0);
+      expect(wrongDatabase.stderr).toContain('--database must be edutrack_ops for target ops');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('sends a SCRAM verifier to psql without exposing the clear browser password', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'database-explorer-scram-'));
+    try {
+      const pgpassPath = join(directory, 'admin.pgpass');
+      const passwordPath = join(directory, 'browser.pass');
+      const urlPath = join(directory, 'browser.url');
+      const psqlPath = join(directory, 'capture-psql');
+      const nodePath = join(directory, 'node');
+      const psqlInputPath = join(directory, 'psql-input.txt');
+      const nodeArgsPath = join(directory, 'node-args.txt');
+      const sentinelPassword = 'wrapper-sentinel-password-0123456789-abcdefghijklmnopqrstuvwxyz';
+
+      await writeFile(pgpassPath, 'localhost:5432:edutrack_ops:admin:unused\n', { mode: 0o600 });
+      await writeFile(passwordPath, sentinelPassword, { mode: 0o600 });
+      await writeFile(urlPath, 'postgresql://reader:unused@localhost/edutrack_ops', {
+        mode: 0o600
+      });
+      await writeFile(psqlPath, '#!/bin/sh\ncat > "$TASK6_PSQL_INPUT_CAPTURE"\n', { mode: 0o700 });
+      await writeFile(
+        nodePath,
+        '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$TASK6_NODE_ARGS_CAPTURE"\ncase "$*" in\n  *derive-scram-verifier.mjs*) exec "$TASK6_REAL_NODE" "$@" ;;\n  *verify-database-explorer-role.ts*) exit 0 ;;\nesac\nexit 97\n',
+        { mode: 0o700 }
+      );
+
+      const run = spawnSync(
+        'bash',
+        [
           artifacts.apply.pathname,
           '--role-type',
           'explorer',
           '--target',
           'ops',
           '--database',
-          database,
+          'edutrack_ops',
           '--admin-pgpass-file',
           pgpassPath,
           '--browser-login',
-          browserLogin,
+          'ops_browser_ops',
           '--browser-password-file',
           passwordPath,
           '--business-schemas',
@@ -840,22 +953,35 @@ describe('database explorer roles and verifier', () => {
           'public.users',
           '--safe-column',
           'id',
-          '--blocked-column',
-          'password_hash',
           '--revoke-public-privileges'
         ],
-        { encoding: 'utf8', env: { ...process.env, PSQL_BIN: '/bin/true' } }
+        {
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            PATH: `${directory}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+            PSQL_BIN: psqlPath,
+            TASK6_PSQL_INPUT_CAPTURE: psqlInputPath,
+            TASK6_NODE_ARGS_CAPTURE: nodeArgsPath,
+            TASK6_REAL_NODE: process.execPath
+          }
+        }
       );
 
-      const wrongLogin = invoke('edutrack_ops', 'ops_browser_edutrack');
-      expect(wrongLogin.status).not.toBe(0);
-      expect(wrongLogin.stderr).toContain(
-        '--browser-login must be ops_browser_ops for target ops'
-      );
+      expect(run.status).toBe(0);
+      expect(run.stdout).not.toContain(sentinelPassword);
+      expect(run.stderr).not.toContain(sentinelPassword);
 
-      const wrongDatabase = invoke('edutrack_production', 'ops_browser_ops');
-      expect(wrongDatabase.status).not.toBe(0);
-      expect(wrongDatabase.stderr).toContain('--database must be edutrack_ops for target ops');
+      const psqlInput = await readFile(psqlInputPath, 'utf8');
+      const nodeArgs = await readFile(nodeArgsPath, 'utf8');
+      expect(psqlInput).not.toContain(sentinelPassword);
+      expect(nodeArgs).not.toContain(sentinelPassword);
+      const stagedVerifier = psqlInput.match(
+        /^\\set ops_browser_password_verifier '([^']+)'$/m
+      )?.[1];
+      expect(stagedVerifier).toMatch(
+        /^SCRAM-SHA-256\$4096:[A-Za-z0-9+/]{22}==\$[A-Za-z0-9+/]{43}=:[A-Za-z0-9+/]{43}=$/
+      );
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -939,7 +1065,7 @@ describe('database explorer roles and verifier', () => {
       await writeFile(urlPath, 'postgresql://reader:unused@localhost/edutrack_ops', {
         mode: 0o600
       });
-      await writeFile(nodePath, '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$TASK6_NODE_ARGS_CAPTURE"\n', {
+      await writeFile(nodePath, '#!/bin/sh\ncase "$*" in\n  *derive-scram-verifier.mjs*) exec "$TASK6_REAL_NODE" "$@" ;;\nesac\nprintf \'%s\\n\' "$@" > "$TASK6_NODE_ARGS_CAPTURE"\n', {
         mode: 0o700
       });
 
@@ -977,7 +1103,8 @@ describe('database explorer roles and verifier', () => {
             ...process.env,
             PSQL_BIN: '/bin/true',
             PATH: `${directory}:${process.env.PATH ?? '/usr/bin:/bin'}`,
-            TASK6_NODE_ARGS_CAPTURE: argsPath
+            TASK6_NODE_ARGS_CAPTURE: argsPath,
+            TASK6_REAL_NODE: process.execPath
           }
         }
       );

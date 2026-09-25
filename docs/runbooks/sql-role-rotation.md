@@ -17,6 +17,8 @@ Tạo mật khẩu URL-safe, tối thiểu 32 ký tự cho login mới. Mỗi fi
 
 Tuyệt đối không được ghi mật khẩu, PostgreSQL URL hoặc output chứa secret vào shell history, ticket, log deployment hay audit evidence. Audit chỉ lưu tên role, thời điểm, hash của grant diff và kết quả `pass`/`fail` của verifier.
 
+Với Database Explorer, wrapper chỉ đưa mật khẩu gốc qua `stdin` tới helper Node; `psql` nhận verifier SCRAM-SHA-256 có salt ngẫu nhiên và 4096 vòng PBKDF2. PostgreSQL chấp nhận và lưu nguyên verifier đã mã hóa truyền cho `CREATE/ALTER ROLE` ([PostgreSQL 16](https://www.postgresql.org/docs/16/sql-createrole.html)). `log_statement = 'mod'` hoặc `'all'` có thể ghi verifier từ câu lệnh staging hoặc cập nhật role. Hạn chế người đọc, retention và sao chép các log này như credential nhạy cảm vì verifier hỗ trợ dò mật khẩu ngoại tuyến; không đưa verifier vào audit evidence.
+
 - SQL Console: Read login là member inherited nhưng không thể `SET ROLE` vào `ops_readonly`; cancel login chỉ kế thừa `ops_cancel`/`pg_signal_backend`, không có quyền bảng.
 - Database Explorer: `ops_browser_edutrack` và `ops_browser_ops` là LOGIN riêng của đúng target/database. Mỗi login kế thừa capability `ops_database_browser` bằng `INHERIT TRUE, SET FALSE`, tối đa hai kết nối, read-only mặc định và không có quyền elevated. Chỉ capability role nhận column SELECT đã duyệt; blocked columns không thể SELECT.
 
@@ -40,6 +42,8 @@ Giữ nguyên `FileSecretResolver` reference `ops-database-cursor-key`. Tạo ca
 ## Rotation và retirement
 
 Mỗi login rotation tạo danh tính mới trong target tương ứng thay vì ghi đè credential đang chạy. Cập nhật secure credential của worker để login mới được verifier kiểm chứng trước. Sau grace period, truyền `--retire-login <old-login>` cho script.
+
+Tạo mật khẩu URL-safe ngẫu nhiên mới cho login mới, cập nhật file mật khẩu và PostgreSQL URL tương ứng trong secret store, rồi chạy provisioning. Script sinh verifier từ mật khẩu mới trước khi gửi SQL, xác minh login mới, sau đó worker được cập nhật và restart theo change đã duyệt. Nếu verifier bị lộ trong log hoặc catalog, xoay login như credential bị lộ; không chỉ xóa log rồi tiếp tục dùng mật khẩu cũ.
 
 Script đọc `pg_stat_activity`. Nếu còn session của login cũ, nó dừng với trạng thái an toàn và không vô hiệu hóa role. Chỉ khi session đã drain, script chạy `ALTER ROLE ... NOLOGIN` và revoke membership của role cũ. Không terminate session production để ép rotation.
 
