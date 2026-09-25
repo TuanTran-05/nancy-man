@@ -170,9 +170,20 @@ function validateRowRef(value: unknown): value is RowRefData {
   return keys.length > 0 && keys.every(([column]) => column.length > 0);
 }
 
-function seal(kind: TokenKind, value: CursorData | RowRefData, key: string): string {
+function seal(kind: TokenKind, value: CursorData | RowRefData, key: string): string;
+function seal(
+  kind: TokenKind,
+  value: CursorData | RowRefData,
+  key: string,
+  returnNullOnOversize: true
+): string | null;
+function seal(
+  kind: TokenKind,
+  value: CursorData | RowRefData,
+  key: string,
+  returnNullOnOversize = false
+): string | null {
   if (!validateContext(value)) throw cursorError();
-  const nonce = randomBytes(12);
   let plaintext: string;
   try {
     plaintext = JSON.stringify(value);
@@ -181,7 +192,21 @@ function seal(kind: TokenKind, value: CursorData | RowRefData, key: string): str
   }
   if (!plaintext) throw cursorError();
 
+  const plaintextBytes = Buffer.byteLength(plaintext, 'utf8');
+  const remainder = plaintextBytes % 3;
+  const ciphertextTextBytes =
+    Math.floor(plaintextBytes / 3) * 4 + (remainder === 0 ? 0 : remainder + 1);
+  const tokenOverheadBytes = Buffer.byteLength(
+    [ENVELOPE_VERSION, kind, '0'.repeat(16), '', '0'.repeat(22)].join('.'),
+    'utf8'
+  );
+  if (tokenOverheadBytes + ciphertextTextBytes > MAX_CURSOR_BYTES) {
+    if (returnNullOnOversize) return null;
+    throw cursorError();
+  }
+
   try {
+    const nonce = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', deriveEncryptionKey(key, kind), nonce);
     cipher.setAAD(contextAad(kind, value));
     const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
@@ -192,7 +217,10 @@ function seal(kind: TokenKind, value: CursorData | RowRefData, key: string): str
       ciphertext.toString('base64url'),
       cipher.getAuthTag().toString('base64url')
     ].join('.');
-    if (Buffer.byteLength(token, 'utf8') > MAX_CURSOR_BYTES) throw cursorError();
+    if (Buffer.byteLength(token, 'utf8') > MAX_CURSOR_BYTES) {
+      if (returnNullOnOversize) return null;
+      throw cursorError();
+    }
     return token;
   } catch {
     throw cursorError();
@@ -293,6 +321,17 @@ export function decodeCursor(input: {
 export function encodeRowRef(rowRef: RowRefData, key: string): string {
   if (!validateRowRef(rowRef)) throw cursorError();
   return seal('row-ref', rowRef, key);
+}
+
+export function encodeRowRefIfWithinLimit(rowRef: RowRefData, key: string): string | null {
+  if (!validateRowRef(rowRef)) throw cursorError();
+  let claimValueBytes = 0;
+  for (const value of Object.values(rowRef.keys)) {
+    if (typeof value === 'string') claimValueBytes += Buffer.byteLength(value, 'utf8');
+    else if (Buffer.isBuffer(value)) claimValueBytes += value.byteLength;
+    if (claimValueBytes > MAX_CURSOR_BYTES) return null;
+  }
+  return seal('row-ref', rowRef, key, true);
 }
 
 export function decodeRowRef(input: {

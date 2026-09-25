@@ -1,6 +1,5 @@
 import type {
   DatabaseExplorerSchemaSnapshot,
-  DatabaseFilterOperator,
   DatabaseRelatedRowsRequest,
   DatabaseRowsResponse
 } from '../../../../packages/contracts/src/databaseExplorer.js';
@@ -78,7 +77,7 @@ export async function readRelatedRows(input: ReadRelatedRowsInput): Promise<Data
     );
   }
 
-  const filters: Array<{ column: string; operator: DatabaseFilterOperator; value: string }> = [];
+  const trustedEqualities: Array<{ column: string; value: unknown }> = [];
   for (let i = 0; i < targetCols.length; i++) {
     const tCol = targetCols[i];
     const sCol = sourceCols[i];
@@ -95,11 +94,7 @@ export async function readRelatedRows(input: ReadRelatedRowsInput): Promise<Data
         `Row reference does not contain required key column "${sCol}" for foreign key traversal`
       );
     }
-    filters.push({
-      column: tCol,
-      operator: 'eq',
-      value: String(val)
-    });
+    trustedEqualities.push({ column: tCol, value: val });
   }
 
   return readDatabaseRows({
@@ -112,9 +107,10 @@ export async function readRelatedRows(input: ReadRelatedRowsInput): Promise<Data
       relation: targetRelation,
       pageSize: request.pageSize,
       ...(request.cursor ? { cursor: request.cursor } : {}),
-      filters,
+      filters: [],
       piiMode: request.piiMode
     },
+    trustedEqualities,
     ...(now ? { now } : {})
   });
 }

@@ -409,6 +409,79 @@ describe('readDatabaseRows', () => {
     ).toEqual({ id: 'student-1', email: sourceValue });
   });
 
+  it('returns rows with null rowRefs when many or large FK claims exceed the token limit', async () => {
+    const claimColumns = Array.from({ length: 40 }, (_, index) => `email_fk_${index}`);
+    const manyClaims = Object.fromEntries(
+      claimColumns.map((column, index) => [
+        column,
+        `many-marker-${index}-${'m'.repeat(130)}@example.test`
+      ])
+    );
+    const largeClaim = {
+      [claimColumns[0]!]: `large-marker-${'l'.repeat(5000)}@example.test`
+    };
+    const normalClaims = Object.fromEntries(
+      claimColumns.map((column, index) => [column, `normal-${index}@example.test`])
+    );
+    const returnedRows = [
+      { id: 'many-claims', email: 'many@example.test', ...manyClaims },
+      { id: 'large-claim', email: 'large@example.test', ...largeClaim },
+      { id: 'normal-claims', email: 'normal@example.test', ...normalClaims }
+    ];
+    const mock = createMockTarget({ queryHandler: async () => ({ rows: returnedRows }) });
+    const snapshot = await createSnapshotForTarget(mock.target);
+    const students = snapshot.schemas[0]?.relations.find(
+      (relation) => relation.name === 'students'
+    );
+    students?.columns.push(
+      ...claimColumns.map((name) => ({
+        name,
+        dataType: 'text',
+        nullable: true,
+        hasDefault: false,
+        identity: null,
+        generated: false,
+        classification: 'pii' as const,
+        selectable: true,
+        filterOperators: ['eq' as const]
+      }))
+    );
+    snapshot.edges = claimColumns.map((column, index) => ({
+      constraint: `students_email_fk_${index}`,
+      from: { schema: 'public', relation: 'students', columns: [column] },
+      to: { schema: 'public', relation: `accounts_${index}`, columns: [`email_${index}`] }
+    }));
+
+    const response = await readDatabaseRows({
+      target: mock.target,
+      snapshot,
+      cursorKey,
+      request: {
+        targetId: 'edutrack_production',
+        schema: 'public',
+        relation: 'students',
+        pageSize: 25,
+        filters: [],
+        piiMode: 'masked'
+      }
+    });
+
+    expect(response.rows).toHaveLength(3);
+    expect(response.rows.map((row) => row.cells.id)).toEqual([
+      { state: 'value', value: 'many-claims' },
+      { state: 'value', value: 'large-claim' },
+      { state: 'value', value: 'normal-claims' }
+    ]);
+    expect(response.rows[0]?.rowRef).toBeNull();
+    expect(response.rows[1]?.rowRef).toBeNull();
+    expect(response.rows[2]?.rowRef).toBeTruthy();
+    expect(response.rows[0]?.cells[claimColumns[0]!]?.state).toBe('masked');
+    expect(response.rows[1]?.cells[claimColumns[0]!]?.state).toBe('masked');
+    expect(response.truncated).toBe(false);
+    expect(JSON.stringify(response)).not.toContain('many-marker-');
+    expect(JSON.stringify(response)).not.toContain('large-marker-');
+  });
+
   it('reveals PII values when piiMode is revealed', async () => {
     const mock = createMockTarget({
       queryHandler: async (sql) => {

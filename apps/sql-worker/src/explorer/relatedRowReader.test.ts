@@ -339,6 +339,30 @@ describe('readRelatedRows', () => {
     };
   }
 
+  function addSelectableColumn(
+    snapshot: DatabaseExplorerSchemaSnapshot,
+    relationName: string,
+    columnName: string,
+    dataType = 'text'
+  ): void {
+    const relation = snapshot.schemas
+      .find((schema) => schema.name === 'public')
+      ?.relations.find((candidate) => candidate.name === relationName);
+    if (!relation) throw new Error(`Missing fixture relation ${relationName}`);
+    if (relation.columns.some((column) => column.name === columnName)) return;
+    relation.columns.push({
+      name: columnName,
+      dataType,
+      nullable: false,
+      hasDefault: false,
+      identity: null,
+      generated: false,
+      classification: 'internal',
+      selectable: true,
+      filterOperators: ['eq', 'neq']
+    });
+  }
+
   it('traverses a composite FK from child to parent using source values outside the pagination key', async () => {
     const executed: Array<{ sql: string; values: readonly unknown[] }> = [];
     const target = createMockTarget({
@@ -433,6 +457,150 @@ describe('readRelatedRows', () => {
     expect(response.relation).toBe('attendance');
     expect(childSelect?.sql).toContain('"tenant_id" = $1 AND "student_id" = $2');
     expect(childSelect?.values).toEqual(['tenant-parent', 'student-parent']);
+  });
+
+  it('traverses composite FKs with more than five columns using bound claim values', async () => {
+    const executed: Array<{ sql: string; values: readonly unknown[] }> = [];
+    const target = createMockTarget({
+      queryHandler: async (sql, values) => {
+        executed.push({ sql, values: values ?? [] });
+        return {
+          rows: [{ id: 'student-1', tenant_id: 'tenant-1', email: 'student@example.test' }]
+        };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(target);
+    const sourceColumns = [
+      'tenant_id',
+      'region_id',
+      'campus_id',
+      'year_id',
+      'course_id',
+      'student_id'
+    ];
+    const targetColumns = ['tenant_id', 'region_id', 'campus_id', 'year_id', 'course_id', 'id'];
+    for (const column of sourceColumns) addSelectableColumn(snapshot, 'attendance', column);
+    for (const column of targetColumns) addSelectableColumn(snapshot, 'students', column);
+    snapshot.edges[0] = {
+      constraint: 'attendance_student_fkey',
+      from: { schema: 'public', relation: 'attendance', columns: sourceColumns },
+      to: { schema: 'public', relation: 'students', columns: targetColumns }
+    };
+    const values = ['tenant-1', 'region-2', 'campus-3', 'year-2026', 'course-5', 'student-6'];
+    const rowRef = rowRefFor(snapshot, 'attendance', {
+      tenant_id: values[0],
+      region_id: values[1],
+      campus_id: values[2],
+      year_id: values[3],
+      course_id: values[4],
+      student_id: values[5]
+    });
+
+    await readRelatedRows({
+      target,
+      snapshot,
+      cursorKey,
+      request: relatedRequest('attendance', rowRef)
+    });
+    const relatedSelect = executed.find(({ sql }) => sql.includes('FROM "public"."students"'));
+
+    expect(relatedSelect?.sql).toContain(
+      '"tenant_id" = $1 AND "region_id" = $2 AND "campus_id" = $3 AND "year_id" = $4 AND "course_id" = $5 AND "id" = $6'
+    );
+    expect(relatedSelect?.values).toEqual(values);
+  });
+
+  it('binds long FK text values without applying the public filter length limit', async () => {
+    const executed: Array<{ sql: string; values: readonly unknown[] }> = [];
+    const target = createMockTarget({
+      queryHandler: async (sql, values) => {
+        executed.push({ sql, values: values ?? [] });
+        return {
+          rows: [{ id: 'student-long', tenant_id: 'tenant-long', email: 'long@example.test' }]
+        };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(target);
+    const longValue = `student-${'x'.repeat(250)}`;
+    const rowRef = rowRefFor(snapshot, 'attendance', {
+      tenant_id: 'tenant-long',
+      student_id: longValue
+    });
+
+    await readRelatedRows({
+      target,
+      snapshot,
+      cursorKey,
+      request: relatedRequest('attendance', rowRef)
+    });
+    const relatedSelect = executed.find(({ sql }) => sql.includes('FROM "public"."students"'));
+
+    expect(relatedSelect?.values).toEqual(['tenant-long', longValue]);
+    expect(relatedSelect?.sql).toContain('"tenant_id" = $1 AND "id" = $2');
+  });
+
+  it('preserves supported non-string FK claim types in bound parameters', async () => {
+    const executed: Array<{ sql: string; values: readonly unknown[] }> = [];
+    const target = createMockTarget({
+      queryHandler: async (sql, values) => {
+        executed.push({ sql, values: values ?? [] });
+        return {
+          rows: [{ id: 'student-1', tenant_id: 'tenant-1', email: 'student@example.test' }]
+        };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(target);
+    addSelectableColumn(snapshot, 'attendance', 'active_flag', 'boolean');
+    addSelectableColumn(snapshot, 'students', 'active_flag', 'boolean');
+    snapshot.edges.push({
+      constraint: 'attendance_active_fkey',
+      from: { schema: 'public', relation: 'attendance', columns: ['active_flag'] },
+      to: { schema: 'public', relation: 'students', columns: ['active_flag'] }
+    });
+    const rowRef = rowRefFor(snapshot, 'attendance', { active_flag: true });
+
+    await readRelatedRows({
+      target,
+      snapshot,
+      cursorKey,
+      request: relatedRequest('attendance', rowRef, 'attendance_active_fkey')
+    });
+    const relatedSelect = executed.find(({ sql }) => sql.includes('FROM "public"."students"'));
+
+    expect(relatedSelect?.sql).toContain('"active_flag" = $1');
+    expect(relatedSelect?.values).toEqual([true]);
+  });
+
+  it('rejects a blocked target FK column before any relation SELECT', async () => {
+    const relationSelects: string[] = [];
+    const target = createMockTarget({
+      queryHandler: async (sql) => {
+        relationSelects.push(sql);
+        return { rows: [] };
+      }
+    });
+    const snapshot = await createSnapshotForTarget(target);
+    const studentId = snapshot.schemas[0]?.relations
+      .find((relation) => relation.name === 'attendance')
+      ?.columns.find((column) => column.name === 'student_id');
+    if (!studentId) throw new Error('Missing fixture FK target column');
+    studentId.classification = 'blocked';
+    studentId.selectable = false;
+    studentId.filterOperators = [];
+    const rowRef = rowRefFor(snapshot, 'students', {
+      tenant_id: 'tenant-1',
+      id: 'student-1'
+    });
+
+    await expect(
+      readRelatedRows({
+        target,
+        snapshot,
+        cursorKey,
+        request: relatedRequest('students', rowRef)
+      })
+    ).rejects.toThrowError(/DATABASE_FILTER_INVALID/);
+    expect(relationSelects).toEqual([]);
   });
 
   it.each([

@@ -13,7 +13,7 @@ import {
   CURSOR_EXPIRY_MS,
   decodeCursor,
   encodeCursor,
-  encodeRowRef,
+  encodeRowRefIfWithinLimit,
   type KeysetCursorData,
   type OffsetCursorData
 } from './cursorCodec.js';
@@ -120,6 +120,8 @@ export type ReadDatabaseRowsInput = {
   snapshot: DatabaseExplorerSchemaSnapshot;
   cursorKey: string;
   request: DatabaseRowsRequest;
+  /** Worker-internal FK equality claims, populated only after rowRef authentication. */
+  trustedEqualities?: Array<{ column: string; value: unknown }>;
   now?: () => Date;
 };
 
@@ -219,6 +221,7 @@ export async function readDatabaseRows(
     relation: request.relation,
     pageSize: request.pageSize,
     filters: request.filters,
+    ...(input.trustedEqualities ? { trustedEqualities: input.trustedEqualities } : {}),
     ...(request.sort ? { sort: request.sort } : {}),
     ...(cursorCondition
       ? {
@@ -408,7 +411,7 @@ export async function readDatabaseRows(
         refKeys[keyColumn] = row[keyColumn];
       }
       const rowRefIssuedAt = now().getTime();
-      rowRef = encodeRowRef(
+      rowRef = encodeRowRefIfWithinLimit(
         {
           version: 1,
           targetId: target.id,

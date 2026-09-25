@@ -135,6 +135,7 @@ export type BuildRowsQueryInput = {
   relation: string;
   pageSize: DatabasePageSize;
   filters: FilterPredicate[];
+  trustedEqualities?: Array<{ column: string; value: unknown }>;
   sort?: { column: string; direction: 'asc' | 'desc' };
   cursorCondition?: {
     predicate: string;
@@ -207,9 +208,36 @@ export function buildRowsQuery(input: BuildRowsQueryInput): BuildRowsQueryResult
     startParamIndex: 1
   });
 
-  const allPredicates = [...filterResult.predicates];
-  const allValues = [...filterResult.values];
+  const trustedPredicates: string[] = [];
+  const trustedValues: unknown[] = [];
   let nextParamIndex = filterResult.nextParamIndex;
+  for (const equality of input.trustedEqualities ?? []) {
+    const column = relationObj.columns.find((candidate) => candidate.name === equality.column);
+    if (!column) {
+      throw makeExplorerError(
+        'DATABASE_COLUMN_INVALID',
+        `Column "${equality.column}" not found in relation`
+      );
+    }
+    if (column.classification === 'blocked' || !column.selectable) {
+      throw makeExplorerError(
+        'DATABASE_FILTER_INVALID',
+        `Filtering on blocked column "${equality.column}" is forbidden`
+      );
+    }
+    if (equality.value === undefined || equality.value === null) {
+      throw makeExplorerError(
+        'DATABASE_FILTER_INVALID',
+        `Value is required for trusted equality on column "${equality.column}"`
+      );
+    }
+
+    trustedPredicates.push(`${quoteIdentifier(column.name)} = $${nextParamIndex++}`);
+    trustedValues.push(equality.value);
+  }
+
+  const allPredicates = [...filterResult.predicates, ...trustedPredicates];
+  const allValues = [...filterResult.values, ...trustedValues];
 
   // Keyset cursor condition
   if (input.cursorCondition) {
