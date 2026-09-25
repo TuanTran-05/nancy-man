@@ -78,9 +78,12 @@ describe('database explorer roles and verifier', () => {
     const sql = await readArtifact(artifacts.rolesSql);
 
     const revokeLoop = sql.indexOf('FOR membership IN');
+    const revokeLoopEnd = sql.indexOf('END LOOP;', revokeLoop);
+    const membershipCleanup = sql.slice(revokeLoop, revokeLoopEnd);
     const capabilityGrant = sql.indexOf('GRANT ops_database_browser TO %I');
     expect(sql).toContain('FROM pg_auth_members');
-    expect(sql).toContain('REVOKE %I FROM %I GRANTED BY %I');
+    expect(sql).toContain('REVOKE %I FROM %I GRANTED BY %I CASCADE');
+    expect(membershipCleanup).toContain('REVOKE %I FROM %I GRANTED BY %I CASCADE');
     expect(revokeLoop).toBeGreaterThanOrEqual(0);
     expect(capabilityGrant).toBeGreaterThan(revokeLoop);
     expect(sql).toContain('WITH INHERIT TRUE, SET FALSE');
@@ -97,10 +100,32 @@ describe('database explorer roles and verifier', () => {
     expect(cleanup).toContain('member_role.rolname <> browser_login');
     expect(cleanup).toContain('existing.grantor');
     expect(cleanup).toContain('grantor.rolname');
+    expect(cleanup).toContain('REVOKE %I FROM %I GRANTED BY %I CASCADE');
     expect(cleanup).not.toContain('rolcanlogin');
-    expect(sql).toContain('REVOKE %I FROM %I GRANTED BY %I');
+    expect(sql).toContain('REVOKE %I FROM %I GRANTED BY %I CASCADE');
     expect(sql.indexOf('GRANT CONNECT ON DATABASE')).toBeGreaterThan(cleanupEnd);
     expect(sql).toContain('ops_database_browser has an unexpected direct member or membership option');
+  });
+
+  it('preflights superuser authority and every unexpected CREATE grantor before mutations', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+    const preflightStart = sql.indexOf('DO $provisioning_preflight$');
+    const preflightEnd = sql.indexOf('$provisioning_preflight$;', preflightStart);
+    const preflight = sql.slice(preflightStart, preflightEnd);
+
+    expect(preflightStart).toBeGreaterThanOrEqual(0);
+    expect(preflightEnd).toBeGreaterThan(preflightStart);
+    expect(preflight).toContain('current_user');
+    expect(preflight).toContain('rolsuper');
+    expect(preflight).toContain('FOREACH schema_name IN ARRAY string_to_array');
+    expect(preflight).toContain('aclexplode');
+    expect(preflight).toContain("acl.privilege_type = 'CREATE'");
+    expect(preflight).toContain('acl.grantor <>');
+    expect(preflight).toContain('PG16 permits GRANTED BY only for current_user');
+    expect(preflight).toContain('Revoke the unexpected CREATE ACL as its grantor, then rerun provisioning');
+    expect(preflightStart).toBeLessThan(sql.indexOf('DO $roles$'));
+    expect(preflightStart).toBeLessThan(sql.indexOf('CREATE ROLE ops_database_browser'));
+    expect(preflightStart).toBeLessThan(sql.indexOf('GRANT CONNECT ON DATABASE'));
   });
 
   it('removes direct CREATE ACLs from PUBLIC and unapproved role grantees in each business schema', async () => {
@@ -115,8 +140,8 @@ describe('database explorer roles and verifier', () => {
     expect(cleanup).toContain('acl.grantee = 0');
     expect(cleanup).toContain('schema_owner');
     expect(cleanup).toContain('namespace.nspowner');
-    expect(cleanup).toContain('grantor.rolname');
-    expect(cleanup).toContain('REVOKE CREATE ON SCHEMA %I FROM %s GRANTED BY %I CASCADE');
+    expect(cleanup).toContain('REVOKE CREATE ON SCHEMA %I FROM %s CASCADE');
+    expect(cleanup).not.toContain('FROM %s GRANTED BY');
     expect(sql).toContain("pg_has_role(candidate.oid, acl.grantee, 'USAGE')");
     expect(sql).toContain("pg_has_role(candidate.oid, acl.grantee, 'SET')");
     expect(sql).toContain('Business schema % has an unexpected effective CREATE privilege route');
@@ -165,8 +190,12 @@ describe('database explorer roles and verifier', () => {
     expect(runbook).toContain('ops_browser_edutrack');
     expect(runbook).toContain('ops_browser_ops');
     expect(runbook).toContain('ops-database-cursor-key');
+    expect(runbook).toContain('current_user` phải là PostgreSQL `superuser`');
+    expect(runbook).toContain('PG16 chỉ chấp nhận `GRANTED BY current_user` cho object privilege');
+    expect(runbook).toContain('thu hồi CREATE trong context của grantor gốc');
     expect(rotation).toContain('ops_browser_edutrack');
     expect(rotation).toContain('ops_browser_ops');
+    expect(rotation).toContain('current_user` phải là PostgreSQL `superuser`');
   });
 
   it('passes verification when posture is valid and prohibited actions are rejected', async () => {
@@ -422,7 +451,7 @@ describe('database explorer roles and verifier', () => {
     expect(postureQuery).not.toContain('member_role.rolcanlogin');
   });
 
-  it('fails when PUBLIC, a group, or a member role retains a CREATE route on the business schema', async () => {
+  it('fails when a configured business schema retains an unexpected CREATE route', async () => {
     let postureQuery = '';
     const mockDb: Queryable = {
       query: async <T extends Record<string, unknown>>(sql: string) => {
@@ -470,7 +499,9 @@ describe('database explorer roles and verifier', () => {
     });
 
     expect(report.status).toBe('fail');
-    expect(report.failures).toContain('business schema has an unexpected CREATE privilege route');
+    expect(report.failures).toContain(
+      'configured business schemas retain an unexpected CREATE privilege route'
+    );
     expect(postureQuery).toContain('hasUnexpectedSchemaCreator');
     expect(postureQuery).toContain('aclexplode');
     expect(postureQuery).toContain('acl.privilege_type = \'CREATE\'');

@@ -5,7 +5,9 @@ Tài liệu này áp dụng cho credential của SQL Worker dành cho SQL Consol
 ## Điều kiện trước khi thay đổi
 
 - Có bản ghi DR drill chứng minh RPO không quá một phút và RTO không quá 15 phút.
+- Provisioning Database Explorer yêu cầu `current_user` phải là PostgreSQL `superuser` (`rolsuper = true`); script preflight điều kiện này trước mọi mutation. Dọn các role membership có grantor khác cần superuser authority, và revoke dùng `CASCADE` để xóa dependent grants đi qua `ADMIN OPTION`.
 - Đã xem role/grant diff với DBA; đặc biệt, script sẽ bỏ quyền `TEMPORARY` khỏi `PUBLIC`, bỏ `CREATE` trên schema, toàn bộ quyền bảng/sequence và quyền thực thi function khỏi `PUBLIC` trong các business schema khai báo. Mọi ứng dụng còn cần các quyền đó phải được cấp trực tiếp trước khi chạy script.
+- PostgreSQL 16 chỉ cho phép object-privilege `GRANTED BY current_user`, kể cả với superuser. Nếu preflight báo một unexpected CREATE ACL có grantor khác, không có role change nào được áp dụng; DBA phải thu hồi ACL trong context grantor gốc, không thêm `GRANTED BY` vào lệnh.
 - `ops_readonly` và `ops_database_browser` chỉ được cấp các business schema đã liệt kê rõ ràng; tuyệt đối không thêm `_ops`, `pg_catalog` hoặc `information_schema` vào danh sách.
 - Không bật SQL Console hay Database Explorer, không deploy credential và không áp dụng role chỉ để “thử nhanh” trên production.
 

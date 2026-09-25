@@ -100,7 +100,7 @@ function rolePostureFailures(
     failures.push('capability role has unexpected direct members');
   }
   if (posture.hasUnexpectedSchemaCreator) {
-    failures.push('business schema has an unexpected CREATE privilege route');
+    failures.push('configured business schemas retain an unexpected CREATE privilege route');
   }
   if (posture.isSuperuser) {
     failures.push('login is a superuser');

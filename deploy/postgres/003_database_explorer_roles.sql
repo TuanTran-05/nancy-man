@@ -43,6 +43,71 @@
 
 BEGIN;
 
+DO $provisioning_preflight$
+DECLARE
+  schema_name text;
+  schema_owner text := :'ops_schema_owner_role';
+  actual_schema_owner text;
+BEGIN
+  -- Role membership cleanup names each recorded grantor. Require authority to
+  -- revoke every such edge before any role or ACL mutation starts.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_roles
+    WHERE rolname = current_user AND rolsuper
+  ) THEN
+    RAISE EXCEPTION 'Database Explorer provisioning requires a PostgreSQL superuser session';
+  END IF;
+
+  IF schema_owner !~ '^[a-z][a-z0-9_]{0,62}$' THEN
+    RAISE EXCEPTION 'ops_schema_owner_role must be a lower-case PostgreSQL identifier';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = schema_owner) THEN
+    RAISE EXCEPTION 'Configured schema owner role does not exist';
+  END IF;
+
+  -- PostgreSQL 16 permits object-privilege GRANTED BY only for current_user,
+  -- even for a superuser. Detect unapproved CREATE grants from other grantors
+  -- now so provisioning fails before its first mutation and can be remediated
+  -- in the original grantor's context.
+  FOREACH schema_name IN ARRAY string_to_array(:'ops_business_schemas', ',') LOOP
+    schema_name := btrim(schema_name);
+    IF schema_name !~ '^[a-z][a-z0-9_]{0,62}$' THEN
+      RAISE EXCEPTION 'Business schema names must be lower-case PostgreSQL identifiers';
+    END IF;
+    IF schema_name IN ('_ops', 'pg_catalog', 'information_schema') THEN
+      RAISE EXCEPTION 'Business schemas must not include protected schemas';
+    END IF;
+    SELECT actual_owner_role.rolname
+    INTO actual_schema_owner
+    FROM pg_namespace namespace
+    JOIN pg_roles actual_owner_role ON actual_owner_role.oid = namespace.nspowner
+    WHERE namespace.nspname = schema_name;
+    IF actual_schema_owner IS NULL THEN
+      RAISE EXCEPTION 'Configured business schema does not exist';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_namespace namespace
+      CROSS JOIN LATERAL aclexplode(
+        COALESCE(namespace.nspacl, acldefault('n', namespace.nspowner))
+      ) acl
+      LEFT JOIN pg_roles grantee ON grantee.oid = acl.grantee
+      WHERE namespace.nspname = schema_name
+        AND acl.privilege_type = 'CREATE'
+        AND (
+          acl.grantee = 0
+          OR grantee.rolname IS NULL
+          OR grantee.rolname NOT IN (schema_owner, actual_schema_owner)
+        )
+        AND acl.grantor <> (SELECT oid FROM pg_roles WHERE rolname = current_user)
+    ) THEN
+      RAISE EXCEPTION 'Cannot reconcile CREATE ACL on business schema %: PG16 permits GRANTED BY only for current_user. Revoke the unexpected CREATE ACL as its grantor, then rerun provisioning; no role changes were applied', schema_name;
+    END IF;
+  END LOOP;
+END
+$provisioning_preflight$;
+
 DO $roles$
 DECLARE
   target_id text := :'ops_target_id';
@@ -110,7 +175,7 @@ BEGIN
       AND member_role.rolname <> browser_login
   LOOP
     EXECUTE format(
-      'REVOKE %I FROM %I GRANTED BY %I',
+      'REVOKE %I FROM %I GRANTED BY %I CASCADE',
       capability_member.granted_role,
       capability_member.member_role,
       capability_member.grantor_role
@@ -144,7 +209,7 @@ BEGIN
     WHERE member_role.rolname IN (browser_login, 'ops_database_browser')
   LOOP
     EXECUTE format(
-      'REVOKE %I FROM %I GRANTED BY %I',
+      'REVOKE %I FROM %I GRANTED BY %I CASCADE',
       membership.granted_role,
       membership.member_role,
       membership.grantor_role
@@ -287,14 +352,12 @@ BEGIN
     FOR schema_create_grant IN
       SELECT
         acl.grantee,
-        grantee.rolname AS grantee_role,
-        grantor.rolname AS grantor_role
+        grantee.rolname AS grantee_role
       FROM pg_namespace namespace
       CROSS JOIN LATERAL aclexplode(
         COALESCE(namespace.nspacl, acldefault('n', namespace.nspowner))
       ) acl
       LEFT JOIN pg_roles grantee ON grantee.oid = acl.grantee
-      JOIN pg_roles grantor ON grantor.oid = acl.grantor
       WHERE namespace.nspname = schema_name
         AND acl.privilege_type = 'CREATE'
         AND (
@@ -310,11 +373,13 @@ BEGIN
       IF grantee_spec IS NULL THEN
         RAISE EXCEPTION 'Could not identify a CREATE grantee on schema %', schema_name;
       END IF;
+      -- The preflight proved each unexpected entry was granted by
+      -- current_user. Omit GRANTED BY: PostgreSQL 16 rejects a different
+      -- object-privilege grantor even when this session is superuser.
       EXECUTE format(
-        'REVOKE CREATE ON SCHEMA %I FROM %s GRANTED BY %I CASCADE',
+        'REVOKE CREATE ON SCHEMA %I FROM %s CASCADE',
         schema_name,
-        grantee_spec,
-        schema_create_grant.grantor_role
+        grantee_spec
       );
     END LOOP;
 

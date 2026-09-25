@@ -85,6 +85,34 @@ Renderer dừng mà không tạo SQL nếu thiếu tham số, target mở/không
 
 Provision riêng từng database. `--target` đóng xác định login được phép; `--database` phải là database đúng của target. Mật khẩu lấy từ file mode `0600`, URL verifier kết nối bằng TLS `verify-full`, không đưa secret vào command arguments.
 
+Provisioning yêu cầu `current_user` phải là PostgreSQL `superuser` (`rolsuper = true`). Preflight kiểm tra quyền này và CREATE ACL trong tất cả business schema trước khi đổi role hoặc ACL. Các role membership REVOKE chạy với `CASCADE` để xóa cả membership được cấp tiếp qua `ADMIN OPTION`.
+
+Nếu có unexpected CREATE ACL do role khác `current_user` cấp, PostgreSQL 16 sẽ dừng preflight trước mọi thay đổi. PG16 chỉ chấp nhận `GRANTED BY current_user` cho object privilege; kể cả superuser cũng không thể chỉ định grantor khác. Lỗi nêu schema cần xử lý và yêu cầu thu hồi CREATE trong context của grantor gốc. Xem grantor/grantee của các CREATE ACL trực tiếp bằng truy vấn sau, thay danh sách schema bằng đúng `--business-schemas`:
+
+```sql
+SELECT namespace.nspname AS schema_name,
+       CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE grantee.rolname END AS grantee,
+       grantor.rolname AS grantor
+FROM pg_namespace namespace
+CROSS JOIN LATERAL aclexplode(
+  COALESCE(namespace.nspacl, acldefault('n', namespace.nspowner))
+) acl
+LEFT JOIN pg_roles grantee ON grantee.oid = acl.grantee
+JOIN pg_roles grantor ON grantor.oid = acl.grantor
+WHERE namespace.nspname IN ('public')
+  AND acl.privilege_type = 'CREATE';
+```
+
+Sau khi xác định grantee ngoài schema owner đã duyệt, kết nối như grantor hoặc `SET ROLE` vào role đó rồi chạy REVOKE không có `GRANTED BY`. Ví dụ:
+
+```sql
+SET ROLE app_migration_owner;
+REVOKE CREATE ON SCHEMA public FROM legacy_group CASCADE;
+RESET ROLE;
+```
+
+Thay schema, grantor và grantee bằng giá trị từ ACL. `CASCADE` có thể xóa các grant phụ thuộc do grantee cấp tiếp; review các role membership/privilege đó trước khi remediation. Sau đó chạy lại provisioning và yêu cầu verifier pass.
+
 Ví dụ target EduTrack Production:
 
 ```bash
