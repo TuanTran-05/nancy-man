@@ -109,9 +109,13 @@ export function revealDatabasePii(
   );
 }
 
-export function hideDatabasePii(csrfToken: string): Promise<DatabasePiiRevokeResult> {
+export function hideDatabasePii(
+  csrfToken: string,
+  options: { keepalive?: boolean } = {}
+): Promise<DatabasePiiRevokeResult> {
   return request<DatabasePiiRevokeResult>('/api/v1/database/pii-reveal', {
     method: 'DELETE',
+    ...(options.keepalive ? { keepalive: true } : {}),
     headers: {
       'X-Ops-CSRF': csrfToken
     }

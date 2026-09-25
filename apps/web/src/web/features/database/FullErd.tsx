@@ -5,9 +5,10 @@ import {
   MiniMap,
   ReactFlow,
   useEdgesState,
-  useNodesState
+  useNodesState,
+  type ReactFlowInstance
 } from '@xyflow/react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DatabaseExplorerSchemaSnapshot } from '../../../../../../packages/contracts/src/databaseExplorer.js';
 import {
   applyDagreLayout,
@@ -42,11 +43,15 @@ type ErdNodeData = {
   onSelect: (schema: string, relation: string) => void;
   onToggleExpand: (id: string) => void;
   nodeId: string;
+  searchFocused: boolean;
 };
 
 function ErdNode({ data }: { data: ErdNodeData }) {
   return (
-    <div className={`erd-node erd-node--${data.kind.replace('_', '-')}`}>
+    <div
+      className={`erd-node erd-node--${data.kind.replace('_', '-')} ${data.searchFocused ? 'erd-node--search-focus' : ''}`}
+      data-search-focused={data.searchFocused ? 'true' : undefined}
+    >
       <div className="erd-node-header">
         <span className="erd-node-schema">{data.schema}</span>
         <button
@@ -98,6 +103,7 @@ const nodeTypes = { erdNode: ErdNode };
 function toFlowNodes(
   nodes: GraphRelationNode[],
   expandedIds: Set<string>,
+  searchFocusedNodeId: string | null,
   onSelect: (schema: string, relation: string) => void,
   onToggleExpand: (id: string) => void
 ) {
@@ -115,8 +121,10 @@ function toFlowNodes(
       expanded: expandedIds.has(n.id),
       onSelect,
       onToggleExpand,
-      nodeId: n.id
+      nodeId: n.id,
+      searchFocused: n.id === searchFocusedNodeId
     } satisfies ErdNodeData,
+    selected: n.id === searchFocusedNodeId,
     style: { width: n.width }
   }));
 }
@@ -140,6 +148,8 @@ function toFlowEdges(edges: GraphEdge[]) {
 export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
+  const flowInstanceRef = useRef<ReactFlowInstance<any, any> | null>(null);
+  const [canvasReady, setCanvasReady] = useState(false);
 
   // Compute full graph, then filter by search
   const fullGraph = useMemo(() => {
@@ -152,6 +162,7 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
     () => filterGraph(fullGraph, searchQuery),
     [fullGraph, searchQuery]
   );
+  const searchFocusedNode = searchQuery.trim() ? (filteredGraph.nodes[0] ?? null) : null;
 
   const handleSelect = useCallback(
     (schema: string, relation: string) => {
@@ -169,9 +180,35 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
     });
   }, []);
 
+  const handleFlowInit = useCallback((instance: ReactFlowInstance<any, any>) => {
+    flowInstanceRef.current = instance;
+    setCanvasReady(true);
+  }, []);
+
+  useEffect(() => {
+    const instance = flowInstanceRef.current;
+    if (!canvasReady || !instance) return;
+    if (searchFocusedNode) {
+      void instance.fitView({
+        nodes: [{ id: searchFocusedNode.id }],
+        padding: 0.35,
+        duration: 200
+      });
+    } else {
+      void instance.fitView({ padding: 0.15, duration: 200 });
+    }
+  }, [canvasReady, fullGraph, searchFocusedNode]);
+
   const flowNodes = useMemo(
-    () => toFlowNodes(filteredGraph.nodes, expandedNodeIds, handleSelect, handleToggleExpand),
-    [filteredGraph.nodes, expandedNodeIds, handleSelect, handleToggleExpand]
+    () =>
+      toFlowNodes(
+        filteredGraph.nodes,
+        expandedNodeIds,
+        searchFocusedNode?.id ?? null,
+        handleSelect,
+        handleToggleExpand
+      ),
+    [filteredGraph.nodes, expandedNodeIds, searchFocusedNode?.id, handleSelect, handleToggleExpand]
   );
 
   const flowEdges = useMemo(() => toFlowEdges(filteredGraph.edges), [filteredGraph.edges]);
@@ -217,6 +254,11 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
         <span className="erd-info">
           {totalNodes} bảng · {totalEdges} quan hệ
         </span>
+        {searchFocusedNode && (
+          <span className="erd-search-focus-status" role="status" aria-live="polite">
+            Tập trung bảng {searchFocusedNode.schema}.{searchFocusedNode.relation}
+          </span>
+        )}
         {searchQuery && (
           <button
             type="button"
@@ -251,6 +293,7 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
           elementsSelectable={true}
           panOnDrag={true}
           zoomOnScroll={true}
+          onInit={handleFlowInit}
         >
           <Background />
           <Controls />
@@ -279,9 +322,10 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
                     <td>
                       <button
                         type="button"
-                        className="link-button"
+                        className={`link-button ${searchFocusedNode?.id === n.id ? 'erd-search-focus-indicator' : ''}`}
                         onClick={() => handleSelect(n.schema, n.relation)}
                         aria-label={`Chọn ${n.schema}.${n.relation}`}
+                        aria-current={searchFocusedNode?.id === n.id ? 'true' : undefined}
                       >
                         {n.schema}.{n.relation}
                       </button>

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { StrictMode, type ReactNode } from 'react';
 import { useDatabaseExplorer } from './useDatabaseExplorer.js';
 import type { SessionInfo } from '../../api.js';
 import type {
@@ -308,6 +309,273 @@ describe('useDatabaseExplorer hook', () => {
 
     expect(rowsQueryCalled.called).toBe(false);
     expect(result.current.rows).toBeNull();
+  });
+
+  it('does not revoke on unmount when no grant exists', async () => {
+    const revokeCalls: Array<{ url: string; keepalive?: boolean }> = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        return new Response(JSON.stringify(mockRowsMasked), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        revokeCalls.push({ url, keepalive: init.keepalive });
+        return new Response(JSON.stringify({ revoked: true }), { status: 200 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const wrapper = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>;
+    const { result, unmount } = renderHook(
+      () => useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.rows).not.toBeNull());
+    unmount();
+    await Promise.resolve();
+
+    expect(revokeCalls).toEqual([]);
+  });
+
+  it('best-effort revokes an active grant once on unmount with keepalive', async () => {
+    const revokeCalls: Array<{
+      url: string;
+      method?: string;
+      keepalive?: boolean;
+      body?: BodyInit | null;
+      headers?: HeadersInit;
+    }> = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        const body = JSON.parse(String(init?.body)) as { piiMode?: string };
+        return new Response(
+          JSON.stringify(body.piiMode === 'revealed' ? mockRowsRevealed : mockRowsMasked),
+          { status: 200 }
+        );
+      }
+      if (url.endsWith('/pii-reveal') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({ expiresAt: new Date(Date.now() + 300_000).toISOString() }),
+          { status: 200 }
+        );
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        revokeCalls.push({
+          url,
+          method: init.method,
+          keepalive: init.keepalive,
+          body: init.body,
+          headers: init.headers
+        });
+        return new Response(JSON.stringify({ revoked: true }), { status: 200 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const wrapper = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>;
+    const { result, unmount, rerender } = renderHook(
+      ({ activeSession }: { activeSession: SessionInfo }) =>
+        useDatabaseExplorer({ session: activeSession, onUnauthorized: () => {} }),
+      {
+        initialProps: { activeSession: sessionOwner },
+        wrapper
+      }
+    );
+    await waitFor(() => expect(result.current.rows?.piiMode).toBe('masked'));
+    expect(revokeCalls).toHaveLength(0);
+    await act(async () => {
+      await result.current.handleReveal('password', '123456', 'Investigating INC-123');
+    });
+    expect(result.current.piiReveal.active).toBe(true);
+
+    rerender({ activeSession: { ...sessionOwner, csrfToken: 'csrf-token-latest' } });
+    expect(result.current.piiReveal.active).toBe(true);
+    expect(revokeCalls).toHaveLength(0);
+
+    unmount();
+    await waitFor(() => expect(revokeCalls).toHaveLength(1));
+    expect(revokeCalls[0]).toMatchObject({
+      url: '/api/v1/database/pii-reveal',
+      method: 'DELETE',
+      keepalive: true,
+      body: undefined
+    });
+    const headers = new Headers(revokeCalls[0].headers);
+    expect(headers.get('X-Ops-CSRF')).toBe('csrf-token-latest');
+    expect(headers.has('X-Ops-Database-Grant')).toBe(false);
+  });
+
+  it('reloads masked rows after revealed-row loading fails and global revoke succeeds', async () => {
+    const operations: string[] = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        const body = JSON.parse(String(init?.body)) as { piiMode?: string };
+        operations.push(`rows:${body.piiMode}`);
+        if (body.piiMode === 'revealed') {
+          return new Response(JSON.stringify({ code: 'REVEALED_ROWS_UNAVAILABLE' }), {
+            status: 503
+          });
+        }
+        return new Response(JSON.stringify(mockRowsMasked), { status: 200 });
+      }
+      if (url.endsWith('/pii-reveal') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({ expiresAt: new Date(Date.now() + 300_000).toISOString() }),
+          { status: 200 }
+        );
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        operations.push('revoke');
+        return new Response(JSON.stringify({ revoked: true }), { status: 200 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const { result } = renderHook(() =>
+      useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} })
+    );
+    await waitFor(() => expect(result.current.rows?.piiMode).toBe('masked'));
+    await act(async () => {
+      await expect(
+        result.current.handleReveal('password', '123456', 'Investigating INC-123')
+      ).rejects.toThrow('REVEALED_ROWS_UNAVAILABLE');
+    });
+
+    expect(operations.slice(-3)).toEqual(['rows:revealed', 'revoke', 'rows:masked']);
+    expect(result.current.piiReveal.active).toBe(false);
+    expect(result.current.rows?.piiMode).toBe('masked');
+    expect(JSON.stringify(result.current.rows)).not.toContain('pii-sentinel@example.com');
+  });
+
+  it('keeps empty state and does not reload masked rows if reveal recovery revoke fails', async () => {
+    const operations: string[] = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        const body = JSON.parse(String(init?.body)) as { piiMode?: string };
+        operations.push(`rows:${body.piiMode}`);
+        if (body.piiMode === 'revealed') {
+          return new Response(JSON.stringify({ code: 'REVEALED_ROWS_UNAVAILABLE' }), {
+            status: 503
+          });
+        }
+        return new Response(JSON.stringify(mockRowsMasked), { status: 200 });
+      }
+      if (url.endsWith('/pii-reveal') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({ expiresAt: new Date(Date.now() + 300_000).toISOString() }),
+          { status: 200 }
+        );
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        operations.push('revoke');
+        return new Response(JSON.stringify({ code: 'REVOKE_UNAVAILABLE' }), { status: 503 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const { result } = renderHook(() =>
+      useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} })
+    );
+    await waitFor(() => expect(result.current.rows?.piiMode).toBe('masked'));
+    await act(async () => {
+      await expect(
+        result.current.handleReveal('password', '123456', 'Investigating INC-123')
+      ).rejects.toThrow('REVEALED_ROWS_UNAVAILABLE');
+    });
+
+    expect(operations.slice(-2)).toEqual(['rows:revealed', 'revoke']);
+    expect(operations.filter((operation) => operation === 'rows:masked')).toHaveLength(1);
+    expect(result.current.piiReveal.active).toBe(false);
+    expect(result.current.rows).toBeNull();
+    expect(result.current.error).toBe('REVOKE_UNAVAILABLE');
+  });
+
+  it('ignores a stale revealed-row failure after hide and does not race a second revoke', async () => {
+    const revealedRows = deferred<Response>();
+    const revealedQueryStarted = deferred<void>();
+    const operations: string[] = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/database/targets')) {
+        return new Response(JSON.stringify({ targets: mockTargets }), { status: 200 });
+      }
+      if (url.endsWith('/api/v1/database/edutrack_production/schema')) {
+        return new Response(JSON.stringify(mockSchemaEdutrack), { status: 200 });
+      }
+      if (url.endsWith('/rows/query')) {
+        const body = JSON.parse(String(init?.body)) as { piiMode?: string };
+        operations.push(`rows:${body.piiMode}`);
+        if (body.piiMode === 'revealed') {
+          revealedQueryStarted.resolve();
+          return revealedRows.promise;
+        }
+        return new Response(JSON.stringify(mockRowsMasked), { status: 200 });
+      }
+      if (url.endsWith('/pii-reveal') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({ expiresAt: new Date(Date.now() + 300_000).toISOString() }),
+          { status: 200 }
+        );
+      }
+      if (url.endsWith('/api/v1/database/pii-reveal') && init?.method === 'DELETE') {
+        operations.push('revoke');
+        return new Response(JSON.stringify({ revoked: true }), { status: 200 });
+      }
+      return new Response('{}', { status: 404 });
+    };
+
+    const { result } = renderHook(() =>
+      useDatabaseExplorer({ session: sessionOwner, onUnauthorized: () => {} })
+    );
+    await waitFor(() => expect(result.current.rows?.piiMode).toBe('masked'));
+    let revealPromise!: Promise<void>;
+    await act(async () => {
+      revealPromise = result.current.handleReveal('password', '123456', 'Investigating INC-123');
+      await revealedQueryStarted.promise;
+    });
+    await act(async () => {
+      await result.current.handleHide();
+    });
+    revealedRows.resolve(
+      new Response(JSON.stringify({ code: 'STALE_QUERY_FAILED' }), { status: 503 })
+    );
+    await act(async () => {
+      await revealPromise;
+    });
+
+    expect(operations.filter((operation) => operation === 'revoke')).toHaveLength(1);
+    expect(operations.slice(-2)).toEqual(['revoke', 'rows:masked']);
+    expect(result.current.error).toBeNull();
+    expect(result.current.piiReveal.active).toBe(false);
+    expect(result.current.rows?.piiMode).toBe('masked');
+    expect(JSON.stringify(result.current.rows)).not.toContain('STALE_QUERY_FAILED');
   });
 
   it('keeps the display masked until revealed rows arrive and discards them after hide', async () => {

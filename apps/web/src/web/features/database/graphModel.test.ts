@@ -136,11 +136,41 @@ describe('projectFullGraph', () => {
     ).toBe(true);
     expect(shuffled.nodes.map((node) => node.id)).toEqual(full.nodes.map((node) => node.id));
     expect(shuffled.edges.map((edge) => edge.id)).toEqual(full.edges.map((edge) => edge.id));
+    expect(filterGraph(full, '').nodes).toHaveLength(101);
+    expect(filterGraph(full, '').edges).toHaveLength(210);
 
     const focused = filterGraph(full, 'table_007');
     expect(focused.nodes.map((node) => node.id)).toEqual([
       'edutrack_production/schema_a/table_007'
     ]);
+  });
+
+  it('keeps unique and ambiguous search matches in stable relation order across shuffled snapshots', () => {
+    const snapshot = makeSnapshot([
+      { name: 'public', relations: [{ name: 'users' }, { name: 'user_profiles' }] },
+      { name: 'audit', relations: [{ name: 'user_events' }, { name: 'logs' }] }
+    ]);
+    const shuffledSnapshot: DatabaseExplorerSchemaSnapshot = {
+      ...snapshot,
+      schemas: snapshot.schemas
+        .slice()
+        .reverse()
+        .map((schema) => ({ ...schema, relations: schema.relations.slice().reverse() }))
+    };
+    const regular = projectFullGraph(snapshot, TARGET);
+    const shuffled = projectFullGraph(shuffledSnapshot, TARGET);
+
+    expect(filterGraph(regular, 'logs').nodes.map((node) => node.id)).toEqual([
+      'edutrack_production/audit/logs'
+    ]);
+    expect(filterGraph(regular, 'user').nodes.map((node) => node.id)).toEqual([
+      'edutrack_production/audit/user_events',
+      'edutrack_production/public/user_profiles',
+      'edutrack_production/public/users'
+    ]);
+    expect(filterGraph(shuffled, 'user').nodes.map((node) => node.id)).toEqual(
+      filterGraph(regular, 'user').nodes.map((node) => node.id)
+    );
   });
 
   it('produces one node per relation with stable sort', () => {

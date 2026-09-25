@@ -15,6 +15,7 @@ describe('databaseApi client', () => {
     method: string;
     headers: Record<string, string>;
     body?: string;
+    keepalive?: boolean;
   }> = [];
 
   const originalFetch = globalThis.fetch;
@@ -140,7 +141,8 @@ describe('databaseApi client', () => {
         url: String(input),
         method: init?.method ?? 'GET',
         headers: (init?.headers ?? {}) as Record<string, string>,
-        body: typeof init?.body === 'string' ? init.body : undefined
+        body: typeof init?.body === 'string' ? init.body : undefined,
+        keepalive: init?.keepalive
       });
       if (init?.method === 'DELETE') {
         return new Response(JSON.stringify({ revoked: true }), {
@@ -173,13 +175,14 @@ describe('databaseApi client', () => {
       body: JSON.stringify(revealBody)
     });
 
-    await hideDatabasePii('csrf-token-123');
+    await hideDatabasePii('csrf-token-123', { keepalive: true });
 
     expect(recordedCalls[1]).toMatchObject({
       url: '/api/v1/database/pii-reveal',
       method: 'DELETE',
       headers: expect.objectContaining({ 'X-Ops-CSRF': 'csrf-token-123' }),
-      body: undefined
+      body: undefined,
+      keepalive: true
     });
     expect(recordedCalls[1].headers).not.toHaveProperty('X-Ops-Database-Grant');
     expect(recordedCalls[1].body).toBeUndefined();

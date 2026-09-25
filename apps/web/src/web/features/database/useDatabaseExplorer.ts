@@ -107,6 +107,10 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
   const rowsSuppressedRef = useRef(false);
   const privacyTransitionQueueRef = useRef<Promise<void>>(Promise.resolve());
   const revealRequestRef = useRef<Promise<{ expiresAt: string }> | null>(null);
+  const serverGrantMayExistRef = useRef(false);
+  const pendingRevocationsRef = useRef(0);
+  const csrfTokenRef = useRef(session.csrfToken);
+  csrfTokenRef.current = session.csrfToken;
   const schemaSnapshotRef = useRef<DatabaseExplorerSchemaSnapshot | null>(null);
   const selectedTargetIdRef = useRef(selectedTargetId);
   const selectedSchemaNameRef = useRef(selectedSchemaName);
@@ -157,6 +161,7 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     rowsGenerationRef.current += 1;
     relatedRowsGenerationRef.current += 1;
     rowsSuppressedRef.current = true;
+    piiRevealActiveRef.current = false;
     setRows(null);
     setLoadingRows(false);
     setSelectedCell(null);
@@ -169,21 +174,45 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
 
   const revokePrivacy = useCallback(
     (generation: number, pendingReveal: Promise<{ expiresAt: string }> | null) => {
+      pendingRevocationsRef.current += 1;
       const operation = privacyTransitionQueueRef.current
         .catch(() => undefined)
         .then(async () => {
           if (pendingReveal) await pendingReveal.catch(() => undefined);
-          await hideDatabasePii(session.csrfToken ?? '');
+          await hideDatabasePii(csrfTokenRef.current ?? '', { keepalive: true });
+          serverGrantMayExistRef.current = false;
           return privacyTransitionGenerationRef.current === generation;
         });
-      privacyTransitionQueueRef.current = operation.then(
+      const trackedOperation = operation.finally(() => {
+        pendingRevocationsRef.current = Math.max(0, pendingRevocationsRef.current - 1);
+      });
+      privacyTransitionQueueRef.current = trackedOperation.then(
         () => undefined,
         () => undefined
       );
-      return operation;
+      return trackedOperation;
     },
-    [session.csrfToken]
+    []
   );
+
+  // Keep an active server-side grant from surviving navigation away from this page.
+  useEffect(() => {
+    return () => {
+      if (!serverGrantMayExistRef.current && !piiRevealActiveRef.current) return;
+      clearRowsAndSensitiveLayers();
+      if (pendingRevocationsRef.current > 0) return;
+
+      pendingRevocationsRef.current += 1;
+      void hideDatabasePii(csrfTokenRef.current ?? '', { keepalive: true })
+        .then(() => {
+          serverGrantMayExistRef.current = false;
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          pendingRevocationsRef.current = Math.max(0, pendingRevocationsRef.current - 1);
+        });
+    };
+  }, [clearRowsAndSensitiveLayers]);
 
   // Clear synchronously, revoke globally, then allow the target schema request.
   const selectTarget = useCallback(
@@ -551,6 +580,7 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
           if (revealRequestRef.current === revealRequest) revealRequestRef.current = null;
         }
         grantCreated = true;
+        serverGrantMayExistRef.current = true;
         if (privacyTransitionGenerationRef.current !== privacyGeneration) return;
 
         rowsGeneration = ++rowsGenerationRef.current;
@@ -596,7 +626,51 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
           const generation = clearRowsAndSensitiveLayers();
           try {
             const current = await revokePrivacy(generation, null);
-            if (current) rowsSuppressedRef.current = false;
+            if (!current) return;
+            rowsSuppressedRef.current = false;
+
+            const targetId = selectedTargetIdRef.current;
+            const schemaName = selectedSchemaNameRef.current;
+            const relationName = selectedRelationNameRef.current;
+            if (!targetId || !schemaName || !relationName || isViewer) return;
+            const recoveryRowsGeneration = ++rowsGenerationRef.current;
+            setLoadingRows(true);
+            try {
+              const maskedRows = await queryDatabaseRows(
+                targetId,
+                {
+                  schema: schemaName,
+                  relation: relationName,
+                  pageSize,
+                  cursor: undefined,
+                  sort,
+                  filters,
+                  piiMode: 'masked'
+                },
+                session.csrfToken
+              );
+              if (maskedRows.piiMode !== 'masked') {
+                throw new Error('The server did not return masked database rows');
+              }
+              if (
+                rowsGenerationRef.current === recoveryRowsGeneration &&
+                privacyTransitionGenerationRef.current === generation &&
+                selectedTargetIdRef.current === targetId &&
+                selectedSchemaNameRef.current === schemaName &&
+                selectedRelationNameRef.current === relationName
+              ) {
+                setRows(maskedRows);
+              }
+            } catch (recoveryError: unknown) {
+              if (
+                rowsGenerationRef.current === recoveryRowsGeneration &&
+                privacyTransitionGenerationRef.current === generation
+              ) {
+                setError(getErrorMessage(recoveryError, 'Unable to reload masked database rows'));
+              }
+            } finally {
+              if (rowsGenerationRef.current === recoveryRowsGeneration) setLoadingRows(false);
+            }
           } catch (revokeError: unknown) {
             if (privacyTransitionGenerationRef.current === generation) {
               setError(getErrorMessage(revokeError, 'Unable to revoke PII access'));
@@ -655,6 +729,9 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
         },
         session.csrfToken ?? ''
       );
+      if (maskedRows.piiMode !== 'masked') {
+        throw new Error('The server did not return masked database rows');
+      }
       if (
         rowsGenerationRef.current === currentRowsGeneration &&
         privacyTransitionGenerationRef.current === generation &&
