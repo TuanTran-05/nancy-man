@@ -21,6 +21,19 @@ async function readArtifact(path: URL): Promise<string> {
   return readFile(path, 'utf8').catch(() => '');
 }
 
+function extractDoBodies(sql: string): Array<{ tag: string; body: string; start: number }> {
+  const bodies: Array<{ tag: string; body: string; start: number }> = [];
+  const doBlockPattern = /\bDO\s+(\$[A-Za-z0-9_]*\$)\s*([\s\S]*?)\1\s*;/gim;
+  for (const match of sql.matchAll(doBlockPattern)) {
+    bodies.push({
+      tag: match[1],
+      body: match[2],
+      start: match.index ?? -1
+    });
+  }
+  return bodies;
+}
+
 describe('database explorer roles and verifier', () => {
   it('provisions separate no-login explorer capability role with column-level restrictions', async () => {
     const sql = await readArtifact(artifacts.rolesSql);
@@ -117,7 +130,9 @@ describe('database explorer roles and verifier', () => {
     expect(preflightEnd).toBeGreaterThan(preflightStart);
     expect(preflight).toContain('current_user');
     expect(preflight).toContain('rolsuper');
-    expect(preflight).toContain('FOREACH schema_name IN ARRAY string_to_array');
+    expect(preflight).toContain('FOREACH schema_name IN ARRAY input_business_schemas');
+    expect(preflight).toContain('INTO STRICT');
+    expect(preflight).toContain('current_database()::text <> input_database_name');
     expect(preflight).toContain('aclexplode');
     expect(preflight).toContain("acl.privilege_type = 'CREATE'");
     expect(preflight).toContain('acl.grantor <>');
@@ -126,6 +141,64 @@ describe('database explorer roles and verifier', () => {
     expect(preflightStart).toBeLessThan(sql.indexOf('DO $roles$'));
     expect(preflightStart).toBeLessThan(sql.indexOf('CREATE ROLE ops_database_browser'));
     expect(preflightStart).toBeLessThan(sql.indexOf('GRANT CONNECT ON DATABASE'));
+  });
+
+  it('keeps psql variables outside every dollar-quoted DO body', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+    const doBodies = extractDoBodies(sql);
+    const doStatementCount = Array.from(sql.matchAll(/\bDO\s+\$[A-Za-z0-9_]*\$/gim)).length;
+
+    expect(doBodies).toHaveLength(doStatementCount);
+    expect(doBodies.length).toBeGreaterThan(0);
+    for (const { tag, body } of doBodies) {
+      expect(body, `DO ${tag} body must SELECT values from the session input table`).toContain(
+        'FROM pg_temp.ops_database_explorer_input AS input'
+      );
+      expect(body, `DO ${tag} body must read staged values instead of psql variables`).not.toMatch(
+        /(?<!:):(?!:)(?:'[^']*'|"[^"]*"|\{[^}]*\}|[A-Za-z_][A-Za-z0-9_]*)/
+      );
+    }
+  });
+
+  it('stages the typed psql inputs outside DO bodies before preflight', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+    const doBodies = extractDoBodies(sql);
+    const firstDoStart = doBodies[0]?.start ?? -1;
+    const stagedTableStart = sql.indexOf('CREATE TEMP TABLE ops_database_explorer_input');
+    const stagedInputStart = sql.indexOf('INSERT INTO ops_database_explorer_input');
+    const stagedSql = sql.slice(stagedTableStart, firstDoStart);
+
+    expect(doBodies.length).toBeGreaterThan(0);
+    expect(stagedTableStart).toBeGreaterThanOrEqual(0);
+    expect(stagedInputStart).toBeGreaterThan(stagedTableStart);
+    expect(stagedInputStart).toBeLessThan(firstDoStart);
+    expect(stagedSql).toContain('business_schemas text[] NOT NULL');
+    expect(stagedSql).toContain('string_to_array(:\'ops_business_schemas\', \',\')');
+    for (const input of [
+      'ops_database_name',
+      'ops_business_schemas',
+      'ops_schema_owner_role',
+      'ops_browser_login',
+      'ops_target_id',
+      'ops_browser_password'
+    ]) {
+      expect(stagedSql).toContain(`:'${input}'`);
+    }
+  });
+
+  it('clears the staged browser password immediately after creating or altering the login', async () => {
+    const sql = await readArtifact(artifacts.rolesSql);
+    const loginBlock = extractDoBodies(sql).find(({ tag }) => tag === '$logins$');
+    const passwordUse = loginBlock?.body.lastIndexOf('PASSWORD %L') ?? -1;
+    const stagedPasswordClear = loginBlock?.body.indexOf(
+      'UPDATE pg_temp.ops_database_explorer_input SET browser_password = NULL'
+    ) ?? -1;
+    const localPasswordClear = loginBlock?.body.indexOf('browser_password := NULL') ?? -1;
+
+    expect(loginBlock).toBeDefined();
+    expect(passwordUse).toBeGreaterThanOrEqual(0);
+    expect(stagedPasswordClear).toBeGreaterThan(passwordUse);
+    expect(localPasswordClear).toBeGreaterThan(stagedPasswordClear);
   });
 
   it('removes direct CREATE ACLs from PUBLIC and unapproved role grantees in each business schema', async () => {

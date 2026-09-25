@@ -43,12 +43,91 @@
 
 BEGIN;
 
+-- psql does not interpolate variables inside dollar-quoted DO bodies. Stage
+-- quoted inputs as session-local, typed values before any provisioning block.
+CREATE TEMP TABLE ops_database_explorer_input (
+  singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+  database_name text NOT NULL,
+  business_schemas text[] NOT NULL,
+  schema_owner_role text NOT NULL,
+  browser_login text NOT NULL,
+  target_id text NOT NULL,
+  browser_password text
+) ON COMMIT DROP;
+
+INSERT INTO ops_database_explorer_input (
+  database_name,
+  business_schemas,
+  schema_owner_role,
+  browser_login,
+  target_id,
+  browser_password
+) VALUES (
+  :'ops_database_name',
+  string_to_array(:'ops_business_schemas', ','),
+  :'ops_schema_owner_role',
+  :'ops_browser_login',
+  :'ops_target_id',
+  :'ops_browser_password'
+);
+
 DO $provisioning_preflight$
 DECLARE
+  input_database_name text;
+  input_business_schemas text[];
+  input_schema_owner text;
+  input_browser_login text;
+  input_target_id text;
+  input_browser_password text;
   schema_name text;
-  schema_owner text := :'ops_schema_owner_role';
+  schema_count bigint;
+  distinct_schema_count bigint;
   actual_schema_owner text;
 BEGIN
+  SELECT
+    input.database_name,
+    input.business_schemas,
+    input.schema_owner_role,
+    input.browser_login,
+    input.target_id,
+    input.browser_password
+  INTO STRICT
+    input_database_name,
+    input_business_schemas,
+    input_schema_owner,
+    input_browser_login,
+    input_target_id,
+    input_browser_password
+  FROM pg_temp.ops_database_explorer_input AS input;
+
+  IF input_database_name !~ '^[a-z][a-z0-9_]{0,62}$' THEN
+    RAISE EXCEPTION 'ops_database_name must be a lower-case PostgreSQL identifier';
+  END IF;
+  IF current_database()::text <> input_database_name THEN
+    RAISE EXCEPTION 'Provisioning database does not match ops_database_name';
+  END IF;
+  IF input_target_id NOT IN ('edutrack_production', 'ops') THEN
+    RAISE EXCEPTION 'Ops browser target must be one of the approved targets';
+  END IF;
+  IF (input_target_id = 'edutrack_production'
+      AND (input_database_name <> 'edutrack_production' OR input_browser_login <> 'ops_browser_edutrack'))
+    OR (input_target_id = 'ops'
+      AND (input_database_name <> 'edutrack_ops' OR input_browser_login <> 'ops_browser_ops')) THEN
+    RAISE EXCEPTION 'Ops browser target, database, and login must match an approved target';
+  END IF;
+  IF input_browser_password IS NULL OR input_browser_password !~ '^[A-Za-z0-9_-]{32,}$' THEN
+    RAISE EXCEPTION 'ops_browser_password must be at least 32 URL-safe characters';
+  END IF;
+  IF cardinality(input_business_schemas) = 0 THEN
+    RAISE EXCEPTION 'At least one business schema is required';
+  END IF;
+  SELECT count(*), count(DISTINCT btrim(schema_name))
+  INTO schema_count, distinct_schema_count
+  FROM unnest(input_business_schemas) AS schemas(schema_name);
+  IF schema_count = 0 OR schema_count <> distinct_schema_count THEN
+    RAISE EXCEPTION 'Business schema names must be non-empty and unique';
+  END IF;
+
   -- Role membership cleanup names each recorded grantor. Require authority to
   -- revoke every such edge before any role or ACL mutation starts.
   IF NOT EXISTS (
@@ -58,10 +137,10 @@ BEGIN
     RAISE EXCEPTION 'Database Explorer provisioning requires a PostgreSQL superuser session';
   END IF;
 
-  IF schema_owner !~ '^[a-z][a-z0-9_]{0,62}$' THEN
+  IF input_schema_owner !~ '^[a-z][a-z0-9_]{0,62}$' THEN
     RAISE EXCEPTION 'ops_schema_owner_role must be a lower-case PostgreSQL identifier';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = schema_owner) THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = input_schema_owner) THEN
     RAISE EXCEPTION 'Configured schema owner role does not exist';
   END IF;
 
@@ -69,7 +148,7 @@ BEGIN
   -- even for a superuser. Detect unapproved CREATE grants from other grantors
   -- now so provisioning fails before its first mutation and can be remediated
   -- in the original grantor's context.
-  FOREACH schema_name IN ARRAY string_to_array(:'ops_business_schemas', ',') LOOP
+  FOREACH schema_name IN ARRAY input_business_schemas LOOP
     schema_name := btrim(schema_name);
     IF schema_name !~ '^[a-z][a-z0-9_]{0,62}$' THEN
       RAISE EXCEPTION 'Business schema names must be lower-case PostgreSQL identifiers';
@@ -98,7 +177,7 @@ BEGIN
         AND (
           acl.grantee = 0
           OR grantee.rolname IS NULL
-          OR grantee.rolname NOT IN (schema_owner, actual_schema_owner)
+          OR grantee.rolname NOT IN (input_schema_owner, actual_schema_owner)
         )
         AND acl.grantor <> (SELECT oid FROM pg_roles WHERE rolname = current_user)
     ) THEN
@@ -110,9 +189,13 @@ $provisioning_preflight$;
 
 DO $roles$
 DECLARE
-  target_id text := :'ops_target_id';
+  target_id text;
   other_browser_login text;
 BEGIN
+  SELECT input.target_id
+  INTO STRICT target_id
+  FROM pg_temp.ops_database_explorer_input AS input;
+
   -- The advisory lock is cluster-wide and serializes both target provisioning attempts.
   PERFORM pg_advisory_xact_lock(90260925, 6);
 
@@ -147,11 +230,16 @@ REVOKE TEMPORARY ON DATABASE :"ops_database_name" FROM PUBLIC;
 
 DO $logins$
 DECLARE
-  browser_login text := :'ops_browser_login';
-  target_id text := :'ops_target_id';
+  browser_login text;
+  browser_password text;
+  target_id text;
   membership record;
   capability_member record;
 BEGIN
+  SELECT input.browser_login, input.browser_password, input.target_id
+  INTO STRICT browser_login, browser_password, target_id
+  FROM pg_temp.ops_database_explorer_input AS input;
+
   IF target_id NOT IN ('edutrack_production', 'ops') THEN
     RAISE EXCEPTION 'Ops browser target must be one of the approved targets';
   END IF;
@@ -186,15 +274,17 @@ BEGIN
     EXECUTE format(
       'ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 2 PASSWORD %L',
       browser_login,
-      :'ops_browser_password'
+      browser_password
     );
   ELSE
     EXECUTE format(
       'CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 2 PASSWORD %L',
       browser_login,
-      :'ops_browser_password'
+      browser_password
     );
   END IF;
+  UPDATE pg_temp.ops_database_explorer_input SET browser_password = NULL;
+  browser_password := NULL;
 
   -- Remove all direct memberships first; this also removes every inherited or SET path.
   FOR membership IN
@@ -284,14 +374,19 @@ ALTER ROLE :"ops_browser_login" SET search_path = 'pg_catalog';
 DO $business_schemas$
 DECLARE
   schema_name text;
-  schema_owner text := :'ops_schema_owner_role';
+  business_schemas text[];
+  schema_owner text;
   actual_schema_owner text;
   owner_role text;
-  browser_login text := :'ops_browser_login';
+  browser_login text;
   schema_create_grant record;
   grantee_spec text;
   configured_owner_had_create boolean;
 BEGIN
+  SELECT input.business_schemas, input.schema_owner_role, input.browser_login
+  INTO STRICT business_schemas, schema_owner, browser_login
+  FROM pg_temp.ops_database_explorer_input AS input;
+
   IF schema_owner !~ '^[a-z][a-z0-9_]{0,62}$' THEN
     RAISE EXCEPTION 'ops_schema_owner_role must be a lower-case PostgreSQL identifier';
   END IF;
@@ -307,7 +402,7 @@ BEGIN
          WHERE namespace.nspname = '_ops'
             OR namespace.nspname IN (
               SELECT btrim(input_schema.schema_name)
-              FROM unnest(string_to_array(:'ops_business_schemas', ',')) AS input_schema(schema_name)
+              FROM unnest(business_schemas) AS input_schema(schema_name)
             )
        )
   LOOP
@@ -322,7 +417,7 @@ BEGIN
     EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE EXECUTE ON FUNCTIONS FROM %I', owner_role, browser_login);
   END LOOP;
 
-  FOREACH schema_name IN ARRAY string_to_array(:'ops_business_schemas', ',') LOOP
+  FOREACH schema_name IN ARRAY business_schemas LOOP
     schema_name := btrim(schema_name);
     IF schema_name !~ '^[a-z][a-z0-9_]{0,62}$' THEN
       RAISE EXCEPTION 'Business schema names must be lower-case PostgreSQL identifiers';
@@ -463,22 +558,27 @@ $business_schemas$;
 
 DO $ops_schema$
 DECLARE
-  schema_owner text := :'ops_schema_owner_role';
+  schema_owner text;
+  browser_login text;
   owner_role text;
 BEGIN
+  SELECT input.schema_owner_role, input.browser_login
+  INTO STRICT schema_owner, browser_login
+  FROM pg_temp.ops_database_explorer_input AS input;
+
   IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = '_ops') THEN
     REVOKE ALL ON SCHEMA _ops FROM PUBLIC;
     REVOKE ALL ON SCHEMA _ops FROM ops_database_browser;
-    EXECUTE format('REVOKE ALL ON SCHEMA _ops FROM %I', :'ops_browser_login');
+    EXECUTE format('REVOKE ALL ON SCHEMA _ops FROM %I', browser_login);
     REVOKE ALL ON ALL TABLES IN SCHEMA _ops FROM PUBLIC;
     REVOKE ALL ON ALL TABLES IN SCHEMA _ops FROM ops_database_browser;
-    EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA _ops FROM %I', :'ops_browser_login');
+    EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA _ops FROM %I', browser_login);
     REVOKE ALL ON ALL SEQUENCES IN SCHEMA _ops FROM PUBLIC;
     REVOKE ALL ON ALL SEQUENCES IN SCHEMA _ops FROM ops_database_browser;
-    EXECUTE format('REVOKE ALL ON ALL SEQUENCES IN SCHEMA _ops FROM %I', :'ops_browser_login');
+    EXECUTE format('REVOKE ALL ON ALL SEQUENCES IN SCHEMA _ops FROM %I', browser_login);
     REVOKE ALL ON ALL FUNCTIONS IN SCHEMA _ops FROM PUBLIC;
     REVOKE ALL ON ALL FUNCTIONS IN SCHEMA _ops FROM ops_database_browser;
-    EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA _ops FROM %I', :'ops_browser_login');
+    EXECUTE format('REVOKE ALL ON ALL FUNCTIONS IN SCHEMA _ops FROM %I', browser_login);
     FOR owner_role IN
       SELECT DISTINCT candidate.rolname
       FROM pg_roles candidate
@@ -487,13 +587,13 @@ BEGIN
     LOOP
       EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE ALL ON TABLES FROM PUBLIC', owner_role);
       EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE ALL ON TABLES FROM ops_database_browser', owner_role);
-      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE ALL ON TABLES FROM %I', owner_role, :'ops_browser_login');
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE ALL ON TABLES FROM %I', owner_role, browser_login);
       EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE ALL ON SEQUENCES FROM PUBLIC', owner_role);
       EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE ALL ON SEQUENCES FROM ops_database_browser', owner_role);
-      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE ALL ON SEQUENCES FROM %I', owner_role, :'ops_browser_login');
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE ALL ON SEQUENCES FROM %I', owner_role, browser_login);
       EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC', owner_role);
       EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE EXECUTE ON FUNCTIONS FROM ops_database_browser', owner_role);
-      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE EXECUTE ON FUNCTIONS FROM %I', owner_role, :'ops_browser_login');
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA _ops REVOKE EXECUTE ON FUNCTIONS FROM %I', owner_role, browser_login);
     END LOOP;
   END IF;
 END
