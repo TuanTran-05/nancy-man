@@ -21,6 +21,7 @@ async function createRunnerHarness(runtime: 'compose' | 'native') {
   const startCountPath = join(directory, 'pg-ctl-start-count');
   const portCountPath = join(directory, 'port-count');
   const composeCheckPath = join(directory, 'compose-config-checked');
+  const configuredPgCtlPath = join(directory, 'configured-pg-ctl');
   await Promise.all([
     mkdir(binDirectory, { mode: 0o700 }),
     mkdir(pg16Directory, { mode: 0o700 }),
@@ -94,6 +95,13 @@ esac
   await writeExecutable(
     join(binDirectory, 'npm'),
     String.raw`#!/usr/bin/env bash
+if [ -n "\${PG16_BIN:-}" ]; then
+  "$REAL_NODE" --input-type=module -e '
+    import { readFileSync, writeFileSync } from "node:fs";
+    const config = JSON.parse(readFileSync(process.env.DATABASE_EXPLORER_TEST_CONFIG, "utf8"));
+    writeFileSync(process.env.FAKE_CONFIGURED_PG_CTL, config.targets.edutrack_production.pgCtl + "\n");
+  '
+fi
 exit 0
 `
   );
@@ -180,6 +188,7 @@ exit 2
     TMPDIR: tempDirectory,
     REAL_NODE: process.execPath,
     FAKE_COMPOSE_CONFIG_CHECK: composeCheckPath,
+    FAKE_CONFIGURED_PG_CTL: configuredPgCtlPath,
     FAKE_PG_CTL_EVENTS: eventsPath,
     FAKE_PG_CTL_START_COUNT: startCountPath,
     FAKE_PORT_COUNT: portCountPath,
@@ -187,7 +196,7 @@ exit 2
     FAKE_NATIVE_START_FAILURE: '',
     ...(runtime === 'native' ? { PG16_BIN: pg16Directory } : {})
   };
-  return { directory, eventsPath, composeCheckPath, environment };
+  return { directory, eventsPath, composeCheckPath, configuredPgCtlPath, environment };
 }
 
 function runFixtureRunner(environment: NodeJS.ProcessEnv) {
@@ -227,6 +236,9 @@ describe('PostgreSQL integration fixture runner', () => {
       expect(starts[0]?.[1]).toBe(starts[1]?.[1]);
       expect(starts[1]?.[1]).not.toBe(starts[2]?.[1]);
       expect(events.slice(0, 3).map(([kind]) => kind)).toEqual(['start', 'stop', 'start']);
+      expect(await readFile(harness.configuredPgCtlPath, 'utf8')).toBe(
+        `${String(harness.environment.PG16_BIN)}/pg_ctl\n`
+      );
       expect(
         events
           .filter(([kind]) => kind === 'stop')

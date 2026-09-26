@@ -250,6 +250,7 @@ DATABASE_EXPLORER_TEST_DATA="${PG_DATA[0]:-},${PG_DATA[1]:-}" \
 DATABASE_EXPLORER_TEST_LOGS="${PG_LOGS[0]:-},${PG_LOGS[1]:-}" \
 DATABASE_EXPLORER_TEST_SERVICES="${TARGET_SERVICES[0]},${TARGET_SERVICES[1]}" \
 DATABASE_EXPLORER_TEST_COMPOSE_COMMAND="${COMPOSE_COMMAND[*]}" \
+DATABASE_EXPLORER_TEST_PG16_BIN="$PG16_BIN" \
 node --input-type=module <<'NODE'
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -263,6 +264,7 @@ const ports = process.env.DATABASE_EXPLORER_TEST_PORTS.split(',').map(Number);
 const dataDirectories = process.env.DATABASE_EXPLORER_TEST_DATA.split(',');
 const logs = process.env.DATABASE_EXPLORER_TEST_LOGS.split(',');
 const services = process.env.DATABASE_EXPLORER_TEST_SERVICES.split(',');
+const pg16Bin = process.env.DATABASE_EXPLORER_TEST_PG16_BIN;
 const readSecret = (path) => readFileSync(path, 'utf8').trim();
 const caFile = join(root, 'certs', 'ca.crt');
 const adminPassword = readSecret(join(root, 'secrets', 'admin.password'));
@@ -311,7 +313,7 @@ for (let index = 0; index < targets.length; index += 1) {
           dataDirectory: dataDirectories[index],
           logFile: logs[index],
           socketDirectory: join(root, 'sockets', targetId),
-          pgCtl: '/usr/lib/postgresql/16/bin/pg_ctl',
+          pgCtl: `${pg16Bin}/pg_ctl`,
           caFile,
           serverCertFile: join(root, 'certs', 'server.crt'),
           serverKeyFile: join(root, 'certs', 'server.key')
