@@ -128,14 +128,16 @@ describe('protected Ops HTTP API', () => {
     }
   });
 
-  it('serves the SPA entrypoint for a direct MFA bootstrap request', async () => {
+  it('serves the SPA entrypoint for direct canonical route requests', async () => {
     const fixture = makeFixture();
     try {
-      await request(fixture.app)
-        .get('/bootstrap/mfa')
-        .expect(200)
-        .expect('Content-Type', /html/u)
-        .expect('<main>ops-shell</main>');
+      for (const route of ['/bootstrap/mfa', '/database', '/variables', '/users', '/issues']) {
+        await request(fixture.app)
+          .get(route)
+          .expect(200)
+          .expect('Content-Type', /html/u)
+          .expect('<main>ops-shell</main>');
+      }
     } finally {
       fixture.cleanup();
     }
