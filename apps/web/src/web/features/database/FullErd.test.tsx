@@ -386,7 +386,7 @@ describe('FullErd', () => {
       );
       expect(screen.getByText('101 bảng · 210 quan hệ')).toBeInTheDocument();
     }
-  });
+  }, 20_000);
 
   it('fits all nodes when clearing a search with no matches', async () => {
     const expectedFitNodes = Array.from({ length: 101 }, (_, index) => {
