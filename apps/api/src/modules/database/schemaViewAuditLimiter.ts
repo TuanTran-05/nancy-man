@@ -1,3 +1,5 @@
+import { captureOpsException } from '../../telemetry/runtimeTelemetry.js';
+
 import type { DatabaseTargetId } from '../../../../../packages/contracts/src/databaseExplorer.js';
 
 export type SchemaViewAuditKey = {
@@ -46,7 +48,10 @@ export class SchemaViewAuditLimiter {
       resolvePending = resolve;
       rejectPending = reject;
     });
-    void pendingWrite.catch(() => undefined);
+    void pendingWrite.catch(() => {
+      // telemetry-ignore: the originating await below terminally captures the same rejection
+      return undefined;
+    });
     this.pending.set(key, pendingWrite);
     try {
       await append();
@@ -55,6 +60,12 @@ export class SchemaViewAuditLimiter {
       this.lastWrittenAt.set(key, writtenAt);
       resolvePending();
     } catch (error) {
+      captureOpsException(error, {
+        code: 'UNHANDLED_OPS_EXCEPTION',
+        source: 'api',
+        status: 500,
+        errorMode: 'code-only'
+      });
       rejectPending(error);
       throw error;
     } finally {

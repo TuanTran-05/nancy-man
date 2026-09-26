@@ -251,9 +251,8 @@ describe('renderDatabaseExplorerGrants', () => {
     const directory = await mkdtemp(join(tmpdir(), 'database-explorer-grants-'));
     try {
       const staleSnapshot = structuredClone(snapshot);
-      staleSnapshot.schemas[0]!.relations[0]!.columns = staleSnapshot.schemas[0]!.relations[0]!.columns.filter(
-        (column) => column.name !== 'email'
-      );
+      staleSnapshot.schemas[0]!.relations[0]!.columns =
+        staleSnapshot.schemas[0]!.relations[0]!.columns.filter((column) => column.name !== 'email');
       staleSnapshot.checksum = structuralChecksum(staleSnapshot);
       const snapshotPath = join(directory, 'schema.json');
       const approvalPath = join(directory, 'approval.json');

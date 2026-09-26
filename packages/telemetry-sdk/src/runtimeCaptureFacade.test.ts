@@ -160,6 +160,35 @@ describe('runtime capture facade binding', () => {
     ]);
   });
 
+  it('replaces code-only errors before they reach the active runtime', () => {
+    const facade = createRuntimeCaptureFacade();
+    const captured: Array<{ error: unknown; context: Record<string, unknown> }> = [];
+    const uninstall = facade.install({
+      captureException: (error, context) => {
+        captured.push({ error, context });
+        return 'EVT_00000000000000000000000009';
+      }
+    });
+    const original = new Error('postgresql://secret@host/db?cursor=sensitive-marker');
+
+    facade.captureException(original, {
+      code: 'DATABASE_QUERY_FAILED',
+      source: 'database',
+      errorMode: 'code-only'
+    });
+    uninstall();
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.error).toBeInstanceOf(Error);
+    expect((captured[0]?.error as Error).message).toBe('DATABASE_QUERY_FAILED');
+    expect(captured[0]?.error).not.toBe(original);
+    expect(captured[0]?.context).toEqual({
+      code: 'DATABASE_QUERY_FAILED',
+      source: 'database'
+    });
+    expect(JSON.stringify(captured)).not.toContain('sensitive-marker');
+  });
+
   it('keeps a one-shot runtime bound through capture and flush, then removes its listeners', async () => {
     const order: string[] = [];
     const before = {

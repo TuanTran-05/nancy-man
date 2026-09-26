@@ -6,6 +6,8 @@ import {
   ReactFlow,
   useEdgesState,
   useNodesState,
+  type Edge,
+  type Node,
   type ReactFlowInstance
 } from '@xyflow/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -45,6 +47,9 @@ type ErdNodeData = {
   nodeId: string;
   searchFocused: boolean;
 };
+
+type ErdFlowNode = Node<ErdNodeData, 'erdNode'>;
+type ErdFlowEdge = Edge;
 
 function ErdNode({ data }: { data: ErdNodeData }) {
   return (
@@ -148,7 +153,7 @@ function toFlowEdges(edges: GraphEdge[]) {
 export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
-  const flowInstanceRef = useRef<ReactFlowInstance<any, any> | null>(null);
+  const flowInstanceRef = useRef<ReactFlowInstance<ErdFlowNode, ErdFlowEdge> | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
 
   // Compute full graph, then filter by search
@@ -185,7 +190,7 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
     });
   }, []);
 
-  const handleFlowInit = useCallback((instance: ReactFlowInstance<any, any>) => {
+  const handleFlowInit = useCallback((instance: ReactFlowInstance<ErdFlowNode, ErdFlowEdge>) => {
     flowInstanceRef.current = instance;
     setCanvasReady(true);
   }, []);
@@ -204,8 +209,8 @@ export function FullErd({ snapshot, targetId, onSelectRelation }: FullErdProps) 
 
   const flowEdges = useMemo(() => toFlowEdges(filteredGraph.edges), [filteredGraph.edges]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<ErdFlowNode>(flowNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<ErdFlowEdge>(flowEdges);
 
   useEffect(() => {
     setNodes(flowNodes);

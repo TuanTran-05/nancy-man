@@ -1,10 +1,15 @@
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
+
 import { randomUUID } from 'node:crypto';
 import { chmod, readFile, stat, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { Pool } from 'pg';
 import { DATABASE_POLICY_VERSION } from '../../../../packages/security/src/database/columnPolicy.js';
-import type { DatabaseExplorerSchemaSnapshot, DatabaseTargetId } from '../../../../packages/contracts/src/databaseExplorer.js';
+import type {
+  DatabaseExplorerSchemaSnapshot,
+  DatabaseTargetId
+} from '../../../../packages/contracts/src/databaseExplorer.js';
 import type { SqlWorkerActor } from '../../../../packages/contracts/src/workerProtocol.js';
 import { renderDatabaseExplorerGrants } from '../../../../deploy/postgres/render-database-explorer-grants.js';
 import { createExplorerSchemaReader } from '../explorer/schemaReader.js';
@@ -85,7 +90,10 @@ function isTargetId(value: string): value is DatabaseTargetId {
 
 export async function readPostgresIntegrationConfig(): Promise<PostgresIntegrationConfig> {
   const configPath = process.env.DATABASE_EXPLORER_TEST_CONFIG;
-  if (!configPath) throw new Error('DATABASE_EXPLORER_TEST_CONFIG is required; run the PostgreSQL integration gate');
+  if (!configPath)
+    throw new Error(
+      'DATABASE_EXPLORER_TEST_CONFIG is required; run the PostgreSQL integration gate'
+    );
   const details = await stat(configPath);
   if (!details.isFile() || (details.mode & 0o777) !== 0o600) {
     throw new Error('PostgreSQL integration config must be a regular mode-0600 file');
@@ -300,10 +308,44 @@ export async function startPostgresWorkerFixture(): Promise<PostgresWorkerFixtur
       }
     };
   } catch (error) {
-    await worker?.close().catch(() => undefined);
+    captureOpsException(error, {
+      code: 'UNHANDLED_OPS_EXCEPTION',
+      source: 'database',
+      status: 500,
+      errorMode: 'code-only'
+    });
+    await worker?.close().catch((error) => {
+      captureOpsException(error, {
+        code: 'UNHANDLED_PROMISE_REJECTION',
+        source: 'job',
+        status: 500,
+        errorMode: 'code-only'
+      });
+      return undefined;
+    });
     await Promise.all([
-      ...Object.values(browserPools).map((pool) => pool.end().catch(() => undefined)),
-      ...Object.values(adminPools).map((pool) => pool.end().catch(() => undefined))
+      ...Object.values(browserPools).map((pool) =>
+        pool.end().catch((error) => {
+          captureOpsException(error, {
+            code: 'UNHANDLED_PROMISE_REJECTION',
+            source: 'database',
+            status: 500,
+            errorMode: 'code-only'
+          });
+          return undefined;
+        })
+      ),
+      ...Object.values(adminPools).map((pool) =>
+        pool.end().catch((error) => {
+          captureOpsException(error, {
+            code: 'UNHANDLED_PROMISE_REJECTION',
+            source: 'database',
+            status: 500,
+            errorMode: 'code-only'
+          });
+          return undefined;
+        })
+      )
     ]);
     throw error;
   }
@@ -337,21 +379,32 @@ export function runTargetControl(
             { encoding: 'utf8' }
           );
     if (result.error || result.status !== 0) {
-      throw new Error(`Unable to ${action} isolated PostgreSQL fixture ${target.targetId}: ${result.stderr?.trim() ?? result.error?.message ?? 'pg_ctl failed'}`);
+      throw new Error(
+        `Unable to ${action} isolated PostgreSQL fixture ${target.targetId}: ${result.stderr?.trim() ?? result.error?.message ?? 'pg_ctl failed'}`
+      );
     }
     return;
   }
   if (target.service && target.project && target.composeFile) {
-    const compose = target.composeCommand === 'docker-compose'
-      ? ['docker-compose']
-      : ['docker', 'compose'];
+    const compose =
+      target.composeCommand === 'docker-compose' ? ['docker-compose'] : ['docker', 'compose'];
     const result = spawnSync(
       compose[0]!,
-      [...compose.slice(1), '-p', target.project, '-f', target.composeFile, action === 'stop' ? 'stop' : 'start', target.service],
+      [
+        ...compose.slice(1),
+        '-p',
+        target.project,
+        '-f',
+        target.composeFile,
+        action === 'stop' ? 'stop' : 'start',
+        target.service
+      ],
       { encoding: 'utf8' }
     );
     if (result.error || result.status !== 0) {
-      throw new Error(`Unable to ${action} isolated PostgreSQL fixture ${target.targetId}: ${result.stderr?.trim() ?? result.error?.message ?? 'docker compose failed'}`);
+      throw new Error(
+        `Unable to ${action} isolated PostgreSQL fixture ${target.targetId}: ${result.stderr?.trim() ?? result.error?.message ?? 'docker compose failed'}`
+      );
     }
     return;
   }

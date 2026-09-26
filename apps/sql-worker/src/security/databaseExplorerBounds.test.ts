@@ -486,7 +486,6 @@ describe('databaseExplorerBounds — large schema projection', () => {
     );
     expect(queries.some((sql) => /FROM\s+"public"\."/.test(sql))).toBe(false);
   });
-
 });
 
 // ---------------------------------------------------------------------------

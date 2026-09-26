@@ -293,7 +293,6 @@ describe('databaseExplorerWorker unit — blocked column encoding', () => {
       }
     }
   });
-
 });
 
 describe('databaseExplorerWorker unit — forged payload rejection', () => {

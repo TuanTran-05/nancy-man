@@ -106,7 +106,8 @@ function createLifecycleHarness(
         );
         if (!grant) return { rows: [] as T[] };
         grant.lastUsedAt = fixedNow.toISOString();
-        const { auditCompletedAt: _auditCompletedAt, ...activeGrant } = grant;
+        const activeGrant = { ...grant };
+        Reflect.deleteProperty(activeGrant, 'auditCompletedAt');
         return { rows: [activeGrant] as T[] };
       }
       if (

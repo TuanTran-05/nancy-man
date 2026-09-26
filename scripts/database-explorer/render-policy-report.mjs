@@ -3,7 +3,10 @@
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
 import { isDatabaseTargetId } from '../../packages/contracts/src/databaseExplorer.ts';
-import { classifyColumn, DATABASE_POLICY_VERSION } from '../../packages/security/src/database/columnPolicy.ts';
+import {
+  classifyColumn,
+  DATABASE_POLICY_VERSION
+} from '../../packages/security/src/database/columnPolicy.ts';
 
 function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -87,7 +90,7 @@ function readSnapshot(snapshotFile) {
     return validateSnapshot(JSON.parse(input));
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('STRUCTURAL_')) throw error;
-    throw new Error('STRUCTURAL_SNAPSHOT_INVALID');
+    throw new Error('STRUCTURAL_SNAPSHOT_INVALID', { cause: error });
   }
 }
 

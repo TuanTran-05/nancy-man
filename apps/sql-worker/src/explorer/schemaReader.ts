@@ -136,15 +136,15 @@ export function createExplorerSchemaReader(input: {
     let connection;
     try {
       connection = await input.target.pool.connect();
-    } catch {
-      const error = makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
-      captureOpsException(error, {
+    } catch (caught) {
+      captureOpsException(caught, {
         code: 'DATABASE_SCHEMA_CHECK_FAILED',
         source: 'database',
-        status: 500
+        status: 500,
+        errorMode: 'code-only'
       });
       cache.delete(cacheKey);
-      throw error;
+      throw makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
     }
 
     try {
@@ -182,13 +182,13 @@ export function createExplorerSchemaReader(input: {
           [schemaNames]
         );
         estimatedRowsRows = result.rows;
-      } catch {
-        captureOpsException(makeExplorerError('DATABASE_SCHEMA_METADATA_FAILED'), {
+      } catch (caught) {
+        captureOpsException(caught, {
           code: 'DATABASE_SCHEMA_METADATA_FAILED',
           source: 'job',
-          status: 500
+          status: 500,
+          errorMode: 'code-only'
         });
-        // Fall back to no estimated rows
       }
 
       const estimatedRowsMap = new Map<string, number>();
@@ -380,15 +380,15 @@ export function createExplorerSchemaReader(input: {
 
       cache.set(cacheKey, { snapshot, expiresAt: now().getTime() + cacheTtlMs });
       return snapshot;
-    } catch {
-      const error = makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
-      captureOpsException(error, {
+    } catch (caught) {
+      captureOpsException(caught, {
         code: 'DATABASE_SCHEMA_CHECK_FAILED',
         source: 'database',
-        status: 500
+        status: 500,
+        errorMode: 'code-only'
       });
       cache.delete(cacheKey);
-      throw error;
+      throw makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
     } finally {
       connection.release();
     }

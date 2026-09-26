@@ -874,7 +874,6 @@ describe('readDatabaseRows', () => {
         return compareText(left.id as string, right.id as string) * (direction === 'desc' ? -1 : 1);
       };
       const ordered = [...data].sort(compareRows);
-      let snapshot!: DatabaseExplorerSchemaSnapshot;
       let currentCursor: string | undefined;
       let nowCalls = 0;
       const now = () => new Date(Date.now() + nowCalls++ * 10);
@@ -911,7 +910,7 @@ describe('readDatabaseRows', () => {
           return { rows: remaining.slice(0, 26) };
         }
       });
-      snapshot = await createSnapshotForTarget(mock.target);
+      const snapshot = await createSnapshotForTarget(mock.target);
       const relation = snapshot.schemas[0]?.relations[0];
       if (!relation) throw new Error('student relation fixture missing');
       relation.paginationKey = ['tenant_id', 'id'];

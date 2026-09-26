@@ -45,15 +45,13 @@ describe('Database Explorer API with isolated PostgreSQL 16 worker', () => {
   }, 60_000);
 
   it('returns a stable API failure for an actual >2 MiB row without any row bytes', async () => {
-    const response = await request(app)
-      .post('/api/v1/database/ops/rows/query')
-      .send({
-        schema: 'public',
-        relation: 'wide_rows',
-        pageSize: 25,
-        filters: [],
-        piiMode: 'masked'
-      });
+    const response = await request(app).post('/api/v1/database/ops/rows/query').send({
+      schema: 'public',
+      relation: 'wide_rows',
+      pageSize: 25,
+      filters: [],
+      piiMode: 'masked'
+    });
 
     expect(response.status).toBe(503);
     expect(response.body).toEqual({ code: 'DATABASE_RESULT_TOO_LARGE' });

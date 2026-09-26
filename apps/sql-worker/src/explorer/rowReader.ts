@@ -238,14 +238,14 @@ export async function readDatabaseRows(
   let connection;
   try {
     connection = await target.pool.connect();
-  } catch {
-    const error = makeExplorerError('DATABASE_TARGET_UNAVAILABLE');
-    captureOpsException(error, {
+  } catch (caught) {
+    captureOpsException(caught, {
       code: 'DATABASE_TARGET_UNAVAILABLE',
       source: 'database',
-      status: 500
+      status: 500,
+      errorMode: 'code-only'
     });
-    throw error;
+    throw makeExplorerError('DATABASE_TARGET_UNAVAILABLE');
   }
 
   let queryRows: Record<string, unknown>[];
@@ -281,48 +281,34 @@ export async function readDatabaseRows(
     const result = await connection.query<Record<string, unknown>>(finalSql, finalValues);
     queryRows = result.rows;
   } catch (err: unknown) {
+    captureOpsException(err, {
+      code: 'DATABASE_QUERY_FAILED',
+      source: 'database',
+      status: 500,
+      errorMode: 'code-only'
+    });
     const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
     const message = typeof errObj['message'] === 'string' ? errObj['message'] : '';
     if (errObj['code'] === 'DATABASE_SCHEMA_STALE') {
-      throw makeExplorerError('DATABASE_SCHEMA_STALE');
+      throw err;
     }
     if (!schemaCheckComplete) {
-      const error = makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
-      captureOpsException(error, {
-        code: 'DATABASE_SCHEMA_CHECK_FAILED',
-        source: 'database',
-        status: 500
-      });
-      throw error;
+      throw makeExplorerError('DATABASE_SCHEMA_CHECK_FAILED');
     }
     if (errObj['code'] === '57014' || /timeout|canceling statement/i.test(message)) {
-      const error = makeExplorerError('DATABASE_QUERY_TIMEOUT');
-      captureOpsException(error, {
-        code: 'DATABASE_QUERY_TIMEOUT',
-        source: 'database',
-        status: 500
-      });
-      throw error;
+      throw makeExplorerError('DATABASE_QUERY_TIMEOUT');
     }
-    const error = makeExplorerError('DATABASE_QUERY_FAILED');
-    captureOpsException(error, {
-      code: 'DATABASE_QUERY_FAILED',
-      source: 'database',
-      status: 500
-    });
-    throw error;
+    throw makeExplorerError('DATABASE_QUERY_FAILED');
   } finally {
     if (transactionStarted) {
-      try {
-        await connection.query('ROLLBACK');
-      } catch {
-        captureOpsException(makeExplorerError('DATABASE_ROLLBACK_FAILED'), {
+      await connection.query('ROLLBACK').catch((caught: unknown) => {
+        captureOpsException(caught, {
           code: 'DATABASE_ROLLBACK_FAILED',
           source: 'database',
-          status: 500
+          status: 500,
+          errorMode: 'code-only'
         });
-        // Ignore rollback failure
-      }
+      });
     }
     connection.release();
   }

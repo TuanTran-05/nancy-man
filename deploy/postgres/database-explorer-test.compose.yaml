@@ -7,7 +7,7 @@ x-postgres: &postgres-defaults
     POSTGRES_DB: postgres
     POSTGRES_PASSWORD_FILE: /run/secrets/admin-password
     POSTGRES_INITDB_ARGS: --auth-local=trust --auth-host=scram-sha-256 --data-checksums
-  entrypoint: ["bash", "-ec"]
+  entrypoint: ['bash', '-ec']
   command: >-
     install -d -o postgres -g postgres -m 0700 /run/postgres-tls;
     install -o postgres -g postgres -m 0644 /run/secrets/ca.crt /run/postgres-tls/ca.crt;
@@ -28,14 +28,14 @@ x-postgres: &postgres-defaults
   tmpfs:
     - /var/lib/postgresql/data:mode=0700
   ports:
-    - "127.0.0.1::5432"
+    - '127.0.0.1::5432'
   secrets:
     - admin-password
     - ca.crt
     - server.crt
     - server.key
   healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+    test: ['CMD-SHELL', 'pg_isready -U postgres -d postgres']
     interval: 1s
     timeout: 2s
     retries: 30

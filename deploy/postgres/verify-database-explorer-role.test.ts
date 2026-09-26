@@ -41,7 +41,9 @@ describe('database explorer roles and verifier', () => {
     expect(sql).toContain(
       'CREATE ROLE ops_database_browser NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS'
     );
-    expect(sql).toMatch(/ALTER ROLE ops_database_browser NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS/i);
+    expect(sql).toMatch(
+      /ALTER ROLE ops_database_browser NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS/i
+    );
     expect(sql).toContain('ops_browser_edutrack');
     expect(sql).toContain('ops_browser_ops');
     expect(sql).toContain('CONNECTION LIMIT 2');
@@ -117,7 +119,9 @@ describe('database explorer roles and verifier', () => {
     expect(cleanup).not.toContain('rolcanlogin');
     expect(sql).toContain('REVOKE %I FROM %I GRANTED BY %I CASCADE');
     expect(sql.indexOf('GRANT CONNECT ON DATABASE')).toBeGreaterThan(cleanupEnd);
-    expect(sql).toContain('ops_database_browser has an unexpected direct member or membership option');
+    expect(sql).toContain(
+      'ops_database_browser has an unexpected direct member or membership option'
+    );
   });
 
   it('preflights superuser authority and every unexpected CREATE grantor before mutations', async () => {
@@ -137,7 +141,9 @@ describe('database explorer roles and verifier', () => {
     expect(preflight).toContain("acl.privilege_type = 'CREATE'");
     expect(preflight).toContain('acl.grantor <>');
     expect(preflight).toContain('PG16 permits GRANTED BY only for current_user');
-    expect(preflight).toContain('Revoke the unexpected CREATE ACL as its grantor, then rerun provisioning');
+    expect(preflight).toContain(
+      'Revoke the unexpected CREATE ACL as its grantor, then rerun provisioning'
+    );
     expect(preflightStart).toBeLessThan(sql.indexOf('DO $roles$'));
     expect(preflightStart).toBeLessThan(sql.indexOf('CREATE ROLE ops_database_browser'));
     expect(preflightStart).toBeLessThan(sql.indexOf('GRANT CONNECT ON DATABASE'));
@@ -192,7 +198,7 @@ describe('database explorer roles and verifier', () => {
     expect(stagedInputStart).toBeGreaterThan(stagedTableStart);
     expect(stagedInputStart).toBeLessThan(firstDoStart);
     expect(stagedSql).toContain('business_schemas text[] NOT NULL');
-    expect(stagedSql).toContain('string_to_array(:\'ops_business_schemas\', \',\')');
+    expect(stagedSql).toContain("string_to_array(:'ops_business_schemas', ',')");
     for (const input of [
       'ops_database_name',
       'ops_business_schemas',
@@ -209,9 +215,10 @@ describe('database explorer roles and verifier', () => {
     const sql = await readArtifact(artifacts.rolesSql);
     const loginBlock = extractDoBodies(sql).find(({ tag }) => tag === '$logins$');
     const passwordUse = loginBlock?.body.lastIndexOf('PASSWORD %L') ?? -1;
-    const stagedPasswordClear = loginBlock?.body.indexOf(
-      'UPDATE pg_temp.ops_database_explorer_input SET browser_password_verifier = NULL'
-    ) ?? -1;
+    const stagedPasswordClear =
+      loginBlock?.body.indexOf(
+        'UPDATE pg_temp.ops_database_explorer_input SET browser_password_verifier = NULL'
+      ) ?? -1;
     const localPasswordClear = loginBlock?.body.indexOf('browser_password_verifier := NULL') ?? -1;
 
     expect(loginBlock).toBeDefined();
@@ -253,7 +260,7 @@ describe('database explorer roles and verifier', () => {
 
     expect(cleanupStart).toBeGreaterThanOrEqual(0);
     expect(cleanup).toContain('aclexplode');
-    expect(cleanup).toContain('acl.privilege_type = \'CREATE\'');
+    expect(cleanup).toContain("acl.privilege_type = 'CREATE'");
     expect(cleanup).toContain('acl.grantee = 0');
     expect(cleanup).toContain('schema_owner');
     expect(cleanup).toContain('namespace.nspowner');
@@ -262,7 +269,9 @@ describe('database explorer roles and verifier', () => {
     expect(sql).toContain("pg_has_role(candidate.oid, acl.grantee, 'USAGE')");
     expect(sql).toContain("pg_has_role(candidate.oid, acl.grantee, 'SET')");
     expect(sql).toContain('Business schema % has an unexpected effective CREATE privilege route');
-    expect(sql.indexOf('GRANT USAGE ON SCHEMA %I TO ops_database_browser')).toBeGreaterThan(cleanupEnd);
+    expect(sql.indexOf('GRANT USAGE ON SCHEMA %I TO ops_database_browser')).toBeGreaterThan(
+      cleanupEnd
+    );
   });
 
   it('serializes target claims and rejects provisioning both targets on one cluster', async () => {
@@ -505,7 +514,11 @@ describe('database explorer roles and verifier', () => {
           };
         }
         if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
-        if (/(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(sql)) {
+        if (
+          /(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(
+            sql
+          )
+        ) {
           throw new Error('permission denied');
         }
         return { rows: [] as T[] };
@@ -560,7 +573,11 @@ describe('database explorer roles and verifier', () => {
           };
         }
         if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
-        if (/(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(sql)) {
+        if (
+          /(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(
+            sql
+          )
+        ) {
           throw new Error('permission denied');
         }
         return { rows: [] as T[] };
@@ -618,7 +635,11 @@ describe('database explorer roles and verifier', () => {
           };
         }
         if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
-        if (/(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(sql)) {
+        if (
+          /(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(
+            sql
+          )
+        ) {
           throw new Error('permission denied');
         }
         return { rows: [] as T[] };
@@ -641,7 +662,7 @@ describe('database explorer roles and verifier', () => {
     );
     expect(postureQuery).toContain('hasUnexpectedSchemaCreator');
     expect(postureQuery).toContain('aclexplode');
-    expect(postureQuery).toContain('acl.privilege_type = \'CREATE\'');
+    expect(postureQuery).toContain("acl.privilege_type = 'CREATE'");
     expect(postureQuery).toContain('acl.grantee = 0');
     expect(postureQuery).toContain("pg_has_role(candidate.oid, acl.grantee, 'USAGE')");
     expect(postureQuery).toContain("pg_has_role(candidate.oid, acl.grantee, 'SET')");
@@ -678,7 +699,11 @@ describe('database explorer roles and verifier', () => {
           };
         }
         if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
-        if (/(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(sql)) {
+        if (
+          /(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(
+            sql
+          )
+        ) {
           throw new Error('permission denied');
         }
         return { rows: [] as T[] };
@@ -727,7 +752,11 @@ describe('database explorer roles and verifier', () => {
           };
         }
         if (sql === 'BEGIN' || sql === 'ROLLBACK') return { rows: [] as T[] };
-        if (/(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(sql)) {
+        if (
+          /(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE|CREATE TABLE|CREATE TEMP TABLE|ALTER TABLE|DROP TABLE|CREATE FUNCTION|COPY.*TO PROGRAM|SET ROLE)/i.test(
+            sql
+          )
+        ) {
           throw new Error('permission denied');
         }
         return { rows: [] as T[] };
@@ -1038,19 +1067,23 @@ describe('database explorer roles and verifier', () => {
       const cases = [
         {
           args: withoutOption('--expected-database'),
-          message: 'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
+          message:
+            'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
         },
         {
           args: withoutOption('--expected-role'),
-          message: 'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
+          message:
+            'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
         },
         {
           args: withoutOption('--schema-owner-role'),
-          message: 'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
+          message:
+            'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
         },
         {
           args: withoutOption('--require-tls'),
-          message: 'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
+          message:
+            'Expected --expected-database, --expected-role, --schema-owner-role and --require-tls'
         },
         {
           args: withoutOption('--business-schemas'),
@@ -1085,9 +1118,13 @@ describe('database explorer roles and verifier', () => {
       await writeFile(urlPath, 'postgresql://reader:unused@localhost/edutrack_ops', {
         mode: 0o600
       });
-      await writeFile(nodePath, '#!/bin/sh\ncase "$*" in\n  *derive-scram-verifier.mjs*) exec "$TASK6_REAL_NODE" "$@" ;;\nesac\nprintf \'%s\\n\' "$@" > "$TASK6_NODE_ARGS_CAPTURE"\n', {
-        mode: 0o700
-      });
+      await writeFile(
+        nodePath,
+        '#!/bin/sh\ncase "$*" in\n  *derive-scram-verifier.mjs*) exec "$TASK6_REAL_NODE" "$@" ;;\nesac\nprintf \'%s\\n\' "$@" > "$TASK6_NODE_ARGS_CAPTURE"\n',
+        {
+          mode: 0o700
+        }
+      );
 
       const run = spawnSync(
         'bash',

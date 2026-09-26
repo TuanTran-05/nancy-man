@@ -21,6 +21,8 @@ export type OpsRuntimeCaptureContext = Omit<
   RuntimeCaptureContext,
   'method' | 'requestId' | 'route' | 'status'
 > & {
+  /** Replace the caught value with Error(code) before invoking the active runtime. */
+  errorMode?: 'original' | 'code-only';
   method?: DeferredValue<string>;
   requestId?: DeferredValue<`REQ_${string}`>;
   route?: DeferredValue<string>;
@@ -42,9 +44,14 @@ function resolveDeferred<T>(
   return valid(candidate) ? candidate : undefined;
 }
 
-function resolveCaptureContext(context: OpsRuntimeCaptureContext): RuntimeCaptureContext {
+function resolveCaptureContext(context: OpsRuntimeCaptureContext): {
+  context: RuntimeCaptureContext;
+  errorMode: 'original' | 'code-only';
+} {
   const resolved = { ...context } as Record<string, unknown>;
-  for (const property of ['method', 'requestId', 'route', 'status']) delete resolved[property];
+  for (const property of ['errorMode', 'method', 'requestId', 'route', 'status']) {
+    delete resolved[property];
+  }
   const method = resolveDeferred(
     context.method,
     (value): value is string => typeof value === 'string'
@@ -62,11 +69,14 @@ function resolveCaptureContext(context: OpsRuntimeCaptureContext): RuntimeCaptur
     (value): value is number => typeof value === 'number' && Number.isFinite(value)
   );
   return {
-    ...(resolved as RuntimeCaptureContext),
-    ...(method === undefined ? {} : { method }),
-    ...(requestId === undefined ? {} : { requestId }),
-    ...(route === undefined ? {} : { route }),
-    ...(status === undefined ? {} : { status })
+    errorMode: context.errorMode === 'code-only' ? 'code-only' : 'original',
+    context: {
+      ...(resolved as RuntimeCaptureContext),
+      ...(method === undefined ? {} : { method }),
+      ...(requestId === undefined ? {} : { requestId }),
+      ...(route === undefined ? {} : { route }),
+      ...(status === undefined ? {} : { status })
+    }
   };
 }
 
@@ -92,7 +102,11 @@ export function createRuntimeCaptureFacade(): {
       const active = bindings.at(-1);
       if (!active) return undefined;
       try {
-        return active.runtime.captureException(error, resolveCaptureContext(context));
+        const resolved = resolveCaptureContext(context);
+        return active.runtime.captureException(
+          resolved.errorMode === 'code-only' ? new Error(resolved.context.code) : error,
+          resolved.context
+        );
       } catch {
         return undefined;
       }

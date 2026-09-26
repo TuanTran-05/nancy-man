@@ -3,6 +3,7 @@ import {
   type DatabaseTargetSummary,
   isDatabaseTargetId
 } from '../../../../packages/contracts/src/databaseExplorer.js';
+import { captureOpsException } from '../telemetry/runtimeTelemetry.js';
 
 export type TargetPool = {
   query: <T>(
@@ -106,7 +107,12 @@ async function probeTarget(target: AvailableTargetEntry, signal: AbortSignal): P
       throw signal.reason instanceof Error ? signal.reason : createProbeTimeoutError();
     }
   } catch (error) {
-    release(error instanceof Error ? error : createProbeTimeoutError());
+    captureOpsException(error, {
+      code: 'DATABASE_TARGET_PROBE_FAILED',
+      source: 'database',
+      errorMode: 'code-only'
+    });
+    release(createProbeTimeoutError());
     throw error;
   } finally {
     signal.removeEventListener('abort', onAbort);
@@ -151,34 +157,36 @@ export function createTargetRegistry(
     state.lastProbeAt = probeStartedAt;
     const probeId = ++state.latestProbeId;
     const controller = new AbortController();
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     let resolveDeadline: (() => void) | undefined;
     const deadline = new Promise<void>((resolve) => {
       resolveDeadline = resolve;
     });
     let timedOut = false;
     state.activeProbes++;
-    let boundedProbe: Promise<void>;
     const operation = Promise.resolve()
       .then(() => probe(state.entry as AvailableTargetEntry, controller.signal))
       .then(
+        () => true,
         () => {
-          if (probeId === state.latestProbeId && !timedOut) state.status = 'available';
-        },
-        () => {
-          if (probeId === state.latestProbeId) state.status = 'unavailable';
+          // telemetry-ignore: target health exposes only a stable availability state
+          return false;
         }
       )
+      .then((available) => {
+        if (probeId === state.latestProbeId && !timedOut) {
+          state.status = available ? 'available' : 'unavailable';
+        }
+      })
       .finally(() => {
         if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
         state.activeProbes--;
       });
-    boundedProbe = Promise.race([operation, deadline]);
+    const boundedProbe = Promise.race([operation, deadline]);
     state.inFlight = boundedProbe;
     void boundedProbe.then(() => {
       if (state.inFlight === boundedProbe) state.inFlight = undefined;
     });
-    timeoutHandle = setTimeout(() => {
+    const timeoutHandle = setTimeout(() => {
       timedOut = true;
       if (probeId === state.latestProbeId) state.status = 'unavailable';
       controller.abort(createProbeTimeoutError());

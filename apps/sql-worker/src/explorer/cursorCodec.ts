@@ -10,8 +10,7 @@ export const MAX_CURSOR_BYTES = 4096;
 export const CURSOR_EXPIRY_MS = 5 * 60 * 1000;
 
 const ENVELOPE_VERSION = 'v2';
-const TOKEN_KINDS = ['cursor', 'row-ref'] as const;
-type TokenKind = (typeof TOKEN_KINDS)[number];
+type TokenKind = 'cursor' | 'row-ref';
 const ROW_REF_BINARY_TAG = '$databaseExplorerBinaryV1';
 const ROW_REF_DATE_TAG = '$databaseExplorerDateV1';
 const ROW_REF_PREFLIGHT_PLAINTEXT_BYTES =
@@ -195,6 +194,7 @@ function canonicalDateIso(value: Date): string | null {
     if (!Number.isFinite(Date.prototype.getTime.call(value))) return null;
     return Date.prototype.toISOString.call(value);
   } catch {
+    // telemetry-ignore: hostile Date-like values are rejected without recording their contents
     return null;
   }
 }
@@ -397,14 +397,16 @@ function seal(
   returnNullOnOversize = false
 ): string | null {
   if (!validateContext(value)) throw cursorError();
-  let plaintext: string;
-  try {
-    plaintext = JSON.stringify(
-      kind === 'row-ref' ? rowRefPayloadForEncryption(value as RowRefData) : value
-    );
-  } catch {
-    throw cursorError();
-  }
+  const plaintext = (() => {
+    try {
+      return JSON.stringify(
+        kind === 'row-ref' ? rowRefPayloadForEncryption(value as RowRefData) : value
+      );
+    } catch {
+      // telemetry-ignore: serialization failures are normalized to a stable opaque token error
+      return null;
+    }
+  })();
   if (!plaintext) throw cursorError();
 
   const plaintextBytes = Buffer.byteLength(plaintext, 'utf8');
@@ -423,26 +425,34 @@ function seal(
     throw cursorError();
   }
 
-  try {
-    const nonce = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', deriveEncryptionKey(key, kind), nonce);
-    cipher.setAAD(contextAad(kind, value));
-    const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
-    const token = [
-      ENVELOPE_VERSION,
-      kind,
-      nonce.toString('base64url'),
-      ciphertext.toString('base64url'),
-      cipher.getAuthTag().toString('base64url')
-    ].join('.');
-    if (Buffer.byteLength(token, 'utf8') > MAX_CURSOR_BYTES) {
-      if (returnNullOnOversize) return null;
-      throw cursorError();
+  const encryptionFailed = Symbol('encryption-failed');
+  const token = (() => {
+    try {
+      const nonce = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', deriveEncryptionKey(key, kind), nonce);
+      cipher.setAAD(contextAad(kind, value));
+      const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+      const sealed = [
+        ENVELOPE_VERSION,
+        kind,
+        nonce.toString('base64url'),
+        ciphertext.toString('base64url'),
+        cipher.getAuthTag().toString('base64url')
+      ].join('.');
+      if (Buffer.byteLength(sealed, 'utf8') > MAX_CURSOR_BYTES) {
+        if (returnNullOnOversize) return null;
+        throw cursorError();
+      }
+      return sealed;
+    } catch {
+      // telemetry-ignore: encryption failures are normalized to a stable opaque token error
+      return encryptionFailed;
     }
-    return token;
-  } catch {
+  })();
+  if (token === encryptionFailed) {
     throw cursorError();
   }
+  return token;
 }
 
 function open(input: { token: string; kind: TokenKind; key: string; expected: Context }): unknown {
@@ -466,33 +476,41 @@ function open(input: { token: string; kind: TokenKind; key: string; expected: Co
     throw cursorError();
   }
 
-  try {
-    const nonce = Buffer.from(parts[2]!, 'base64url');
-    const ciphertext = Buffer.from(parts[3]!, 'base64url');
-    const tag = Buffer.from(parts[4]!, 'base64url');
-    if (
-      nonce.length !== 12 ||
-      ciphertext.length === 0 ||
-      tag.length !== 16 ||
-      nonce.toString('base64url') !== parts[2] ||
-      ciphertext.toString('base64url') !== parts[3] ||
-      tag.toString('base64url') !== parts[4]
-    ) {
-      throw cursorError();
-    }
+  const decryptionFailed = Symbol('decryption-failed');
+  const decoded = (() => {
+    try {
+      const nonce = Buffer.from(parts[2]!, 'base64url');
+      const ciphertext = Buffer.from(parts[3]!, 'base64url');
+      const tag = Buffer.from(parts[4]!, 'base64url');
+      if (
+        nonce.length !== 12 ||
+        ciphertext.length === 0 ||
+        tag.length !== 16 ||
+        nonce.toString('base64url') !== parts[2] ||
+        ciphertext.toString('base64url') !== parts[3] ||
+        tag.toString('base64url') !== parts[4]
+      ) {
+        throw cursorError();
+      }
 
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      deriveEncryptionKey(input.key, input.kind),
-      nonce
-    );
-    decipher.setAAD(contextAad(input.kind, input.expected));
-    decipher.setAuthTag(tag);
-    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-    return JSON.parse(plaintext.toString('utf8')) as unknown;
-  } catch {
+      const decipher = createDecipheriv(
+        'aes-256-gcm',
+        deriveEncryptionKey(input.key, input.kind),
+        nonce
+      );
+      decipher.setAAD(contextAad(input.kind, input.expected));
+      decipher.setAuthTag(tag);
+      const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      return JSON.parse(plaintext.toString('utf8')) as unknown;
+    } catch {
+      // telemetry-ignore: untrusted token failures are normalized without recording token material
+      return decryptionFailed;
+    }
+  })();
+  if (decoded === decryptionFailed) {
     throw cursorError();
   }
+  return decoded;
 }
 
 function assertContextMatches(value: Context, expected: Context): void {

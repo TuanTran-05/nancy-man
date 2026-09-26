@@ -125,9 +125,7 @@ function rolePostureFailures(
     failures.push('TLS is required but not active');
   }
   if (posture.hasUnsafeDefaultPrivileges) {
-    failures.push(
-      'default ACLs expose tables, sequences, or functions to PUBLIC or browser roles'
-    );
+    failures.push('default ACLs expose tables, sequences, or functions to PUBLIC or browser roles');
   }
 
   return failures;
@@ -360,7 +358,7 @@ async function sessionDefaultCannotWriteActiveReadOnlyTransaction(
   writeSql: string
 ): Promise<boolean> {
   await database.query('BEGIN TRANSACTION READ ONLY');
-  let passed = false;
+  let passed: boolean;
   try {
     await database.query('SET SESSION default_transaction_read_only = off');
     const state = await database.query<{
@@ -592,7 +590,9 @@ function parseArguments(argumentsList: readonly string[]): {
   const blockedColumn = values.get('--blocked-column');
 
   if (!databaseUrlFile || !fixtureValue || !businessSchemasValue || !safeColumn) {
-    throw new Error('Expected --database-url-file, --fixture, --business-schemas and --safe-column');
+    throw new Error(
+      'Expected --database-url-file, --fixture, --business-schemas and --safe-column'
+    );
   }
 
   const [schema, table, extra] = fixtureValue.split('.');

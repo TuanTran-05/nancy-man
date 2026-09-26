@@ -1,5 +1,7 @@
 import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 import { resolve } from 'node:path';
+import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
 export const SCRAM_ITERATIONS = 4096;

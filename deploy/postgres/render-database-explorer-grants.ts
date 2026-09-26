@@ -3,16 +3,16 @@ import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-// @ts-expect-error -- This CLI runs directly via Node's strip-types mode, which requires
-// an explicit .ts specifier. Spawned CLI tests protect the runtime resolution path.
-import {
-  classifyColumn,
-  DATABASE_POLICY_VERSION
-} from '../../packages/security/src/database/columnPolicy.ts';
 import type {
   DatabaseExplorerSchemaSnapshot,
   DatabaseTargetId
 } from '../../packages/contracts/src/databaseExplorer.js';
+
+const policyModule =
+  // @ts-expect-error -- This CLI runs directly via Node's strip-types mode, which requires
+  // an explicit .ts specifier. Spawned CLI tests protect the runtime resolution path.
+  await import('../../packages/security/src/database/columnPolicy.ts');
+const { classifyColumn, DATABASE_POLICY_VERSION } = policyModule;
 
 const ROLE_NAME = 'ops_database_browser';
 const TARGET_IDS = new Set(['edutrack_production', 'ops']);

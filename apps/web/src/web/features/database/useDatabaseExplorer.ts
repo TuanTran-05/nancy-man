@@ -178,9 +178,24 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
     (generation: number, pendingReveal: Promise<{ expiresAt: string }> | null) => {
       pendingRevocationsRef.current += 1;
       const operation = privacyTransitionQueueRef.current
-        .catch(() => undefined)
+        .catch((error) => {
+          void captureBrowserException(error, {
+            code: 'UNHANDLED_PROMISE_REJECTION',
+            source: 'browser',
+            route: () => globalThis.location?.pathname
+          });
+          return undefined;
+        })
         .then(async () => {
-          if (pendingReveal) await pendingReveal.catch(() => undefined);
+          if (pendingReveal)
+            await pendingReveal.catch((error) => {
+              void captureBrowserException(error, {
+                code: 'UNHANDLED_PROMISE_REJECTION',
+                source: 'browser',
+                route: () => globalThis.location?.pathname
+              });
+              return undefined;
+            });
           await hideDatabasePii(csrfTokenRef.current ?? '', { keepalive: true });
           serverGrantMayExistRef.current = false;
           return privacyTransitionGenerationRef.current === generation;
@@ -190,7 +205,14 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
       });
       privacyTransitionQueueRef.current = trackedOperation.then(
         () => undefined,
-        () => undefined
+        (error) => {
+          void captureBrowserException(error, {
+            code: 'UNHANDLED_PROMISE_REJECTION',
+            source: 'browser',
+            route: () => globalThis.location?.pathname
+          });
+          return undefined;
+        }
       );
       return trackedOperation;
     },
@@ -216,7 +238,14 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
 
       // Revoke an existing grant immediately. If a reveal POST is also pending,
       // its completion will trigger a second global revoke if it creates a grant.
-      void revokePrivacy(generation, null).catch(() => undefined);
+      void revokePrivacy(generation, null).catch((error) => {
+        void captureBrowserException(error, {
+          code: 'UNHANDLED_PROMISE_REJECTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname
+        });
+        return undefined;
+      });
     };
   }, [clearRowsAndSensitiveLayers, revokePrivacy]);
 
@@ -249,6 +278,11 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
         if (targetId === selectedTargetId) setSchemaLoadVersion((previous) => previous + 1);
         else setSelectedTargetId(targetId);
       } catch (err: unknown) {
+        void captureBrowserException(err, {
+          code: 'UNHANDLED_BROWSER_EXCEPTION',
+          source: 'browser',
+          route: () => globalThis.location?.pathname
+        });
         if (privacyTransitionGenerationRef.current !== generation) return;
         if (err && typeof err === 'object' && (err as Record<string, unknown>)['status'] === 401) {
           onUnauthorizedRef.current();
@@ -593,7 +627,12 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
             if (pendingRevocationsRef.current === 0) {
               try {
                 await revokePrivacy(privacyTransitionGenerationRef.current, null);
-              } catch {
+              } catch (error) {
+                void captureBrowserException(error, {
+                  code: 'UNHANDLED_BROWSER_EXCEPTION',
+                  source: 'browser',
+                  route: () => globalThis.location?.pathname
+                });
                 // Best-effort cleanup on navigation; never restore sensitive state.
               }
             }
@@ -671,7 +710,7 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
                 session.csrfToken
               );
               if (maskedRows.piiMode !== 'masked') {
-                throw new Error('The server did not return masked database rows');
+                throw new Error('The server did not return masked database rows', { cause: err });
               }
               if (
                 rowsGenerationRef.current === recoveryRowsGeneration &&
@@ -683,6 +722,11 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
                 setRows(maskedRows);
               }
             } catch (recoveryError: unknown) {
+              void captureBrowserException(recoveryError, {
+                code: 'UNHANDLED_BROWSER_EXCEPTION',
+                source: 'browser',
+                route: () => globalThis.location?.pathname
+              });
               if (
                 rowsGenerationRef.current === recoveryRowsGeneration &&
                 privacyTransitionGenerationRef.current === generation
@@ -693,6 +737,11 @@ export function useDatabaseExplorer({ session, onUnauthorized }: UseDatabaseExpl
               if (rowsGenerationRef.current === recoveryRowsGeneration) setLoadingRows(false);
             }
           } catch (revokeError: unknown) {
+            void captureBrowserException(revokeError, {
+              code: 'UNHANDLED_BROWSER_EXCEPTION',
+              source: 'browser',
+              route: () => globalThis.location?.pathname
+            });
             if (privacyTransitionGenerationRef.current === generation) {
               setError(getErrorMessage(revokeError, 'Unable to revoke PII access'));
             }

@@ -84,6 +84,7 @@ function isJsonValue(value: unknown): value is JsonValue {
     }
     return true;
   } catch {
+    // telemetry-ignore: hostile proxy/accessor input is an expected invalid-JSON probe
     return false;
   }
 }

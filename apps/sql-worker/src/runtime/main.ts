@@ -154,6 +154,7 @@ function parsePolicyApproval(serialized: string): DatabasePolicyApproval | undef
     }
     return candidate as DatabasePolicyApproval;
   } catch {
+    // telemetry-ignore: invalid approval contents fail closed and are never recorded
     return undefined;
   }
 }
