@@ -234,5 +234,3 @@ export async function startCollector(): Promise<{ close: () => Promise<void> }> 
     throw error;
   }
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) void startCollector();

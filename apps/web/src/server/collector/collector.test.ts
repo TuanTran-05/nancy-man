@@ -7,7 +7,7 @@ import request from 'supertest';
 import type { MonitorName, MonitorSample } from '../../shared/models.js';
 import type { AppProbeConfig } from './healthProbe.js';
 import { createOpsStore } from '../storage/store.js';
-import { runCollectorCycle } from './collector.js';
+import { runCollectorCycle, type CollectorDeps } from './collector.js';
 import { createAuthService, provisionAccount } from '../security/auth.js';
 import { createOpsApp } from '../http/app.js';
 
@@ -15,6 +15,67 @@ vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();
   return { ...actual, statfsSync: vi.fn(actual.statfsSync) };
 });
+
+function createBackupCycleFixture(directory: string, diskUsage: () => number) {
+  const backupDirectory = join(directory, 'backups');
+  const postgresDirectory = join(backupDirectory, 'postgres');
+  mkdirSync(postgresDirectory, { recursive: true });
+  const backupPath = join(postgresDirectory, 'db.age');
+  writeFileSync(backupPath, 'encrypted');
+  writeFileSync(`${backupPath}.sha256`, 'checksum');
+  const offsiteLogPath = join(directory, 'backup.log');
+  writeFileSync(
+    offsiteLogPath,
+    `2026-08-23T00:59:00Z encrypted PostgreSQL backup verified locally and offsite: ${backupPath}\n`
+  );
+  const cronLogPath = join(directory, 'cron.log');
+  writeFileSync(cronLogPath, 'ops-cron job=nightly status=success\n');
+  const pidPath = join(directory, 'app.pid');
+  writeFileSync(pidPath, String(process.pid));
+  const errorLogPath = join(directory, 'app-error.log');
+  writeFileSync(errorLogPath, '');
+  const dbPath = join(directory, 'ops.sqlite');
+  const store = createOpsStore(dbPath);
+  const deps: CollectorDeps = {
+    config: {
+      nodeEnv: 'test',
+      dbPath,
+      appUrl: 'http://127.0.0.1:3000',
+      postgresUrl: 'postgres://test',
+      pm2PidPath: pidPath,
+      pm2ErrorLogPath: errorLogPath,
+      cronLogPath,
+      backupDir: backupDirectory,
+      backupOffsiteLogPath: offsiteLogPath,
+      zaloBotToken: 'test',
+      recipientIds: [],
+      zaloChatHashSecret: 'test-chat-hash-secret-value-123456',
+      zaloRecipientKey: Buffer.alloc(32),
+      zaloTimeoutMs: 5000,
+      beszel: { enabled: false }
+    },
+    store,
+    histories: new Map(),
+    backupDiskUsagePercent: diskUsage,
+    appProbe: async (_config, kind, now = new Date()) => ({
+      monitor: kind === 'liveness' ? 'app_liveness' : 'app_health',
+      level: 'healthy',
+      observedAt: now.toISOString(),
+      latencyMs: 1,
+      details: { probeOk: true },
+      errorCode: null
+    }),
+    postgresProbe: async (_config, now = new Date()) => ({
+      monitor: 'postgres',
+      level: 'healthy',
+      observedAt: now.toISOString(),
+      latencyMs: 1,
+      details: { probeOk: true },
+      errorCode: null
+    })
+  };
+  return { deps, store };
+}
 
 describe('collector cron and backup monitors', () => {
   it('captures the original Beszel probe error before converting it to a critical sample', async () => {
@@ -357,7 +418,7 @@ describe('collector cron and backup monitors', () => {
     }
   });
 
-  it('passes backup history and the optional offsite log into the parser before creating incidents', async () => {
+  it('uses the offsite log and injected disk reading before creating incidents', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'ops-backup-offsite-collector-'));
     const backupDirectory = join(directory, 'backups');
     const postgresDirectory = join(backupDirectory, 'postgres');
@@ -376,24 +437,6 @@ describe('collector cron and backup monitors', () => {
     writeFileSync(pidPath, String(process.pid));
     writeFileSync(join(directory, 'app-error.log'), '');
     const store = createOpsStore(join(directory, 'ops.sqlite'));
-    const history: MonitorSample[] = Array.from({ length: 21 }, (_, index) => ({
-      monitor: 'backup',
-      level: 'healthy',
-      observedAt: new Date(Date.parse('2026-08-23T00:55:00Z') + index * 15_000).toISOString(),
-      latencyMs: 0,
-      details: {
-        diskUsagePercent: 93,
-        localOnly: false,
-        offsiteVerifiedAt: '2026-08-23T00:59:00.000Z',
-        effectiveLevel: 'healthy',
-        conditionHealthy: true
-      },
-      errorCode: null
-    }));
-    const histories = new Map<MonitorName, MonitorSample[]>([['backup', history]]);
-    vi.mocked(statfsSync).mockImplementationOnce(
-      () => ({ blocks: 1000, bavail: 70 }) as ReturnType<typeof statfsSync>
-    );
     try {
       const transitions = await runCollectorCycle(
         {
@@ -415,7 +458,8 @@ describe('collector cron and backup monitors', () => {
             beszel: { enabled: false }
           },
           store,
-          histories,
+          histories: new Map(),
+          backupDiskUsagePercent: () => 93,
           appProbe: async (_config, kind, now = new Date()) => ({
             monitor: kind === 'liveness' ? 'app_liveness' : 'app_health',
             level: 'healthy',
@@ -443,6 +487,113 @@ describe('collector cron and backup monitors', () => {
         details: { localOnly: false, offsiteVerifiedAt: '2026-08-23T00:59:00.000Z' }
       });
       expect(transitions.filter((transition) => transition.monitor === 'backup')).toEqual([]);
+      expect(store.readDashboardOverview().openIncidents).toEqual([]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('opens one disk warning only after 30 sustained minutes and recovers after the disk clears', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ops-backup-warning-sustain-'));
+    let diskUsage = 86;
+    const { deps, store } = createBackupCycleFixture(directory, () => diskUsage);
+    const startedAt = Date.now();
+    const backupTransitions = [];
+    try {
+      for (let cycle = 0; cycle < 125; cycle += 1) {
+        const transitions = await runCollectorCycle(deps, new Date(startedAt + cycle * 15_000));
+        const current = transitions.filter((transition) => transition.monitor === 'backup');
+        if (cycle < 120) expect(current).toEqual([]);
+        backupTransitions.push(...current);
+      }
+
+      expect(backupTransitions).toHaveLength(1);
+      expect(backupTransitions[0]).toMatchObject({
+        level: 'warning',
+        dedupeKey: 'backup:backup_disk_warning'
+      });
+      expect(backupTransitions[0].sample.observedAt).toBe(
+        new Date(startedAt + 30 * 60_000).toISOString()
+      );
+      expect(store.readDashboardOverview().openIncidents).toEqual([
+        expect.objectContaining({
+          monitor: 'backup',
+          level: 'warning',
+          dedupeKey: 'backup:backup_disk_warning',
+          state: 'open'
+        })
+      ]);
+
+      diskUsage = 79;
+      const firstClear = await runCollectorCycle(deps, new Date(startedAt + 125 * 15_000));
+      expect(firstClear.filter((transition) => transition.monitor === 'backup')).toEqual([]);
+      const recovered = await runCollectorCycle(deps, new Date(startedAt + 126 * 15_000));
+      expect(recovered.filter((transition) => transition.monitor === 'backup')).toMatchObject([
+        { level: 'warning', transition: 'recovered', dedupeKey: 'backup:backup_disk_warning' }
+      ]);
+      expect(store.readDashboardOverview().openIncidents).toEqual([]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('opens a disk critical incident only after 30 sustained minutes above 92%', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ops-backup-critical-sustain-'));
+    const { deps, store } = createBackupCycleFixture(directory, () => 93);
+    const startedAt = Date.now();
+    const backupTransitions = [];
+    try {
+      for (let cycle = 0; cycle < 125; cycle += 1) {
+        const transitions = await runCollectorCycle(deps, new Date(startedAt + cycle * 15_000));
+        const current = transitions.filter((transition) => transition.monitor === 'backup');
+        if (cycle < 120) expect(current).toEqual([]);
+        backupTransitions.push(...current);
+      }
+
+      expect(backupTransitions).toHaveLength(1);
+      expect(backupTransitions[0]).toMatchObject({
+        level: 'critical',
+        dedupeKey: 'backup:backup_disk_critical'
+      });
+      expect(backupTransitions[0].sample.observedAt).toBe(
+        new Date(startedAt + 30 * 60_000).toISOString()
+      );
+      expect(store.readDashboardOverview().openIncidents).toEqual([
+        expect.objectContaining({
+          monitor: 'backup',
+          level: 'critical',
+          dedupeKey: 'backup:backup_disk_critical',
+          state: 'open'
+        })
+      ]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not create a disk incident or transition for a five-minute 95% spike', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ops-backup-short-spike-'));
+    let diskUsage = 95;
+    const { deps, store } = createBackupCycleFixture(directory, () => diskUsage);
+    const startedAt = Date.now();
+    const backupTransitions = [];
+    try {
+      for (let cycle = 0; cycle <= 20; cycle += 1) {
+        const transitions = await runCollectorCycle(deps, new Date(startedAt + cycle * 15_000));
+        backupTransitions.push(
+          ...transitions.filter((transition) => transition.monitor === 'backup')
+        );
+      }
+
+      diskUsage = 79;
+      for (let cycle = 21; cycle < 23; cycle += 1) {
+        const transitions = await runCollectorCycle(deps, new Date(startedAt + cycle * 15_000));
+        backupTransitions.push(
+          ...transitions.filter((transition) => transition.monitor === 'backup')
+        );
+      }
+
+      expect(backupTransitions).toEqual([]);
       expect(store.readDashboardOverview().openIncidents).toEqual([]);
     } finally {
       rmSync(directory, { recursive: true, force: true });

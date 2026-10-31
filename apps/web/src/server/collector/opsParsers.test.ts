@@ -3,7 +3,11 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { parseCronAndBackupState } from './opsParsers.js';
+import {
+  createBackupDiskSustainState,
+  parseCronAndBackupState,
+  type BackupDiskSustainState
+} from './opsParsers.js';
 import { evaluateMonitor } from './statusMachine.js';
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -22,20 +26,16 @@ const backupFile = (name = 'db.age') => ({
 const offsiteLine = (timestamp: string, path: string) =>
   `${timestamp} encrypted PostgreSQL backup verified locally and offsite: ${path}`;
 
-function diskHistory(
-  percent: number,
-  from: string,
-  through: string
-): Array<{
-  observedAt: string;
-  diskUsagePercent: number;
-}> {
-  const start = Date.parse(from);
-  const end = Date.parse(through);
-  const result = [];
-  for (let timestamp = start; timestamp <= end; timestamp += 15_000)
-    result.push({ observedAt: new Date(timestamp).toISOString(), diskUsagePercent: percent });
-  return result;
+function sustainedDiskState(now: string, percent: number): BackupDiskSustainState {
+  const nowMs = Date.parse(now);
+  const state = createBackupDiskSustainState();
+  const run = {
+    overSinceMs: nowMs - 30 * 60_000,
+    lastObservedAtMs: nowMs - 15_000
+  };
+  if (percent > 85) state.warning = { ...run };
+  if (percent > 92) state.critical = { ...run };
+  return state;
 }
 
 function withDirectory<T>(callback: (directory: string) => T): T {
@@ -85,7 +85,7 @@ describe('cron and backup parser', () => {
     const stale = parseCronAndBackupState(
       {
         cronLines: [],
-        backupHistory: diskHistory(95, '2026-08-23T02:30:00Z', '2026-08-23T02:59:45Z'),
+        backupDiskSustain: sustainedDiskState('2026-08-23T03:00:00Z', 95),
         diskUsagePercent: 95,
         backupFiles: [
           {
@@ -113,7 +113,7 @@ describe('cron and backup parser', () => {
           }
         ],
         diskUsagePercent: 95,
-        backupHistory: diskHistory(95, '2026-08-23T00:30:00Z', '2026-08-23T00:59:45Z')
+        backupDiskSustain: sustainedDiskState('2026-08-23T01:00:00Z', 95)
       },
       new Date('2026-08-23T01:00:00Z')
     );
@@ -127,7 +127,7 @@ describe('cron and backup parser', () => {
         cronLines: [],
         backupFiles: [{ ...backupFile('db.age'), checksumPresent: false }],
         diskUsagePercent: 95,
-        backupHistory: diskHistory(95, '2026-08-23T00:30:00Z', '2026-08-23T00:59:45Z')
+        backupDiskSustain: sustainedDiskState('2026-08-23T01:00:00Z', 95)
       },
       new Date('2026-08-23T01:00:00Z')
     );
@@ -142,32 +142,46 @@ describe('cron and backup parser', () => {
       const logPath = join(directory, 'backup.log');
       writeFileSync(logPath, `${offsiteLine('2026-08-23T00:30:00Z', '/srv/backups/db.age')}\n`);
       const now = new Date('2026-08-23T01:00:00Z');
-      const state = (diskUsagePercent: number, history: ReturnType<typeof diskHistory> = []) =>
+      const state = (diskUsagePercent: number) =>
         parseCronAndBackupState(
           {
             cronLines: [],
             backupFiles: [backupFile()],
             diskUsagePercent,
             backupOffsiteLogPath: logPath,
-            backupHistory: history
+            backupDiskSustain: sustainedDiskState(now.toISOString(), diskUsagePercent)
           },
           now
         );
 
       expect(state(84.9)).toMatchObject({ backupLevel: 'healthy', backupErrorCode: null });
-      expect(
-        state(86, diskHistory(86, '2026-08-23T00:30:00Z', '2026-08-23T00:59:45Z'))
-      ).toMatchObject({
+      expect(state(86)).toMatchObject({
         backupLevel: 'warning',
         backupErrorCode: 'backup_disk_warning'
       });
-      expect(
-        state(93, diskHistory(93, '2026-08-23T00:30:00Z', '2026-08-23T00:59:45Z'))
-      ).toMatchObject({
+      expect(state(93)).toMatchObject({
         backupLevel: 'critical',
         backupErrorCode: 'backup_disk_critical'
       });
     });
+  });
+
+  it('resets both disk sustain runs after a missing reading or a gap over 60 seconds', () => {
+    const backupDiskSustain = createBackupDiskSustainState();
+    const input = {
+      cronLines: [],
+      backupFiles: [backupFile()],
+      backupDiskSustain,
+      diskUsagePercent: 93
+    };
+    parseCronAndBackupState(input, new Date('2026-08-23T01:00:00Z'));
+    parseCronAndBackupState(input, new Date('2026-08-23T01:01:01Z'));
+    expect(backupDiskSustain.warning.overSinceMs).toBe(Date.parse('2026-08-23T01:01:01Z'));
+    expect(backupDiskSustain.critical.overSinceMs).toBe(Date.parse('2026-08-23T01:01:01Z'));
+
+    parseCronAndBackupState({ ...input, diskUsagePercent: null }, new Date('2026-08-23T01:01:16Z'));
+    expect(backupDiskSustain.warning).toEqual({ overSinceMs: null, lastObservedAtMs: null });
+    expect(backupDiskSustain.critical).toEqual({ overSinceMs: null, lastObservedAtMs: null });
   });
 
   it('does not alert for a five-minute disk spike and recovers after the disk clears', () => {
@@ -179,14 +193,20 @@ describe('cron and backup parser', () => {
         backupFiles: [backupFile()],
         backupOffsiteLogPath: logPath
       };
-      const spike = parseCronAndBackupState(
-        {
-          ...base,
-          diskUsagePercent: 93,
-          backupHistory: diskHistory(93, '2026-08-23T00:55:00Z', '2026-08-23T00:59:45Z')
-        },
-        new Date('2026-08-23T01:00:00Z')
+      const spikeSustain = createBackupDiskSustainState();
+      let spike = parseCronAndBackupState(
+        { ...base, diskUsagePercent: 93, backupDiskSustain: spikeSustain },
+        new Date('2026-08-23T00:55:00Z')
       );
+      for (
+        let timestamp = Date.parse('2026-08-23T00:55:15Z');
+        timestamp <= Date.parse('2026-08-23T01:00:00Z');
+        timestamp += 15_000
+      )
+        spike = parseCronAndBackupState(
+          { ...base, diskUsagePercent: 93, backupDiskSustain: spikeSustain },
+          new Date(timestamp)
+        );
       expect(spike).toMatchObject({ backupLevel: 'healthy', backupErrorCode: null });
       const spikeEvaluation = evaluateMonitor([], {
         monitor: 'backup',
@@ -202,7 +222,7 @@ describe('cron and backup parser', () => {
         {
           ...base,
           diskUsagePercent: 93,
-          backupHistory: diskHistory(93, '2026-08-23T00:30:00Z', '2026-08-23T00:59:45Z')
+          backupDiskSustain: sustainedDiskState('2026-08-23T01:00:00Z', 93)
         },
         new Date('2026-08-23T01:00:00Z')
       );
@@ -220,7 +240,7 @@ describe('cron and backup parser', () => {
         transition: 'opened'
       });
       const recovered = parseCronAndBackupState(
-        { ...base, diskUsagePercent: 84.9 },
+        { ...base, diskUsagePercent: 84.9, backupDiskSustain: spikeSustain },
         new Date('2026-08-23T01:00:15Z')
       );
       expect(recovered).toMatchObject({ backupLevel: 'healthy', backupErrorCode: null });

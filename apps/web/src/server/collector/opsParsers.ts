@@ -16,7 +16,25 @@ const OFFSITE_LOG_TAIL_BYTES = 64 * 1024;
 const DISK_WARNING_THRESHOLD_PERCENT = 85;
 const DISK_CRITICAL_THRESHOLD_PERCENT = 92;
 const DISK_SUSTAINED_DURATION_MS = 30 * 60_000;
-const DISK_MAX_OBSERVATION_GAP_MS = 30_000;
+// Four normal 15-second cycles allow a slow cycle without treating a long outage as sustained.
+const DISK_MAX_OBSERVATION_GAP_MS = 60_000;
+
+export interface DiskConditionRun {
+  overSinceMs: number | null;
+  lastObservedAtMs: number | null;
+}
+
+export interface BackupDiskSustainState {
+  warning: DiskConditionRun;
+  critical: DiskConditionRun;
+}
+
+export function createBackupDiskSustainState(): BackupDiskSustainState {
+  return {
+    warning: { overSinceMs: null, lastObservedAtMs: null },
+    critical: { overSinceMs: null, lastObservedAtMs: null }
+  };
+}
 
 export interface BackupFileInput {
   name: string;
@@ -31,8 +49,8 @@ export interface CronBackupInput {
   backupFiles?: BackupFileInput[];
   backupDir?: string;
   backupOffsiteLogPath?: string;
-  backupHistory?: Array<{ observedAt: string; diskUsagePercent: number | null }>;
-  diskUsagePercent?: number;
+  backupDiskSustain?: BackupDiskSustainState;
+  diskUsagePercent?: number | null;
 }
 
 export interface ParsedCronBackupState {
@@ -119,41 +137,29 @@ function findOffsiteVerification(
   return latestTimestamp;
 }
 
-function diskConditionSustained(
-  history: NonNullable<CronBackupInput['backupHistory']>,
+function observeDiskCondition(
+  run: DiskConditionRun,
   diskUsagePercent: number | null,
   threshold: number,
   now: Date
 ): boolean {
-  if (diskUsagePercent === null || diskUsagePercent <= threshold) return false;
-  const samples = [...history, { observedAt: now.toISOString(), diskUsagePercent }];
-  let first = samples.length - 1;
-  while (first > 0) {
-    const previous = samples[first - 1];
-    const current = samples[first];
-    const previousPercent = previous.diskUsagePercent;
-    const previousAt = Date.parse(previous.observedAt);
-    const currentAt = Date.parse(current.observedAt);
-    if (
-      previousPercent === null ||
-      previousPercent <= threshold ||
-      !Number.isFinite(previousAt) ||
-      !Number.isFinite(currentAt) ||
-      currentAt < previousAt ||
-      currentAt - previousAt > DISK_MAX_OBSERVATION_GAP_MS
-    )
-      break;
-    first -= 1;
+  const observedAtMs = now.getTime();
+  if (
+    diskUsagePercent === null ||
+    !Number.isFinite(diskUsagePercent) ||
+    diskUsagePercent <= threshold ||
+    !Number.isFinite(observedAtMs)
+  ) {
+    run.overSinceMs = null;
+    run.lastObservedAtMs = null;
+    return false;
   }
-  const observed = samples.slice(first);
-  if (observed.length < 2) return false;
-  const startedAt = Date.parse(observed[0].observedAt);
-  const latestAt = Date.parse(observed[observed.length - 1].observedAt);
-  return (
-    Number.isFinite(startedAt) &&
-    Number.isFinite(latestAt) &&
-    latestAt - startedAt >= DISK_SUSTAINED_DURATION_MS
-  );
+
+  const gap = run.lastObservedAtMs === null ? null : observedAtMs - run.lastObservedAtMs;
+  if (run.overSinceMs === null || gap === null || gap < 0 || gap > DISK_MAX_OBSERVATION_GAP_MS)
+    run.overSinceMs = observedAtMs;
+  run.lastObservedAtMs = observedAtMs;
+  return observedAtMs - run.overSinceMs >= DISK_SUSTAINED_DURATION_MS;
 }
 
 function loadBackupFiles(input: CronBackupInput): BackupFileInput[] {
@@ -218,21 +224,35 @@ export function parseCronAndBackupState(
   const offsiteVerifiedAt = findOffsiteVerification(input.backupOffsiteLogPath, latest?.name);
   const localOnly = offsiteVerifiedAt === null;
   const diskUsagePercent =
-    input.diskUsagePercent ??
-    (() => {
-      if (!input.backupDir) return null;
-      try {
-        const stats = statfsSync(input.backupDir);
-        return ((Number(stats.blocks) - Number(stats.bavail)) / Number(stats.blocks)) * 100;
-      } catch (error) {
-        captureOpsException(error, {
-          code: 'UNHANDLED_OPS_EXCEPTION',
-          source: 'job',
-          status: 500
-        });
-        return null;
-      }
-    })();
+    input.diskUsagePercent !== undefined
+      ? input.diskUsagePercent
+      : (() => {
+          if (!input.backupDir) return null;
+          try {
+            const stats = statfsSync(input.backupDir);
+            return ((Number(stats.blocks) - Number(stats.bavail)) / Number(stats.blocks)) * 100;
+          } catch (error) {
+            captureOpsException(error, {
+              code: 'UNHANDLED_OPS_EXCEPTION',
+              source: 'job',
+              status: 500
+            });
+            return null;
+          }
+        })();
+  const diskSustain = input.backupDiskSustain ?? createBackupDiskSustainState();
+  const diskWarningSustained = observeDiskCondition(
+    diskSustain.warning,
+    diskUsagePercent,
+    DISK_WARNING_THRESHOLD_PERCENT,
+    now
+  );
+  const diskCriticalSustained = observeDiskCondition(
+    diskSustain.critical,
+    diskUsagePercent,
+    DISK_CRITICAL_THRESHOLD_PERCENT,
+    now
+  );
   const failure = cron.some((item) => item.status === 'failure');
   const cronLevel: MonitorLevel = failure ? 'critical' : 'healthy';
   const cronErrorCode = failure ? 'cron_failure' : null;
@@ -244,24 +264,10 @@ export function parseCronAndBackupState(
   } else if (!latest.encrypted || !latest.checksumPresent) {
     backupLevel = 'critical';
     backupErrorCode = 'backup_unverified';
-  } else if (
-    diskConditionSustained(
-      input.backupHistory ?? [],
-      diskUsagePercent,
-      DISK_CRITICAL_THRESHOLD_PERCENT,
-      now
-    )
-  ) {
+  } else if (diskCriticalSustained) {
     backupLevel = 'critical';
     backupErrorCode = 'backup_disk_critical';
-  } else if (
-    diskConditionSustained(
-      input.backupHistory ?? [],
-      diskUsagePercent,
-      DISK_WARNING_THRESHOLD_PERCENT,
-      now
-    )
-  ) {
+  } else if (diskWarningSustained) {
     backupLevel = 'warning';
     backupErrorCode = 'backup_disk_warning';
   } else if (localOnly) {

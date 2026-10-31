@@ -10,7 +10,8 @@ import { probeAppProcess } from './processProbe.js';
 import { probePostgres } from './postgresProbe.js';
 import { tailSinceCursor } from './logTailer.js';
 import { redactLogLine } from './redactor.js';
-import { parseCronAndBackupState } from './opsParsers.js';
+import { createBackupDiskSustainState, parseCronAndBackupState } from './opsParsers.js';
+import type { BackupDiskSustainState } from './opsParsers.js';
 import { evaluateMonitor, type Evaluation, type Transition } from './statusMachine.js';
 
 export interface CollectorTransition {
@@ -28,6 +29,10 @@ export interface CollectorDeps {
   config: CollectorConfig;
   store: OpsStore;
   histories: Map<MonitorName, MonitorSample[]>;
+  // Process-local by design; a restart restarts the 30-minute disk sustain window.
+  backupDiskSustain?: BackupDiskSustainState;
+  // Optional test seam; production reads statfs in the parser.
+  backupDiskUsagePercent?: () => number | null;
   lastPostgresAt?: number;
   lastBeszelAt?: number;
   beszelProbe?: (now: Date) => Promise<MonitorSample[]>;
@@ -186,8 +191,18 @@ export async function runCollectorCycle(
     const remembered = remember(deps, sample);
     const evaluation = remembered.evaluation;
     const stored = remembered.stored;
+    const recoveryBaselineKey = `${sample.monitor}:awaiting_recovery_baseline`;
+    const priorDedupe = previous?.details.dedupeKey as string | undefined;
+    const dedupeBeforeRecoveryBaseline = history
+      .slice(0, -1)
+      .reverse()
+      .map((item) => item.details.dedupeKey)
+      .find((key): key is string => typeof key === 'string' && key !== recoveryBaselineKey);
     const previousDedupe =
-      (previous?.details.dedupeKey as string | undefined) ?? evaluation.dedupeKey;
+      priorDedupe === recoveryBaselineKey
+        ? (dedupeBeforeRecoveryBaseline ?? evaluation.dedupeKey)
+        : (priorDedupe ?? evaluation.dedupeKey);
+    const awaitingRecoveryBaseline = evaluation.dedupeKey === recoveryBaselineKey;
     const shouldReconcile =
       (evaluation.level === 'healthy' && evaluation.transition !== 'recovered') ||
       evaluation.level === 'warning' ||
@@ -197,7 +212,9 @@ export async function runCollectorCycle(
         monitor: sample.monitor,
         activeDedupeKey:
           evaluation.level === 'warning' || evaluation.level === 'critical'
-            ? evaluation.dedupeKey
+            ? awaitingRecoveryBaseline
+              ? previousDedupe
+              : evaluation.dedupeKey
             : undefined,
         now: sample.observedAt
       });
@@ -210,7 +227,10 @@ export async function runCollectorCycle(
             ? `${sample.monitor}: ${sample.errorCode}`.slice(0, 500)
             : evaluation.safeSummary;
       const incident = deps.store.upsertIncident({
-        dedupeKey: evaluation.transition === 'recovered' ? previousDedupe : evaluation.dedupeKey,
+        dedupeKey:
+          evaluation.transition === 'recovered' || awaitingRecoveryBaseline
+            ? previousDedupe
+            : evaluation.dedupeKey,
         monitor: sample.monitor,
         level: evaluation.level,
         state: 'open',
@@ -233,10 +253,11 @@ export async function runCollectorCycle(
           occurrenceCount: incident.occurrenceCount
         });
     } else if (evaluation.transition === 'recovered') {
+      const previousEffectiveLevel = previous?.details.effectiveLevel ?? previous?.level;
       const incident = deps.store.upsertIncident({
         dedupeKey: previousDedupe,
         monitor: sample.monitor,
-        level: previous?.level === 'warning' ? 'warning' : 'critical',
+        level: previousEffectiveLevel === 'warning' ? 'warning' : 'critical',
         state: 'recovered',
         recoveredAt: sample.observedAt,
         acknowledgedAt: null,
@@ -307,17 +328,14 @@ export async function runCollectorCycle(
   });
 
   const cronLines = readLogLines(deps, deps.config.cronLogPath, deps.config.cronLogPath);
-  const backupHistory = (deps.histories.get('backup') ?? []).map((sample) => ({
-    observedAt: sample.observedAt,
-    diskUsagePercent:
-      typeof sample.details.diskUsagePercent === 'number' ? sample.details.diskUsagePercent : null
-  }));
+  const backupDiskSustain = (deps.backupDiskSustain ??= createBackupDiskSustainState());
   const parsed = parseCronAndBackupState(
     {
       cronLines,
       backupDir: deps.config.backupDir,
       backupOffsiteLogPath: deps.config.backupOffsiteLogPath,
-      backupHistory
+      backupDiskSustain,
+      ...(deps.backupDiskUsagePercent ? { diskUsagePercent: deps.backupDiskUsagePercent() } : {})
     },
     now
   );
