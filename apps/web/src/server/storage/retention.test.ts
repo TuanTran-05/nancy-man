@@ -84,6 +84,7 @@ function applyOriginalSqlRetention(db: Database.Database): void {
     db.prepare(
       "DELETE FROM alert_deliveries WHERE state IN ('sent', 'failed', 'delivery_ambiguous') AND next_attempt_at < ?"
     ).run(eventCutoff);
+    db.prepare('DELETE FROM audit_events WHERE occurred_at < ?').run(eventCutoff);
     db.prepare('DELETE FROM login_attempts WHERE attempted_at < ?').run(eventCutoff);
     db.prepare('DELETE FROM daily_rollups WHERE day < substr(?, 1, 10)').run(rollupCutoff);
     db.exec('COMMIT');
@@ -205,15 +206,48 @@ describe('batched Ops retention', () => {
     ).toEqual(before);
   });
 
-  it('retains audit events older than 90 days until an explicit policy is decided', () => {
+  it('deletes audit events older than 90 days and preserves newer events', () => {
     const store = makeStore();
     const db = store.getDatabaseForBackup();
-    db.prepare(
+    const insert = db.prepare(
       'INSERT INTO audit_events (actor_id, action, target, details_json, occurred_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(null, 'login_failed', 'ops-a', '{"reason":"invalid"}', '2026-01-01T00:00:00.000Z');
+    );
+    insert.run(null, 'login_failed', 'ops-a', '{"reason":"old"}', '2026-01-01T00:00:00.000Z');
+    insert.run(null, 'login_failed', 'ops-a', '{"reason":"new"}', '2026-07-01T00:00:00.000Z');
 
     drainRetention(store);
 
-    expect(db.prepare('SELECT COUNT(*) AS count FROM audit_events').get()).toEqual({ count: 1 });
+    expect(db.prepare('SELECT occurred_at FROM audit_events').all()).toEqual([
+      { occurred_at: '2026-07-01T00:00:00.000Z' }
+    ]);
+  });
+
+  it('limits each audit-event cleanup transaction to 1,000 oldest rows', () => {
+    const store = makeStore();
+    const db = store.getDatabaseForBackup();
+    const insert = db.prepare(
+      'INSERT INTO audit_events (actor_id, action, target, details_json, occurred_at) VALUES (?, ?, ?, ?, ?)'
+    );
+    for (let index = 0; index < 2_305; index += 1) {
+      insert.run(
+        null,
+        'login_failed',
+        'ops-a',
+        '{}',
+        new Date(Date.parse('2026-01-01T00:00:00.000Z') + index).toISOString()
+      );
+    }
+
+    expect(store.pruneRetentionBatch(nowIso)).toMatchObject({
+      status: 'batch',
+      table: 'audit_events',
+      rows: 1_000
+    });
+    expect(db.prepare('SELECT COUNT(*) AS count FROM audit_events').get()).toEqual({
+      count: 1_305
+    });
+    expect(db.prepare('SELECT MIN(occurred_at) AS oldest FROM audit_events').get()).toEqual({
+      oldest: new Date(Date.parse('2026-01-01T00:00:00.000Z') + 1_000).toISOString()
+    });
   });
 });

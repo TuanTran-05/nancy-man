@@ -891,9 +891,10 @@ export function createOpsStore(
         orderBy: string,
         cutoff: string
       ): number => {
+        const rowIdSelection = table === 'audit_events' ? 'id AS rowid' : 'rowid';
         const selected = db
           .prepare(
-            `SELECT rowid FROM ${table} WHERE ${where}
+            `SELECT ${rowIdSelection} FROM ${table} WHERE ${where}
              ORDER BY ${orderBy}, rowid ASC LIMIT ?`
           )
           .all(cutoff, RETENTION_BATCH_SIZE) as Array<{ rowid: number }>;
@@ -933,7 +934,13 @@ export function createOpsStore(
           orderBy: 'next_attempt_at ASC',
           cutoff: eventCutoff
         },
-        // Audit events are retained until an explicit policy is decided.
+        // User decision 2026-10-31: prune audit events after 90 days.
+        {
+          table: 'audit_events',
+          where: 'occurred_at < ?',
+          orderBy: 'occurred_at ASC',
+          cutoff: eventCutoff
+        },
         {
           table: 'login_attempts',
           where: 'attempted_at < ?',
