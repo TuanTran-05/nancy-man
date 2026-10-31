@@ -84,6 +84,19 @@ describe('ops configuration', () => {
     });
   });
 
+  it('accepts an optional offsite backup log path and leaves it unset by default', () => {
+    expect(
+      loadCollectorConfig({ ...collectorBase, OPS_BESZEL_ENABLED: 'false' })
+    ).not.toHaveProperty('backupOffsiteLogPath');
+    expect(
+      loadCollectorConfig({
+        ...collectorBase,
+        OPS_BESZEL_ENABLED: 'false',
+        OPS_BACKUP_OFFSITE_LOG_PATH: '/srv/edutrack/shared/logs/backup.log'
+      }).backupOffsiteLogPath
+    ).toBe('/srv/edutrack/shared/logs/backup.log');
+  });
+
   it('validates the enabled Beszel configuration fail-closed', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ops-beszel-config-'));
     const passwordPath = join(directory, 'password');

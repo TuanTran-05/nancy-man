@@ -35,6 +35,7 @@ export interface CollectorConfig {
   pm2ErrorLogPath: string;
   cronLogPath: string;
   backupDir: string;
+  backupOffsiteLogPath?: string;
   zaloBotToken: string;
   recipientIds: string[];
   zaloChatHashSecret: string;
@@ -222,6 +223,9 @@ export function loadCollectorConfig(env: Env = process.env): CollectorConfig {
     pm2ErrorLogPath: required(env, 'OPS_PM2_ERROR_LOG_PATH'),
     cronLogPath: required(env, 'OPS_CRON_LOG_PATH'),
     backupDir: required(env, 'OPS_BACKUP_DIR'),
+    ...(env.OPS_BACKUP_OFFSITE_LOG_PATH?.trim()
+      ? { backupOffsiteLogPath: env.OPS_BACKUP_OFFSITE_LOG_PATH.trim() }
+      : {}),
     zaloBotToken: required(env, 'OPS_ALERT_ZALO_BOT_TOKEN'),
     recipientIds: parseRecipients(env),
     zaloChatHashSecret: requiredSecret(env, 'OPS_ZALO_CHAT_HASH_SECRET'),

@@ -357,6 +357,98 @@ describe('collector cron and backup monitors', () => {
     }
   });
 
+  it('passes backup history and the optional offsite log into the parser before creating incidents', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ops-backup-offsite-collector-'));
+    const backupDirectory = join(directory, 'backups');
+    const postgresDirectory = join(backupDirectory, 'postgres');
+    mkdirSync(postgresDirectory, { recursive: true });
+    const backupPath = join(postgresDirectory, 'db.age');
+    writeFileSync(backupPath, 'encrypted');
+    writeFileSync(`${backupPath}.sha256`, 'checksum');
+    const offsiteLogPath = join(directory, 'backup.log');
+    writeFileSync(
+      offsiteLogPath,
+      '2026-08-23T00:59:00Z encrypted PostgreSQL backup verified locally and offsite: /srv/backups/db.age\n'
+    );
+    const cronLogPath = join(directory, 'cron.log');
+    writeFileSync(cronLogPath, 'ops-cron job=nightly status=success\n');
+    const pidPath = join(directory, 'app.pid');
+    writeFileSync(pidPath, String(process.pid));
+    writeFileSync(join(directory, 'app-error.log'), '');
+    const store = createOpsStore(join(directory, 'ops.sqlite'));
+    const history: MonitorSample[] = Array.from({ length: 21 }, (_, index) => ({
+      monitor: 'backup',
+      level: 'healthy',
+      observedAt: new Date(Date.parse('2026-08-23T00:55:00Z') + index * 15_000).toISOString(),
+      latencyMs: 0,
+      details: {
+        diskUsagePercent: 93,
+        localOnly: false,
+        offsiteVerifiedAt: '2026-08-23T00:59:00.000Z',
+        effectiveLevel: 'healthy',
+        conditionHealthy: true
+      },
+      errorCode: null
+    }));
+    const histories = new Map<MonitorName, MonitorSample[]>([['backup', history]]);
+    vi.mocked(statfsSync).mockImplementationOnce(
+      () => ({ blocks: 1000, bavail: 70 }) as ReturnType<typeof statfsSync>
+    );
+    try {
+      const transitions = await runCollectorCycle(
+        {
+          config: {
+            nodeEnv: 'test',
+            dbPath: join(directory, 'ops.sqlite'),
+            appUrl: 'http://127.0.0.1:3000',
+            postgresUrl: 'postgres://test',
+            pm2PidPath: pidPath,
+            pm2ErrorLogPath: join(directory, 'app-error.log'),
+            cronLogPath,
+            backupDir: backupDirectory,
+            backupOffsiteLogPath: offsiteLogPath,
+            zaloBotToken: 'test',
+            recipientIds: [],
+            zaloChatHashSecret: 'test-chat-hash-secret-value-123456',
+            zaloRecipientKey: Buffer.alloc(32),
+            zaloTimeoutMs: 5000,
+            beszel: { enabled: false }
+          },
+          store,
+          histories,
+          appProbe: async (_config, kind, now = new Date()) => ({
+            monitor: kind === 'liveness' ? 'app_liveness' : 'app_health',
+            level: 'healthy',
+            observedAt: now.toISOString(),
+            latencyMs: 1,
+            details: { probeOk: true },
+            errorCode: null
+          }),
+          postgresProbe: async (_config, now = new Date()) => ({
+            monitor: 'postgres',
+            level: 'healthy',
+            observedAt: now.toISOString(),
+            latencyMs: 1,
+            details: { probeOk: true },
+            errorCode: null
+          })
+        },
+        new Date('2026-08-23T01:00:00Z')
+      );
+
+      const backup = store.readDashboardOverview().latestByMonitor.backup;
+      expect(backup).toMatchObject({
+        level: 'healthy',
+        errorCode: null,
+        details: { localOnly: false, offsiteVerifiedAt: '2026-08-23T00:59:00.000Z' }
+      });
+      expect(transitions.filter((transition) => transition.monitor === 'backup')).toEqual([]);
+      expect(store.readDashboardOverview().openIncidents).toEqual([]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('runs Beszel at most once per minute and isolates a failed probe from legacy samples', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'ops-beszel-collector-'));
     const pidPath = join(directory, 'app.pid');

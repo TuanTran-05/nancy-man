@@ -1,9 +1,51 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseCronAndBackupState } from './opsParsers.js';
+import { evaluateMonitor } from './statusMachine.js';
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return { ...actual, readSync: vi.fn(actual.readSync) };
+});
+
+const backupFile = (name = 'db.age') => ({
+  name,
+  mtimeMs: Date.parse('2026-08-23T00:00:00Z'),
+  size: 1,
+  encrypted: true,
+  checksumPresent: true
+});
+
+const offsiteLine = (timestamp: string, path: string) =>
+  `${timestamp} encrypted PostgreSQL backup verified locally and offsite: ${path}`;
+
+function diskHistory(
+  percent: number,
+  from: string,
+  through: string
+): Array<{
+  observedAt: string;
+  diskUsagePercent: number;
+}> {
+  const start = Date.parse(from);
+  const end = Date.parse(through);
+  const result = [];
+  for (let timestamp = start; timestamp <= end; timestamp += 15_000)
+    result.push({ observedAt: new Date(timestamp).toISOString(), diskUsagePercent: percent });
+  return result;
+}
+
+function withDirectory<T>(callback: (directory: string) => T): T {
+  const directory = mkdtempSync(join(tmpdir(), 'ops-backup-'));
+  try {
+    return callback(directory);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
 
 describe('cron and backup parser', () => {
   it('accepts only fixed cron markers and checks encrypted checksum artifacts', () => {
@@ -32,6 +74,7 @@ describe('cron and backup parser', () => {
       encrypted: true,
       checksumPresent: true,
       localOnly: true,
+      offsiteVerifiedAt: null,
       ageHours: 1
     });
     expect(state.backupLevel).toBe('warning');
@@ -42,6 +85,8 @@ describe('cron and backup parser', () => {
     const stale = parseCronAndBackupState(
       {
         cronLines: [],
+        backupHistory: diskHistory(95, '2026-08-23T02:30:00Z', '2026-08-23T02:59:45Z'),
+        diskUsagePercent: 95,
         backupFiles: [
           {
             name: 'db.enc',
@@ -67,7 +112,8 @@ describe('cron and backup parser', () => {
             checksumPresent: true
           }
         ],
-        diskUsagePercent: 95
+        diskUsagePercent: 95,
+        backupHistory: diskHistory(95, '2026-08-23T00:30:00Z', '2026-08-23T00:59:45Z')
       },
       new Date('2026-08-23T01:00:00Z')
     );
@@ -75,35 +121,230 @@ describe('cron and backup parser', () => {
       backupLevel: 'critical',
       backupErrorCode: 'backup_disk_critical'
     });
+
+    const unverified = parseCronAndBackupState(
+      {
+        cronLines: [],
+        backupFiles: [{ ...backupFile('db.age'), checksumPresent: false }],
+        diskUsagePercent: 95,
+        backupHistory: diskHistory(95, '2026-08-23T00:30:00Z', '2026-08-23T00:59:45Z')
+      },
+      new Date('2026-08-23T01:00:00Z')
+    );
+    expect(unverified).toMatchObject({
+      backupLevel: 'critical',
+      backupErrorCode: 'backup_unverified'
+    });
   });
 
-  it.each([
-    { diskUsagePercent: 80, backupLevel: 'warning', backupErrorCode: 'backup_local_only' },
-    { diskUsagePercent: 81, backupLevel: 'warning', backupErrorCode: 'backup_disk_warning' },
-    { diskUsagePercent: 90, backupLevel: 'warning', backupErrorCode: 'backup_disk_warning' },
-    { diskUsagePercent: 91, backupLevel: 'critical', backupErrorCode: 'backup_disk_critical' }
-  ])(
-    'uses strict disk thresholds at $diskUsagePercent%',
-    ({ diskUsagePercent, backupLevel, backupErrorCode }) => {
-      const state = parseCronAndBackupState(
+  it('uses strict 85% and 92% disk thresholds after 30 minutes of sustained observations', () => {
+    withDirectory((directory) => {
+      const logPath = join(directory, 'backup.log');
+      writeFileSync(logPath, `${offsiteLine('2026-08-23T00:30:00Z', '/srv/backups/db.age')}\n`);
+      const now = new Date('2026-08-23T01:00:00Z');
+      const state = (diskUsagePercent: number, history: ReturnType<typeof diskHistory> = []) =>
+        parseCronAndBackupState(
+          {
+            cronLines: [],
+            backupFiles: [backupFile()],
+            diskUsagePercent,
+            backupOffsiteLogPath: logPath,
+            backupHistory: history
+          },
+          now
+        );
+
+      expect(state(84.9)).toMatchObject({ backupLevel: 'healthy', backupErrorCode: null });
+      expect(
+        state(86, diskHistory(86, '2026-08-23T00:30:00Z', '2026-08-23T00:59:45Z'))
+      ).toMatchObject({
+        backupLevel: 'warning',
+        backupErrorCode: 'backup_disk_warning'
+      });
+      expect(
+        state(93, diskHistory(93, '2026-08-23T00:30:00Z', '2026-08-23T00:59:45Z'))
+      ).toMatchObject({
+        backupLevel: 'critical',
+        backupErrorCode: 'backup_disk_critical'
+      });
+    });
+  });
+
+  it('does not alert for a five-minute disk spike and recovers after the disk clears', () => {
+    withDirectory((directory) => {
+      const logPath = join(directory, 'backup.log');
+      writeFileSync(logPath, `${offsiteLine('2026-08-23T00:30:00Z', '/srv/backups/db.age')}\n`);
+      const base = {
+        cronLines: [],
+        backupFiles: [backupFile()],
+        backupOffsiteLogPath: logPath
+      };
+      const spike = parseCronAndBackupState(
         {
-          cronLines: [],
-          backupFiles: [
-            {
-              name: 'db.age',
-              mtimeMs: Date.parse('2026-08-23T00:00:00Z'),
-              size: 1,
-              encrypted: true,
-              checksumPresent: true
-            }
-          ],
-          diskUsagePercent
+          ...base,
+          diskUsagePercent: 93,
+          backupHistory: diskHistory(93, '2026-08-23T00:55:00Z', '2026-08-23T00:59:45Z')
         },
         new Date('2026-08-23T01:00:00Z')
       );
-      expect(state).toMatchObject({ backupLevel, backupErrorCode });
+      expect(spike).toMatchObject({ backupLevel: 'healthy', backupErrorCode: null });
+      const spikeEvaluation = evaluateMonitor([], {
+        monitor: 'backup',
+        level: spike.backupLevel,
+        observedAt: '2026-08-23T01:00:00.000Z',
+        latencyMs: 0,
+        details: spike.backup,
+        errorCode: spike.backupErrorCode
+      });
+      expect(spikeEvaluation).toMatchObject({ level: 'healthy', transition: null });
+
+      const sustained = parseCronAndBackupState(
+        {
+          ...base,
+          diskUsagePercent: 93,
+          backupHistory: diskHistory(93, '2026-08-23T00:30:00Z', '2026-08-23T00:59:45Z')
+        },
+        new Date('2026-08-23T01:00:00Z')
+      );
+      expect(sustained.backupErrorCode).toBe('backup_disk_critical');
+      const sustainedSample = {
+        monitor: 'backup' as const,
+        level: sustained.backupLevel,
+        observedAt: '2026-08-23T01:00:00.000Z',
+        latencyMs: 0,
+        details: sustained.backup,
+        errorCode: sustained.backupErrorCode
+      };
+      expect(evaluateMonitor([], sustainedSample)).toMatchObject({
+        level: 'critical',
+        transition: 'opened'
+      });
+      const recovered = parseCronAndBackupState(
+        { ...base, diskUsagePercent: 84.9 },
+        new Date('2026-08-23T01:00:15Z')
+      );
+      expect(recovered).toMatchObject({ backupLevel: 'healthy', backupErrorCode: null });
+      const firstRecoverySample = {
+        ...sustainedSample,
+        level: recovered.backupLevel,
+        observedAt: '2026-08-23T01:00:15.000Z',
+        details: recovered.backup,
+        errorCode: recovered.backupErrorCode
+      };
+      const recoveryHistory = [sustainedSample, firstRecoverySample];
+      const recoveredAgain = evaluateMonitor(recoveryHistory, {
+        ...firstRecoverySample,
+        observedAt: '2026-08-23T01:00:30.000Z'
+      });
+      expect(recoveredAgain).toMatchObject({ level: 'healthy', transition: 'recovered' });
+    });
+  });
+
+  it('marks the latest backup offsite-verified only for an exact matching basename', () => {
+    withDirectory((directory) => {
+      const logPath = join(directory, 'backup.log');
+      const backupPath = '/srv/backups/newer.age';
+      writeFileSync(logPath, `${offsiteLine('2026-08-23T00:45:00Z', backupPath)}\n`);
+      const state = parseCronAndBackupState(
+        {
+          cronLines: [],
+          backupFiles: [backupFile('newer.age')],
+          backupOffsiteLogPath: logPath,
+          diskUsagePercent: 50
+        },
+        new Date('2026-08-23T01:00:00Z')
+      );
+      expect(state).toMatchObject({
+        backupLevel: 'healthy',
+        backupErrorCode: null,
+        backup: {
+          localOnly: false,
+          offsiteVerifiedAt: '2026-08-23T00:45:00.000Z'
+        }
+      });
+    });
+  });
+
+  it('keeps a newer backup local-only when only an older basename is in the offsite log', () => {
+    withDirectory((directory) => {
+      const logPath = join(directory, 'backup.log');
+      writeFileSync(logPath, `${offsiteLine('2026-08-23T00:45:00Z', '/srv/backups/older.age')}\n`);
+      const state = parseCronAndBackupState(
+        {
+          cronLines: [],
+          backupFiles: [backupFile('newer.age')],
+          backupOffsiteLogPath: logPath,
+          diskUsagePercent: 50
+        },
+        new Date('2026-08-23T01:00:00Z')
+      );
+      expect(state).toMatchObject({
+        backupLevel: 'warning',
+        backupErrorCode: 'backup_local_only',
+        backup: { localOnly: true, offsiteVerifiedAt: null }
+      });
+    });
+  });
+
+  it.each(['missing', 'unreadable', 'garbage'])(
+    'treats a %s offsite log as unverified without throwing',
+    (kind) => {
+      withDirectory((directory) => {
+        const logPath = join(directory, 'backup.log');
+        if (kind === 'unreadable') mkdirSync(logPath);
+        if (kind === 'garbage') writeFileSync(logPath, 'not an offsite verification record\n');
+        expect(() =>
+          parseCronAndBackupState(
+            {
+              cronLines: [],
+              backupFiles: [backupFile()],
+              backupOffsiteLogPath: logPath,
+              diskUsagePercent: 50
+            },
+            new Date('2026-08-23T01:00:00Z')
+          )
+        ).not.toThrow();
+        const state = parseCronAndBackupState(
+          {
+            cronLines: [],
+            backupFiles: [backupFile()],
+            backupOffsiteLogPath: logPath,
+            diskUsagePercent: 50
+          },
+          new Date('2026-08-23T01:00:00Z')
+        );
+        expect(state).toMatchObject({
+          backupLevel: 'warning',
+          backupErrorCode: 'backup_local_only',
+          backup: { localOnly: true, offsiteVerifiedAt: null }
+        });
+      });
     }
   );
+
+  it('reads only the bounded tail of a large offsite log', () => {
+    withDirectory((directory) => {
+      const logPath = join(directory, 'backup.log');
+      const matchingLine = offsiteLine('2026-08-23T00:45:00Z', '/srv/backups/db.age');
+      const largeLog = `${'x'.repeat(70 * 1024)}\n${matchingLine}\n`;
+      expect(Buffer.byteLength(largeLog)).toBeGreaterThan(64 * 1024);
+      writeFileSync(logPath, largeLog);
+      vi.mocked(readSync).mockClear();
+      const state = parseCronAndBackupState(
+        {
+          cronLines: [],
+          backupFiles: [backupFile()],
+          backupOffsiteLogPath: logPath,
+          diskUsagePercent: 50
+        },
+        new Date('2026-08-23T01:00:00Z')
+      );
+      expect(state.backup.localOnly).toBe(false);
+      expect(vi.mocked(readSync).mock.calls.length).toBe(1);
+      const readArguments = vi.mocked(readSync).mock.calls[0] as unknown as unknown[];
+      expect(Number(readArguments[3])).toBeLessThanOrEqual(64 * 1024);
+    });
+  });
 
   it('keeps backup local-only warning separate from a healthy cron monitor', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ops-backup-'));

@@ -307,7 +307,20 @@ export async function runCollectorCycle(
   });
 
   const cronLines = readLogLines(deps, deps.config.cronLogPath, deps.config.cronLogPath);
-  const parsed = parseCronAndBackupState({ cronLines, backupDir: deps.config.backupDir }, now);
+  const backupHistory = (deps.histories.get('backup') ?? []).map((sample) => ({
+    observedAt: sample.observedAt,
+    diskUsagePercent:
+      typeof sample.details.diskUsagePercent === 'number' ? sample.details.diskUsagePercent : null
+  }));
+  const parsed = parseCronAndBackupState(
+    {
+      cronLines,
+      backupDir: deps.config.backupDir,
+      backupOffsiteLogPath: deps.config.backupOffsiteLogPath,
+      backupHistory
+    },
+    now
+  );
   evaluateAndCollect({
     monitor: 'cron',
     level: parsed.cronLevel,
