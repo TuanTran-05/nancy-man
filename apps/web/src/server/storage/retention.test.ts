@@ -84,7 +84,6 @@ function applyOriginalSqlRetention(db: Database.Database): void {
     db.prepare(
       "DELETE FROM alert_deliveries WHERE state IN ('sent', 'failed', 'delivery_ambiguous') AND next_attempt_at < ?"
     ).run(eventCutoff);
-    db.prepare('DELETE FROM audit_events WHERE occurred_at < ?').run(eventCutoff);
     db.prepare('DELETE FROM login_attempts WHERE attempted_at < ?').run(eventCutoff);
     db.prepare('DELETE FROM daily_rollups WHERE day < substr(?, 1, 10)').run(rollupCutoff);
     db.exec('COMMIT');
@@ -204,5 +203,17 @@ describe('batched Ops retention', () => {
         )
         .all()
     ).toEqual(before);
+  });
+
+  it('retains audit events older than 90 days until an explicit policy is decided', () => {
+    const store = makeStore();
+    const db = store.getDatabaseForBackup();
+    db.prepare(
+      'INSERT INTO audit_events (actor_id, action, target, details_json, occurred_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(null, 'login_failed', 'ops-a', '{"reason":"invalid"}', '2026-01-01T00:00:00.000Z');
+
+    drainRetention(store);
+
+    expect(db.prepare('SELECT COUNT(*) AS count FROM audit_events').get()).toEqual({ count: 1 });
   });
 });

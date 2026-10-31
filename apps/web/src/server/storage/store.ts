@@ -933,12 +933,7 @@ export function createOpsStore(
           orderBy: 'next_attempt_at ASC',
           cutoff: eventCutoff
         },
-        {
-          table: 'audit_events',
-          where: 'occurred_at < ?',
-          orderBy: 'occurred_at ASC',
-          cutoff: eventCutoff
-        },
+        // Audit events are retained until an explicit policy is decided.
         {
           table: 'login_attempts',
           where: 'attempted_at < ?',

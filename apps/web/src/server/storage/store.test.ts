@@ -24,6 +24,47 @@ afterEach(() => {
 });
 
 describe('Ops SQLite store', () => {
+  it('creates retention tables while keeping a fresh database at schema version 4', () => {
+    const store = makeStore();
+    const database = store.getDatabaseForBackup();
+    expect(database.prepare('SELECT version FROM schema_version').get()).toEqual({ version: 4 });
+    const tables = database
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all() as Array<{ name: string }>;
+    expect(tables.map((table) => table.name)).toEqual(
+      expect.arrayContaining(['retention_state', 'retention_rollup_stage'])
+    );
+    expect(database.prepare('SELECT singleton FROM retention_state').get()).toEqual({
+      singleton: 1
+    });
+    database.close();
+  });
+
+  it('creates missing retention tables when opening a schema v4 database', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ops-store-v4-retention-'));
+    tempDirs.push(dir);
+    const databasePath = join(dir, 'ops.sqlite');
+    const legacy = new Database(databasePath);
+    legacy.exec(schemaSql);
+    legacy.prepare('INSERT INTO schema_version (version) VALUES (4)').run();
+    legacy.exec('DROP TABLE retention_rollup_stage; DROP TABLE retention_state;');
+    legacy.close();
+
+    const store = createOpsStore(databasePath, () => new Date('2026-08-23T00:00:00.000Z'));
+    const database = store.getDatabaseForBackup();
+    expect(database.prepare('SELECT version FROM schema_version').get()).toEqual({ version: 4 });
+    const tables = database
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all() as Array<{ name: string }>;
+    expect(tables.map((table) => table.name)).toEqual(
+      expect.arrayContaining(['retention_state', 'retention_rollup_stage'])
+    );
+    expect(database.prepare('SELECT singleton FROM retention_state').get()).toEqual({
+      singleton: 1
+    });
+    database.close();
+  });
+
   it('retains only sanitized samples inside the 30-day window', () => {
     const store = makeStore();
     store.recordSample({
@@ -199,7 +240,7 @@ describe('Ops SQLite store', () => {
     expect(columns.map((column) => column.name)).not.toContain('account_id');
     expect(
       (database.prepare('SELECT version FROM schema_version').get() as { version: number }).version
-    ).toBe(5);
+    ).toBe(4);
     expect(
       store.consumeZaloLink({
         codeHash: 'legacy-code',
