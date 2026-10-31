@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
 import { encryptSecret } from '../security/crypto.js';
 import { hashZaloChatId } from '../security/zaloLink.js';
@@ -139,5 +140,54 @@ describe('collector failsafe', () => {
     });
 
     expect(attemptedRecipients).toEqual(['reject-first', 'valid-second']);
+  });
+
+  it('sends to configured recipients when a SQLite write lock prevents store startup', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ops-failsafe-locked-db-'));
+    const databasePath = join(directory, 'ops.sqlite');
+    const initialized = createOpsStore(databasePath, undefined, recipientKey);
+    initialized.getDatabaseForBackup().close();
+
+    const blocker = new Database(databasePath);
+    blocker.pragma('journal_mode = WAL');
+    blocker.exec('BEGIN IMMEDIATE');
+    blocker
+      .prepare('INSERT INTO login_attempts (username, attempted_at, success) VALUES (?, ?, ?)')
+      .run('lock-fixture', '2026-08-23T00:00:00.000Z', 0);
+    const deliveredTo: string[] = [];
+    try {
+      let lockError: unknown;
+      try {
+        createOpsStore(databasePath, undefined, recipientKey, { busyTimeoutMs: 25 });
+      } catch (error) {
+        lockError = error;
+      }
+      expect(lockError).toMatchObject({
+        code: expect.stringMatching(/^SQLITE_(BUSY|LOCKED)/u)
+      });
+
+      await runFailsafe(config(databasePath, ['configured-fallback']), async (_url, init) => {
+        deliveredTo.push(JSON.parse(String(init?.body)).chat_id);
+        return new Response(JSON.stringify({ ok: true, result: { message_id: 'locked-db-ok' } }), {
+          status: 200
+        });
+      });
+
+      expect(deliveredTo).toEqual(['configured-fallback']);
+    } finally {
+      blocker.exec('ROLLBACK');
+      blocker.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('fails when no collector-failure notification was delivered', async () => {
+    await expect(
+      runFailsafe(
+        config(':memory:', ['configured-only']),
+        async () =>
+          new Response(JSON.stringify({ ok: false, description: 'unavailable' }), { status: 500 })
+      )
+    ).rejects.toThrow('OPS_FAILSAFE_NOTIFICATION_UNDELIVERED');
   });
 });

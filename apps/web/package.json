@@ -8,7 +8,7 @@
     "build:web": "vite build",
     "build:server": "node scripts/build-server.mjs",
     "start:collector": "node dist/server/collector-entry.js",
-    "start:failsafe": "node dist/server/failsafe-main.js",
+    "start:failsafe": "node dist/server/failsafe-entry.js",
     "start:web": "node dist/server/web-server.js",
     "ops:provision-user": "node dist/server/provision-ops-user.js",
     "typecheck": "tsc -p tsconfig.json --pretty false",

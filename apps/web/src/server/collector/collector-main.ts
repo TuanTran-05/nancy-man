@@ -20,6 +20,18 @@ import {
   installOpsRuntimeTelemetry
 } from '../telemetry/runtimeTelemetry.js';
 
+function isTransientSqliteLock(error: unknown): boolean {
+  let current: unknown = error;
+  const seen = new Set<unknown>();
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === 'string' && /^SQLITE_(?:BUSY|LOCKED)(?:_|$)/u.test(code)) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 export async function startCollectorLoop(input: {
   cycle: () => Promise<void>;
   watchdog: { progress: () => void; stop: () => void };
@@ -43,10 +55,15 @@ export async function startCollectorLoop(input: {
       if (!stopped) input.watchdog.progress();
     } catch (error) {
       captureOpsException(error, {
-        code: 'UNHANDLED_OPS_EXCEPTION',
+        code: 'COLLECTOR_CYCLE_FAILED',
         source: 'job',
         status: 500
       });
+      const transientLock = isTransientSqliteLock(error);
+      if (transientLock) {
+        if (!stopped) input.watchdog.progress();
+        return;
+      }
       try {
         input.onFailure(error);
       } catch (error) {
@@ -64,8 +81,19 @@ export async function startCollectorLoop(input: {
     }
   };
 
-  await input.cycle();
-  input.watchdog.progress();
+  try {
+    await input.cycle();
+    input.watchdog.progress();
+  } catch (error) {
+    captureOpsException(error, {
+      code: 'COLLECTOR_CYCLE_FAILED',
+      source: 'job',
+      status: 500
+    });
+    const transientLock = isTransientSqliteLock(error);
+    if (!transientLock) throw error;
+    input.watchdog.progress();
+  }
   cancelScheduledCycle = input.schedule(() => {
     void runScheduledCycle();
   });
@@ -161,7 +189,9 @@ export async function startCollector(): Promise<{ close: () => Promise<void> }> 
       : undefined;
     const deps: CollectorDeps = {
       config,
-      store: createOpsStore(config.dbPath, undefined, config.zaloRecipientKey),
+      store: createOpsStore(config.dbPath, undefined, config.zaloRecipientKey, {
+        busyTimeoutMs: 1_000
+      }),
       histories: new Map(),
       beszelProbe,
       telemetry
@@ -192,6 +222,8 @@ export async function startCollector(): Promise<{ close: () => Promise<void> }> 
       const transitions = await runCollectorCycle(deps, at);
       for (const transition of transitions) await alerts.queueTransitionDelivery(transition);
       await alerts.deliverDueAlerts(at);
+      // Process one small retention batch per cycle; the 15-second interval yields between batches.
+      deps.store.pruneRetentionBatch(at.toISOString());
     };
     loop = await startCollectorLoop({
       cycle,

@@ -34,7 +34,9 @@ describe('Ops SQLite store', () => {
       details: {},
       errorCode: null
     });
-    store.pruneRetention();
+    let result = store.pruneRetentionBatch();
+    while (result.status === 'batch') result = store.pruneRetentionBatch();
+    expect(result.status).toBe('complete');
     expect(store.readDashboardOverview().latestByMonitor.postgres).toBeUndefined();
   });
 
@@ -197,7 +199,7 @@ describe('Ops SQLite store', () => {
     expect(columns.map((column) => column.name)).not.toContain('account_id');
     expect(
       (database.prepare('SELECT version FROM schema_version').get() as { version: number }).version
-    ).toBe(4);
+    ).toBe(5);
     expect(
       store.consumeZaloLink({
         codeHash: 'legacy-code',

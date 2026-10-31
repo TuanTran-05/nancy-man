@@ -346,11 +346,13 @@ export async function sendCollectorFailureNotice(
   fetchImpl?: typeof fetch
 ): Promise<void> {
   const text = 'CRITICAL: ops-collector stopped; open https://man.thienuy.edu.vn';
+  let delivered = 0;
   for (const recipient of config.recipients) {
     try {
       const recipientId = decryptSecret(recipient.recipientCiphertext, config.recipientKey);
       if (!/^[A-Za-z0-9_.:-]{1,128}$/u.test(recipientId)) continue;
       await sendZaloText({ ...config, recipientId, fetchImpl }, text);
+      delivered += 1;
     } catch (error) {
       captureOpsException(error, {
         code: 'UNHANDLED_OPS_EXCEPTION',
@@ -360,4 +362,5 @@ export async function sendCollectorFailureNotice(
       // The direct failsafe isolates malformed local state and provider failures per recipient.
     }
   }
+  if (delivered === 0) throw new Error('OPS_FAILSAFE_NOTIFICATION_UNDELIVERED');
 }

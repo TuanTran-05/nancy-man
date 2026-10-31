@@ -43,12 +43,3 @@ export function runFailsafeEntrypoint(
     ? runConfiguredOpsTelemetryOneShot({ ...common, rethrow: false })
     : runConfiguredOpsTelemetryOneShot({ ...common, rethrow: true });
 }
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  void runFailsafeEntrypoint({
-    rethrow: false,
-    onFailure: () => {
-      process.exitCode = 1;
-    }
-  });
-}

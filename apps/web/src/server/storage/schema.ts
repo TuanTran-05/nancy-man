@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const schemaSql = `
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -86,6 +86,25 @@ CREATE TABLE IF NOT EXISTS collector_cursors (
 );
 
 CREATE TABLE IF NOT EXISTS daily_rollups (
+  day TEXT NOT NULL,
+  monitor TEXT NOT NULL,
+  sample_count INTEGER NOT NULL,
+  last_observed_at TEXT NOT NULL,
+  last_level TEXT NOT NULL,
+  PRIMARY KEY (day, monitor)
+);
+
+CREATE TABLE IF NOT EXISTS retention_state (
+  singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+  raw_cutoff TEXT,
+  rollup_cutoff TEXT,
+  event_cutoff TEXT,
+  last_completed_at TEXT
+);
+
+INSERT OR IGNORE INTO retention_state (singleton) VALUES (1);
+
+CREATE TABLE IF NOT EXISTS retention_rollup_stage (
   day TEXT NOT NULL,
   monitor TEXT NOT NULL,
   sample_count INTEGER NOT NULL,

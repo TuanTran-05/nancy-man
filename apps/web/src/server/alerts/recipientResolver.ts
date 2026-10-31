@@ -2,8 +2,7 @@ import { encryptSecret } from '../security/crypto.js';
 import { hashZaloChatId } from '../security/zaloLink.js';
 import type { OpsStore, ZaloRecipientRecord } from '../storage/store.js';
 
-export function resolveZaloRecipients(
-  store: OpsStore,
+export function resolveConfiguredZaloRecipients(
   recipientKey: Buffer,
   chatHashSecret: string,
   configured: string[] = []
@@ -17,6 +16,21 @@ export function resolveZaloRecipients(
         recipientCiphertext: encryptSecret(recipient, recipientKey)
       });
   }
+  return [...recipients.values()];
+}
+
+export function resolveZaloRecipients(
+  store: OpsStore,
+  recipientKey: Buffer,
+  chatHashSecret: string,
+  configured: string[] = []
+): ZaloRecipientRecord[] {
+  const recipients = new Map(
+    resolveConfiguredZaloRecipients(recipientKey, chatHashSecret, configured).map((recipient) => [
+      recipient.recipientHash,
+      recipient
+    ])
+  );
   for (const recipient of store.listActiveZaloRecipients())
     if (!recipients.has(recipient.recipientHash))
       recipients.set(recipient.recipientHash, recipient);

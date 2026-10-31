@@ -18,6 +18,33 @@ import type {
 
 type SqliteDatabase = InstanceType<typeof Database>;
 
+export interface RetentionBatchResult {
+  status: 'not_due' | 'batch' | 'complete';
+  table?: string;
+  rows: number;
+}
+
+export interface OpsStoreOptions {
+  busyTimeoutMs?: number;
+}
+
+const RETENTION_BATCH_SIZE = 1_000;
+const RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1_000;
+
+function retentionLevelRank(level: string): number {
+  if (level === 'critical') return 4;
+  if (level === 'warning') return 3;
+  if (level === 'healthy') return 2;
+  return 1;
+}
+
+function retentionLevelFromRank(rank: number): string {
+  if (rank === 4) return 'critical';
+  if (rank === 3) return 'warning';
+  if (rank === 2) return 'healthy';
+  return 'unknown';
+}
+
 export interface AccountRecord {
   id: string;
   username: string;
@@ -100,7 +127,7 @@ export interface OpsStore {
   }): InfrastructureHistoryPoint[];
   getCursor(source: string): { inode: number; offset: number } | undefined;
   setCursor(source: string, cursor: { inode: number; offset: number }): void;
-  pruneRetention(now?: string): void;
+  pruneRetentionBatch(now?: string): RetentionBatchResult;
   createAccount(input: {
     id: string;
     username: string;
@@ -300,11 +327,16 @@ function migrateZaloPrincipals(db: SqliteDatabase, fromVersion: number): boolean
 export function createOpsStore(
   path: string,
   now: () => Date = () => new Date(),
-  recipientKey?: Buffer
+  recipientKey?: Buffer,
+  options: OpsStoreOptions = {}
 ): OpsStore {
+  const busyTimeoutMs = options.busyTimeoutMs ?? 5_000;
+  if (!Number.isSafeInteger(busyTimeoutMs) || busyTimeoutMs < 1 || busyTimeoutMs > 60_000)
+    throw new Error('Invalid SQLite busy timeout');
   const db = new Database(path);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  // Keep startup/migration tolerant of another service opening the shared database.
   db.pragma('busy_timeout = 5000');
   db.pragma('synchronous = FULL');
   db.pragma('secure_delete = ON');
@@ -354,9 +386,12 @@ export function createOpsStore(
       throw error;
     }
   }
+  db.pragma(`busy_timeout = ${busyTimeoutMs}`);
 
+  let knownRetentionMonitors: Set<string> | undefined;
   const store: OpsStore = {
     recordSample(sample) {
+      knownRetentionMonitors?.add(sample.monitor);
       db.prepare(
         `INSERT INTO monitor_samples (monitor, level, observed_at, latency_ms, details_json, error_code)
          VALUES (@monitor, @level, @observedAt, @latencyMs, @detailsJson, @errorCode)`
@@ -664,34 +699,272 @@ export function createOpsStore(
       ).run(source, Math.max(0, Math.floor(cursor.inode)), Math.max(0, Math.floor(cursor.offset)));
     },
 
-    pruneRetention(nowDate = now().toISOString()) {
+    pruneRetentionBatch(nowDate = now().toISOString()) {
       const nowMs = Date.parse(nowDate);
       if (!Number.isFinite(nowMs)) throw new Error('Invalid retention timestamp');
-      const rawCutoff = new Date(nowMs - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const rollupCutoff = new Date(nowMs - 365 * 24 * 60 * 60 * 1000).toISOString();
-      const eventCutoff = new Date(nowMs - 90 * 24 * 60 * 60 * 1000).toISOString();
-      const transaction = db.transaction(() => {
-        db.prepare(
+
+      type RetentionStateRow = {
+        raw_cutoff: string | null;
+        rollup_cutoff: string | null;
+        event_cutoff: string | null;
+        last_completed_at: string | null;
+      };
+      type RawSampleRow = {
+        id: number;
+        monitor: string;
+        level: string;
+        observed_at: string;
+      };
+      type RollupStageRow = {
+        day: string;
+        monitor: string;
+        sample_count: number;
+        last_observed_at: string;
+        last_level: string;
+      };
+      const readState = () =>
+        db
+          .prepare(
+            'SELECT raw_cutoff, rollup_cutoff, event_cutoff, last_completed_at FROM retention_state WHERE singleton = 1'
+          )
+          .get() as RetentionStateRow | undefined;
+
+      let state = readState();
+      if (!state) throw new Error('Retention state is unavailable');
+      if (state.raw_cutoff === null) {
+        const lastCompletedMs = state.last_completed_at ? Date.parse(state.last_completed_at) : NaN;
+        if (Number.isFinite(lastCompletedMs) && nowMs - lastCompletedMs < RETENTION_INTERVAL_MS)
+          return { status: 'not_due', rows: 0 };
+
+        const rawCutoff = new Date(nowMs - 30 * 24 * 60 * 60 * 1_000).toISOString();
+        const rollupCutoff = new Date(nowMs - 365 * 24 * 60 * 60 * 1_000).toISOString();
+        const eventCutoff = new Date(nowMs - 90 * 24 * 60 * 60 * 1_000).toISOString();
+        const startRun = db.transaction(() => {
+          const current = readState();
+          if (!current) throw new Error('Retention state is unavailable');
+          if (current.raw_cutoff !== null) return current;
+          const completedAt = current.last_completed_at
+            ? Date.parse(current.last_completed_at)
+            : NaN;
+          if (Number.isFinite(completedAt) && nowMs - completedAt < RETENTION_INTERVAL_MS)
+            return current;
+          db.prepare(
+            `UPDATE retention_state
+             SET raw_cutoff = ?, rollup_cutoff = ?, event_cutoff = ?
+             WHERE singleton = 1 AND raw_cutoff IS NULL`
+          ).run(rawCutoff, rollupCutoff, eventCutoff);
+          const started = readState();
+          if (!started) throw new Error('Retention state is unavailable');
+          return started;
+        });
+        state = startRun.immediate();
+        if (state.raw_cutoff === null) return { status: 'not_due', rows: 0 };
+      }
+
+      const rawCutoff = state.raw_cutoff;
+      const rollupCutoff = state.rollup_cutoff;
+      const eventCutoff = state.event_cutoff;
+      if (!rawCutoff || !rollupCutoff || !eventCutoff)
+        throw new Error('Retention run cutoffs are incomplete');
+
+      if (!knownRetentionMonitors) {
+        const monitors = db.prepare('SELECT DISTINCT monitor FROM monitor_samples').all() as Array<{
+          monitor: string;
+        }>;
+        knownRetentionMonitors = new Set(monitors.map((row) => row.monitor));
+      }
+
+      const rawRowsByMonitor = [...knownRetentionMonitors].flatMap(
+        (monitor) =>
+          db
+            .prepare(
+              `SELECT id, monitor, level, observed_at FROM monitor_samples
+             WHERE monitor = ? AND observed_at < ?
+             ORDER BY observed_at ASC, id ASC LIMIT ?`
+            )
+            .all(monitor, rawCutoff, RETENTION_BATCH_SIZE) as RawSampleRow[]
+      );
+      rawRowsByMonitor.sort(
+        (left, right) => left.observed_at.localeCompare(right.observed_at) || left.id - right.id
+      );
+      const selectedRawRows = rawRowsByMonitor.slice(0, RETENTION_BATCH_SIZE);
+      if (selectedRawRows.length > 0) {
+        const ids = selectedRawRows.map((row) => row.id);
+        const placeholders = ids.map(() => '?').join(', ');
+        const processRawBatch = db.transaction(() => {
+          const currentRows = db
+            .prepare(
+              `SELECT id, monitor, level, observed_at FROM monitor_samples
+               WHERE id IN (${placeholders}) AND observed_at < ?
+               ORDER BY observed_at ASC, id ASC`
+            )
+            .all(...ids, rawCutoff) as RawSampleRow[];
+          const groups = new Map<
+            string,
+            {
+              day: string;
+              monitor: string;
+              sampleCount: number;
+              lastObservedAt: string;
+              rank: number;
+            }
+          >();
+          for (const row of currentRows) {
+            if (row.observed_at < rollupCutoff) continue;
+            const day = row.observed_at.slice(0, 10);
+            const key = `${day}\u0000${row.monitor}`;
+            const current = groups.get(key);
+            if (current) {
+              current.sampleCount += 1;
+              if (row.observed_at > current.lastObservedAt)
+                current.lastObservedAt = row.observed_at;
+              current.rank = Math.max(current.rank, retentionLevelRank(row.level));
+            } else {
+              groups.set(key, {
+                day,
+                monitor: row.monitor,
+                sampleCount: 1,
+                lastObservedAt: row.observed_at,
+                rank: retentionLevelRank(row.level)
+              });
+            }
+          }
+          const stageUpsert = db.prepare(
+            `INSERT INTO retention_rollup_stage (day, monitor, sample_count, last_observed_at, last_level)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(day, monitor) DO UPDATE SET
+               sample_count = retention_rollup_stage.sample_count + excluded.sample_count,
+               last_observed_at = MAX(retention_rollup_stage.last_observed_at, excluded.last_observed_at),
+               last_level = CASE MAX(
+                 CASE retention_rollup_stage.last_level WHEN 'critical' THEN 4 WHEN 'warning' THEN 3 WHEN 'healthy' THEN 2 ELSE 1 END,
+                 CASE excluded.last_level WHEN 'critical' THEN 4 WHEN 'warning' THEN 3 WHEN 'healthy' THEN 2 ELSE 1 END
+               ) WHEN 4 THEN 'critical' WHEN 3 THEN 'warning' WHEN 2 THEN 'healthy' ELSE 'unknown' END`
+          );
+          for (const group of groups.values())
+            stageUpsert.run(
+              group.day,
+              group.monitor,
+              group.sampleCount,
+              group.lastObservedAt,
+              retentionLevelFromRank(group.rank)
+            );
+          const deleteSelected = db.prepare(
+            `DELETE FROM monitor_samples WHERE id IN (${placeholders}) AND observed_at < ?`
+          );
+          return deleteSelected.run(...ids, rawCutoff).changes;
+        });
+        const rows = processRawBatch.immediate();
+        if (rows > 0) return { status: 'batch', table: 'monitor_samples', rows };
+      }
+
+      const mergeStageBatch = db.transaction(() => {
+        const staged = db
+          .prepare(
+            `SELECT day, monitor, sample_count, last_observed_at, last_level
+             FROM retention_rollup_stage ORDER BY day ASC, monitor ASC LIMIT ?`
+          )
+          .all(RETENTION_BATCH_SIZE) as RollupStageRow[];
+        if (staged.length === 0) return 0;
+        const upsert = db.prepare(
           `INSERT INTO daily_rollups (day, monitor, sample_count, last_observed_at, last_level)
-           SELECT substr(observed_at, 1, 10), monitor, COUNT(*), MAX(observed_at),
-             CASE MAX(CASE level WHEN 'critical' THEN 4 WHEN 'warning' THEN 3 WHEN 'healthy' THEN 2 ELSE 1 END)
-               WHEN 4 THEN 'critical' WHEN 3 THEN 'warning' WHEN 2 THEN 'healthy' ELSE 'unknown' END
-           FROM monitor_samples WHERE observed_at < ? AND observed_at >= ? GROUP BY substr(observed_at, 1, 10), monitor
-           ON CONFLICT(day, monitor) DO UPDATE SET sample_count = daily_rollups.sample_count + excluded.sample_count,
-             last_observed_at = MAX(daily_rollups.last_observed_at, excluded.last_observed_at), last_level = excluded.last_level`
-        ).run(rawCutoff, rollupCutoff);
-        db.prepare('DELETE FROM monitor_samples WHERE observed_at < ?').run(rawCutoff);
-        db.prepare("DELETE FROM incidents WHERE state = 'recovered' AND last_seen_at < ?").run(
-          eventCutoff
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(day, monitor) DO UPDATE SET
+             sample_count = daily_rollups.sample_count + excluded.sample_count,
+             last_observed_at = MAX(daily_rollups.last_observed_at, excluded.last_observed_at),
+             last_level = excluded.last_level`
         );
-        db.prepare(
-          "DELETE FROM alert_deliveries WHERE state IN ('sent', 'failed', 'delivery_ambiguous') AND next_attempt_at < ?"
-        ).run(eventCutoff);
-        db.prepare('DELETE FROM audit_events WHERE occurred_at < ?').run(eventCutoff);
-        db.prepare('DELETE FROM login_attempts WHERE attempted_at < ?').run(eventCutoff);
-        db.prepare('DELETE FROM daily_rollups WHERE day < substr(?, 1, 10)').run(rollupCutoff);
+        const deleteStage = db.prepare(
+          'DELETE FROM retention_rollup_stage WHERE day = ? AND monitor = ?'
+        );
+        for (const row of staged) {
+          upsert.run(row.day, row.monitor, row.sample_count, row.last_observed_at, row.last_level);
+          deleteStage.run(row.day, row.monitor);
+        }
+        return staged.length;
       });
-      transaction();
+      const mergedRows = mergeStageBatch.immediate();
+      if (mergedRows > 0) return { status: 'batch', table: 'daily_rollups', rows: mergedRows };
+
+      const deleteOldestBatch = (
+        table: string,
+        where: string,
+        orderBy: string,
+        cutoff: string
+      ): number => {
+        const selected = db
+          .prepare(
+            `SELECT rowid FROM ${table} WHERE ${where}
+             ORDER BY ${orderBy}, rowid ASC LIMIT ?`
+          )
+          .all(cutoff, RETENTION_BATCH_SIZE) as Array<{ rowid: number }>;
+        if (selected.length === 0) return 0;
+        const rowids = selected.map((row) => row.rowid);
+        const placeholders = rowids.map(() => '?').join(', ');
+        const remove = db.transaction(
+          () =>
+            db
+              .prepare(`DELETE FROM ${table} WHERE rowid IN (${placeholders}) AND ${where}`)
+              .run(...rowids, cutoff).changes
+        );
+        return remove.immediate();
+      };
+
+      const cleanupBatches: Array<{
+        table: string;
+        where: string;
+        orderBy: string;
+        cutoff: string;
+      }> = [
+        {
+          table: 'daily_rollups',
+          where: 'day < substr(?, 1, 10)',
+          orderBy: 'day ASC, monitor ASC',
+          cutoff: rollupCutoff
+        },
+        {
+          table: 'incidents',
+          where: "state = 'recovered' AND last_seen_at < ?",
+          orderBy: 'last_seen_at ASC',
+          cutoff: eventCutoff
+        },
+        {
+          table: 'alert_deliveries',
+          where: "state IN ('sent', 'failed', 'delivery_ambiguous') AND next_attempt_at < ?",
+          orderBy: 'next_attempt_at ASC',
+          cutoff: eventCutoff
+        },
+        {
+          table: 'audit_events',
+          where: 'occurred_at < ?',
+          orderBy: 'occurred_at ASC',
+          cutoff: eventCutoff
+        },
+        {
+          table: 'login_attempts',
+          where: 'attempted_at < ?',
+          orderBy: 'attempted_at ASC',
+          cutoff: eventCutoff
+        }
+      ];
+      for (const cleanup of cleanupBatches) {
+        const rows = deleteOldestBatch(
+          cleanup.table,
+          cleanup.where,
+          cleanup.orderBy,
+          cleanup.cutoff
+        );
+        if (rows > 0) return { status: 'batch', table: cleanup.table, rows };
+      }
+
+      const finishRun = db.transaction(() => {
+        db.prepare(
+          `UPDATE retention_state
+           SET raw_cutoff = NULL, rollup_cutoff = NULL, event_cutoff = NULL, last_completed_at = ?
+           WHERE singleton = 1`
+        ).run(nowDate);
+      });
+      finishRun.immediate();
+      return { status: 'complete', rows: 0 };
     },
 
     createAccount(input) {

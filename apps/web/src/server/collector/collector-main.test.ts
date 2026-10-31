@@ -17,6 +17,50 @@ function deferred<T>(): {
 }
 
 describe('collector loop watchdog coupling', () => {
+  it('keeps the loop alive for transient SQLite busy and locked cycle failures', async () => {
+    let scheduled: (() => void) | undefined;
+    const cancel = vi.fn();
+    const watchdog = { progress: vi.fn(), stop: vi.fn() };
+    const onFailure = vi.fn();
+    const cycle = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error('database is locked'), { code: 'SQLITE_BUSY' })
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error('database table is locked'), { code: 'SQLITE_LOCKED_SHAREDCACHE' })
+      )
+      .mockResolvedValueOnce(undefined);
+
+    await startCollectorLoop({
+      cycle,
+      watchdog,
+      schedule: (callback) => {
+        scheduled = callback;
+        return cancel;
+      },
+      onFailure
+    });
+
+    expect(watchdog.progress).toHaveBeenCalledTimes(1);
+    expect(watchdog.stop).not.toHaveBeenCalled();
+    expect(onFailure).not.toHaveBeenCalled();
+
+    scheduled?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(watchdog.progress).toHaveBeenCalledTimes(2);
+    expect(watchdog.stop).not.toHaveBeenCalled();
+    expect(onFailure).not.toHaveBeenCalled();
+
+    scheduled?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(cycle).toHaveBeenCalledTimes(3);
+    expect(watchdog.progress).toHaveBeenCalledTimes(3);
+    expect(watchdog.stop).not.toHaveBeenCalled();
+    expect(onFailure).not.toHaveBeenCalled();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
   it('stops scheduling and reports a rejected post-start cycle as fatal', async () => {
     let scheduled: (() => void) | undefined;
     const cancel = vi.fn();
