@@ -206,48 +206,100 @@ describe('batched Ops retention', () => {
     ).toEqual(before);
   });
 
-  it('deletes audit events older than 90 days and preserves newer events', () => {
-    const store = makeStore();
-    const db = store.getDatabaseForBackup();
-    const insert = db.prepare(
-      'INSERT INTO audit_events (actor_id, action, target, details_json, occurred_at) VALUES (?, ?, ?, ?, ?)'
-    );
-    insert.run(null, 'login_failed', 'ops-a', '{"reason":"old"}', '2026-01-01T00:00:00.000Z');
-    insert.run(null, 'login_failed', 'ops-a', '{"reason":"new"}', '2026-07-01T00:00:00.000Z');
-
-    drainRetention(store);
-
-    expect(db.prepare('SELECT occurred_at FROM audit_events').all()).toEqual([
-      { occurred_at: '2026-07-01T00:00:00.000Z' }
-    ]);
-  });
-
-  it('limits each audit-event cleanup transaction to 1,000 oldest rows', () => {
-    const store = makeStore();
-    const db = store.getDatabaseForBackup();
-    const insert = db.prepare(
-      'INSERT INTO audit_events (actor_id, action, target, details_json, occurred_at) VALUES (?, ?, ?, ?, ?)'
-    );
-    for (let index = 0; index < 2_305; index += 1) {
-      insert.run(
-        null,
-        'login_failed',
-        'ops-a',
-        '{}',
-        new Date(Date.parse('2026-01-01T00:00:00.000Z') + index).toISOString()
-      );
-    }
-
-    expect(store.pruneRetentionBatch(nowIso)).toMatchObject({
-      status: 'batch',
+  it.each([
+    {
+      table: 'incidents',
+      seed(db: Database.Database, oldRows: number) {
+        const insert = db.prepare(
+          `INSERT INTO incidents
+           (id, dedupe_key, monitor, level, state, occurrence_count, opened_at, last_seen_at,
+            recovered_at, acknowledged_at, acknowledged_by, note, safe_summary)
+           VALUES (?, ?, 'backup', 'warning', 'recovered', 1, ?, ?, ?, NULL, NULL, NULL, 'old')`
+        );
+        for (let index = 0; index < oldRows; index += 1) {
+          const timestamp = `2026-01-01T00:00:${String(index % 60).padStart(2, '0')}.000Z`;
+          insert.run(`old-${index}`, `dedupe-${index}`, timestamp, timestamp, timestamp);
+        }
+        insert.run(
+          'new-incident',
+          'dedupe-new',
+          '2026-06-01T00:00:00.000Z',
+          '2026-06-01T00:00:00.000Z',
+          '2026-06-01T00:00:00.000Z'
+        );
+      },
+      remainingQuery: 'SELECT last_seen_at AS timestamp FROM incidents ORDER BY last_seen_at',
+      newerTimestamp: '2026-06-01T00:00:00.000Z'
+    },
+    {
+      table: 'alert_deliveries',
+      seed(db: Database.Database, oldRows: number) {
+        const insert = db.prepare(
+          `INSERT INTO alert_deliveries
+           (id, incident_id, recipient_ciphertext, kind, state, attempt_count,
+            next_attempt_at, last_error_code, created_at)
+           VALUES (?, NULL, 'recipient', 'new', 'sent', 1, ?, NULL, ?)`
+        );
+        for (let index = 0; index < oldRows; index += 1) {
+          const timestamp = `2026-01-01T00:00:${String(index % 60).padStart(2, '0')}.000Z`;
+          insert.run(`old-${index}`, timestamp, timestamp);
+        }
+        insert.run('new-delivery', '2026-06-01T00:00:00.000Z', '2026-06-01T00:00:00.000Z');
+      },
+      remainingQuery:
+        'SELECT next_attempt_at AS timestamp FROM alert_deliveries ORDER BY next_attempt_at',
+      newerTimestamp: '2026-06-01T00:00:00.000Z'
+    },
+    {
       table: 'audit_events',
-      rows: 1_000
-    });
-    expect(db.prepare('SELECT COUNT(*) AS count FROM audit_events').get()).toEqual({
-      count: 1_305
-    });
-    expect(db.prepare('SELECT MIN(occurred_at) AS oldest FROM audit_events').get()).toEqual({
-      oldest: new Date(Date.parse('2026-01-01T00:00:00.000Z') + 1_000).toISOString()
-    });
-  });
+      seed(db: Database.Database, oldRows: number) {
+        const insert = db.prepare(
+          "INSERT INTO audit_events (actor_id, action, target, details_json, occurred_at) VALUES (NULL, 'login_failed', 'ops-a', '{}', ?)"
+        );
+        for (let index = 0; index < oldRows; index += 1) {
+          insert.run(new Date(Date.parse('2026-01-01T00:00:00.000Z') + index).toISOString());
+        }
+        insert.run('2026-06-01T00:00:00.000Z');
+      },
+      remainingQuery: 'SELECT occurred_at AS timestamp FROM audit_events ORDER BY occurred_at',
+      newerTimestamp: '2026-06-01T00:00:00.000Z'
+    },
+    {
+      table: 'login_attempts',
+      seed(db: Database.Database, oldRows: number) {
+        const insert = db.prepare(
+          "INSERT INTO login_attempts (username, attempted_at, success) VALUES ('ops-user', ?, 0)"
+        );
+        for (let index = 0; index < oldRows; index += 1) {
+          insert.run(new Date(Date.parse('2026-01-01T00:00:00.000Z') + index).toISOString());
+        }
+        insert.run('2026-06-01T00:00:00.000Z');
+      },
+      remainingQuery: 'SELECT attempted_at AS timestamp FROM login_attempts ORDER BY attempted_at',
+      newerTimestamp: '2026-06-01T00:00:00.000Z'
+    }
+  ])(
+    'prunes old $table rows in batches of at most 1,000 and keeps newer rows',
+    ({ table, seed, remainingQuery, newerTimestamp }) => {
+      const store = makeStore();
+      const db = store.getDatabaseForBackup();
+      seed(db, 1_002);
+
+      const batches: Array<{ table: string; rows: number }> = [];
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const result = store.pruneRetentionBatch(nowIso);
+        if (result.status === 'complete') break;
+        if (result.status === 'not_due') throw new Error('Retention unexpectedly not due');
+        if (!result.table) throw new Error('Retention batch omitted its table name');
+        expect(result.rows).toBeLessThanOrEqual(1_000);
+        batches.push({ table: result.table, rows: result.rows });
+      }
+
+      expect(batches).toEqual([
+        { table, rows: 1_000 },
+        { table, rows: 2 }
+      ]);
+      expect(db.prepare(remainingQuery).all()).toEqual([{ timestamp: newerTimestamp }]);
+    }
+  );
 });

@@ -891,10 +891,9 @@ export function createOpsStore(
         orderBy: string,
         cutoff: string
       ): number => {
-        const rowIdSelection = table === 'audit_events' ? 'id AS rowid' : 'rowid';
         const selected = db
           .prepare(
-            `SELECT ${rowIdSelection} FROM ${table} WHERE ${where}
+            `SELECT rowid AS rowid FROM ${table} WHERE ${where}
              ORDER BY ${orderBy}, rowid ASC LIMIT ?`
           )
           .all(cutoff, RETENTION_BATCH_SIZE) as Array<{ rowid: number }>;
